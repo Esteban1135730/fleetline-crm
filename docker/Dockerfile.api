@@ -1,6 +1,9 @@
 # Fleetline API — NestJS (monorepo pnpm)
-FROM node:20-alpine AS base
-RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
+# alpine3.20: Prisma encuentra libssl en /lib (evita crash en alpine 3.21+)
+FROM node:20-alpine3.20 AS base
+RUN apk add --no-cache openssl libc6-compat \
+  && corepack enable \
+  && corepack prepare pnpm@9.15.9 --activate
 WORKDIR /app
 
 FROM base AS deps
@@ -28,4 +31,4 @@ WORKDIR /app
 COPY --from=build /app /app
 RUN mkdir -p /app/uploads
 EXPOSE 4000
-CMD ["sh", "-c", "pnpm --filter @fsg/db migrate && node apps/api/dist/main.js"]
+CMD ["sh", "-c", "pnpm --filter @fsg/db migrate && exec node apps/api/dist/main.js"]
