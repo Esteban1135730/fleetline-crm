@@ -56,7 +56,8 @@ ss -tlnp | grep -E ':(80|443|3000|3010|4000|4010|5432|55432|6379)\s'
 sudo mkdir -p /opt/fleetline
 sudo chown $USER:$USER /opt/fleetline
 cd /opt/fleetline
-git clone https://github.com/ESTEBAN_USER/fleetline-crm.git .
+git clone https://github.com/Esteban1135730/fleetline-crm.git .
+
 ```
 
 (Sustituye la URL por la de tu repo.)
