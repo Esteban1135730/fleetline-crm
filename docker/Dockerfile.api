@@ -1,0 +1,31 @@
+# Fleetline API — NestJS (monorepo pnpm)
+FROM node:20-alpine AS base
+RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
+WORKDIR /app
+
+FROM base AS deps
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json tsconfig.base.json ./
+COPY packages/db/package.json ./packages/db/
+COPY packages/shared/package.json ./packages/shared/
+COPY packages/config/package.json ./packages/config/
+COPY apps/api/package.json ./apps/api/
+RUN pnpm install --frozen-lockfile --filter @fsg/api...
+
+FROM base AS build
+COPY --from=deps /app /app
+COPY packages/db ./packages/db
+COPY packages/shared ./packages/shared
+COPY packages/config ./packages/config
+COPY apps/api ./apps/api
+RUN pnpm --filter @fsg/db generate \
+  && pnpm --filter @fsg/shared build \
+  && pnpm --filter @fsg/db build \
+  && pnpm --filter @fsg/api build
+
+FROM base AS runner
+ENV NODE_ENV=production
+WORKDIR /app
+COPY --from=build /app /app
+RUN mkdir -p /app/uploads
+EXPOSE 4000
+CMD ["sh", "-c", "pnpm --filter @fsg/db migrate && node apps/api/dist/main.js"]

@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>INREDESOFT FSG - Enterprise OS v2026 (Galactic Edition)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap');
+        
+        :root { --bg-deep: #020617; --bg-panel: #0f172a; --border: #1e293b; --cyan: #06b6d4; --emerald: #10b981; --rose: #f43f5e; --amber: #f59e0b; --purple: #8b5cf6; }
+        body { font-family: 'Inter', sans-serif; background-color: var(--bg-deep); color: #f8fafc; overflow: hidden; font-size: 13px; transition: zoom 0.3s ease; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--cyan); }
+        
+        .panel { background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(16px); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5); transition: border-color 0.3s ease; }
+        .nav-btn { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); border-left: 2px solid transparent; position: relative; overflow: hidden; }
+        .nav-btn:hover { background: rgba(30, 41, 59, 0.5); color: #e2e8f0; }
+        .nav-btn.active { border-left-color: var(--cyan); background: linear-gradient(90deg, rgba(6,182,212,0.1) 0%, transparent 100%); color: var(--cyan); font-weight: 600; }
+        
+        .draggable { cursor: grab; transition: all 0.2s; border: 1px solid #334155; }
+        .draggable:active { cursor: grabbing; transform: scale(0.95); opacity: 0.9; border-color: var(--cyan); box-shadow: 0 0 15px rgba(6,182,212,0.3); }
+        .dropzone { transition: all 0.3s; border: 1px dashed transparent; }
+        .dropzone.drag-over { background: rgba(16,185,129,0.1) !important; border: 1px dashed var(--emerald) !important; box-shadow: inset 0 0 20px rgba(16,185,129,0.1); }
+        
+        .fade-in { animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); filter: blur(2px); } to { opacity: 1; transform: translateY(0); filter: blur(0); } }
+        
+        /* Ticker Animation */
+        .ticker-wrap { width: 100%; overflow: hidden; background-color: #020617; border-bottom: 1px solid #1e293b; padding: 4px 0; }
+        .ticker { display: inline-block; white-space: nowrap; padding-right: 100%; box-sizing: content-box; animation: ticker 40s linear infinite; }
+        .ticker:hover { animation-play-state: paused; }
+        @keyframes ticker { 0% { transform: translate3d(0, 0, 0); } 100% { transform: translate3d(-100%, 0, 0); } }
+        .ticker-item { display: inline-block; padding: 0 2rem; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #94a3b8; }
+        .ticker-val { color: var(--cyan); font-weight: bold; }
+
+        /* Crisis Mode Styles */
+        body.crisis-mode .panel { border-color: rgba(244,63,94,0.5); box-shadow: 0 0 20px rgba(244,63,94,0.1); }
+        body.crisis-mode header { border-bottom-color: var(--rose); background: rgba(244,63,94,0.05); }
+        body.crisis-mode .ticker-wrap { background-color: #4c0519; border-bottom-color: var(--rose); }
+        body.crisis-mode .ticker-item { color: #fecdd3; }
+        body.crisis-mode .ticker-val { color: #fff; }
+
+        /* GPS Dot Animations */
+        @keyframes moveGps1 { 0% { transform: translate(0, 0); } 50% { transform: translate(25px, -20px); } 100% { transform: translate(0, 0); } }
+        @keyframes moveGps2 { 0% { transform: translate(0, 0); } 50% { transform: translate(-30px, 15px); } 100% { transform: translate(0, 0); } }
+        .gps-dot-1 { animation: moveGps1 8s ease-in-out infinite; cursor: pointer; }
+        .gps-dot-2 { animation: moveGps2 12s ease-in-out infinite; cursor: pointer; }
+        .gps-dot:hover { transform: scale(1.5); }
+
+        #toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 9999; display: flex; flex-direction: column; gap: 12px; pointer-events: none; }
+        .toast { background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(10px); border-left: 3px solid var(--cyan); padding: 14px 18px; border-radius: 8px; box-shadow: 0 15px 35px rgba(0,0,0,0.5); display: flex; align-items: center; gap: 14px; transform: translateX(120%); transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); min-width: 320px; pointer-events: auto; border: 1px solid #1e293b; }
+        .toast.show { transform: translateX(0); }
+
+        .data-table th { background: #020617; color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; padding: 12px 16px; border-bottom: 1px solid #1e293b; font-weight: 700; }
+        .data-table td { padding: 12px 16px; border-bottom: 1px solid #1e293b; color: #cbd5e1; transition: background 0.2s; }
+        .data-table tr:hover td { background: rgba(15, 23, 42, 0.8); }
+
+        .progress-bar-bg { background: #1e293b; border-radius: 9999px; height: 6px; width: 100%; overflow: hidden; }
+        .progress-bar-fill { height: 100%; border-radius: 9999px; transition: width 1s ease-in-out; }
+        
+        .chat-bubble { padding: 10px 14px; border-radius: 12px; max-width: 80%; text-sm; margin-bottom: 8px; clear: both;}
+        .chat-incoming { background: #1e293b; color: #f8fafc; border-bottom-left-radius: 2px; float: left;}
+        .chat-outgoing { background: var(--cyan); color: #020617; border-bottom-right-radius: 2px; float: right; font-weight: 500;}
+
+        /* ===== MODO PROYECTOR ===== */
+        .projector-mode { zoom: 1.15; }
+        .projector-mode .text-slate-500 { color: #94a3b8; font-weight: 600; }
+        .projector-mode .text-slate-400 { color: #cbd5e1; font-weight: 500; }
+        .projector-mode .panel { border: 2px solid #334155; box-shadow: 0 15px 40px rgba(0,0,0,0.8); }
+        .projector-mode input, .projector-mode select, .projector-mode textarea { font-size: 14px !important; }
+        
+        /* Mobile Simulator Styles */
+        .phone-mockup { width: 320px; height: 640px; border: 12px solid #0f172a; border-radius: 45px; background: #020617; position: relative; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.9); overflow: hidden; margin: 0 auto; }
+        .phone-notch { position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 120px; height: 24px; background: #0f172a; border-bottom-left-radius: 16px; border-bottom-right-radius: 16px; z-index: 50; }
+        .app-screen { width: 100%; height: 100%; background: #020617; position: relative; overflow-y: auto; overflow-x: hidden; scroll-behavior: smooth; }
+        .app-btn-interactive { transition: all 0.2s; cursor: pointer; }
+        .app-btn-interactive:active { transform: scale(0.95); }
+    </style>
+</head>
+<body class="flex w-full h-screen">
+
+    <!-- ================= SIDEBAR ================= -->
+    <aside class="w-[260px] bg-[#020617] border-r border-[#1e293b] flex flex-col shrink-0 z-40 shadow-[4px_0_24px_rgba(0,0,0,0.5)]">
+        <div class="h-24 flex flex-col justify-center px-6 border-b border-[#1e293b] bg-gradient-to-r from-cyan-900/10 to-transparent">
+            <div class="flex items-center gap-3 mb-3">
+                <div class="w-8 h-8 rounded bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-white shadow-[0_0_15px_rgba(6,182,212,0.4)]"><i class="fa-solid fa-infinity text-sm"></i></div>
+                <div><h1 class="font-bold tracking-widest text-white leading-none text-sm">FSG MEGA OS</h1><p class="text-[9px] text-cyan-400 font-mono uppercase tracking-widest mt-1">Galactic Edition</p></div>
+            </div>
+            <!-- RBAC SELECTOR -->
+            <select id="rbac-selector" onchange="app.rbac.switch(this.value)" class="w-full bg-[#0f172a] text-cyan-400 text-[10px] border border-[#334155] rounded px-2 py-1 focus:outline-none font-mono uppercase cursor-pointer transition-all hover:border-cyan-500">
+                <option value="presidencia">👑 CEO (Acceso Total)</option>
+                <option value="gerencia">📊 Dir. Operaciones</option>
+                <option value="finanzas">💰 Dir. Financiero / Auditor</option>
+                <option value="despacho">📡 Despachador</option>
+            </select>
+        </div>
+        
+        <nav class="flex-1 overflow-y-auto py-4 custom-scrollbar" id="main-nav">
+            <div class="px-6 mb-2 rbac-item" data-roles="presidencia,gerencia,finanzas"><p class="text-[10px] font-bold uppercase tracking-widest text-slate-500">1. Dirección</p></div>
+            <button onclick="app.nav.go('dashboard')" class="nav-btn active flex items-center gap-3 px-6 py-2.5 w-full text-left text-slate-300 font-medium rbac-item" data-roles="presidencia,gerencia,finanzas" data-view="dashboard"><i class="fa-solid fa-border-all w-4 text-center"></i> Dashboard SSOT</button>
+            <button onclick="app.nav.go('apps')" class="nav-btn flex items-center gap-3 px-6 py-2.5 w-full text-left text-slate-300 font-medium rbac-item" data-roles="presidencia,gerencia" data-view="apps"><i class="fa-solid fa-mobile-screen w-4 text-center text-purple-400"></i> Apps Móviles</button>
+            
+            <div class="px-6 mt-4 mb-2 rbac-item" data-roles="presidencia,gerencia,despacho"><p class="text-[10px] font-bold uppercase tracking-widest text-slate-500">2. Operación Core</p></div>
+            <button onclick="app.nav.go('comercial')" class="nav-btn flex items-center gap-3 px-6 py-2.5 w-full text-left text-slate-300 font-medium rbac-item" data-roles="presidencia,gerencia" data-view="comercial"><i class="fa-solid fa-handshake w-4 text-center text-cyan-400"></i> Comercial B2B</button>
+            <button onclick="app.nav.go('logistica')" class="nav-btn flex items-center gap-3 px-6 py-2.5 w-full text-left text-slate-300 font-medium rbac-item" data-roles="presidencia,gerencia,despacho" data-view="logistica"><i class="fa-solid fa-satellite-dish w-4 text-center text-emerald-400"></i> Torre Logística</button>
+            <button onclick="app.nav.go('taller')" class="nav-btn flex items-center gap-3 px-6 py-2.5 w-full text-left text-slate-300 font-medium rbac-item" data-roles="presidencia,gerencia,despacho" data-view="taller"><i class="fa-solid fa-wrench w-4 text-center text-amber-500"></i> Taller y Flota</button>
+
+            <div class="px-6 mt-4 mb-2 rbac-item" data-roles="presidencia,finanzas,gerencia"><p class="text-[10px] font-bold uppercase tracking-widest text-slate-500">3. Admin & Finanzas</p></div>
+            <button onclick="app.nav.go('finanzas')" class="nav-btn flex items-center gap-3 px-6 py-2.5 w-full text-left text-slate-300 font-medium rbac-item" data-roles="presidencia,finanzas" data-view="finanzas"><i class="fa-solid fa-wallet w-4 text-center text-emerald-400"></i> Tesorería & Pagos</button>
+            <button onclick="app.nav.go('contabilidad')" class="nav-btn flex items-center gap-3 px-6 py-2.5 w-full text-left text-slate-300 font-medium rbac-item" data-roles="presidencia,finanzas" data-view="contabilidad"><i class="fa-solid fa-calculator w-4 text-center text-slate-400"></i> Libro Mayor (PUC)</button>
+            <button onclick="app.nav.go('revisoria')" class="nav-btn flex items-center gap-3 px-6 py-2.5 w-full text-left text-slate-300 font-medium rbac-item" data-roles="presidencia,finanzas" data-view="revisoria"><i class="fa-solid fa-eye w-4 text-center text-[#39ff14]"></i> Revisoría Forense</button>
+            <button onclick="app.nav.go('rrhh')" class="nav-btn flex items-center gap-3 px-6 py-2.5 w-full text-left text-slate-300 font-medium rbac-item" data-roles="presidencia,gerencia" data-view="rrhh"><i class="fa-solid fa-users w-4 text-center"></i> Recursos Humanos</button>
+
+            <div class="px-6 mt-4 mb-2 rbac-item" data-roles="presidencia,gerencia,finanzas"><p class="text-[10px] font-bold uppercase tracking-widest text-slate-500">4. Soporte & Compliance</p></div>
+            <button onclick="app.nav.go('atencion')" class="nav-btn flex items-center gap-3 px-6 py-2.5 w-full text-left text-slate-300 font-medium rbac-item" data-roles="presidencia,gerencia" data-view="atencion"><i class="fa-solid fa-headset w-4 text-center text-cyan-500"></i> Atención Omnicanal</button>
+            <button onclick="app.nav.go('calidad')" class="nav-btn flex items-center gap-3 px-6 py-2.5 w-full text-left text-slate-300 font-medium rbac-item" data-roles="presidencia,gerencia" data-view="calidad"><i class="fa-solid fa-star w-4 text-center text-amber-400"></i> QHSE & NPS</button>
+            <button onclick="app.nav.go('juridico')" class="nav-btn flex items-center gap-3 px-6 py-2.5 w-full text-left text-slate-300 font-medium rbac-item" data-roles="presidencia,finanzas" data-view="juridico"><i class="fa-solid fa-scale-balanced w-4 text-center text-indigo-400"></i> Jurídico (FUEC)</button>
+            <button onclick="app.nav.go('sarlaft')" class="nav-btn flex items-center gap-3 px-6 py-2.5 w-full text-left text-slate-300 font-medium rbac-item" data-roles="presidencia,finanzas" data-view="sarlaft"><i class="fa-solid fa-fingerprint w-4 text-center text-rose-500"></i> SARLAFT IA</button>
+            <button onclick="app.nav.go('archivo')" class="nav-btn flex items-center gap-3 px-6 py-2.5 w-full text-left text-slate-300 font-medium rbac-item" data-roles="presidencia,finanzas" data-view="archivo"><i class="fa-solid fa-folder-tree w-4 text-center"></i> Archivo Data Room</button>
+            <button onclick="app.nav.go('recepcion')" class="nav-btn flex items-center gap-3 px-6 py-2.5 w-full text-left text-slate-300 font-medium rbac-item" data-roles="presidencia" data-view="recepcion"><i class="fa-solid fa-bell-concierge w-4 text-center"></i> Recepción</button>
+            <button onclick="app.nav.go('sistemas')" class="nav-btn flex items-center gap-3 px-6 py-2.5 w-full text-left text-slate-300 font-medium rbac-item" data-roles="presidencia" data-view="sistemas"><i class="fa-solid fa-server w-4 text-center text-slate-400"></i> Sistemas (TI)</button>
+        </nav>
+    </aside>
+
+    <!-- ================= MAIN WORKSPACE ================= -->
+    <main class="flex-1 flex flex-col h-screen overflow-hidden relative bg-[#06090f]">
+        
+        <!-- HEADER -->
+        <header class="h-16 border-b border-[#1e293b] flex items-center justify-between px-8 bg-[#020617]/90 backdrop-blur-md shrink-0 z-20">
+            <div class="flex items-center gap-4 w-1/2">
+                <div class="relative w-full max-w-xl group">
+                    <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-500 group-focus-within:text-cyan-400 transition-colors"></i>
+                    <input type="text" placeholder="Búsqueda Transversal (NIT, Placa, Cliente, Factura)..." class="w-full bg-[#0f172a] border border-[#334155] rounded-full pl-10 pr-4 py-2 text-xs text-white focus:border-[#06b6d4] focus:outline-none transition-all shadow-inner">
+                </div>
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="text-[10px] text-slate-400 font-mono flex items-center gap-2 mr-2"><div class="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981] animate-pulse"></div> DB SSOT: <span class="text-emerald-400 font-bold">SYNCED</span></div>
+                <div class="w-px h-6 bg-[#1e293b]"></div>
+                <!-- BOTÓN CRISIS (NUEVO) -->
+                <button onclick="app.simulations.triggerCrisis()" class="px-3 py-2 rounded-full border border-rose-500/50 hover:bg-rose-500/20 bg-rose-950/30 text-rose-500 transition-all shadow-[0_0_10px_rgba(244,63,94,0.2)]" title="Simulacro de Crisis (Cierre de Vía)"><i class="fa-solid fa-triangle-exclamation animate-pulse"></i></button>
+                <!-- BOTÓN MODO PROYECTOR -->
+                <button onclick="app.utils.toggleProjectorMode()" class="px-3 py-2 rounded-full border border-[#334155] hover:border-amber-500 hover:bg-amber-500/10 bg-[#0f172a] text-slate-400 hover:text-amber-400 transition-all shadow-lg" title="Modo Pantalla Gigante"><i class="fa-solid fa-display"></i></button>
+                <div class="relative cursor-pointer hover:text-cyan-400 transition-colors text-slate-400">
+                    <i class="fa-regular fa-bell text-lg"></i>
+                    <div class="absolute -top-1 -right-1 w-3 h-3 bg-cyan-500 rounded-full border-2 border-[#020617]"></div>
+                </div>
+                <button onclick="app.ai.openTerminal('Copiloto IA - Nivel 5', 'Conectado a la base de datos maestra. Esperando instrucciones analíticas...')" class="px-4 py-2 rounded-full border border-[#334155] hover:border-cyan-500 bg-[#0f172a] hover:bg-cyan-900/20 text-white text-xs font-bold transition-all flex items-center gap-2 shadow-[0_0_15px_rgba(6,182,212,0.1)]"><i class="fa-solid fa-brain text-cyan-400"></i> IA Copilot</button>
+            </div>
+        </header>
+
+        <!-- TICKER BURSÁTIL/OPERATIVO (NUEVO) -->
+        <div class="ticker-wrap shrink-0 z-10 relative">
+            <div class="ticker" id="global-ticker">
+                <div class="ticker-item">Ingresos MTD: <span class="ticker-val">$1,245.8M</span> <i class="fa-solid fa-caret-up text-emerald-500"></i></div>
+                <div class="ticker-item">Viajes Activos: <span class="ticker-val">142</span></div>
+                <div class="ticker-item">NPS Global: <span class="ticker-val">4.8/5</span> <i class="fa-solid fa-face-smile text-emerald-500"></i></div>
+                <div class="ticker-item">Alerta Invías: <span class="ticker-val text-amber-500">Tráfico Lento Ruta Norte</span></div>
+                <div class="ticker-item">API Clima: <span class="ticker-val">Bogotá 18°C (Lluvia ligera)</span></div>
+                <div class="ticker-item">Servidores GCP: <span class="ticker-val text-emerald-500">Óptimos (99.99%)</span></div>
+                <div class="ticker-item">Tickets Abiertos: <span class="ticker-val">3</span></div>
+                <!-- Duplicate for seamless scroll -->
+                <div class="ticker-item">Ingresos MTD: <span class="ticker-val">$1,245.8M</span> <i class="fa-solid fa-caret-up text-emerald-500"></i></div>
+                <div class="ticker-item">Viajes Activos: <span class="ticker-val">142</span></div>
+                <div class="ticker-item">NPS Global: <span class="ticker-val">4.8/5</span> <i class="fa-solid fa-face-smile text-emerald-500"></i></div>
+                <div class="ticker-item">Alerta Invías: <span class="ticker-val text-amber-500">Tráfico Lento Ruta Norte</span></div>
+                <div class="ticker-item">API Clima: <span class="ticker-val">Bogotá 18°C (Lluvia ligera)</span></div>
+                <div class="ticker-item">Servidores GCP: <span class="ticker-val text-emerald-500">Óptimos (99.99%)</span></div>
+                <div class="ticker-item">Tickets Abiertos: <span class="ticker-val">3</span></div>
+            </div>
+        </div>
+
+        <!-- VIEWS CONTAINER -->
+        <div id="views-container" class="flex-1 overflow-y-auto p-8 relative custom-scrollbar">
+            
+            <!-- ================= 1. DASHBOARD PRESIDENCIAL ================= -->
+            <div id="view-dashboard" class="view-section block fade-in max-w-[1600px] mx-auto">
+                <div class="flex justify-between items-end mb-6">
+                    <div><h2 class="text-3xl font-bold text-white tracking-tight">Dashboard Central (SSOT)</h2><p class="text-slate-400 text-sm mt-1">Visión estratégica de 360° de toda la compañía.</p></div>
+                    <button onclick="app.simulations.refreshDashboard()" class="px-4 py-2 border border-[#334155] text-slate-300 hover:text-white hover:border-cyan-500 rounded flex items-center gap-2 transition-all text-xs bg-[#0f172a]"><i class="fa-solid fa-arrows-rotate" id="refresh-icon"></i> Sincronizar Datos</button>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-5 mb-6 widget-presidencia">
+                    <div class="panel p-6 border-t-2 border-cyan-500 cursor-pointer hover:bg-[#1e293b]/50 transition-colors"><p class="text-[11px] uppercase text-slate-400 font-bold mb-2">Ingresos MTD</p><h3 class="text-3xl font-mono text-white font-bold" id="dash-ingresos">$1,245.8M</h3><p class="text-xs text-emerald-400 mt-2"><i class="fa-solid fa-arrow-trend-up"></i> +12% vs Mes Anterior</p></div>
+                    <div class="panel p-6 border-t-2 border-emerald-500 cursor-pointer hover:bg-[#1e293b]/50 transition-colors"><p class="text-[11px] uppercase text-slate-400 font-bold mb-2">Margen Utilidad Real</p><h3 class="text-3xl font-mono text-white font-bold">31.2%</h3><p class="text-xs text-emerald-400 mt-2">Rentabilidad Óptima (>25%)</p></div>
+                    <div class="panel p-6 border-t-2 border-amber-500 cursor-pointer hover:bg-[#1e293b]/50 transition-colors" onclick="app.nav.go('logistica')"><p class="text-[11px] uppercase text-slate-400 font-bold mb-2">Flota en Operación</p><h3 class="text-3xl font-mono text-white font-bold" id="dash-flota">142<span class="text-lg text-slate-500">/150</span></h3><p class="text-xs text-amber-400 mt-2">Transmitiendo vía GPS</p></div>
+                    <div class="panel p-6 border-t-2 border-rose-500 cursor-pointer hover:bg-[#1e293b]/50 transition-colors" onclick="app.nav.go('sistemas')"><p class="text-[11px] uppercase text-slate-400 font-bold mb-2">Bloqueos de Regla (Hoy)</p><h3 class="text-3xl font-mono text-rose-500 font-bold">3</h3><p class="text-xs text-rose-400 mt-2">Prevenciones Logísticas Activas</p></div>
+                </div>
+                <!-- Despacho Widgets -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6 widget-despacho hidden">
+                    <div class="panel p-6 border-t-2 border-emerald-500"><p class="text-[11px] uppercase text-slate-400 font-bold mb-2">Viajes Asignados Hoy</p><h3 class="text-3xl font-mono text-white font-bold">84</h3></div>
+                    <div class="panel p-6 border-t-2 border-amber-500"><p class="text-[11px] uppercase text-slate-400 font-bold mb-2">Novedades en Vía</p><h3 class="text-3xl font-mono text-white font-bold" id="dash-novedades">2</h3></div>
+                    <div class="panel p-6 border-t-2 border-rose-500"><p class="text-[11px] uppercase text-slate-400 font-bold mb-2">Vehículos en Taller</p><h3 class="text-3xl font-mono text-white font-bold">8</h3></div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                    <div class="panel p-6 flex flex-col">
+                        <h3 class="text-xs font-bold text-slate-300 uppercase tracking-widest mb-4 border-b border-[#1e293b] pb-2">Distribución de Ingresos</h3>
+                        <div class="relative w-full flex-1 flex justify-center min-h-[200px]"><canvas id="doughnutChart"></canvas></div>
+                    </div>
+                    <div class="panel p-6 lg:col-span-2 flex flex-col">
+                        <h3 class="text-xs font-bold text-slate-300 uppercase tracking-widest mb-4 border-b border-[#1e293b] pb-2">Flujo de Caja: Facturado vs Gastos Operativos</h3>
+                        <div class="relative w-full flex-1 min-h-[200px]"><canvas id="mainChart"></canvas></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================= 2. COMERCIAL ================= -->
+            <div id="view-comercial" class="view-section hidden fade-in h-full flex flex-col max-w-[1600px] mx-auto">
+                <div class="mb-6"><h2 class="text-2xl font-bold text-white">Comercial: Embudo B2B & Cotizador API</h2><p class="text-sm text-slate-400">Cotiza usando Google Maps. Arrastra a "Ganado" para disparar el evento KAFKA a Operaciones.</p></div>
+                <div class="flex flex-col lg:flex-row gap-6 flex-1 min-h-0">
+                    <div class="w-full lg:w-[350px] flex flex-col shrink-0 gap-6">
+                        <div class="panel p-6 border-t-2 border-cyan-500">
+                            <h3 class="text-xs font-bold text-cyan-400 uppercase tracking-widest mb-4"><i class="fa-solid fa-map-location-dot"></i> Dynamic Pricing API</h3>
+                            <div class="space-y-4">
+                                <div><label class="text-[11px] text-slate-400 uppercase font-bold">Cliente B2B</label><select class="w-full bg-[#020617] border border-[#1e293b] rounded p-2 text-xs text-white outline-none focus:border-cyan-500"><option>Alpina S.A.</option><option>Nuevo Prospecto...</option></select></div>
+                                <div><label class="text-[11px] text-slate-400 uppercase font-bold">Origen -> Destino</label><input type="text" value="Bogotá -> Cajicá" class="w-full bg-[#020617] border border-[#1e293b] rounded p-2 text-xs text-white outline-none focus:border-cyan-500"></div>
+                                <div><label class="text-[11px] text-slate-400 uppercase font-bold">Vehículo</label><select class="w-full bg-[#020617] border border-[#1e293b] rounded p-2 text-xs text-white outline-none"><option>Van Ejecutiva 19 Pax</option><option>Buseta 40 Pax</option></select></div>
+                                <button onclick="app.simulations.comercialCotizar()" class="w-full py-2 bg-[#0f172a] hover:bg-[#1e293b] text-cyan-400 border border-cyan-500/30 rounded text-sm font-bold transition-all"><i class="fa-brands fa-google"></i> Calcular Vía Maps API</button>
+                                <div><label class="text-[11px] text-slate-400 uppercase font-bold">Monto Sugerido (COP)</label><input type="text" id="com-price" value="$ 0" disabled class="w-full bg-[#020617] text-white font-mono font-bold border border-[#1e293b] rounded p-2 text-sm text-right"></div>
+                                <button onclick="app.utils.toast('Smart Link Generado', 'Enlace enviado al cliente para firma.', 'success')" class="w-full py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded text-sm font-bold mt-2 transition-all">Generar Smart Link</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex-1 flex gap-4 overflow-x-auto custom-scrollbar">
+                        <!-- Leads -->
+                        <div class="w-[300px] flex flex-col shrink-0">
+                            <h4 class="text-xs font-bold text-slate-300 uppercase tracking-widest mb-3 flex justify-between">En Negociación <span class="bg-[#1e293b] px-2 rounded">2</span></h4>
+                            <div class="panel p-3 flex-1 dropzone bg-[#0f172a]/50" ondragover="app.dnd.over(event)" ondrop="app.dnd.drop(event)">
+                                <div class="bg-[#020617] p-4 rounded border border-[#1e293b] draggable hover:border-cyan-500 transition-colors mb-3" id="deal-1" draggable="true" ondragstart="app.dnd.start(event)">
+                                    <h4 class="font-bold text-white text-sm mb-1">Alpina - Visita Planta</h4>
+                                    <p class="text-[11px] text-slate-400 mb-3">ID: #TRP-8501 | Pax: 19</p>
+                                    <span class="font-mono text-cyan-400 font-bold text-sm">$850,000</span>
+                                </div>
+                                <div class="bg-[#020617] p-4 rounded border border-[#1e293b] draggable hover:border-cyan-500 transition-colors" id="deal-2" draggable="true" ondragstart="app.dnd.start(event)">
+                                    <h4 class="font-bold text-white text-sm mb-1">Bancolombia - Evento VIP</h4>
+                                    <p class="text-[11px] text-slate-400 mb-3">ID: #TRP-8492 | Pax: 40</p>
+                                    <span class="font-mono text-cyan-400 font-bold text-sm">$1,850,000</span>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Ganados / Kafka Dropzone -->
+                        <div class="w-[300px] flex flex-col shrink-0 relative overflow-hidden">
+                            <div id="event-line" class="event-bus-line"></div>
+                            <h4 class="text-xs font-bold text-emerald-400 uppercase tracking-widest mb-3"><i class="fa-solid fa-check-double"></i> Contrato Ganado</h4>
+                            <div class="panel p-3 flex-1 dropzone bg-emerald-900/10 border border-emerald-500/20 flex flex-col items-center justify-center text-center" ondragover="app.dnd.over(event)" ondrop="app.dnd.dropHandshake(event)">
+                                <i class="fa-solid fa-bolt text-emerald-500 text-3xl mb-3 opacity-50"></i>
+                                <p class="text-sm text-emerald-500/80 font-mono font-bold mb-2">ARRASTRA AQUÍ</p>
+                                <p class="text-[11px] text-slate-400 px-4">Disparará evento KAFKA a Torre Logística y a Facturación.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================= 3. LOGÍSTICA & RADAR ================= -->
+            <div id="view-logistica" class="view-section hidden fade-in h-full flex flex-col max-w-[1600px] mx-auto">
+                <div class="mb-6"><h2 class="text-2xl font-bold text-white">Torre de Control, Clima & Radar</h2><p class="text-sm text-slate-400">Intenta asignar el viaje al vehículo XYZ-999 para ver el <strong>bloqueo preventivo (Hard-Block)</strong> de Jurídico.</p></div>
+                
+                <div class="flex flex-col lg:flex-row gap-6 flex-1 min-h-0">
+                    <div class="w-full lg:w-[350px] flex flex-col shrink-0 gap-4">
+                        <!-- Radar 3D -->
+                        <div class="panel flex-1 flex flex-col overflow-hidden relative border-t-2 border-emerald-500 min-h-[250px]">
+                            <div class="absolute inset-0 bg-[#020617] opacity-80 z-0" style="background-image: linear-gradient(rgba(16, 185, 129, 0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(16, 185, 129, 0.1) 1px, transparent 1px); background-size: 20px 20px;"></div>
+                            <div class="absolute top-1/2 left-1/2 w-[200%] h-[200%] bg-[conic-gradient(from_0deg,transparent_70%,rgba(16,185,129,0.3)_100%)] origin-top-left -translate-x-1/2 -translate-y-1/2 animate-[spin_4s_linear_infinite] pointer-events-none z-0"></div>
+                            <div class="p-4 z-10 bg-[#020617]/50 border-b border-[#1e293b] backdrop-blur-sm"><h3 class="text-xs font-bold text-emerald-400 uppercase tracking-widest"><i class="fa-solid fa-satellite-dish animate-pulse mr-2"></i> Radar Flota GPS</h3></div>
+                            <div class="flex-1 z-10 relative">
+                                <div onclick="app.simulations.radarClick('ABC-123', '65 km/h')" class="w-4 h-4 bg-emerald-400 rounded-full shadow-[0_0_15px_#10b981] absolute top-1/3 left-1/4 gps-dot-1 gps-dot transition-transform"></div>
+                                <div onclick="app.simulations.radarClick('FTX-412', '42 km/h')" class="w-4 h-4 bg-cyan-400 rounded-full shadow-[0_0_15px_#06b6d4] absolute top-1/2 left-1/2 gps-dot-2 gps-dot transition-transform"></div>
+                            </div>
+                        </div>
+
+                        <!-- Integración Clima/Tráfico -->
+                        <div class="panel p-4 border-t-2 border-amber-500 bg-[#020617]/80" id="api-trafico-panel">
+                            <h3 class="text-xs font-bold text-amber-400 uppercase tracking-widest mb-3 flex items-center gap-2"><i class="fa-solid fa-cloud-bolt"></i> Clima & Tráfico (API)</h3>
+                            <div class="bg-amber-950/20 border border-amber-500/30 p-2 rounded flex items-start gap-3 mb-2">
+                                <i class="fa-solid fa-cloud-showers-heavy text-amber-500 mt-1"></i>
+                                <div><p class="text-white text-xs font-bold">Ruta Norte (Bogotá)</p><p class="text-[10px] text-slate-400">Lluvia fuerte. ETA ajustado en +15 min para Rutas Escolares.</p></div>
+                            </div>
+                        </div>
+
+                        <!-- Inbox KAFKA -->
+                        <div class="panel p-4 bg-[#020617]/50 border-t-2 border-cyan-500">
+                            <h3 class="text-xs font-bold text-cyan-400 uppercase tracking-widest mb-3">Inbox Pendientes (Kafka)</h3>
+                            <div class="bg-[#0f172a] border border-cyan-500/50 p-3 rounded draggable cursor-grab hover:bg-cyan-900/30 shadow-lg" draggable="true" id="trip-assign" ondragstart="app.dnd.start(event)">
+                                <h4 class="font-bold text-white text-sm mb-1">Alpina - Visita <span class="bg-cyan-500/20 text-cyan-400 px-2 py-0.5 rounded text-[10px] ml-1">NUEVO</span></h4>
+                                <p class="text-[11px] text-slate-400 font-mono">14:00h | Req: Van 19 Pax</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Gantt Board Extendido -->
+                    <div class="panel flex-1 flex flex-col overflow-hidden bg-[#020617]">
+                        <div class="flex border-b border-[#1e293b] bg-[#0f172a] text-[10px] font-bold text-slate-300 uppercase">
+                            <div class="w-72 p-3 border-r border-[#1e293b]">Vehículo / Conductor</div>
+                            <div class="flex-1 p-3">Gantt de Asignación (Dropzone)</div>
+                        </div>
+                        
+                        <!-- Vehículos OK -->
+                        <div class="flex border-b border-[#1e293b] data-row" data-status="ok">
+                            <div class="w-72 p-3 border-r border-[#1e293b] flex items-center gap-3">
+                                <div class="w-10 h-10 bg-[#0f172a] border border-[#334155] rounded-lg flex items-center justify-center"><i class="fa-solid fa-van-shuttle text-emerald-400"></i></div>
+                                <div><p class="font-bold text-white text-sm font-mono">ABC-123</p><p class="text-[11px] text-slate-400">Carlos Mendoza <span class="text-emerald-500 font-bold ml-1">Libre</span></p></div>
+                            </div>
+                            <div class="flex-1 p-2 dropzone bg-[#0f172a]/20" ondragover="app.dnd.over(event)" ondrop="app.dnd.dropGantt(event)"></div>
+                        </div>
+                        <div class="flex border-b border-[#1e293b] data-row" data-status="ok">
+                            <div class="w-72 p-3 border-r border-[#1e293b] flex items-center gap-3">
+                                <div class="w-10 h-10 bg-[#0f172a] border border-[#334155] rounded-lg flex items-center justify-center"><i class="fa-solid fa-bus text-emerald-400"></i></div>
+                                <div><p class="font-bold text-white text-sm font-mono">XTR-440</p><p class="text-[11px] text-slate-400">Ana Rojas <span class="text-emerald-500 font-bold ml-1">Libre</span></p></div>
+                            </div>
+                            <div class="flex-1 p-2 dropzone bg-[#0f172a]/20" ondragover="app.dnd.over(event)" ondrop="app.dnd.dropGantt(event)"></div>
+                        </div>
+
+                        <!-- Vehículo Asignado (En Ruta) -->
+                        <div class="flex border-b border-[#1e293b] data-row" data-status="busy">
+                            <div class="w-72 p-3 border-r border-[#1e293b] flex items-center gap-3">
+                                <div class="w-10 h-10 bg-[#0f172a] border border-[#334155] rounded-lg flex items-center justify-center"><i class="fa-solid fa-van-shuttle text-cyan-400"></i></div>
+                                <div><p class="font-bold text-white text-sm font-mono">FTX-412</p><p class="text-[11px] text-slate-400">Mario Silva <span class="text-cyan-400 font-bold ml-1">En Ruta</span></p></div>
+                            </div>
+                            <div class="flex-1 p-2 cursor-not-allowed">
+                                <div class="w-full h-full bg-cyan-900/30 border border-cyan-500/50 rounded flex items-center justify-center"><span class="text-xs font-bold text-cyan-400">Viaje Ecopetrol #TRP-501 (En Curso)</span></div>
+                            </div>
+                        </div>
+
+                        <!-- Vehículo BLOQUEADO SOAT -->
+                        <div class="flex border-b border-rose-500/30 bg-rose-950/10 data-row" data-status="blocked_soat">
+                            <div class="w-72 p-3 border-r border-[#1e293b] flex items-center gap-3">
+                                <div class="w-10 h-10 bg-rose-900/30 border border-rose-500/30 rounded-lg flex items-center justify-center"><i class="fa-solid fa-lock text-rose-500"></i></div>
+                                <div><p class="font-bold text-slate-500 text-sm font-mono line-through">XYZ-999</p><p class="text-[11px] text-rose-500 font-bold animate-pulse">SOAT VENCIDO</p></div>
+                            </div>
+                            <div class="flex-1 p-2 dropzone bg-rose-900/10 cursor-not-allowed flex items-center justify-center" ondragover="app.dnd.over(event)" ondrop="app.dnd.dropGantt(event)">
+                                <span class="text-[11px] font-mono text-rose-500/60 uppercase tracking-widest"><i class="fa-solid fa-ban mr-2"></i> Bloqueo por Jurídico</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================= 4. RRHH & FATIGA ================= -->
+            <div id="view-rrhh" class="view-section hidden fade-in max-w-[1600px] mx-auto">
+                <div class="mb-6"><h2 class="text-2xl font-bold text-white">RRHH, Fatiga & Nómina</h2><p class="text-sm text-slate-400">Control estricto de personal. Las banderas rojas inmovilizan conductores en Logística.</p></div>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                    <div class="panel p-0 overflow-hidden lg:col-span-2">
+                        <table class="w-full text-left data-table">
+                            <thead><tr><th>Trabajador</th><th>Cargo</th><th>Estado Licencia</th><th>Fatiga (Horas Sem.)</th><th>Acción</th></tr></thead>
+                            <tbody>
+                                <tr>
+                                    <td><div class="font-bold text-white text-sm">Carlos Mendoza</div><div class="text-[11px] text-slate-400">C.C. 1014234567</div></td><td>Conductor</td>
+                                    <td><span class="bg-emerald-900/30 text-emerald-500 px-2 py-1 rounded text-[11px] font-bold">Vigente (2028)</span></td>
+                                    <td class="w-1/4"><div class="flex items-center gap-2"><div class="progress-bar-bg"><div class="progress-bar-fill bg-emerald-500" style="width: 42%;"></div></div><span class="text-[11px] text-slate-400 font-mono">18/42h</span></div></td>
+                                    <td><button onclick="app.simulations.verPerfil('Carlos Mendoza', 'Apto')" class="bg-[#0f172a] text-cyan-400 border border-cyan-500/50 px-3 py-1 rounded hover:bg-cyan-900/30 font-bold">Perfil</button></td>
+                                </tr>
+                                <tr class="bg-rose-950/20">
+                                    <td><div class="font-bold text-white text-sm">Luis Pérez</div><div class="text-[11px] text-slate-400">C.C. 1020334455</div></td><td>Conductor</td>
+                                    <td><span class="bg-rose-900/30 text-rose-500 px-2 py-1 rounded text-[11px] font-bold animate-pulse">VENCIDA (Ayer)</span></td>
+                                    <td class="w-1/4"><div class="flex items-center gap-2"><div class="progress-bar-bg"><div class="progress-bar-fill bg-cyan-500" style="width: 10%;"></div></div><span class="text-[11px] text-slate-400 font-mono">4/42h</span></div></td>
+                                    <td><button onclick="app.simulations.verPerfil('Luis Pérez', 'Bloqueado')" class="bg-rose-900/30 text-rose-400 border border-rose-500/50 px-3 py-1 rounded font-bold">Perfil</button></td>
+                                </tr>
+                                <tr>
+                                    <td><div class="font-bold text-white text-sm">Ana Rojas</div><div class="text-[11px] text-slate-400">C.C. 52123456</div></td><td>Monitora Escolar</td>
+                                    <td>N/A</td>
+                                    <td class="w-1/4"><div class="flex items-center gap-2"><div class="progress-bar-bg"><div class="progress-bar-fill bg-emerald-500" style="width: 60%;"></div></div><span class="text-[11px] text-slate-400 font-mono">24/42h</span></div></td>
+                                    <td><button onclick="app.simulations.verPerfil('Ana Rojas', 'Apto')" class="bg-[#0f172a] text-cyan-400 border border-cyan-500/50 px-3 py-1 rounded hover:bg-cyan-900/30 font-bold">Perfil</button></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <!-- Nómina Preview -->
+                    <div class="panel p-6 border-t-2 border-amber-500">
+                        <h3 class="text-xs font-bold text-amber-400 uppercase tracking-widest mb-4"><i class="fa-solid fa-money-check-dollar"></i> Pre-Nómina y Extras</h3>
+                        <div class="space-y-3">
+                            <div class="bg-[#020617] p-3 rounded border border-[#1e293b] flex justify-between">
+                                <div><p class="font-bold text-white">Horas Extras</p><p class="text-[10px] text-slate-400">Validadas por App</p></div>
+                                <p class="text-lg font-mono text-amber-400">124 h</p>
+                            </div>
+                            <div class="bg-[#020617] p-3 rounded border border-[#1e293b] flex justify-between">
+                                <div><p class="font-bold text-white">Total Quincena</p><p class="text-[10px] text-slate-400">Base + Extras</p></div>
+                                <p class="text-lg font-mono text-emerald-400">$32.5M</p>
+                            </div>
+                            <button onclick="app.utils.toast('Nómina', 'Archivo plano enviado al banco exitosamente.', 'success')" class="w-full mt-2 py-2 bg-[#0f172a] border border-[#334155] text-white hover:border-amber-500 rounded text-xs font-bold transition-all">Dispersar Nómina Banco</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================= 5. TALLER E INVENTARIO ================= -->
+            <div id="view-taller" class="view-section hidden fade-in max-w-[1600px] mx-auto">
+                <div class="mb-6"><h2 class="text-2xl font-bold text-white">Taller, IoT & Inventario Predictivo</h2><p class="text-sm text-slate-400">Telemetría en tiempo real. Ordenes de compra automáticas por stock bajo.</p></div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                    <div class="panel p-6 border-t-2 border-emerald-500">
+                        <h3 class="text-xs font-bold text-emerald-400 uppercase tracking-widest mb-4"><i class="fa-solid fa-truck"></i> Flota Saludable</h3>
+                        <div class="bg-[#020617] p-4 rounded border border-[#1e293b] flex justify-between items-center cursor-pointer hover:border-emerald-500 transition-colors" onclick="app.utils.toast('Diagnóstico', 'Motor OK, Llantas 80%.', 'success')">
+                            <div><h4 class="font-bold text-white font-mono text-lg">ABC-123</h4><p class="text-[11px] text-slate-400 mt-1">Último Mant: Hace 2 meses</p></div>
+                            <div class="text-right"><p class="text-[10px] text-slate-400 uppercase">Vida de Aceite</p><p class="text-2xl font-mono text-emerald-400 font-bold">78%</p></div>
+                        </div>
+                    </div>
+                    <div class="panel p-6 border-t-2 border-amber-500">
+                        <h3 class="text-xs font-bold text-amber-400 uppercase tracking-widest mb-4"><i class="fa-solid fa-clipboard-list"></i> Órdenes Taller</h3>
+                        <div class="bg-amber-950/20 p-4 rounded border border-amber-500/30">
+                            <div class="flex justify-between items-start"><h4 class="font-bold text-white font-mono text-lg">XTR-440</h4><span class="bg-amber-500/20 text-amber-500 text-[10px] px-2 py-1 rounded font-bold">EN PROCESO</span></div>
+                            <p class="text-[11px] text-amber-400 mt-2 mb-2">Cambio de pastillas de freno.</p>
+                            <div class="progress-bar-bg"><div class="progress-bar-fill bg-amber-500" style="width: 50%;"></div></div>
+                        </div>
+                    </div>
+                    <div class="panel p-6 border-t-2 border-rose-500">
+                        <h3 class="text-xs font-bold text-rose-500 uppercase tracking-widest mb-4"><i class="fa-solid fa-triangle-exclamation"></i> Alertas Motor (OBD2)</h3>
+                        <div class="bg-rose-950/20 p-4 rounded border border-rose-500/30">
+                            <div class="flex justify-between items-start"><h4 class="font-bold text-white font-mono line-through text-lg">DEF-456</h4><span class="bg-rose-500 text-white text-[10px] px-2 py-1 rounded font-bold">P0303</span></div>
+                            <p class="text-[11px] text-rose-400 mt-2 mb-3">Falla: Misfire cilindro 3 en ruta.</p>
+                            <button onclick="app.simulations.tallerBloquear()" class="w-full bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold py-2 rounded transition-colors">Inmovilizar (Crear Ticket STTS)</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="panel p-6">
+                    <h3 class="text-xs font-bold text-slate-300 uppercase tracking-widest mb-4 border-b border-[#1e293b] pb-2">Inventario de Repuestos Autogestionado</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div class="bg-[#020617] p-4 rounded border border-[#1e293b] text-center"><i class="fa-solid fa-ring text-3xl text-slate-500 mb-3"></i><p class="text-sm font-bold text-white">Llantas</p><p class="text-3xl font-mono text-cyan-400 mt-2">24</p></div>
+                        <div class="bg-[#020617] p-4 rounded border border-[#1e293b] text-center"><i class="fa-solid fa-oil-can text-3xl text-slate-500 mb-3"></i><p class="text-sm font-bold text-white">Aceite</p><p class="text-3xl font-mono text-cyan-400 mt-2">15G</p></div>
+                        <div class="bg-[#020617] p-4 rounded border border-[#1e293b] text-center"><i class="fa-solid fa-filter text-3xl text-slate-500 mb-3"></i><p class="text-sm font-bold text-white">Filtros Aire</p><p class="text-3xl font-mono text-cyan-400 mt-2">42</p></div>
+                        <div onclick="app.utils.toast('Orden Auto.', 'Enviando petición a Finanzas para 10 Baterías nuevas.', 'success')" class="bg-amber-950/20 p-4 rounded border border-amber-500/30 text-center cursor-pointer hover:bg-amber-900/30 transition-colors"><i class="fa-solid fa-car-battery text-3xl text-amber-500 mb-3"></i><p class="text-sm font-bold text-amber-500">Baterías 12V</p><p class="text-3xl font-mono text-rose-500 font-bold mt-2 animate-pulse">2 <span class="text-xs">(Bajo)</span></p><p class="text-[10px] text-slate-400 mt-1">Click para Comprar</p></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================= 6. FINANZAS (CXP Y CXC) ================= -->
+            <div id="view-finanzas" class="view-section hidden fade-in max-w-[1600px] mx-auto">
+                <div class="flex justify-between items-end mb-6">
+                    <div><h2 class="text-2xl font-bold text-white">Finanzas: Facturación & Pagos a Proveedores</h2><p class="text-sm text-slate-400">Control total del dinero que entra y sale de la empresa.</p></div>
+                    <button onclick="app.simulations.finanzasLiquidar()" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded shadow-[0_0_15px_rgba(16,185,129,0.4)] transition-all">✨ Ejecutar Cierre Automático</button>
+                </div>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                    <!-- CXC -->
+                    <div class="panel p-0 overflow-hidden border-t-2 border-emerald-500">
+                        <div class="p-4 border-b border-[#1e293b] bg-[#020617]/50"><h3 class="text-xs font-bold text-emerald-400 uppercase tracking-widest"><i class="fa-solid fa-arrow-down mr-2"></i>Cuentas por Cobrar (Clientes)</h3></div>
+                        <table class="w-full text-left data-table">
+                            <thead><tr><th>Factura</th><th>Cliente</th><th>Total</th><th>Estado</th></tr></thead>
+                            <tbody>
+                                <tr><td class="font-mono font-bold text-white">FAC-2026</td><td>Globant</td><td class="font-mono text-emerald-400 font-bold">$4,500,000</td><td><span class="bg-emerald-900/30 text-emerald-500 px-2 py-1 rounded text-[10px]">Aprobada XML</span></td></tr>
+                                <tr><td class="font-mono font-bold text-white">FAC-2027</td><td>San Jorge</td><td class="font-mono text-emerald-400 font-bold">$2,100,000</td><td><span class="bg-rose-900/30 text-rose-500 px-2 py-1 rounded text-[10px] font-bold animate-pulse">VENCIDA</span></td></tr>
+                                <tr id="fac-nueva" class="hidden bg-cyan-900/20"><td class="font-mono font-bold text-white">FAC-2028</td><td>Alpina</td><td class="font-mono text-cyan-400 font-bold">$850,000</td><td><span class="bg-cyan-900/30 text-cyan-400 px-2 py-1 rounded text-[10px] animate-pulse">Emitiendo...</span></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- CXP -->
+                    <div class="panel p-0 overflow-hidden border-t-2 border-amber-500">
+                        <div class="p-4 border-b border-[#1e293b] bg-[#020617]/50"><h3 class="text-xs font-bold text-amber-400 uppercase tracking-widest"><i class="fa-solid fa-arrow-up mr-2"></i>Cuentas por Pagar (Proveedores)</h3></div>
+                        <table class="w-full text-left data-table">
+                            <thead><tr><th>Entidad / Conductor</th><th>Concepto</th><th>Saldo a Pagar</th><th>Acción</th></tr></thead>
+                            <tbody>
+                                <tr><td><div class="font-bold text-white">Terpel Norte</div></td><td class="text-xs text-slate-400">Combustible</td><td class="font-mono text-rose-400 font-bold">$ 4,850,000</td><td><button onclick="app.simulations.payDriver(this)" class="bg-[#0f172a] text-cyan-400 border border-cyan-500/50 px-3 py-1 rounded text-[11px] font-bold hover:bg-cyan-900/30 w-24">Pagar</button></td></tr>
+                                <tr><td><div class="font-bold text-white">Juan Londoño</div></td><td class="text-xs text-slate-400">Rodamiento Quincena</td><td class="font-mono text-amber-400 font-bold">$ 1,200,000</td><td><button onclick="app.simulations.payDriver(this)" class="bg-[#0f172a] text-cyan-400 border border-cyan-500/50 px-3 py-1 rounded text-[11px] font-bold hover:bg-cyan-900/30 w-24">Transferir</button></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================= 7. CONTABILIDAD ================= -->
+            <div id="view-contabilidad" class="view-section hidden fade-in max-w-[1600px] mx-auto">
+                <div class="flex justify-between items-end mb-6">
+                    <div><h2 class="text-2xl font-bold text-white">Libro Mayor y Cuentas (PUC)</h2><p class="text-sm text-slate-400">Asientos contables generados automáticamente por Facturación, Compras y Nómina.</p></div>
+                    <div class="flex gap-4">
+                        <button onclick="app.utils.toast('Exportando XML', 'Asientos exportados para software contable.', 'success')" class="px-5 py-2 bg-transparent border border-[#334155] hover:border-emerald-500 text-emerald-400 font-bold rounded transition-all"><i class="fa-solid fa-file-export"></i> Exportar a Excel</button>
+                        <button onclick="app.utils.toast('API Sync', 'Sincronizando Libro Mayor con ERP Nube...', 'info')" class="px-5 py-2 bg-[#0f172a] border border-[#334155] hover:border-cyan-500 text-cyan-400 font-bold rounded transition-all flex items-center gap-2"><i class="fa-solid fa-cloud-arrow-up"></i> Sincronizar SIIGO</button>
+                    </div>
+                </div>
+                <div class="panel p-0 overflow-hidden border-t-2 border-slate-500">
+                    <table class="w-full text-left data-table">
+                        <thead><tr><th>Fecha</th><th>Comprobante</th><th>Cuenta PUC</th><th>Descripción</th><th>Débito</th><th>Crédito</th></tr></thead>
+                        <tbody>
+                            <tr><td class="font-mono text-sm">16/07/2026</td><td class="font-mono text-cyan-400 font-bold">COMP-4021</td><td class="font-mono text-white">4155 (Ingresos)</td><td>Factura FAC-2026</td><td class="text-slate-500">$ 0</td><td class="font-mono text-emerald-400 font-bold">$ 4,500,000</td></tr>
+                            <tr><td class="font-mono text-sm">16/07/2026</td><td class="font-mono text-cyan-400 font-bold">COMP-4021</td><td class="font-mono text-white">1305 (CxC)</td><td>Factura FAC-2026</td><td class="font-mono text-rose-400 font-bold">$ 4,500,000</td><td class="text-slate-500">$ 0</td></tr>
+                            <tr class="bg-amber-950/10"><td class="font-mono text-sm">16/07/2026</td><td class="font-mono text-amber-400 font-bold">GAST-882</td><td class="font-mono text-white">5195 (Mant.)</td><td>Orden Compra #99</td><td class="font-mono text-rose-400 font-bold">$ 850,000</td><td class="text-slate-500">$ 0</td></tr>
+                            <tr class="bg-amber-950/10"><td class="font-mono text-sm">16/07/2026</td><td class="font-mono text-amber-400 font-bold">GAST-882</td><td class="font-mono text-white">1110 (Bancos)</td><td>Orden Compra #99</td><td class="text-slate-500">$ 0</td><td class="font-mono text-emerald-400 font-bold">$ 850,000</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ================= 8. REVISORIA FORENSE ================= -->
+            <div id="view-revisoria" class="view-section hidden fade-in max-w-[1600px] mx-auto">
+                <div class="flex justify-between items-end mb-6">
+                    <div><h2 class="text-2xl font-bold text-[#39ff14]">Auditoría Forense & Revisoría Fiscal</h2><p class="text-sm text-slate-400">Log inalterable (Read-Only) de la Base de Datos para cumplimiento normativo.</p></div>
+                    <button onclick="app.utils.toast('Exportación Segura', 'Descargando log forense encriptado...', 'success')" class="px-5 py-2 border border-[#39ff14]/50 text-[#39ff14] hover:bg-[#39ff14]/10 font-mono text-xs font-bold rounded transition-all flex items-center gap-2"><i class="fa-solid fa-download"></i> Exportar Log Inmutable</button>
+                </div>
+                <div class="panel p-0 overflow-hidden bg-[#0a0a0a] border-[#39ff14]/30 shadow-[0_0_20px_rgba(57,255,20,0.1)]">
+                    <table class="w-full text-left data-table">
+                        <thead><tr><th style="color:#39ff14; background:#020617; border-bottom-color:#39ff14/30;">Timestamp UTC</th><th style="color:#39ff14; background:#020617; border-bottom-color:#39ff14/30;">Evento Interno</th><th style="color:#39ff14; background:#020617; border-bottom-color:#39ff14/30;">IP Origen & Usuario</th><th style="color:#39ff14; background:#020617; border-bottom-color:#39ff14/30;">Hash Criptográfico (Firma DB)</th><th style="color:#39ff14; background:#020617; border-bottom-color:#39ff14/30;">Seguridad</th></tr></thead>
+                        <tbody>
+                            <tr class="hover:bg-[#39ff14]/5 transition-colors border-b border-[#39ff14]/20"><td class="font-mono text-[#39ff14] text-sm">2026-07-16 14:05:22</td><td class="text-slate-300 text-xs">FACTURACION_EMITIDA</td><td class="text-slate-300 text-xs">192.168.1.45 (CFO)</td><td class="font-mono text-[#39ff14] text-[11px]">0x7F8B9C2A...4D3E</td><td><span class="bg-[#39ff14]/20 text-[#39ff14] px-2 py-1 rounded text-[11px] font-bold">VERIFICADO</span></td></tr>
+                            <tr class="hover:bg-[#39ff14]/5 transition-colors border-b border-[#39ff14]/20"><td class="font-mono text-[#39ff14] text-sm">2026-07-16 13:42:10</td><td class="text-slate-300 text-xs">FUEC_GENERADO</td><td class="text-slate-300 text-xs">10.0.0.8 (System)</td><td class="font-mono text-[#39ff14] text-[11px]">0x1A2B3C4D...5E6F</td><td><span class="bg-[#39ff14]/20 text-[#39ff14] px-2 py-1 rounded text-[11px] font-bold">VERIFICADO</span></td></tr>
+                            <tr class="hover:bg-[#39ff14]/5 transition-colors border-b border-[#39ff14]/20"><td class="font-mono text-[#39ff14] text-sm">2026-07-16 11:15:05</td><td class="text-slate-300 text-xs">VEHICULO_BLOQUEADO</td><td class="text-slate-300 text-xs">192.168.1.12 (Despacho)</td><td class="font-mono text-[#39ff14] text-[11px]">0x9A8B7C6D...5E4F</td><td><span class="bg-rose-500/20 text-rose-500 px-2 py-1 rounded text-[11px] font-bold">RECHAZO KAFKA</span></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ================= 9. CALIDAD Y NPS ================= -->
+            <div id="view-calidad" class="view-section hidden fade-in max-w-[1600px] mx-auto">
+                <div class="mb-6"><h2 class="text-2xl font-bold text-white">Calidad, QHSE y Minería NPS</h2><p class="text-sm text-slate-400">Análisis de sentimiento IA de las encuestas WhatsApp enviadas post-viaje.</p></div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                    <div class="panel p-6 border-t-2 border-emerald-500 text-center cursor-pointer hover:bg-[#1e293b]/50 transition-colors" onclick="app.utils.toast('NPS Global', '1,450 encuestas respondidas MTD.', 'info')"><p class="text-[11px] uppercase text-slate-400 font-bold mb-2">Puntuación NPS Global</p><h3 class="text-6xl font-mono text-white font-bold mb-3">4.8<span class="text-2xl text-slate-500">/5</span></h3><i class="fa-solid fa-face-smile text-4xl text-emerald-500"></i></div>
+                    <div class="panel p-6 border-t-2 border-cyan-500 md:col-span-2 flex flex-col justify-center">
+                        <h3 class="text-sm font-bold text-cyan-400 uppercase tracking-widest mb-5">Sentimiento IA Mensual (Minería de Texto)</h3>
+                        <div class="flex items-center gap-4 text-sm font-bold text-white mb-3"><span class="w-24">Positivo (85%)</span><div class="flex-1 progress-bar-bg"><div class="progress-bar-fill bg-emerald-500" style="width: 85%;"></div></div></div>
+                        <div class="flex items-center gap-4 text-sm font-bold text-white mb-3"><span class="w-24">Neutral (10%)</span><div class="flex-1 progress-bar-bg"><div class="progress-bar-fill bg-amber-500" style="width: 10%;"></div></div></div>
+                        <div class="flex items-center gap-4 text-sm font-bold text-white"><span class="w-24">Negativo (5%)</span><div class="flex-1 progress-bar-bg"><div class="progress-bar-fill bg-rose-500" style="width: 5%;"></div></div></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================= 10. ATENCIÓN OMNICANAL ================= -->
+            <div id="view-atencion" class="view-section hidden fade-in max-w-[1600px] mx-auto h-full flex flex-col">
+                <div class="mb-6 shrink-0"><h2 class="text-2xl font-bold text-white">Atención Omnicanal (WhatsApp B2B)</h2><p class="text-sm text-slate-400">Bandeja centralizada de atención al cliente y simulador de entrenamiento.</p></div>
+                <div class="flex gap-6 flex-1 min-h-0">
+                    <div class="w-1/3 panel flex flex-col overflow-hidden">
+                        <div class="p-4 border-b border-[#1e293b] bg-[#020617]"><input type="text" placeholder="Buscar chat..." class="w-full bg-[#0f172a] border border-[#334155] rounded-full px-4 py-2 text-sm text-white focus:outline-none focus:border-cyan-500"></div>
+                        <div class="flex-1 overflow-y-auto custom-scrollbar">
+                            <div class="p-4 border-b border-[#1e293b] hover:bg-[#1e293b]/50 cursor-pointer bg-[#1e293b]/20 border-l-4 border-l-emerald-500">
+                                <div class="flex justify-between"><h4 class="font-bold text-white text-sm">Dir. Operaciones Ecopetrol</h4><span class="text-[11px] text-emerald-500 font-bold">Ahora</span></div>
+                                <p class="text-sm text-slate-400 truncate mt-1">Excelente el servicio de ayer. Necesito confirmar si la van...</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex-1 panel flex flex-col overflow-hidden bg-[#020617]">
+                        <div class="p-4 border-b border-[#1e293b] bg-[#0f172a] flex justify-between items-center shrink-0">
+                            <h4 class="font-bold text-white text-sm"><i class="fa-brands fa-whatsapp text-emerald-500 mr-2 text-lg"></i> Bot Simulador de Crisis IA</h4>
+                            <button onclick="app.simulations.roleplay()" class="bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2 rounded text-xs font-bold transition-all shadow-[0_0_10px_rgba(6,182,212,0.4)]">✨ Iniciar Entrenamiento</button>
+                        </div>
+                        <div class="flex-1 p-6 overflow-y-auto custom-scrollbar bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-opacity-5" id="chat-container">
+                            <div class="mx-auto bg-[#1e293b] text-slate-400 text-[11px] px-4 py-1.5 rounded-full font-bold w-max mb-4">Presiona "Iniciar Entrenamiento" para practicar de-escalación de crisis.</div>
+                        </div>
+                        <div class="p-4 border-t border-[#1e293b] bg-[#0f172a] flex gap-3 shrink-0">
+                            <input type="text" id="chat-input" placeholder="Escribe tu respuesta para calmar al bot..." onkeypress="if(event.key === 'Enter') app.simulations.sendChat()" class="flex-1 bg-[#020617] border border-[#334155] rounded-full px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors">
+                            <button onclick="app.simulations.sendChat()" class="w-12 h-12 rounded-full bg-emerald-600 text-white flex items-center justify-center hover:bg-emerald-500 transition-colors shadow-lg"><i class="fa-solid fa-paper-plane text-lg"></i></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================= 11. SISTEMAS (TI) INFRAESTRUCTURA ================= -->
+            <div id="view-sistemas" class="view-section hidden fade-in max-w-[1600px] mx-auto">
+                <div class="mb-6"><h2 class="text-2xl font-bold text-white">Sistemas, Mesa de Ayuda & Infraestructura (TI)</h2><p class="text-sm text-slate-400">Salud del servidor Google Cloud y Tickets transversales (STTS).</p></div>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                    <div class="panel p-6 border-t-2 border-cyan-500">
+                        <h3 class="text-xs font-bold text-cyan-400 uppercase tracking-widest mb-4">Salud Servidor Cloud (GCP)</h3>
+                        <div class="flex justify-between items-end mb-4">
+                            <div><p class="text-[10px] text-slate-400 uppercase">Carga CPU</p><h4 class="text-2xl font-mono text-white">42%</h4></div>
+                            <div class="flex items-end h-[40px]" id="cpu-bars">
+                                <div class="server-bar"><div class="server-fill" style="animation-delay: 0s;"></div></div><div class="server-bar"><div class="server-fill" style="animation-delay: 0.2s;"></div></div><div class="server-bar"><div class="server-fill" style="animation-delay: 0.4s;"></div></div><div class="server-bar"><div class="server-fill" style="animation-delay: 0.6s;"></div></div>
+                            </div>
+                        </div>
+                        <div class="flex justify-between items-end border-t border-[#1e293b] pt-4">
+                            <div><p class="text-[10px] text-slate-400 uppercase">Memoria RAM</p><h4 class="text-xl font-mono text-white">16.4 GB <span class="text-xs text-slate-500">/ 32GB</span></h4></div>
+                            <span class="bg-emerald-900/30 text-emerald-500 text-[10px] px-2 py-1 rounded font-bold" id="uptime-badge">Uptime 99.99%</span>
+                        </div>
+                    </div>
+                    
+                    <div class="panel p-0 overflow-hidden lg:col-span-2 border-t-2 border-slate-500">
+                        <div class="p-4 border-b border-[#1e293b] bg-[#020617]/50"><h3 class="text-xs font-bold text-white uppercase tracking-widest">Tickets Activos (Mesa de Ayuda STTS)</h3></div>
+                        <table class="w-full text-left data-table">
+                            <thead><tr><th>Ticket ID</th><th>Origen -> Destino</th><th>Descripción del Problema</th><th>Prioridad</th></tr></thead>
+                            <tbody id="tickets-tbody">
+                                <tr><td class="font-mono text-white font-bold">TK-901</td><td>Taller -> Logística</td><td class="text-xs text-slate-300">Inmovilizar DEF-456 por falla de motor crítica (Alerta OBD2).</td><td><span class="bg-rose-900/30 text-rose-500 px-3 py-1 rounded text-[10px] font-bold">CRÍTICA</span></td></tr>
+                                <tr><td class="font-mono text-white font-bold">TK-902</td><td>Comercial -> Jurídico</td><td class="text-xs text-slate-300">Revisión urgente de contrato modificado por Globant Colombia.</td><td><span class="bg-amber-900/30 text-amber-500 px-3 py-1 rounded text-[10px] font-bold">MEDIA</span></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================= 12. RECEPCIÓN (VISITANTES & TRIAGE) ================= -->
+            <div id="view-recepcion" class="view-section hidden fade-in max-w-[1600px] mx-auto">
+                <div class="mb-6"><h2 class="text-2xl font-bold text-white">Recepción: Control de Visitas & Triage IA</h2><p class="text-sm text-slate-400">Digitalización de la portería y enrutamiento automático de llamadas.</p></div>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                    <div class="panel p-10 text-center border-t-2 border-cyan-500 flex flex-col justify-center">
+                        <i class="fa-solid fa-microphone text-6xl text-cyan-400 mb-6"></i>
+                        <h2 class="text-2xl font-bold text-white mb-2">Transcriptor de Recepción (IA)</h2>
+                        <p class="text-slate-400 mb-8 max-w-sm mx-auto text-sm">Escucha la llamada, procesa la voz y crea un Ticket de Ventas automáticamente si es un prospecto.</p>
+                        <button onclick="app.simulations.recepcion()" class="px-8 py-3 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-lg shadow-[0_0_15px_rgba(6,182,212,0.4)] text-base transition-all mx-auto">✨ Simular Triage de Llamada</button>
+                    </div>
+                    <div class="panel p-0 overflow-hidden border-t-2 border-slate-500">
+                        <div class="p-4 border-b border-[#1e293b] bg-[#020617]/50"><h3 class="text-xs font-bold text-white uppercase tracking-widest"><i class="fa-solid fa-id-badge mr-2"></i>Visitantes Activos (Sala de Espera)</h3></div>
+                        <table class="w-full text-left data-table">
+                            <thead><tr><th>Visitante</th><th>Empresa</th><th>Visita a</th><th>Ingreso</th></tr></thead>
+                            <tbody>
+                                <tr><td><div class="font-bold text-white text-xs">María González</div><div class="text-[10px] text-slate-500">C.C. 101...</div></td><td>Contratista Indep.</td><td><span class="text-cyan-400">Dir. Operaciones</span></td><td class="font-mono text-emerald-400 text-xs">08:15 AM</td></tr>
+                                <tr><td><div class="font-bold text-white text-xs">Pedro Sánchez</div><div class="text-[10px] text-slate-500">C.C. 805...</div></td><td>Aseguradora SURA</td><td><span class="text-cyan-400">Área Jurídica</span></td><td class="font-mono text-emerald-400 text-xs">09:30 AM</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================= 13. JURÍDICO & PÓLIZAS ================= -->
+            <div id="view-juridico" class="view-section hidden fade-in max-w-[1600px] mx-auto">
+                <div class="mb-6"><h2 class="text-2xl font-bold text-white">Jurídico, Compliance & Generador FUEC</h2></div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-6">
+                    <div class="panel p-8 text-center flex flex-col items-center border-t-2 border-indigo-500">
+                        <i class="fa-solid fa-file-signature text-6xl text-indigo-400 mb-6"></i>
+                        <h2 class="text-2xl font-bold text-white mb-2">Generador FUEC Automático</h2>
+                        <p class="text-slate-400 mb-8 text-sm">Toma los datos del viaje aprobado en BD y genera el PDF legal al instante.</p>
+                        <button onclick="app.simulations.juridico()" class="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg w-full text-base transition-all shadow-[0_0_15px_rgba(79,70,229,0.4)]">✨ Emitir FUEC (Hash Blockchain)</button>
+                    </div>
+                    <div class="panel p-8 flex flex-col items-center border-t-2 border-purple-500">
+                        <i class="fa-solid fa-scale-balanced text-5xl text-purple-400 mb-6"></i>
+                        <h2 class="text-2xl font-bold text-white mb-2 text-center">Creador de Cláusulas IA</h2>
+                        <p class="text-slate-400 mb-6 text-sm text-center">Convierte requerimientos informales en lenguaje jurídico contractual.</p>
+                        <textarea id="ai-input-jur" rows="2" placeholder="Ej: Si cancelan el mismo día, cobramos 50%." class="w-full bg-[#020617] border border-[#334155] rounded-lg px-4 py-3 text-white text-sm focus:border-purple-500 outline-none mb-6 resize-none transition-colors"></textarea>
+                        <button onclick="app.simulations.redactarClausula()" class="px-6 py-3 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg w-full text-base transition-all">✨ Redactar Cláusula</button>
+                    </div>
+                </div>
+                <div class="panel p-0 overflow-hidden border-t-2 border-slate-500">
+                    <div class="p-4 border-b border-[#1e293b] bg-[#020617]/50"><h3 class="text-xs font-bold text-white uppercase tracking-widest">Control Pólizas y Contractual</h3></div>
+                    <table class="w-full text-left data-table">
+                        <thead><tr><th>Tipo Póliza / Documento</th><th>Aseguradora</th><th>Vehículos Cubiertos</th><th>Vencimiento</th><th>Estado</th></tr></thead>
+                        <tbody>
+                            <tr><td class="font-bold text-white">Resp. Civil Extracontractual</td><td>SURA</td><td class="font-mono text-cyan-400">Toda la flota (150)</td><td>Dic 31, 2026</td><td><span class="bg-emerald-900/30 text-emerald-500 px-3 py-1 rounded text-[10px] font-bold">VIGENTE</span></td></tr>
+                            <tr><td class="font-bold text-white">SOAT Individual</td><td>Seguros del Estado</td><td class="font-mono text-cyan-400">XYZ-999</td><td>Jul 15, 2026</td><td><span class="bg-rose-900/30 text-rose-500 px-3 py-1 rounded text-[10px] font-bold animate-pulse">VENCIDO</span></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ================= 14. ARCHIVO DOCUMENTAL ================= -->
+            <div id="view-archivo" class="view-section hidden fade-in max-w-[1600px] mx-auto">
+                <div class="flex justify-between items-end mb-6">
+                    <div><h2 class="text-2xl font-bold text-white">Data Room & Archivo Documental</h2><p class="text-sm text-slate-400">Repositorio central cifrado. Todo PDF subido es convertido a texto buscable por OCR.</p></div>
+                    <button onclick="app.utils.toast('Subiendo', 'Abriendo selector de archivos de Windows...', 'info')" class="px-5 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded transition-all"><i class="fa-solid fa-upload mr-2"></i> Subir Documentos</button>
+                </div>
+                <div class="panel p-6 mb-6">
+                    <div class="flex justify-between items-end mb-2">
+                        <h3 class="text-xs font-bold text-slate-300 uppercase tracking-widest">Almacenamiento Cloud (Google Cloud Storage)</h3>
+                        <p class="text-sm font-mono text-white">450 GB <span class="text-xs text-slate-500">/ 1 TB</span></p>
+                    </div>
+                    <div class="w-full bg-[#020617] rounded-full h-3 border border-[#1e293b]"><div class="bg-gradient-to-r from-cyan-500 to-blue-500 h-full rounded-full" style="width: 45%;"></div></div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <div onclick="app.utils.toast('Abriendo', 'Desencriptando Contratos...', 'success')" class="panel p-8 border-t-2 border-indigo-500 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-[#1e293b]/50 transition-colors"><i class="fa-solid fa-file-contract text-5xl text-indigo-400 mb-4"></i><h4 class="font-bold text-white text-lg">Contratos B2B</h4><p class="text-xs text-slate-400 mt-2 font-mono">1,204 Archivos (OCR Activo)</p></div>
+                    <div onclick="app.utils.toast('Abriendo', 'Desencriptando Facturas...', 'success')" class="panel p-8 border-t-2 border-emerald-500 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-[#1e293b]/50 transition-colors"><i class="fa-solid fa-file-invoice-dollar text-5xl text-emerald-400 mb-4"></i><h4 class="font-bold text-white text-lg">Facturas y Vales</h4><p class="text-xs text-slate-400 mt-2 font-mono">8,450 Archivos (OCR Activo)</p></div>
+                    <div onclick="app.utils.toast('Abriendo', 'Desencriptando Docs RRHH...', 'success')" class="panel p-8 border-t-2 border-amber-500 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-[#1e293b]/50 transition-colors"><i class="fa-solid fa-id-card text-5xl text-amber-400 mb-4"></i><h4 class="font-bold text-white text-lg">Docs Conductores</h4><p class="text-xs text-slate-400 mt-2 font-mono">Cédulas, SOATs, Licencias</p></div>
+                    <div onclick="app.utils.toast('Abriendo', 'Desencriptando Auditorías...', 'success')" class="panel p-8 border-t-2 border-rose-500 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-[#1e293b]/50 transition-colors"><i class="fa-solid fa-file-shield text-5xl text-rose-400 mb-4"></i><h4 class="font-bold text-white text-lg">Reportes SARLAFT</h4><p class="text-xs text-slate-400 mt-2 font-mono">Auditorías Históricas</p></div>
+                </div>
+            </div>
+
+            <!-- ================= 15. SARLAFT ================= -->
+            <div id="view-sarlaft" class="view-section hidden fade-in max-w-4xl mx-auto">
+                <div class="panel p-12 text-center border-t-2 border-rose-500">
+                    <i class="fa-solid fa-fingerprint text-6xl text-rose-500 mb-6"></i>
+                    <h2 class="text-3xl font-bold text-white mb-2">Robot SARLAFT (Search Grounding IA)</h2>
+                    <p class="text-slate-400 mb-8 max-w-lg mx-auto">Escanea en la web profunda, OFAC, Procuraduría y Contraloría antes de autorizar la creación del cliente en BD.</p>
+                    <input type="text" id="ai-input-sarlaft" value="Constructora Ficticia S.A." class="w-full max-w-lg bg-[#020617] border border-[#334155] rounded-lg px-6 py-4 text-white text-sm focus:border-rose-500 outline-none mb-6 font-mono text-center mx-auto block transition-colors">
+                    <button onclick="app.simulations.sarlaft()" class="px-8 py-3 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-lg shadow-[0_0_15px_rgba(244,63,94,0.4)] text-lg transition-all">✨ Ejecutar Auditoría Cliente</button>
+                </div>
+            </div>
+            
+            <!-- ================= APPS MÓVILES SIMULADOR ================= -->
+            <div id="view-apps" class="view-section hidden fade-in max-w-[1600px] mx-auto">
+                <div class="mb-6"><h2 class="text-2xl font-bold text-white">Ecosistema Móvil Conectado (APIs Front-End)</h2><p class="text-sm text-slate-400">La "Calle" interconectada con la Base de Datos Transaccional (SSOT). <span class="text-cyan-400 font-bold">Haz clic en los paneles para abrir el Simulador Celular.</span></p></div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="panel p-8 border-t-2 border-emerald-500 cursor-pointer hover:bg-[#1e293b]/30 transition-all shadow-lg hover:shadow-[0_15px_30px_rgba(16,185,129,0.15)] hover:-translate-y-1" onclick="app.simulations.openAppModal('Conductor')"><h3 class="font-bold text-white text-xl mb-3"><i class="fa-solid fa-steering-wheel text-emerald-500 mr-3"></i> App Conductor</h3><p class="text-sm text-slate-400 mb-4 leading-relaxed">Transmisión de WebSockets GPS cada 3 segundos, lectura de FUEC QR offline, y OCR nativo de peajes. <br><span class="text-emerald-400 text-xs font-bold mt-2 inline-block"><i class="fa-solid fa-mobile-screen mr-1"></i> Abrir Simulador de App</span></p></div>
+                    <div class="panel p-8 border-t-2 border-cyan-500 cursor-pointer hover:bg-[#1e293b]/30 transition-all shadow-lg hover:shadow-[0_15px_30px_rgba(6,182,212,0.15)] hover:-translate-y-1" onclick="app.simulations.openAppModal('Corporativa B2B')"><h3 class="font-bold text-white text-xl mb-3"><i class="fa-solid fa-briefcase text-cyan-500 mr-3"></i> App Corporativa (B2B)</h3><p class="text-sm text-slate-400 mb-4 leading-relaxed">Tracking de rutas en vivo para empleados de Ecopetrol/Globant. Solicitud de transporte On-Demand.<br><span class="text-cyan-400 text-xs font-bold mt-2 inline-block"><i class="fa-solid fa-mobile-screen mr-1"></i> Abrir Simulador de App</span></p></div>
+                    <div class="panel p-8 border-t-2 border-amber-500 cursor-pointer hover:bg-[#1e293b]/30 transition-all shadow-lg hover:shadow-[0_15px_30px_rgba(245,158,11,0.15)] hover:-translate-y-1" onclick="app.simulations.openAppModal('Monitoras Escolares')"><h3 class="font-bold text-white text-xl mb-3"><i class="fa-solid fa-clipboard-user text-amber-500 mr-3"></i> App Monitoras</h3><p class="text-sm text-slate-400 mb-4 leading-relaxed">Lectura de código QR para check-in y check-out de estudiantes. Alerta de botón de pánico directa a Logística.<br><span class="text-amber-400 text-xs font-bold mt-2 inline-block"><i class="fa-solid fa-mobile-screen mr-1"></i> Abrir Simulador de App</span></p></div>
+                    <div class="panel p-8 border-t-2 border-purple-500 cursor-pointer hover:bg-[#1e293b]/30 transition-all shadow-lg hover:shadow-[0_15px_30px_rgba(139,92,246,0.15)] hover:-translate-y-1" onclick="app.simulations.openAppModal('Padres de Familia')"><h3 class="font-bold text-white text-xl mb-3"><i class="fa-solid fa-family-pants text-purple-500 mr-3"></i> App Padres de Familia</h3><p class="text-sm text-slate-400 mb-4 leading-relaxed">Geocercas predictivas a través de Firebase Push Notifications para alertas de proximidad ("A 5 minutos").<br><span class="text-purple-400 text-xs font-bold mt-2 inline-block"><i class="fa-solid fa-mobile-screen mr-1"></i> Abrir Simulador de App</span></p></div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- ================= TERMINAL IA MODAL ================= -->
+    <div id="ai-modal" class="fixed inset-0 bg-[#020617]/95 backdrop-blur-md z-[100] flex items-center justify-center hidden opacity-0 transition-opacity duration-300 p-4">
+        <div class="bg-[#0b111a] border border-[#06b6d4]/50 rounded-xl shadow-[0_0_50px_rgba(6,182,212,0.15)] w-full max-w-4xl flex flex-col h-[75vh] transform scale-95 transition-transform duration-300" id="ai-modal-box">
+            <div class="px-6 py-4 border-b border-[#1e293b] flex justify-between items-center bg-[#020617] rounded-t-xl">
+                <span class="text-xs font-mono text-[#06b6d4] uppercase flex items-center gap-2"><span class="w-2 h-2 bg-[#06b6d4] rounded-full animate-pulse"></span> <span id="modal-title">FSG AI_CORE TERMINAL</span></span>
+                <button onclick="app.ai.closeTerminal()" class="text-slate-500 hover:text-white transition-colors"><i class="fa-solid fa-xmark text-2xl"></i></button>
+            </div>
+            <div class="p-6 flex-1 overflow-y-auto font-mono text-base text-slate-300 custom-scrollbar leading-relaxed" id="modal-content"></div>
+        </div>
+    </div>
+
+    <!-- ================= PROFILE MODAL (RRHH) ================= -->
+    <div id="profile-modal" class="fixed inset-0 bg-[#020617]/90 backdrop-blur-sm z-[100] flex items-center justify-center hidden opacity-0 transition-opacity duration-300 p-4">
+        <div class="bg-gradient-to-b from-[#0f172a] to-[#020617] border border-cyan-500/50 rounded-2xl w-full max-w-sm p-8 flex flex-col items-center transform scale-95 transition-transform duration-300 shadow-[0_0_40px_rgba(6,182,212,0.2)]" id="profile-modal-box">
+            <div class="w-24 h-24 rounded-full bg-[#020617] border-2 border-cyan-400 mb-4 flex items-center justify-center shadow-[0_0_20px_rgba(6,182,212,0.5)]">
+                <i class="fa-solid fa-user-tie text-4xl text-cyan-400"></i>
+            </div>
+            <h2 class="text-2xl font-bold text-white mb-1" id="prof-name">Nombre</h2>
+            <p class="text-xs text-cyan-400 font-mono mb-6 font-bold">ID CONDUCTOR ACTIVO</p>
+            <div class="w-full space-y-4">
+                <div class="flex justify-between border-b border-[#1e293b] pb-2"><span class="text-slate-400 text-sm">Estado Médico</span><span class="font-bold text-white" id="prof-status">Apto</span></div>
+                <div class="flex justify-between border-b border-[#1e293b] pb-2"><span class="text-slate-400 text-sm">Nivel de Estrés IA</span><span class="font-bold text-emerald-400" id="prof-stress">15% (Bajo)</span></div>
+                <div class="flex justify-between border-b border-[#1e293b] pb-2"><span class="text-slate-400 text-sm">Calificación Clientes</span><span class="font-bold text-amber-400">4.9 / 5 <i class="fa-solid fa-star text-xs"></i></span></div>
+            </div>
+            <button onclick="document.getElementById('profile-modal').classList.add('hidden')" class="mt-8 px-6 py-3 bg-[#0f172a] border border-cyan-500 text-cyan-400 rounded-full hover:bg-cyan-900/30 transition-all w-full font-bold">Cerrar Holograma</button>
+        </div>
+    </div>
+
+    <!-- ================= MOBILE APP MOCKUP MODAL ================= -->
+    <div id="mobile-modal" class="fixed inset-0 bg-[#020617]/95 backdrop-blur-md z-[100] flex items-center justify-center hidden opacity-0 transition-opacity duration-300 p-4">
+        <div class="flex flex-col items-center relative transform scale-95 transition-transform duration-300" id="mobile-modal-box">
+            <button onclick="app.simulations.closeAppModal()" class="absolute -right-16 top-0 text-slate-500 hover:text-white transition-colors"><i class="fa-solid fa-xmark text-4xl"></i></button>
+            <p class="text-cyan-400 font-mono text-sm mb-4 font-bold tracking-widest uppercase" id="mobile-title">Simulador de App</p>
+            <div class="phone-mockup">
+                <div class="phone-notch"></div>
+                <div class="app-screen custom-scrollbar" id="mobile-screen"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOASTS -->
+    <div id="toast-container"></div>
+
+    <script>
+        const app = {
+            nav: {
+                go: function(id) {
+                    document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden'));
+                    const tgt = document.getElementById(`view-${id}`);
+                    if(tgt) tgt.classList.remove('hidden');
+                    document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+                    const btn = document.querySelector(`[data-view="${id}"]`);
+                    if(btn) btn.classList.add('active');
+                }
+            },
+            rbac: {
+                switch: function(role) {
+                    document.querySelectorAll('.rbac-item').forEach(el => {
+                        const rolesAllowed = el.getAttribute('data-roles');
+                        if (rolesAllowed && rolesAllowed.includes(role)) { el.classList.remove('hidden'); } else { el.classList.add('hidden'); }
+                    });
+                    document.querySelectorAll('.widget-presidencia, .widget-despacho').forEach(el => el.classList.add('hidden'));
+                    if(role === 'presidencia' || role === 'gerencia' || role === 'finanzas') {
+                        document.querySelectorAll('.widget-presidencia').forEach(el => el.classList.remove('hidden'));
+                        app.nav.go(role === 'finanzas' ? 'finanzas' : 'dashboard');
+                    } else if (role === 'despacho') {
+                        document.querySelectorAll('.widget-despacho').forEach(el => el.classList.remove('hidden'));
+                        app.nav.go('logistica');
+                    }
+                    app.utils.toast('Seguridad RBAC', `Nivel de autorización cambiado a: ${role.toUpperCase()}`, 'info');
+                }
+            },
+            dnd: {
+                start: function(ev) { ev.dataTransfer.setData("id", ev.target.id); },
+                over: function(ev) { ev.preventDefault(); ev.currentTarget.classList.add('drag-over'); },
+                drop: function(ev) {
+                    ev.preventDefault(); ev.currentTarget.classList.remove('drag-over');
+                    const el = document.getElementById(ev.dataTransfer.getData("id"));
+                    if(el) { el.style.transform = "scale(1)"; ev.currentTarget.appendChild(el); }
+                },
+                dropHandshake: function(ev) {
+                    ev.preventDefault(); ev.currentTarget.classList.remove('drag-over');
+                    const el = document.getElementById(ev.dataTransfer.getData("id"));
+                    if(el) {
+                        ev.currentTarget.appendChild(el); ev.currentTarget.classList.remove('flex', 'items-center', 'justify-center');
+                        document.getElementById('event-line').style.animation = "shoot-line 1s ease-in-out";
+                        app.utils.toast('KAFKA EVENT: comercial.viaje.ganado', 'Emitido al Bus STTS.', 'success');
+                        setTimeout(() => { app.utils.toast('LOGÍSTICA API', 'Viaje #TRP-8492 recibido en la Torre de Control.', 'info'); }, 1500);
+                    }
+                },
+                dropGantt: function(ev) {
+                    ev.preventDefault(); ev.currentTarget.classList.remove('drag-over');
+                    const row = ev.currentTarget.closest('.data-row');
+                    
+                    if (row && row.getAttribute('data-status').includes('blocked')) {
+                        let reason = row.getAttribute('data-status') === 'blocked_soat' ? 'SOAT Vencido (Jurídico)' : 'Licencia Vencida (RRHH)';
+                        app.utils.toast('SISTEMA BLOQUEADO', `Restricción estricta de Base de Datos: ${reason}. Asignación denegada.`, 'error');
+                        return;
+                    }
+
+                    const el = document.getElementById(ev.dataTransfer.getData("id"));
+                    if(el) {
+                        el.classList.remove('w-[300px]', 'w-64'); el.classList.add('w-full', 'h-full', 'bg-emerald-900/30', 'border-emerald-500/50', 'm-0');
+                        ev.currentTarget.innerHTML = ''; ev.currentTarget.appendChild(el);
+                        app.utils.toast('Asignación KAFKA', 'Viaje asignado. App Conductor notificada vía WebSocket.', 'success');
+                    }
+                }
+            },
+            simulations: {
+                triggerCrisis: function() {
+                    const isCrisis = document.body.classList.contains('crisis-mode');
+                    if(isCrisis) {
+                        document.body.classList.remove('crisis-mode');
+                        app.utils.toast('Protocolo Desactivado', 'Operación retornando a la normalidad.', 'success');
+                    } else {
+                        document.body.classList.add('crisis-mode');
+                        app.utils.toast('¡ALERTA GLOBAL!', 'Cierre total de Vía al Llano detectado. Reenrutando flota y notificando a clientes.', 'error');
+                        
+                        // Fake a new ticket automatically
+                        const tbody = document.getElementById('tickets-tbody');
+                        if(tbody) {
+                            const tr = document.createElement('tr');
+                            tr.innerHTML = `<td class="font-mono text-white font-bold">TK-904</td><td>Logística -> Atención</td><td class="text-xs text-slate-300">Notificar a clientes por retraso en Ruta Sur (Derrumbe).</td><td><span class="bg-rose-900/30 text-rose-500 px-3 py-1 rounded text-[10px] font-bold animate-pulse">EMERGENCIA</span></td>`;
+                            tbody.insertBefore(tr, tbody.firstChild);
+                        }
+                    }
+                },
+                refreshDashboard: function() {
+                    const icon = document.getElementById('refresh-icon'); icon.classList.add('fa-spin');
+                    setTimeout(() => {
+                        document.getElementById('dash-ingresos').innerText = "$1,254.2M";
+                        document.getElementById('dash-flota').innerHTML = '145<span class="text-lg text-slate-500">/150</span>';
+                        icon.classList.remove('fa-spin');
+                        app.utils.toast('Datos Frescos', 'Dashboard actualizado desde DB SSOT.', 'success');
+                    }, 1000);
+                },
+                comercialCotizar: function() {
+                    app.utils.toast('Maps API', 'Calculando matriz de distancia y peajes...', 'info');
+                    setTimeout(() => {
+                        const v = document.getElementById('com-price');
+                        v.value = "$ 1,850,000"; v.classList.replace('bg-[#020617]', 'bg-cyan-900/40'); v.classList.replace('border-[#1e293b]', 'border-cyan-500'); v.classList.replace('text-white', 'text-cyan-400');
+                        app.utils.toast('Cálculo Dinámico', 'Distancia: 420km | Peajes: 6', 'success');
+                    }, 1200);
+                },
+                finanzasLiquidar: function() {
+                    app.utils.toast('Motor Finanzas', 'Cruzando datos comerciales vs GPS...', 'info');
+                    setTimeout(() => { document.getElementById('fac-nueva').classList.remove('hidden'); app.utils.toast('Factura DIAN', 'Generada y enviada a Bancolombia.', 'success'); }, 1500);
+                },
+                tallerBloquear: function() { app.utils.toast('Taller -> STTS', 'Ticket CRÍTICO emitido. Bus inmovilizado en Logística.', 'error'); },
+                payDriver: function(btnElement) {
+                    app.utils.toast('Billetera Digital', 'Procesando transferencia interbancaria...', 'info');
+                    setTimeout(() => {
+                        btnElement.innerHTML = '<i class="fa-solid fa-check"></i> Pagado';
+                        btnElement.classList.replace('text-cyan-400', 'text-emerald-400');
+                        btnElement.classList.replace('border-cyan-500/50', 'border-emerald-500/50');
+                        btnElement.disabled = true;
+                        app.utils.toast('Transferencia Exitosa', 'Fondos enviados con éxito.', 'success');
+                    }, 1500);
+                },
+                radarClick: function(placa, vel) { app.utils.toast(`Telemetría GPS: ${placa}`, `Velocidad actual: ${vel} | Temp. Motor: 92°C | GPS Fix: 3D`, 'info'); },
+                sarlaft: function() {
+                    const v = document.getElementById('ai-input-sarlaft').value;
+                    app.ai.openTerminal('SARLAFT WEB CRAWLER', `<div class="flex items-center gap-3"><div class="loader-ai"></div><span class="text-rose-500">Escaneando bases globales de lavado de activos para: ${v}...</span></div>`);
+                    const finalHtml = `<span class="text-[#39ff14]">> ANÁLISIS COMPLETADO</span><br><br>Entidad: <strong>${v}</strong><br><br><span class="text-emerald-400">DICTAMEN: APROBADO.</span><br>Cero riesgos legales detectados. Perfil insertado en Base de Datos Principal.`;
+                    setTimeout(() => { app.ai.typeWriter(finalHtml); }, 2000);
+                },
+                recepcion: function() {
+                    app.ai.openTerminal('TRIAGE DE RECEPCIÓN', `<div class="flex items-center gap-3"><div class="loader-ai"></div><span class="text-cyan-400">Transcribiendo llamada entrante...</span></div>`);
+                    const finalHtml = `<span class="text-[#39ff14]">> TRANSCRIPCIÓN IA COMPLETA</span><br><br><strong>Audio Analizado:</strong> "Necesitamos 5 buses para una salida a Maloka este viernes."<br><br><span class="text-emerald-400">ACCIÓN SISTEMA:</span> Extrayendo requerimiento. Ticket Comercial generado automáticamente.`;
+                    setTimeout(() => { app.ai.typeWriter(finalHtml); }, 2000);
+                },
+                juridico: function() {
+                    app.ai.openTerminal('GENERADOR FUEC', `<div class="flex items-center gap-3"><div class="loader-ai"></div><span class="text-indigo-400">Extrayendo datos de PostgreSQL y encriptando Hash Criptográfico...</span></div>`);
+                    const finalHtml = `<span class="text-[#39ff14]">> FUEC GENERADO EXITOSAMENTE</span><br><br>Planilla N°: 450992388<br>Contrato Asociado: #TRP-8492<br><br><span class="text-emerald-400">HASH BLOCKCHAIN:</span> 0x8f2a...9c4b<br>> Código QR offline disponibilizado para la App del Conductor.`;
+                    setTimeout(() => { app.ai.typeWriter(finalHtml); }, 2000);
+                },
+                redactarClausula: function() {
+                    app.ai.openTerminal('REDACCIÓN LEGAL IA', `<div class="flex items-center gap-3"><div class="loader-ai"></div><span class="text-purple-400">Generando sintaxis jurídica...</span></div>`);
+                    const finalHtml = `<span class="text-[#39ff14]">> CLÁUSULA CREADA</span><br><br>En el evento en que EL CONTRATANTE cancele el servicio el mismo día de la prestación, deberá pagar a EL CONTRATISTA el cincuenta por ciento (50%) del valor pactado a título de indemnización.`;
+                    setTimeout(() => { app.ai.typeWriter(finalHtml); }, 2000);
+                },
+                roleplay: function() {
+                    const container = document.getElementById('chat-container');
+                    container.innerHTML = `<div class="chat-bubble chat-incoming"><p class="text-rose-400 font-bold mb-1">Cliente VIP (Bot IA)</p>¡Llevamos 30 minutos esperando el bus en la portería! Esto es inaceptable, cancelaré el contrato ya mismo.</div>`;
+                    app.utils.toast('Roleplay Iniciado', 'La IA evaluará tus técnicas de contención.', 'info');
+                },
+                sendChat: function() {
+                    const input = document.getElementById('chat-input'); const text = input.value; if(!text) return; input.value = '';
+                    const container = document.getElementById('chat-container');
+                    container.innerHTML += `<div class="chat-bubble chat-outgoing">${text}</div>`; container.scrollTop = container.scrollHeight;
+                    const typingId = 'typing-' + Date.now();
+                    container.innerHTML += `<div id="${typingId}" class="chat-bubble chat-incoming text-slate-500 italic flex items-center gap-2"><div class="loader-ai w-3 h-3 border-t-cyan-500"></div> El bot está escribiendo...</div>`;
+                    container.scrollTop = container.scrollHeight;
+                    setTimeout(() => {
+                        document.getElementById(typingId).remove();
+                        container.innerHTML += `<div class="chat-bubble chat-incoming"><p class="text-rose-400 font-bold mb-1">Cliente VIP (Bot IA)</p>Entiendo su posición. Confírmeme la placa del vehículo de reemplazo, no quiero esperar más de 10 minutos.</div>`;
+                        container.scrollTop = container.scrollHeight;
+                    }, 2000);
+                },
+                verPerfil: function(name, status) {
+                    const m = document.getElementById('profile-modal'), b = document.getElementById('profile-modal-box');
+                    document.getElementById('prof-name').innerText = name;
+                    const statEl = document.getElementById('prof-status');
+                    statEl.innerText = status;
+                    statEl.className = status === 'Apto' ? 'font-bold text-emerald-400' : 'font-bold text-rose-500';
+                    document.getElementById('prof-stress').innerText = status === 'Apto' ? '15% (Bajo)' : '85% (Crítico)';
+                    document.getElementById('prof-stress').className = status === 'Apto' ? 'font-bold text-emerald-400' : 'font-bold text-rose-500';
+                    m.classList.remove('hidden'); setTimeout(() => { m.classList.remove('opacity-0'); b.classList.remove('scale-95'); }, 10);
+                },
+                openAppModal: function(appName) {
+                    const m = document.getElementById('mobile-modal'), b = document.getElementById('mobile-modal-box'), screen = document.getElementById('mobile-screen');
+                    document.getElementById('mobile-title').innerText = `Simulador: App ${appName}`;
+                    let uiHtml = '';
+                    
+                    if (appName === 'Conductor') {
+                        uiHtml = `<div class="h-full flex flex-col bg-[#0f172a] text-white relative"><div class="absolute inset-0 opacity-10" style="background-image: radial-gradient(#06b6d4 1px, transparent 1px); background-size: 15px 15px;"></div><div class="pt-10 pb-4 px-4 bg-[#020617] border-b border-[#1e293b] flex justify-between items-center z-10 shadow-lg"><div><h3 class="font-black tracking-widest text-lg">FSG DRIVER</h3><p class="text-[10px] text-emerald-400 font-mono"><i class="fa-solid fa-circle text-[8px] animate-pulse mr-1"></i> GPS TRANSMITIENDO</p></div><div class="w-10 h-10 rounded-full border-2 border-emerald-500 overflow-hidden bg-slate-800 flex items-center justify-center"><i class="fa-solid fa-user text-slate-400"></i></div></div><div class="flex-1 p-5 z-10 flex flex-col gap-5 overflow-y-auto"><div class="bg-emerald-900/30 border border-emerald-500/50 p-5 rounded-2xl text-center shadow-[0_0_15px_rgba(16,185,129,0.2)]"><p class="text-emerald-400 font-black text-2xl tracking-widest mb-1 animate-pulse">EN RUTA</p><p class="text-xs text-slate-300 font-mono">Viaje: #TRP-101</p><div class="mt-4 pt-4 border-t border-emerald-500/30 flex justify-between text-xs"><span class="text-slate-400">Velocidad: <strong class="text-white">65 km/h</strong></span><span class="text-slate-400">Restante: <strong class="text-white">12 min</strong></span></div></div><div class="grid grid-cols-2 gap-4 mt-auto"><div onclick="app.utils.toast('Módulo Contabilidad','Peaje #4893 procesado por OCR desde la App e ingresado al PUC.','success')" class="app-btn-interactive bg-[#1e293b] border border-[#334155] p-4 rounded-2xl flex flex-col items-center justify-center gap-2 hover:bg-cyan-900/30 transition-colors"><i class="fa-solid fa-receipt text-3xl text-cyan-400"></i><span class="text-[10px] font-bold uppercase text-center">Subir Peaje<br>(Conecta a PUC)</span></div><div onclick="app.utils.toast('FUEC Desplegado','Mostrando QR Criptográfico.','success')" class="app-btn-interactive bg-[#1e293b] border border-[#334155] p-4 rounded-2xl flex flex-col items-center justify-center gap-2 hover:bg-cyan-900/30 transition-colors"><i class="fa-solid fa-qrcode text-3xl text-cyan-400"></i><span class="text-[10px] font-bold uppercase">Ver FUEC QR</span></div></div><div onclick="app.utils.toast('¡ALERTA RECIBIDA!','El botón de pánico de la App Conductor ha detonado una alerta en la Torre de Control.','error')" class="app-btn-interactive w-full bg-rose-600 p-4 rounded-2xl font-black tracking-widest text-sm shadow-[0_0_15px_rgba(244,63,94,0.4)] mt-2 text-center text-white"><i class="fa-solid fa-triangle-exclamation mr-2"></i> EMERGENCIA</div></div></div>`;
+                    } 
+                    else if (appName === 'Corporativa B2B') {
+                        uiHtml = `<div class="h-full flex flex-col bg-slate-50 text-slate-900 relative font-sans"><div class="absolute inset-0 bg-[#e2e8f0] opacity-50" style="background-image: radial-gradient(#cbd5e1 2px, transparent 2px); background-size: 20px 20px;"></div><div class="pt-10 pb-4 px-6 bg-white shadow-sm z-10 flex justify-between items-center rounded-b-3xl"><div><h3 class="font-black text-lg text-slate-800 tracking-tight">FSG Corporate</h3></div><i class="fa-solid fa-bars text-xl text-slate-400"></i></div><div class="flex-1 p-6 z-10 flex flex-col"><h2 class="text-2xl font-bold mb-6 mt-4 text-slate-800">Hola, Carlos.<br><span class="text-slate-500 font-normal text-base">¿A dónde vamos hoy?</span></h2><div class="bg-white p-4 rounded-2xl shadow-lg border border-slate-100 flex items-center gap-4 mb-auto cursor-pointer app-btn-interactive" onclick="app.utils.toast('Solicitud Creada','La App B2B ha enviado una solicitud a la Torre de Control Logística.','success')"><div class="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-lg"><i class="fa-solid fa-magnifying-glass"></i></div><div><p class="font-bold text-slate-800">Sede Norte Ecopetrol</p><p class="text-xs text-slate-500">Haz clic para solicitar</p></div></div><div class="bg-slate-900 text-white p-5 rounded-3xl shadow-[0_15px_30px_rgba(15,23,42,0.4)] mb-4"><div class="flex justify-between items-center mb-4"><div><p class="font-bold text-sm">Tu van va en camino</p><p class="text-xs text-blue-400">Centro de Costos: MKT-01</p></div><div class="bg-slate-800 px-3 py-1 rounded-lg text-lg font-bold">4 min</div></div><div class="flex items-center gap-4 border-t border-slate-700 pt-4"><div class="w-12 h-12 bg-slate-700 rounded-full flex items-center justify-center"><i class="fa-solid fa-van-shuttle text-2xl"></i></div><div><p class="font-bold font-mono">ABC-123</p><p class="text-xs text-slate-400">Luis Pérez • 4.9 <i class="fa-solid fa-star text-amber-400 text-[10px]"></i></p></div></div></div></div></div>`;
+                    }
+                    else if (appName === 'Monitoras Escolares') {
+                        uiHtml = `<div class="h-full flex flex-col bg-[#fafafa] text-slate-800"><div class="pt-10 pb-4 px-6 bg-amber-500 shadow-md z-10"><h3 class="font-black text-white text-lg tracking-widest uppercase">Ruta Escolar #5</h3><p class="text-amber-100 text-xs font-bold">Colegio San Jorge • PM</p></div><div class="p-4 z-10 flex gap-2"><div onclick="app.utils.toast('Check-in Realizado','QR Escaneado. El servidor central actualiza la lista.','info')" class="app-btn-interactive flex-1 bg-slate-900 text-white py-3 rounded-xl font-bold shadow-md text-center cursor-pointer"><i class="fa-solid fa-qrcode mr-2"></i> Escanear Carnet</div></div><div class="flex-1 overflow-y-auto px-4 pb-4"><h4 class="font-bold text-slate-400 text-xs uppercase mb-3 px-2">Lista de Estudiantes (4/22)</h4><div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-3 flex justify-between items-center"><div class="flex items-center gap-3"><div class="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center"><i class="fa-solid fa-child text-slate-400"></i></div><div><p class="font-bold text-sm">Mateo Arias</p><p class="text-xs text-slate-500">Parada: Cll 140</p></div></div><div class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-lg"><i class="fa-solid fa-check-circle"></i></div></div><div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-3 flex justify-between items-center opacity-60"><div class="flex items-center gap-3"><div class="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center"><i class="fa-solid fa-child text-slate-400"></i></div><div><p class="font-bold text-sm">Sofía Gómez</p><p class="text-xs text-slate-500">Parada: Cra 11</p></div></div><div class="w-8 h-8 rounded-full border-2 border-slate-300 text-slate-300 flex items-center justify-center"><i class="fa-solid fa-minus"></i></div></div></div><div onclick="app.utils.toast('Alerta de Pánico','La App Monitora detonó una alerta visual en la Torre Logística.','error')" class="app-btn-interactive m-4 bg-rose-600 text-white p-4 rounded-xl font-black text-center shadow-lg cursor-pointer"><i class="fa-solid fa-triangle-exclamation mr-2"></i> EMERGENCIA</div></div>`;
+                    }
+                    else if (appName === 'Padres de Familia') {
+                        uiHtml = `<div class="h-full flex flex-col bg-white text-slate-800 relative"><div class="absolute inset-0 bg-[#e2e8f0]" style="background-image: radial-gradient(#94a3b8 2px, transparent 2px); background-size: 20px 20px;"></div><div class="pt-10 pb-4 px-6 bg-white/90 backdrop-blur-md shadow-sm z-10 border-b border-slate-200"><h3 class="font-black text-indigo-900 text-lg">FSG Parents</h3></div><div class="absolute top-1/3 left-1/4 w-12 h-12 bg-amber-500 rounded-full shadow-lg flex items-center justify-center text-white border-2 border-white animate-bounce z-10"><i class="fa-solid fa-bus text-xl"></i></div><div class="absolute top-1/2 right-1/4 w-8 h-8 bg-indigo-600 rounded-full shadow-lg flex items-center justify-center text-white border-2 border-white z-10"><i class="fa-solid fa-house text-sm"></i></div><div class="absolute top-28 left-4 right-4 bg-white p-4 rounded-2xl shadow-2xl border-l-4 border-amber-500 z-20"><div class="flex items-center gap-3"><div class="w-8 h-8 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center"><i class="fa-solid fa-bell animate-pulse"></i></div><div><p class="font-bold text-sm text-slate-800">El bus se acerca</p><p class="text-xs text-slate-500">Llegada estimada a la parada en 5 min.</p></div></div></div><div class="mt-auto bg-white rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.1)] p-6 z-20 border-t border-slate-100"><h2 class="font-bold text-lg mb-1">Ruta de Sofía</h2><p class="text-xs text-slate-500 mb-4">Colegio San Jorge • Regreso a casa</p><div class="flex justify-between items-center bg-slate-50 p-4 rounded-xl border border-slate-200"><div class="flex items-center gap-3"><div class="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-lg"><i class="fa-solid fa-check"></i></div><div><p class="font-bold text-sm">Abordó el bus</p><p class="text-[10px] text-slate-500">03:15 PM</p></div></div></div></div></div>`;
+                    }
+
+                    screen.innerHTML = uiHtml; m.classList.remove('hidden'); 
+                    setTimeout(() => { m.classList.remove('opacity-0'); b.classList.remove('scale-95'); }, 10);
+                },
+                closeAppModal: function() {
+                    const m = document.getElementById('mobile-modal'), b = document.getElementById('mobile-modal-box');
+                    m.classList.add('opacity-0'); b.classList.add('scale-95'); 
+                    setTimeout(() => { m.classList.add('hidden'); document.getElementById('mobile-screen').innerHTML = ''; }, 300);
+                }
+            },
+            ai: {
+                openTerminal: function(title, initialContent) {
+                    const m = document.getElementById('ai-modal'), b = document.getElementById('ai-modal-box');
+                    m.classList.remove('hidden'); setTimeout(() => { m.classList.remove('opacity-0'); b.classList.remove('scale-95'); }, 10);
+                    document.getElementById('modal-title').innerText = title; document.getElementById('modal-content').innerHTML = initialContent;
+                },
+                typeWriter: function(htmlContent) {
+                    const el = document.getElementById('modal-content'); el.innerHTML = htmlContent; el.style.opacity = 0;
+                    let op = 0; let timer = setInterval(function () { if (op >= 1){ clearInterval(timer); } el.style.opacity = op; op += 0.1; }, 40);
+                },
+                closeTerminal: function() {
+                    const m = document.getElementById('ai-modal'), b = document.getElementById('ai-modal-box');
+                    m.classList.add('opacity-0'); b.classList.add('scale-95'); setTimeout(() => m.classList.add('hidden'), 300);
+                }
+            },
+            utils: {
+                toast: function(title, msg, type) {
+                    const c = document.getElementById('toast-container'); const t = document.createElement('div');
+                    let color = type === 'success' ? 'text-emerald-400' : (type === 'error' ? 'text-rose-500' : 'text-cyan-400');
+                    let icon = type === 'error' ? 'fa-triangle-exclamation' : (type === 'success' ? 'fa-check' : 'fa-server');
+                    t.className = `toast border-[var(--cyan)]`;
+                    if(type==='success') t.style.borderLeftColor = 'var(--emerald)'; if(type==='error') t.style.borderLeftColor = 'var(--rose)';
+                    t.innerHTML = `<div class="${color} text-xl"><i class="fa-solid ${icon}"></i></div><div><p class="text-sm font-bold text-white">${title}</p><p class="text-xs text-slate-400">${msg}</p></div>`;
+                    c.appendChild(t); requestAnimationFrame(() => t.classList.add('show'));
+                    setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 400); }, 5000);
+                },
+                toggleProjectorMode: function() {
+                    document.body.classList.toggle('projector-mode');
+                    const isProj = document.body.classList.contains('projector-mode');
+                    app.utils.toast(isProj ? 'Modo Proyector Activado' : 'Modo Estándar', isProj ? 'Escala y contraste aumentados.' : 'Interfaz restaurada.', 'success');
+                }
+            },
+            init: function() {
+                this.rbac.switch('presidencia');
+                const ctx = document.getElementById('mainChart');
+                if(ctx) {
+                    Chart.defaults.color = '#64748b'; Chart.defaults.font.family = 'JetBrains Mono';
+                    new Chart(ctx, { type: 'line', data: { labels: ['S1', 'S2', 'S3', 'S4'], datasets: [{ label: 'Facturado', data: [80, 150, 120, 245], borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.4 }, { label: 'Gastos', data: [50, 90, 80, 160], borderColor: '#f43f5e', borderDash: [5, 5], tension: 0.4 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } });
+                }
+                const ctxDoughnut = document.getElementById('doughnutChart');
+                if(ctxDoughnut) {
+                    new Chart(ctxDoughnut, { type: 'doughnut', data: { labels: ['B2B', 'Escolar', 'Turismo'], datasets: [{ data: [65, 25, 10], backgroundColor: ['#06b6d4', '#10b981', '#f59e0b'], borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '75%', plugins: { legend: { position: 'bottom', labels: { color: '#cbd5e1' } } } } });
+                }
+            }
+        };
+
+        window.onload = () => app.init();
+    </script>
+</body>
+</html>

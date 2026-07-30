@@ -1,0 +1,103 @@
+# Fleetline — stack de producción
+# Aislado del resto de Docker del VPS: proyecto, red, volúmenes y puertos propios.
+# Uso: docker compose -p fleetline -f docker-compose.prod.yml --env-file .env.production up -d --build
+
+name: fleetline
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: fleetline-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-fsg}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env.production}
+      POSTGRES_DB: ${POSTGRES_DB:-fsg_crm}
+    volumes:
+      - fleetline_pg_data:/var/lib/postgresql/data
+    networks:
+      - fleetline_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fsg} -d ${POSTGRES_DB:-fsg_crm}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # Solo expone al host si FLEETLINE_PG_HOST_PORT está definido (p. ej. 55432).
+    # Por defecto NO publica: evita choques y deja Postgres solo en la red interna.
+    ports:
+      - "${FLEETLINE_PG_HOST_PORT:-127.0.0.1:55432}:5432"
+
+  redis:
+    image: redis:7-alpine
+    container_name: fleetline-redis
+    restart: unless-stopped
+    volumes:
+      - fleetline_redis_data:/data
+    networks:
+      - fleetline_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # Sin ports: Redis solo visible para api dentro de fleetline_net (no pisa :6379 del otro stack).
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    container_name: fleetline-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-fsg}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-fsg_crm}?schema=public
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET en .env.production}
+      API_PORT: "4000"
+      CORS_ORIGINS: ${CORS_ORIGINS}
+    volumes:
+      - fleetline_uploads:/app/uploads
+    ports:
+      # Host 4010 → contenedor 4000 (cambia FLEETLINE_API_HOST_PORT si 4010 está ocupado)
+      - "${FLEETLINE_API_HOST_PORT:-4010}:4000"
+    networks:
+      - fleetline_net
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.web
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+        NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-${NEXT_PUBLIC_API_URL}}
+    container_name: fleetline-web
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
+    ports:
+      # Host 3010 → contenedor 3000 (cambia FLEETLINE_WEB_HOST_PORT si 3010 está ocupado)
+      - "${FLEETLINE_WEB_HOST_PORT:-3010}:3000"
+    networks:
+      - fleetline_net
+
+networks:
+  fleetline_net:
+    name: fleetline_net
+    driver: bridge
+
+volumes:
+  fleetline_pg_data:
+    name: fleetline_pg_data
+  fleetline_redis_data:
+    name: fleetline_redis_data
+  fleetline_uploads:
+    name: fleetline_uploads

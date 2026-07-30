@@ -1,0 +1,553 @@
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Req,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
+} from "@nestjs/common";
+import { FileInterceptor } from "@nestjs/platform-express";
+import { diskStorage } from "multer";
+import { extname, resolve } from "path";
+import { randomUUID } from "crypto";
+import { JwtAuthGuard } from "../auth/jwt-auth.guard";
+import { ModulesGuard, RequireModule } from "../auth/modules.guard";
+import { ModulesService } from "./modules.service";
+
+@Controller()
+@UseGuards(JwtAuthGuard, ModulesGuard)
+export class ModulesController {
+  constructor(private svc: ModulesService) {}
+
+  // RRHH
+  @Get("rrhh/employees")
+  @RequireModule("rrhh")
+  employees(@Req() req: { user: { organizationId: string } }) {
+    return this.svc.listEmployees(req.user.organizationId);
+  }
+
+  @Post("rrhh/employees")
+  @RequireModule("rrhh")
+  createEmployee(
+    @Req() req: { user: { organizationId: string } },
+    @Body()
+    body: {
+      name: string;
+      document: string;
+      position: string;
+      area: string;
+      phone?: string;
+      email?: string;
+      fatigueScore?: number;
+    },
+  ) {
+    return this.svc.createEmployee(req.user.organizationId, body);
+  }
+
+  @Patch("rrhh/employees/:id/status")
+  @RequireModule("rrhh")
+  employeeStatus(
+    @Req() req: { user: { organizationId: string } },
+    @Param("id") id: string,
+    @Body() body: { status: string },
+  ) {
+    return this.svc.updateEmployeeStatus(
+      req.user.organizationId,
+      id,
+      body.status,
+    );
+  }
+
+  // Atención
+  @Get("atencion/tickets")
+  @RequireModule("atencion")
+  tickets(@Req() req: { user: { organizationId: string } }) {
+    return this.svc.listTickets(req.user.organizationId);
+  }
+
+  @Post("atencion/tickets")
+  @RequireModule("atencion")
+  createTicket(
+    @Req() req: { user: { organizationId: string } },
+    @Body()
+    body: {
+      subject: string;
+      requester: string;
+      message: string;
+      channel?: string;
+      priority?: string;
+    },
+  ) {
+    return this.svc.createTicket(req.user.organizationId, body);
+  }
+
+  @Patch("atencion/tickets/:id/status")
+  @RequireModule("atencion")
+  ticketStatus(
+    @Req() req: { user: { organizationId: string } },
+    @Param("id") id: string,
+    @Body() body: { status: string },
+  ) {
+    return this.svc.updateTicketStatus(
+      req.user.organizationId,
+      id,
+      body.status,
+    );
+  }
+
+  // Calidad
+  @Get("calidad/events")
+  @RequireModule("calidad")
+  quality(@Req() req: { user: { organizationId: string } }) {
+    return this.svc.listQuality(req.user.organizationId);
+  }
+
+  @Get("calidad/summary")
+  @RequireModule("calidad")
+  qualitySummary(@Req() req: { user: { organizationId: string } }) {
+    return this.svc.qualitySummary(req.user.organizationId);
+  }
+
+  @Post("calidad/events")
+  @RequireModule("calidad")
+  createQuality(
+    @Req() req: { user: { organizationId: string } },
+    @Body()
+    body: {
+      type: string;
+      title: string;
+      description?: string;
+      score?: number;
+    },
+  ) {
+    return this.svc.createQuality(req.user.organizationId, body);
+  }
+
+  // Jurídico
+  @Get("juridico/fuec")
+  @RequireModule("juridico")
+  fuec(@Req() req: { user: { organizationId: string } }) {
+    return this.svc.listFuec(req.user.organizationId);
+  }
+
+  @Post("juridico/fuec")
+  @RequireModule("juridico")
+  createFuec(
+    @Req() req: { user: { organizationId: string } },
+    @Body()
+    body: {
+      number: string;
+      contractor: string;
+      route: string;
+      validFrom: string;
+      validTo: string;
+      vehicleId?: string;
+    },
+  ) {
+    return this.svc.createFuec(req.user.organizationId, body);
+  }
+
+  // SARLAFT
+  @Get("sarlaft/checks")
+  @RequireModule("sarlaft")
+  sarlaft(@Req() req: { user: { organizationId: string } }) {
+    return this.svc.listSarlaft(req.user.organizationId);
+  }
+
+  @Post("sarlaft/checks")
+  @RequireModule("sarlaft")
+  createSarlaft(
+    @Req() req: { user: { organizationId: string } },
+    @Body()
+    body: {
+      subjectName: string;
+      subjectDoc: string;
+      risk?: string;
+      notes?: string;
+      customerId?: string;
+    },
+  ) {
+    return this.svc.createSarlaft(req.user.organizationId, body);
+  }
+
+  // Archivo
+  @Get("archivo/documents")
+  @RequireModule("archivo")
+  archive(@Req() req: { user: { organizationId: string } }) {
+    return this.svc.listArchive(req.user.organizationId);
+  }
+
+  @Post("archivo/documents")
+  @RequireModule("archivo")
+  createArchive(
+    @Req() req: { user: { organizationId: string } },
+    @Body()
+    body: {
+      title: string;
+      category?: string;
+      fileRef?: string;
+      tags?: string;
+    },
+  ) {
+    return this.svc.createArchive(req.user.organizationId, body);
+  }
+
+  @Post("archivo/upload")
+  @RequireModule("archivo")
+  @UseInterceptors(
+    FileInterceptor("file", {
+      storage: diskStorage({
+        destination: resolve(__dirname, "../../../../uploads"),
+        filename: (_req, file, cb) => {
+          const safe = extname(file.originalname).toLowerCase().slice(0, 10);
+          cb(null, `${randomUUID()}${safe}`);
+        },
+      }),
+      limits: { fileSize: 15 * 1024 * 1024 },
+    }),
+  )
+  uploadArchive(
+    @Req() req: { user: { organizationId: string } },
+    @UploadedFile() file: Express.Multer.File,
+    @Body() body: { title?: string; category?: string; tags?: string },
+  ) {
+    return this.svc.createArchiveWithFile(req.user.organizationId, {
+      title: body.title || file.originalname,
+      category: body.category,
+      tags: body.tags,
+      storedName: file.filename,
+      originalName: file.originalname,
+    });
+  }
+
+  // Recepción
+  @Get("recepcion/visitors")
+  @RequireModule("recepcion")
+  visitors(@Req() req: { user: { organizationId: string } }) {
+    return this.svc.listVisitors(req.user.organizationId);
+  }
+
+  @Post("recepcion/visitors")
+  @RequireModule("recepcion")
+  createVisitor(
+    @Req() req: { user: { organizationId: string } },
+    @Body()
+    body: {
+      name: string;
+      document: string;
+      purpose: string;
+      hostName: string;
+      company?: string;
+    },
+  ) {
+    return this.svc.createVisitor(req.user.organizationId, body);
+  }
+
+  @Patch("recepcion/visitors/:id/checkout")
+  @RequireModule("recepcion")
+  checkout(
+    @Req() req: { user: { organizationId: string } },
+    @Param("id") id: string,
+  ) {
+    return this.svc.checkoutVisitor(req.user.organizationId, id);
+  }
+
+  // Sistemas
+  @Get("sistemas/alerts")
+  @RequireModule("sistemas")
+  alerts(@Req() req: { user: { organizationId: string } }) {
+    return this.svc.listAlerts(req.user.organizationId);
+  }
+
+  @Get("sistemas/health")
+  @RequireModule("sistemas")
+  health(@Req() req: { user: { organizationId: string } }) {
+    return this.svc.systemsHealth(req.user.organizationId);
+  }
+
+  @Patch("sistemas/alerts/:id/resolve")
+  @RequireModule("sistemas")
+  resolveAlert(
+    @Req() req: { user: { organizationId: string } },
+    @Param("id") id: string,
+  ) {
+    return this.svc.resolveAlert(req.user.organizationId, id);
+  }
+
+  // Revisoría
+  @Get("revisoria/findings")
+  @RequireModule("revisoria")
+  forensic(@Req() req: { user: { organizationId: string } }) {
+    return this.svc.listForensic(req.user.organizationId);
+  }
+
+  @Post("revisoria/findings")
+  @RequireModule("revisoria")
+  createForensic(
+    @Req() req: { user: { organizationId: string } },
+    @Body()
+    body: {
+      title: string;
+      detail: string;
+      severity?: string;
+      amount?: number;
+    },
+  ) {
+    return this.svc.createForensic(req.user.organizationId, body);
+  }
+
+  // Apps
+  @Get("apps/overview")
+  @RequireModule("apps")
+  apps(@Req() req: { user: { organizationId: string } }) {
+    return this.svc.appsOverview(req.user.organizationId);
+  }
+
+  // Compras
+  @Get("compras/orders")
+  @RequireModule("compras")
+  purchases(@Req() req: { user: { organizationId: string } }) {
+    return this.svc.listPurchases(req.user.organizationId);
+  }
+
+  @Post("compras/orders")
+  @RequireModule("compras")
+  createPurchase(
+    @Req() req: { user: { organizationId: string } },
+    @Body()
+    body: {
+      description: string;
+      supplier: string;
+      amount: number;
+      category?: string;
+      requestedBy?: string;
+    },
+  ) {
+    return this.svc.createPurchase(req.user.organizationId, body);
+  }
+
+  @Patch("compras/orders/:id/status")
+  @RequireModule("compras")
+  purchaseStatus(
+    @Req() req: { user: { organizationId: string } },
+    @Param("id") id: string,
+    @Body() body: { status: string },
+  ) {
+    return this.svc.updatePurchaseStatus(
+      req.user.organizationId,
+      id,
+      body.status,
+    );
+  }
+
+  // Trámites
+  @Get("tramites/procedures")
+  @RequireModule("tramites")
+  procedures(@Req() req: { user: { organizationId: string } }) {
+    return this.svc.listProcedures(req.user.organizationId);
+  }
+
+  @Post("tramites/procedures")
+  @RequireModule("tramites")
+  createProcedure(
+    @Req() req: { user: { organizationId: string } },
+    @Body()
+    body: {
+      vehicleId: string;
+      type: string;
+      reference?: string;
+      validFrom?: string;
+      validTo: string;
+      notes?: string;
+    },
+  ) {
+    return this.svc.createProcedure(req.user.organizationId, body);
+  }
+
+  // Parqueadero
+  @Get("parqueadero/logs")
+  @RequireModule("parqueadero")
+  parking(@Req() req: { user: { organizationId: string } }) {
+    return this.svc.listParking(req.user.organizationId);
+  }
+
+  @Get("parqueadero/summary")
+  @RequireModule("parqueadero")
+  parkingSummary(@Req() req: { user: { organizationId: string } }) {
+    return this.svc.parkingSummary(req.user.organizationId);
+  }
+
+  @Post("parqueadero/checkin")
+  @RequireModule("parqueadero")
+  parkingCheckIn(
+    @Req() req: { user: { organizationId: string } },
+    @Body()
+    body: {
+      plate: string;
+      driverName?: string;
+      guardName: string;
+      vehicleId?: string;
+    },
+  ) {
+    return this.svc.checkInParking(req.user.organizationId, body);
+  }
+
+  @Patch("parqueadero/checkout/:id")
+  @RequireModule("parqueadero")
+  parkingCheckOut(
+    @Req() req: { user: { organizationId: string } },
+    @Param("id") id: string,
+  ) {
+    return this.svc.checkOutParking(req.user.organizationId, id);
+  }
+
+  @Patch("rrhh/employees/:id")
+  @RequireModule("rrhh")
+  updateEmployee(
+    @Req() req: { user: { organizationId: string } },
+    @Param("id") id: string,
+    @Body()
+    body: {
+      name?: string;
+      position?: string;
+      area?: string;
+      phone?: string;
+      email?: string;
+      fatigueScore?: number;
+      status?: string;
+    },
+  ) {
+    return this.svc.updateEmployee(req.user.organizationId, id, body);
+  }
+
+  @Patch("atencion/tickets/:id")
+  @RequireModule("atencion")
+  updateTicket(
+    @Req() req: { user: { organizationId: string } },
+    @Param("id") id: string,
+    @Body()
+    body: { priority?: string; status?: string; assigneeId?: string | null },
+  ) {
+    return this.svc.updateTicket(req.user.organizationId, id, body);
+  }
+
+  @Patch("calidad/events/:id")
+  @RequireModule("calidad")
+  updateQuality(
+    @Req() req: { user: { organizationId: string } },
+    @Param("id") id: string,
+    @Body()
+    body: {
+      status?: string;
+      title?: string;
+      score?: number;
+      description?: string;
+    },
+  ) {
+    return this.svc.updateQuality(req.user.organizationId, id, body);
+  }
+
+  @Patch("juridico/fuec/:id")
+  @RequireModule("juridico")
+  updateFuec(
+    @Req() req: { user: { organizationId: string } },
+    @Param("id") id: string,
+    @Body() body: { status?: string; route?: string; validTo?: string },
+  ) {
+    return this.svc.updateFuec(req.user.organizationId, id, body);
+  }
+
+  @Patch("sarlaft/checks/:id")
+  @RequireModule("sarlaft")
+  updateSarlaft(
+    @Req() req: { user: { organizationId: string } },
+    @Param("id") id: string,
+    @Body() body: { risk?: string; notes?: string; customerId?: string },
+  ) {
+    return this.svc.updateSarlaft(req.user.organizationId, id, body);
+  }
+
+  @Patch("archivo/documents/:id")
+  @RequireModule("archivo")
+  updateArchive(
+    @Req() req: { user: { organizationId: string } },
+    @Param("id") id: string,
+    @Body() body: { title?: string; category?: string; tags?: string },
+  ) {
+    return this.svc.updateArchive(req.user.organizationId, id, body);
+  }
+
+  @Post("archivo/documents/:id/delete")
+  @RequireModule("archivo")
+  deleteArchive(
+    @Req() req: { user: { organizationId: string } },
+    @Param("id") id: string,
+  ) {
+    return this.svc.deleteArchive(req.user.organizationId, id);
+  }
+
+  @Patch("compras/orders/:id")
+  @RequireModule("compras")
+  updatePurchase(
+    @Req() req: { user: { organizationId: string } },
+    @Param("id") id: string,
+    @Body()
+    body: {
+      description?: string;
+      supplier?: string;
+      amount?: number;
+      status?: string;
+    },
+  ) {
+    return this.svc.updatePurchase(req.user.organizationId, id, body);
+  }
+
+  @Patch("tramites/procedures/:id")
+  @RequireModule("tramites")
+  updateProcedure(
+    @Req() req: { user: { organizationId: string } },
+    @Param("id") id: string,
+    @Body()
+    body: {
+      validTo?: string;
+      reference?: string;
+      status?: string;
+      notes?: string;
+    },
+  ) {
+    return this.svc.updateProcedure(req.user.organizationId, id, body);
+  }
+
+  @Patch("revisoria/findings/:id")
+  @RequireModule("revisoria")
+  updateForensic(
+    @Req() req: { user: { organizationId: string } },
+    @Param("id") id: string,
+    @Body() body: { status?: string; detail?: string; severity?: string },
+  ) {
+    return this.svc.updateForensic(req.user.organizationId, id, body);
+  }
+
+  @Post("sistemas/alerts")
+  @RequireModule("sistemas")
+  createAlert(
+    @Req() req: { user: { organizationId: string } },
+    @Body() body: { severity?: string; source: string; message: string },
+  ) {
+    return this.svc.createAlert(req.user.organizationId, body);
+  }
+
+  @Patch("recepcion/visitors/:id")
+  @RequireModule("recepcion")
+  updateVisitor(
+    @Req() req: { user: { organizationId: string } },
+    @Param("id") id: string,
+    @Body() body: { purpose?: string; hostName?: string; company?: string },
+  ) {
+    return this.svc.updateVisitor(req.user.organizationId, id, body);
+  }
+}

@@ -1,0 +1,53 @@
+# Desarrollo local — Postgres + Redis
+# Proyecto aislado: docker compose -p fleetline up -d
+name: fleetline
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: fleetline-postgres-dev
+    restart: unless-stopped
+    ports:
+      # Puerto no estándar para no chocar con Postgres del otro stack (:5432)
+      - "55432:5432"
+    environment:
+      POSTGRES_USER: fsg
+      POSTGRES_PASSWORD: fsg_secret
+      POSTGRES_DB: fsg_crm
+    volumes:
+      - fleetline_pg_data_dev:/var/lib/postgresql/data
+    networks:
+      - fleetline_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fsg -d fsg_crm"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: fleetline-redis-dev
+    restart: unless-stopped
+    ports:
+      # No uses 6379 en el host si el otro Docker ya lo ocupa
+      - "56379:6379"
+    volumes:
+      - fleetline_redis_data_dev:/data
+    networks:
+      - fleetline_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+networks:
+  fleetline_net:
+    name: fleetline_net_dev
+    driver: bridge
+
+volumes:
+  fleetline_pg_data_dev:
+    name: fleetline_pg_data_dev
+  fleetline_redis_data_dev:
+    name: fleetline_redis_data_dev

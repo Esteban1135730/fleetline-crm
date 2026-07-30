@@ -1,0 +1,11 @@
+{
+  "name": "@fsg/config",
+  "version": "0.0.1",
+  "private": true,
+  "files": ["typescript", "tailwind"],
+  "exports": {
+    "./typescript/base": "./typescript/base.json",
+    "./typescript/nextjs": "./typescript/nextjs.json",
+    "./typescript/nestjs": "./typescript/nestjs.json"
+  }
+}

@@ -1,0 +1,581 @@
+================================================================================
+  FLEETLINE / FSG CRM — INVENTARIO COMPLETO DEL SISTEMA
+  Generado a partir del código del monorepo crmtrasporte
+  Fecha: 2026-07-30
+================================================================================
+
+Producto: Fleetline (CRM & Telemetry)
+Organización demo (seed): FSG Transportes S.A.S. (NIT 900123456-1)
+Stack: pnpm + Turborepo | Next.js 15 | NestJS 11 | Prisma 6 | PostgreSQL | Expo
+
+================================================================================
+1. ESTRUCTURA DEL MONOREPO
+================================================================================
+
+crmtrasporte/
+├── apps/
+│   ├── api/          → @fsg/api         NestJS (puerto 4000)
+│   ├── web/          → @fsg/web         Next.js 15 (puerto 3000)
+│   └── conductor/    → @fsg/conductor   Expo / React Native (app móvil)
+├── packages/
+│   ├── db/           → @fsg/db          Prisma + migraciones + seed
+│   ├── shared/       → @fsg/shared      Roles, módulos, schemas Zod
+│   ├── ui/           → @fsg/ui          Componentes de presentación
+│   └── config/       → @fsg/config      Configs TypeScript compartidas
+├── scripts/          → Suites de API / patches
+├── uploads/          → Archivos subidos (módulo Archivo)
+├── docker-compose.yml → Postgres :55432 + Redis :6379
+├── package.json / pnpm-workspace.yaml / turbo.json
+└── .env / .env.example
+
+APPS Y PACKAGES
+--------------------------------------------------------------------------------
+@fsg/web       Next 15, React 19, Tailwind 4, Recharts     → CRM web
+@fsg/api       NestJS 11, JWT, Passport, Socket.IO, Multer → API + WS GPS
+@fsg/conductor Expo 52, React Native 0.76                  → App móvil conductor
+@fsg/db        Prisma 6 + PostgreSQL                       → Schema y seed
+@fsg/shared    Zod                                         → Contratos UI↔API
+@fsg/ui        React                                       → Panel, Button, Badge...
+@fsg/config    JSON                                        → tsconfigs base
+
+FUERA DEL PILOTO (no implementado / documentado como futuro)
+--------------------------------------------------------------------------------
+- DIAN facturación electrónica
+- WhatsApp Business API
+- Listas SARLAFT externas automáticas
+- Nómina DIAN
+- Billing SaaS multi-tenant comercial
+
+================================================================================
+2. AUTENTICACIÓN, ROLES Y PERMISOS
+================================================================================
+
+AUTH
+--------------------------------------------------------------------------------
+- POST /auth/login
+- POST /auth/register (alta de organización + admin)
+- GET  /auth/me
+- PATCH /auth/password
+- Token JWT en localStorage (web: fsg_token) / SecureStore (móvil)
+- Login web: /login (Fleetline OS / Torre de control)
+- Página /cuenta: cambio de contraseña (cualquier autenticado)
+
+ROLES
+--------------------------------------------------------------------------------
+Rol (UI/API)     Prisma enum      Label
+---------------  ---------------  ----------------------
+presidencia      PRESIDENCIA      Gerencia general
+gerencia         GERENCIA         Operaciones
+finanzas         FINANZAS         Finanzas
+despacho         DESPACHO         Despacho
+rrhh             RRHH             Recursos humanos
+atencion         ATENCION         Atención al cliente
+sistemas         SISTEMAS         Tecnología
+
+MÓDULOS REGISTRADOS (MODULES)
+--------------------------------------------------------------------------------
+dashboard, apps, comercial, logistica, parqueadero, tramites, taller,
+compras, finanzas, contabilidad, revisoria, rrhh, atencion, calidad,
+juridico, sarlaft, archivo, recepcion, sistemas, usuarios
+
+(+ /cuenta — no es módulo de permisos; accesible a todo usuario autenticado)
+
+MATRIZ ROLE_VIEWS (qué ve cada rol)
+--------------------------------------------------------------------------------
+presidencia → TODOS los módulos
+
+gerencia    → dashboard, apps, comercial, logistica, parqueadero, tramites,
+              taller, compras, rrhh, atencion, calidad, recepcion
+
+finanzas    → dashboard, finanzas, contabilidad, revisoria, compras,
+              juridico, sarlaft, archivo
+
+despacho    → dashboard, logistica, parqueadero, tramites, taller,
+              comercial, apps
+
+rrhh        → dashboard, rrhh, calidad, archivo
+
+atencion    → dashboard, atencion, calidad, recepcion, apps
+
+sistemas    → dashboard, sistemas, usuarios, archivo
+
+NOTAS DE ACCESO
+--------------------------------------------------------------------------------
+- /usuarios API exige además RolesGuard: solo PRESIDENCIA o SISTEMAS
+- Guards API: JwtAuthGuard + ModulesGuard (@RequireModule)
+- Organigrama DEPARTMENTS en shared (mapeo Excel FSG → módulos); no es
+  un segundo sistema de permisos
+
+================================================================================
+3. USUARIOS SEED (para entrar)
+================================================================================
+
+Contraseña universal de todos: fsg2026
+
+Email                Nombre                    Rol
+-------------------  ------------------------  ------------
+ceo@fsg.co           Ana CEO                   PRESIDENCIA
+ops@fsg.co           Carlos Ops                GERENCIA
+fin@fsg.co           María Finanzas            FINANZAS
+despacho@fsg.co      Luis Despacho             DESPACHO
+conductor@fsg.co     Luis Pérez (Conductor)    DESPACHO (+ Driver)
+rrhh@fsg.co          Sofía RRHH                RRHH
+atencion@fsg.co      Pedro Atención            ATENCION
+ti@fsg.co            Diana Sistemas            SISTEMAS
+
+================================================================================
+4. PANTALLAS WEB — MÓDULOS Y QUÉ HACEN
+================================================================================
+
+Ruta            Label                  Qué hace
+--------------  ---------------------  ------------------------------------------
+/               (redirect)             Redirige a homePath del rol o /login
+/login          Login / Alta empresa   Autenticación JWT + registro de org
+/dashboard      Inicio                 Métricas, gráficos, accesos rápidos
+/apps           Canales CRM            Overview canales, tickets, visitantes
+/comercial      Comercial              Clientes, cotizaciones, contratos
+/logistica      Operaciones            Viajes, conductores, GPS flota
+/parqueadero    Parqueadero            Check-in/out de patio, logs, summary
+/tramites       Trámites / Carros      SOAT, tecnomecánica, etc. + flota
+/taller         Taller                 Vehículos + órdenes de trabajo
+/compras        Compras                Órdenes de compra y flujo de estados
+/finanzas       Tesorería              CxC/CxP, facturas, pagar, cancelar
+/contabilidad   Contabilidad           PUC, asientos, balance de prueba
+/revisoria      Revisoría fiscal       Hallazgos forenses
+/rrhh           Recursos humanos       Empleados por área, estado, fatiga
+/atencion       Call Center            Tickets (crear, editar, asignar)
+/calidad        HSQE / Calidad         Eventos NPS/incidentes + summary
+/juridico       Jurídico               Documentos FUEC
+/sarlaft        SARLAFT                Chequeos de riesgo (manuales)
+/archivo        Archivo                Metadatos + upload real de archivos
+/recepcion      Recepción              Visitantes check-in/out
+/sistemas       Sistemas               Health API/DB, alertas TI
+/usuarios       Usuarios               CRUD usuarios, activar/desactivar
+/cuenta         Mi cuenta              Cambio de contraseña
+
+DETALLE POR MÓDULO
+--------------------------------------------------------------------------------
+
+[DASHBOARD] /dashboard
+- Métricas agregadas (/dashboard/metrics)
+- Gráficos (/dashboard/charts)
+- Accesos rápidos según rol
+- Roles: todos
+
+[APPS / CANALES CRM] /apps
+- Overview de canales CRM
+- Tickets abiertos y visitantes
+- Endpoint: GET /apps/overview
+- Roles: presidencia, gerencia, despacho, atencion
+
+[COMERCIAL] /comercial
+- CRUD clientes (segmentos B2B, Escolar, Turismo, etc.)
+- Cotizaciones: crear, cambiar status, convertir a contrato
+- Contratos: PRIVATE / PUBLIC_TENDER
+- Entidades: Customer, Quote, TransportContract
+- Roles: presidencia, gerencia, despacho
+
+[LOGÍSTICA / OPERACIONES] /logistica
+- Viajes: crear, cambiar status, reportar incidente, facturar
+- Conductores: listar/crear/editar
+- GPS de flota + torre de coordenadas
+- WebSocket Socket.IO namespace /logistics (broadcast GPS)
+- Entidades: Trip, Driver, Vehicle, Customer, TransportContract, Invoice
+- Roles: presidencia, gerencia, despacho
+
+[PARQUEADERO] /parqueadero
+- Check-in / check-out de vehículos en patio
+- Summary y logs
+- Entidades: ParkingLog, Vehicle
+- Roles: presidencia, gerencia, despacho
+
+[TRÁMITES] /tramites
+- Procedimientos de vehículo (SOAT, tecnomecánica, etc.)
+- Lista de flota asociada
+- Entidades: VehicleProcedure, Vehicle
+- Roles: presidencia, gerencia, despacho
+
+[TALLER] /taller
+- Alta/edición de vehículos
+- Órdenes de trabajo con estados
+- Entidades: Vehicle, WorkOrder
+- Roles: presidencia, gerencia, despacho
+
+[COMPRAS] /compras
+- Órdenes de compra
+- Flujo: REQUESTED → … → RECEIVED
+- Al RECEIVED genera CxP (factura por pagar)
+- Entidad: PurchaseOrder (+ Invoice)
+- Roles: presidencia, gerencia, finanzas
+
+[FINANZAS / TESORERÍA] /finanzas
+- Summary CxC / CxP
+- Crear facturas, marcar pagada, cancelar
+- Al pagar genera asiento contable
+- Entidades: Invoice, Customer
+- Roles: presidencia, finanzas
+
+[CONTABILIDAD] /contabilidad
+- Plan de cuentas (PUC)
+- Asientos contables (partida doble)
+- Balance de prueba
+- Anular asiento
+- Entidades: Account, JournalEntry, JournalLine
+- Roles: presidencia, finanzas
+
+[REVISORÍA] /revisoria
+- Hallazgos forenses (crear/editar)
+- Entidad: ForensicFinding
+- Roles: presidencia, finanzas
+
+[RRHH] /rrhh
+- Empleados por área
+- Estado laboral y fatiga
+- Entidad: Employee
+- Roles: presidencia, gerencia, rrhh
+
+[ATENCIÓN / CALL CENTER] /atencion
+- Tickets: crear, editar, status, asignar usuarios
+- Canales de ticket (enum TicketChannel)
+- Entidades: Ticket, User
+- Roles: presidencia, gerencia, atencion
+
+[CALIDAD / HSQE] /calidad
+- Eventos NPS e incidentes
+- Summary de calidad
+- Entidad: QualityEvent
+- Roles: presidencia, gerencia, rrhh, atencion
+
+[JURÍDICO] /juridico
+- Documentos FUEC (crear/editar/status)
+- Entidades: FuecDocument, Vehicle
+- Roles: presidencia, finanzas
+
+[SARLAFT] /sarlaft
+- Chequeos de riesgo MANUALES (sin listas externas)
+- Entidades: SarlaftCheck, Customer (opcional)
+- Roles: presidencia, finanzas
+
+[ARCHIVO] /archivo
+- Documentos con metadatos y categorías
+- Upload real al servidor (Multer → /uploads)
+- Entidad: ArchiveDocument
+- Roles: presidencia, finanzas, rrhh, sistemas
+
+[RECEPCIÓN] /recepcion
+- Visitantes: check-in, check-out, edición
+- Entidad: Visitor
+- Roles: presidencia, gerencia, atencion
+
+[SISTEMAS] /sistemas
+- Health de API y base de datos
+- Alertas del sistema y resolución
+- Entidad: SystemAlert
+- Roles: presidencia, sistemas
+
+[USUARIOS] /usuarios
+- CRUD de usuarios del CRM
+- Activar / desactivar
+- Entidad: User
+- Roles UI: presidencia, sistemas | API: RolesGuard estricto
+
+[CUENTA] /cuenta
+- Cambio de contraseña
+- Roles: cualquier autenticado
+
+================================================================================
+5. API NESTJS — ENDPOINTS POR DOMINIO
+================================================================================
+
+Base URL: http://localhost:4000
+Auth: Bearer JWT (salvo login, register y health)
+
+AUTH
+  POST   /auth/login
+  POST   /auth/register
+  GET    /auth/me
+  PATCH  /auth/password
+  GET    /auth/users
+
+HEALTH
+  GET    /health
+
+DASHBOARD  (@RequireModule dashboard)
+  GET    /dashboard/metrics
+  GET    /dashboard/charts
+  GET    /dashboard/ticker   (endpoint aún existe; la cinta UI fue removida)
+
+COMERCIAL  (controller "comercial")
+  GET/POST   /comercial/customers
+  PATCH      /comercial/customers/:id
+  GET/POST   /comercial/quotes
+  PATCH      /comercial/quotes/:id/status
+  POST       /comercial/quotes/:id/to-contract
+  GET/POST   /comercial/contracts
+  PATCH      /comercial/contracts/:id
+
+LOGÍSTICA
+  GET        /logistics/trips
+  GET        /logistics/my-trips
+  POST       /logistics/trips
+  PATCH      /logistics/trips/:id/status
+  PATCH      /logistics/trips/:id/incident
+  POST       /logistics/trips/:id/invoice
+  GET/POST   /logistics/drivers
+  PATCH      /logistics/drivers/:id
+  GET        /logistics/gps
+  PATCH      /logistics/gps/:vehicleId
+  WebSocket  namespace /logistics (Socket.IO + JWT)
+
+FLOTA / TALLER
+  GET/POST   /fleet/vehicles
+  PATCH      /fleet/vehicles/:id
+  GET/POST   /fleet/work-orders
+  PATCH      /fleet/work-orders/:id
+
+FINANZAS
+  GET        /finance/summary
+  GET/POST   /finance/invoices
+  PATCH      /finance/invoices/:id
+  PATCH      /finance/invoices/:id/pay
+  PATCH      /finance/invoices/:id/cancel
+
+CONTABILIDAD
+  GET/POST   /accounting/accounts
+  GET/POST   /accounting/journal
+  PATCH      /accounting/journal/:id/void
+  GET        /accounting/trial-balance
+
+USUARIOS (solo PRESIDENCIA | SISTEMAS)
+  GET/POST   /users
+  PATCH      /users/:id
+  POST       /users/:id/deactivate
+
+RRHH
+  GET/POST   /rrhh/employees
+  PATCH      /rrhh/employees/:id
+  PATCH      /rrhh/employees/:id/status
+
+ATENCIÓN
+  GET/POST   /atencion/tickets
+  PATCH      /atencion/tickets/:id
+  PATCH      /atencion/tickets/:id/status
+
+CALIDAD
+  GET        /calidad/events
+  GET        /calidad/summary
+  POST       /calidad/events
+  PATCH      /calidad/events/:id
+
+JURÍDICO
+  GET/POST   /juridico/fuec
+  PATCH      /juridico/fuec/:id
+
+SARLAFT
+  GET/POST   /sarlaft/checks
+  PATCH      /sarlaft/checks/:id
+
+ARCHIVO
+  GET/POST   /archivo/documents
+  POST       /archivo/upload
+  PATCH      /archivo/documents/:id
+  POST       /archivo/documents/:id/delete
+
+RECEPCIÓN
+  GET/POST   /recepcion/visitors
+  PATCH      /recepcion/visitors/:id
+  PATCH      /recepcion/visitors/:id/checkout
+
+SISTEMAS
+  GET        /sistemas/health
+  GET/POST   /sistemas/alerts
+  PATCH      /sistemas/alerts/:id/resolve
+
+REVISORÍA
+  GET/POST   /revisoria/findings
+  PATCH      /revisoria/findings/:id
+
+APPS
+  GET        /apps/overview
+
+COMPRAS
+  GET/POST   /compras/orders
+  PATCH      /compras/orders/:id
+  PATCH      /compras/orders/:id/status
+
+TRÁMITES
+  GET/POST   /tramites/procedures
+  PATCH      /tramites/procedures/:id
+
+PARQUEADERO
+  GET        /parqueadero/logs
+  GET        /parqueadero/summary
+  POST       /parqueadero/checkin
+  PATCH      /parqueadero/checkout/:id
+
+MÓDULOS NEST REGISTRADOS
+  Auth, Users, Customers, Fleet, Logistics, Finance, Accounting,
+  Dashboard, Modules, Prisma + HealthController
+
+================================================================================
+6. BASE DE DATOS (PRISMA)
+================================================================================
+
+Infra Docker: Postgres fsg / fsg_crm en puerto 55432; Redis 6379
+(Redis está en compose; no se ve uso activo fuerte en servicios inventariados)
+
+ENUMS (~20)
+--------------------------------------------------------------------------------
+Role, CustomerSegment, TripStatus, VehicleStatus, WorkOrderStatus,
+InvoiceType, InvoiceStatus, JournalEntryStatus, TicketStatus, TicketChannel,
+EmployeeStatus, DocStatus, SarlaftRisk, ArchiveCategory, QuoteStatus,
+AccountType, CommercialChannel, ContractStatus, PurchaseStatus, ProcedureType
+
+MODELOS (24+)
+--------------------------------------------------------------------------------
+Organization       Tenant multi-empresa
+User               Cuentas CRM (rol, org)
+AuditLog           Auditoría básica
+Customer           Clientes comerciales
+Quote              Cotizaciones
+TransportContract  Contratos privado / licitación
+Vehicle            Flota + lat/lng GPS
+Driver             Conductores (opcional userId)
+Trip               Viajes / despacho
+WorkOrder          Órdenes de taller
+Invoice            CxC / CxP
+Account            Plan de cuentas (PUC)
+JournalEntry       Asientos contables
+JournalLine        Líneas de asiento (partida doble)
+Employee           Personal RRHH
+Ticket             Call center
+QualityEvent       NPS / incidentes HSQE
+FuecDocument       FUEC jurídico
+SarlaftCheck       Chequeos SARLAFT
+ArchiveDocument    Archivo / data room
+Visitor            Recepción
+SystemAlert        Alertas TI
+ForensicFinding    Revisoría fiscal
+PurchaseOrder      Compras
+VehicleProcedure   Trámites de vehículo
+ParkingLog         Parqueadero
+
+DATOS SEED (además de usuarios)
+--------------------------------------------------------------------------------
+- 1 organización FSG Transportes
+- 3 clientes (B2B / Escolar / Turismo)
+- 2 cotizaciones
+- 4 vehículos
+- 2 conductores
+- 3 contratos
+- 5 viajes
+- 2 órdenes de trabajo
+- Facturas CxC/CxP + histórico ~6 meses
+- PUC (~7 cuentas) + 1 asiento
+- ~14 empleados por área
+- 2 tickets
+- Eventos NPS / incidente
+- 2 FUEC
+- 2 SARLAFT
+- 2 documentos de archivo
+- 2 visitantes
+- 2 alertas de sistema
+- 2 hallazgos de revisoría
+- 3 órdenes de compra
+- 4 trámites de vehículo
+- 3 logs de parqueadero
+
+================================================================================
+7. APP MÓVIL CONDUCTOR (apps/conductor)
+================================================================================
+
+Expo app "FSG Conductor" (segundo plano respecto al CRM web)
+
+Pantallas:
+  - Login
+  - Mis viajes
+
+Funciones:
+  - Login JWT
+  - Listar mis viajes (GET /logistics/my-trips)
+  - Cambiar status de viaje
+  - Reportar incidente
+  - Enviar GPS ~cada 12s en ruta (expo-location + PATCH GPS)
+
+Demo:
+  conductor@fsg.co / fsg2026 → Driver Luis Pérez, viaje TRP-1001
+
+================================================================================
+8. PACKAGES SHARED Y UI
+================================================================================
+
+@fsg/shared
+--------------------------------------------------------------------------------
+- Roles, MODULES, ROLE_VIEWS, ROLE_LABELS, MODULE_LABELS, MODULE_HELP
+- canAccessModule(), modulesForRole()
+- Departments (organigrama Excel FSG → módulos)
+- Zod: LoginSchema, CreateUserSchema, CustomerSchema, enums de status
+- Tipos: DashboardMetrics, GpsPoint
+
+@fsg/ui
+--------------------------------------------------------------------------------
+- Panel, Button, Badge, StatCard, ColorLegend
+- globals.css compartido
+
+WEB LIB / COMPONENTES
+--------------------------------------------------------------------------------
+- app-shell.tsx        Nav lateral por ROLE_VIEWS + header
+- login-screen.tsx     Login Fleetline OS (Aero-Tech)
+- page-intro / HowToBox
+- dashboard-charts.tsx
+- lib/theme.tsx        Tema claro/oscuro (Aluminium & Quartz / Obsidian)
+- lib/brand.ts         Tokens de marca Fleetline
+- lib/auth-context.tsx Sesión React
+- lib/auth-types.ts    UserRole, AuthSession, microcopy
+- lib/auth-mock.ts     Simulación de uplink + login real
+- lib/api.ts           Cliente fetch + sesión localStorage
+
+SCRIPTS
+--------------------------------------------------------------------------------
+- scripts/crm-api-suite.mjs|.ps1
+- scripts/patch-modules-guard.js
+
+================================================================================
+9. FLUJOS DE NEGOCIO IMPLEMENTADOS
+================================================================================
+
+1. COMERCIAL
+   Cliente → Cotización → Aprobar → Convertir a Contrato
+
+2. LOGÍSTICA
+   Viaje (opcional con contrato) → Estados → Incidente → Facturar
+
+3. FINANZAS
+   CxC/CxP → Marcar pagada → Asiento contable automático
+
+4. GPS / TELEMETRÍA
+   Actualización lat/lng desde web Logística o app Conductor
+   Broadcast vía WebSocket /logistics
+
+5. COMPRAS
+   Orden → Estados → RECEIVED → Genera CxP
+
+6. RESTO DE MÓDULOS
+   CRUD + cambios de estado reales en base de datos
+
+================================================================================
+10. DISEÑO / UX ACTUAL (FLEETLINE)
+================================================================================
+
+Design system: Aero-Tech Minimalist
+- Dark (Obsidian Telemetry): canvas #0A0D14, card #121722, accent #10B981
+- Light (Aluminium & Quartz): canvas #F4F6F9, card #FFFFFF, accent #0D9488
+- Tipografía UI: Plus Jakarta Sans
+- Tipografía datos/telemetría: JetBrains Mono
+- Tema claro/oscuro con switch cápsula
+- Login unificado (sin layout partido)
+- Cinta ticker de KPIs: ELIMINADA del shell (endpoint API aún existe)
+
+================================================================================
+FIN DEL INVENTARIO
+================================================================================

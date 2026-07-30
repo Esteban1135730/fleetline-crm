@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "FSG Conductor",
+    "slug": "fsg-conductor",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "fsg-conductor",
+    "platforms": ["ios", "android"],
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#1e3a5f"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "co.fsg.conductor"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#1e3a5f"
+      },
+      "package": "co.fsg.conductor"
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Permite a FSG Conductor enviar tu ubicación durante viajes en curso."
+        }
+      ]
+    ]
+  }
+}

@@ -1,0 +1,181 @@
+"use client";
+
+import { FormEvent, useEffect, useState } from "react";
+import { Badge, Button, StatCard } from "@fsg/ui";
+import { api } from "@/lib/api";
+import { HowToBox, PageIntro } from "@/components/page-intro";
+
+type ParkingLog = {
+  id: string;
+  plate: string;
+  driverName?: string | null;
+  guardName: string;
+  checkInAt: string;
+  checkOutAt?: string | null;
+  vehicle?: { plate: string; brand: string } | null;
+};
+
+type Summary = { vehiclesInside: number; checkInsToday: number };
+
+export default function ParqueaderoPage() {
+  const [rows, setRows] = useState<ParkingLog[]>([]);
+  const [summary, setSummary] = useState<Summary>({
+    vehiclesInside: 0,
+    checkInsToday: 0,
+  });
+  const [form, setForm] = useState({
+    plate: "",
+    driverName: "",
+    guardName: "",
+  });
+  const [filter, setFilter] = useState<"ALL" | "INSIDE" | "OUT">("ALL");
+
+  async function load() {
+    const [logs, sum] = await Promise.all([
+      api<ParkingLog[]>("/parqueadero/logs"),
+      api<Summary>("/parqueadero/summary"),
+    ]);
+    setRows(logs);
+    setSummary(sum);
+  }
+
+  useEffect(() => {
+    void load().catch(console.error);
+  }, []);
+
+  async function onCheckIn(e: FormEvent) {
+    e.preventDefault();
+    await api("/parqueadero/checkin", {
+      method: "POST",
+      body: JSON.stringify(form),
+    });
+    setForm({ plate: "", driverName: "", guardName: form.guardName });
+    await load();
+  }
+
+  const filtered = rows.filter((r) => {
+    if (filter === "INSIDE") return !r.checkOutAt;
+    if (filter === "OUT") return !!r.checkOutAt;
+    return true;
+  });
+
+  return (
+    <div className="fade-in mx-auto max-w-[1600px] space-y-6">
+      <PageIntro module="parqueadero" title="Control de parqueadero" />
+      <HowToBox
+        steps={[
+          "Registra ingreso con placa, conductor y nombre del guarda.",
+          "Si la placa existe en flota, se vincula automáticamente al vehículo.",
+          "Al salir del patio, marca check-out para liberar el cupo.",
+        ]}
+      />
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <StatCard
+          label="Vehículos en patio"
+          value={String(summary.vehiclesInside)}
+          hint="Sin check-out"
+        />
+        <StatCard
+          label="Ingresos hoy"
+          value={String(summary.checkInsToday)}
+          hint="Desde medianoche"
+        />
+      </div>
+
+      <form
+        onSubmit={onCheckIn}
+        className="fsg-panel grid grid-cols-1 gap-3 p-4 md:grid-cols-4"
+      >
+        <input
+          className="field font-data uppercase"
+          placeholder="Placa (ej. ABC123)"
+          value={form.plate}
+          onChange={(e) =>
+            setForm({ ...form, plate: e.target.value.toUpperCase() })
+          }
+          required
+        />
+        <input
+          className="field"
+          placeholder="Conductor"
+          value={form.driverName}
+          onChange={(e) => setForm({ ...form, driverName: e.target.value })}
+        />
+        <input
+          className="field"
+          placeholder="Guarda / verificador"
+          value={form.guardName}
+          onChange={(e) => setForm({ ...form, guardName: e.target.value })}
+          required
+        />
+        <Button type="submit" variant="primary">
+          Registrar ingreso
+        </Button>
+      </form>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm text-[var(--brand-muted)]">Filtrar:</span>
+        <select
+          className="field w-auto py-1 text-xs"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value as typeof filter)}
+        >
+          <option value="ALL">Todos</option>
+          <option value="INSIDE">En patio</option>
+          <option value="OUT">Con salida</option>
+        </select>
+      </div>
+
+      <div className="fsg-panel data-shell overflow-hidden">
+        <table className="w-full text-left text-sm">
+          <thead>
+            <tr>
+              <th className="px-4 py-2">Placa</th>
+              <th className="px-4 py-2">Conductor</th>
+              <th className="px-4 py-2">Ingreso</th>
+              <th className="px-4 py-2">Estado</th>
+              <th className="px-4 py-2" />
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((r) => (
+              <tr key={r.id} className="border-t border-[var(--brand-line)]">
+                <td className="px-4 py-2.5 font-data">{r.plate}</td>
+                <td className="px-4 py-2.5">
+                  {r.driverName || "—"}
+                  <div className="text-[11px] text-[var(--brand-muted)]">
+                    Guarda: {r.guardName}
+                  </div>
+                </td>
+                <td className="px-4 py-2.5 font-data text-xs">
+                  {new Date(r.checkInAt).toLocaleString("es-CO")}
+                </td>
+                <td className="px-4 py-2.5">
+                  <Badge tone={r.checkOutAt ? "slate" : "emerald"}>
+                    {r.checkOutAt ? "SALIDA" : "EN PATIO"}
+                  </Badge>
+                </td>
+                <td className="px-4 py-2.5">
+                  {!r.checkOutAt ? (
+                    <Button
+                      variant="ghost"
+                      onClick={async () => {
+                        await api(`/parqueadero/checkout/${r.id}`, {
+                          method: "PATCH",
+                        });
+                        await load();
+                      }}
+                    >
+                      Check-out
+                    </Button>
+                  ) : null}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}

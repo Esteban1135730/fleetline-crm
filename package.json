@@ -1,0 +1,23 @@
+{
+  "name": "crmtrasporte",
+  "private": true,
+  "packageManager": "pnpm@9.15.9",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "db:generate": "pnpm --filter @fsg/db generate",
+    "db:migrate": "pnpm --filter @fsg/db migrate",
+    "db:seed": "pnpm --filter @fsg/db seed",
+    "db:studio": "pnpm --filter @fsg/db studio",
+    "docker:up": "docker compose -p fleetline up -d",
+    "docker:down": "docker compose -p fleetline down",
+    "docker:prod:up": "docker compose -p fleetline -f docker-compose.prod.yml --env-file .env.production up -d --build",
+    "docker:prod:down": "docker compose -p fleetline -f docker-compose.prod.yml --env-file .env.production down",
+    "docker:prod:logs": "docker compose -p fleetline -f docker-compose.prod.yml logs -f"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.4",
+    "typescript": "^5.8.3"
+  }
+}

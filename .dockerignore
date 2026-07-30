@@ -1,0 +1,16 @@
+node_modules
+.turbo
+dist
+.next
+.git
+.env
+.env.local
+.env.production
+*.log
+.DS_Store
+coverage
+uploads
+apps/api/uploads
+apps/conductor
+**/*.xlsx
+.cursor

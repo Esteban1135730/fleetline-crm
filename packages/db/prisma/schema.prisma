@@ -1,0 +1,631 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  PRESIDENCIA
+  GERENCIA
+  FINANZAS
+  DESPACHO
+  RRHH
+  ATENCION
+  SISTEMAS
+}
+
+enum CustomerSegment {
+  B2B
+  ESCOLAR
+  TURISMO
+}
+
+enum TripStatus {
+  PENDING
+  ASSIGNED
+  IN_TRANSIT
+  COMPLETED
+  CANCELLED
+  INCIDENT
+}
+
+enum VehicleStatus {
+  AVAILABLE
+  IN_SERVICE
+  MAINTENANCE
+  OUT_OF_SERVICE
+}
+
+enum WorkOrderStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_PARTS
+  DONE
+}
+
+enum InvoiceType {
+  RECEIVABLE
+  PAYABLE
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum JournalEntryStatus {
+  DRAFT
+  POSTED
+  VOID
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum TicketChannel {
+  WHATSAPP
+  EMAIL
+  PHONE
+  WEB
+  PRESENCIAL
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  VACATION
+  MEDICAL
+  INACTIVE
+}
+
+enum DocStatus {
+  VALID
+  EXPIRING
+  EXPIRED
+  PENDING
+}
+
+enum SarlaftRisk {
+  LOW
+  MEDIUM
+  HIGH
+  BLOCKED
+}
+
+enum ArchiveCategory {
+  CONTRACT
+  INVOICE
+  LEGAL
+  HR
+  OPS
+  OTHER
+}
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  INCOME
+  EXPENSE
+}
+
+enum CommercialChannel {
+  PRIVATE
+  PUBLIC_TENDER
+}
+
+enum ContractStatus {
+  DRAFT
+  ACTIVE
+  SUSPENDED
+  ENDED
+}
+
+enum PurchaseStatus {
+  REQUESTED
+  APPROVED
+  ORDERED
+  RECEIVED
+  CANCELLED
+}
+
+enum ProcedureType {
+  SOAT
+  TECNOMECANICA
+  TARJETA_OPERACION
+  LICENCIA_TRANSITO
+  REVISION_PREVENTIVA
+  OTHER
+}
+
+model Organization {
+  id             String          @id @default(cuid())
+  name           String
+  nit            String          @unique
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  users          User[]
+  customers      Customer[]
+  vehicles       Vehicle[]
+  trips          Trip[]
+  invoices       Invoice[]
+  accounts       Account[]
+  journalEntries JournalEntry[]
+  employees      Employee[]
+  tickets        Ticket[]
+  qualityEvents  QualityEvent[]
+  fuecDocs       FuecDocument[]
+  sarlaftChecks  SarlaftCheck[]
+  documents      ArchiveDocument[]
+  visitors       Visitor[]
+  systemAlerts   SystemAlert[]
+  forensicFindings ForensicFinding[]
+  drivers        Driver[]
+  transportContracts TransportContract[]
+  purchaseOrders PurchaseOrder[]
+  vehicleProcedures VehicleProcedure[]
+  parkingLogs    ParkingLog[]
+}
+
+model User {
+  id             String       @id @default(cuid())
+  email          String       @unique
+  passwordHash   String
+  name           String
+  role           Role         @default(DESPACHO)
+  active         Boolean      @default(true)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  auditLogs      AuditLog[]
+  workOrders     WorkOrder[]  @relation("AssignedMechanic")
+  tickets        Ticket[]     @relation("TicketAssignee")
+  driverProfile  Driver?
+
+  @@index([organizationId, role])
+  @@index([organizationId, active])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  action    String
+  entity    String
+  entityId  String?
+  meta      Json?
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+model Customer {
+  id             String          @id @default(cuid())
+  name           String
+  nit            String
+  email          String?
+  phone          String?
+  segment        CustomerSegment @default(B2B)
+  organizationId String
+  organization   Organization    @relation(fields: [organizationId], references: [id])
+  quotes         Quote[]
+  trips          Trip[]
+  invoices       Invoice[]
+  sarlaftChecks  SarlaftCheck[]
+  contracts      TransportContract[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@unique([organizationId, nit])
+  @@index([organizationId, segment])
+}
+
+model Quote {
+  id         String      @id @default(cuid())
+  code       String
+  customerId String
+  customer   Customer    @relation(fields: [customerId], references: [id])
+  amount     Decimal     @db.Decimal(14, 2)
+  currency   String      @default("COP")
+  status     QuoteStatus @default(DRAFT)
+  notes      String?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  @@unique([code])
+  @@index([customerId, status])
+}
+
+model Vehicle {
+  id             String         @id @default(cuid())
+  plate          String
+  brand          String
+  model          String
+  year           Int
+  capacity       Int            @default(20)
+  status         VehicleStatus  @default(AVAILABLE)
+  lat            Float          @default(4.711)
+  lng            Float          @default(-74.0721)
+  organizationId String
+  organization   Organization   @relation(fields: [organizationId], references: [id])
+  trips          Trip[]
+  workOrders     WorkOrder[]
+  fuecDocs       FuecDocument[]
+  procedures     VehicleProcedure[]
+  parkingLogs    ParkingLog[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@unique([organizationId, plate])
+  @@index([organizationId, status])
+}
+
+model Driver {
+  id             String        @id @default(cuid())
+  name           String
+  document       String
+  phone          String?
+  license        String?
+  active         Boolean       @default(true)
+  userId         String?       @unique
+  user           User?         @relation(fields: [userId], references: [id])
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id])
+  trips          Trip[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@unique([organizationId, document])
+  @@index([organizationId, active])
+}
+
+model Trip {
+  id             String       @id @default(cuid())
+  code           String
+  origin         String
+  destination    String
+  status         TripStatus   @default(PENDING)
+  scheduledAt    DateTime
+  startedAt      DateTime?
+  completedAt    DateTime?
+  fareAmount     Decimal?     @db.Decimal(14, 2)
+  customerId     String?
+  customer       Customer?    @relation(fields: [customerId], references: [id])
+  contractId     String?
+  contract       TransportContract? @relation(fields: [contractId], references: [id])
+  vehicleId      String?
+  vehicle        Vehicle?     @relation(fields: [vehicleId], references: [id])
+  driverId       String?
+  driver         Driver?      @relation(fields: [driverId], references: [id])
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  notes          String?
+  invoice        Invoice?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, code])
+  @@index([organizationId, status])
+  @@index([organizationId, scheduledAt])
+  @@index([vehicleId])
+  @@index([driverId])
+  @@index([contractId])
+}
+
+model WorkOrder {
+  id           String          @id @default(cuid())
+  code         String
+  description  String
+  status       WorkOrderStatus @default(OPEN)
+  vehicleId    String
+  vehicle      Vehicle         @relation(fields: [vehicleId], references: [id])
+  assignedToId String?
+  assignedTo   User?           @relation("AssignedMechanic", fields: [assignedToId], references: [id])
+  cost         Decimal?        @db.Decimal(14, 2)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  closedAt     DateTime?
+
+  @@unique([code])
+  @@index([vehicleId, status])
+}
+
+model Invoice {
+  id             String        @id @default(cuid())
+  number         String
+  type           InvoiceType
+  status         InvoiceStatus @default(DRAFT)
+  amount         Decimal       @db.Decimal(14, 2)
+  currency       String        @default("COP")
+  dueDate        DateTime
+  issuedAt       DateTime      @default(now())
+  paidAt         DateTime?
+  customerId     String?
+  customer       Customer?     @relation(fields: [customerId], references: [id])
+  supplierName   String?
+  tripId         String?       @unique
+  trip           Trip?         @relation(fields: [tripId], references: [id])
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id])
+  description    String?
+  journalEntryId String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@unique([organizationId, number])
+  @@index([organizationId, type, status])
+  @@index([organizationId, issuedAt])
+  @@index([dueDate, status])
+}
+
+model Account {
+  id             String         @id @default(cuid())
+  code           String
+  name           String
+  type           AccountType
+  organizationId String
+  organization   Organization   @relation(fields: [organizationId], references: [id])
+  lines          JournalLine[]
+  createdAt      DateTime       @default(now())
+
+  @@unique([organizationId, code])
+  @@index([organizationId, type])
+}
+
+model JournalEntry {
+  id             String             @id @default(cuid())
+  number         String             @unique
+  description    String
+  status         JournalEntryStatus @default(DRAFT)
+  entryDate      DateTime           @default(now())
+  organizationId String
+  organization   Organization       @relation(fields: [organizationId], references: [id])
+  lines          JournalLine[]
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+}
+
+model JournalLine {
+  id        String       @id @default(cuid())
+  entryId   String
+  entry     JournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  accountId String
+  account   Account      @relation(fields: [accountId], references: [id])
+  debit     Decimal      @default(0) @db.Decimal(14, 2)
+  credit    Decimal      @default(0) @db.Decimal(14, 2)
+  memo      String?
+}
+
+model Employee {
+  id             String         @id @default(cuid())
+  name           String
+  document       String
+  position       String
+  area           String
+  status         EmployeeStatus @default(ACTIVE)
+  hireDate       DateTime       @default(now())
+  phone          String?
+  email          String?
+  fatigueScore   Int            @default(0)
+  organizationId String
+  organization   Organization   @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@unique([organizationId, document])
+}
+
+model Ticket {
+  id             String        @id @default(cuid())
+  code           String
+  subject        String
+  channel        TicketChannel @default(WHATSAPP)
+  status         TicketStatus  @default(OPEN)
+  priority       String        @default("NORMAL")
+  requester      String
+  message        String
+  assigneeId     String?
+  assignee       User?         @relation("TicketAssignee", fields: [assigneeId], references: [id])
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@unique([organizationId, code])
+  @@index([organizationId, status])
+}
+
+model QualityEvent {
+  id             String       @id @default(cuid())
+  type           String
+  title          String
+  description    String?
+  score          Float?
+  status         String       @default("OPEN")
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId, type])
+  @@index([organizationId, createdAt])
+}
+
+model FuecDocument {
+  id             String       @id @default(cuid())
+  number         String
+  contractor     String
+  route          String
+  status         DocStatus   @default(VALID)
+  validFrom      DateTime
+  validTo        DateTime
+  vehicleId      String?
+  vehicle        Vehicle?     @relation(fields: [vehicleId], references: [id])
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, number])
+}
+
+model SarlaftCheck {
+  id             String      @id @default(cuid())
+  subjectName    String
+  subjectDoc     String
+  risk           SarlaftRisk @default(LOW)
+  notes          String?
+  checkedAt      DateTime    @default(now())
+  customerId     String?
+  customer       Customer?   @relation(fields: [customerId], references: [id])
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime    @default(now())
+}
+
+model ArchiveDocument {
+  id             String          @id @default(cuid())
+  title          String
+  category       ArchiveCategory @default(OTHER)
+  fileRef        String?
+  tags           String?
+  organizationId String
+  organization   Organization    @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+}
+
+model Visitor {
+  id             String       @id @default(cuid())
+  name           String
+  document       String
+  company        String?
+  purpose        String
+  hostName       String
+  checkedInAt    DateTime     @default(now())
+  checkedOutAt   DateTime?
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, checkedInAt])
+}
+
+model SystemAlert {
+  id             String       @id @default(cuid())
+  severity       String       @default("INFO")
+  source         String
+  message        String
+  resolved       Boolean      @default(false)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, resolved])
+}
+
+model ForensicFinding {
+  id             String       @id @default(cuid())
+  code           String
+  title          String
+  severity       String       @default("MEDIUM")
+  status         String       @default("OPEN")
+  detail         String
+  amount         Decimal?     @db.Decimal(14, 2)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, code])
+}
+
+model TransportContract {
+  id             String            @id @default(cuid())
+  code           String
+  name           String
+  channel        CommercialChannel @default(PRIVATE)
+  status         ContractStatus    @default(ACTIVE)
+  route          String?
+  startDate      DateTime
+  endDate        DateTime
+  monthlyValue   Decimal?          @db.Decimal(14, 2)
+  customerId     String
+  customer       Customer          @relation(fields: [customerId], references: [id])
+  organizationId String
+  organization   Organization      @relation(fields: [organizationId], references: [id])
+  trips          Trip[]
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@unique([organizationId, code])
+  @@index([organizationId, status])
+}
+
+model PurchaseOrder {
+  id             String         @id @default(cuid())
+  code           String
+  description    String
+  supplier       String
+  amount         Decimal        @db.Decimal(14, 2)
+  category       String         @default("GENERAL")
+  status         PurchaseStatus @default(REQUESTED)
+  requestedBy    String?
+  organizationId String
+  organization   Organization   @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@unique([organizationId, code])
+  @@index([organizationId, status])
+}
+
+model VehicleProcedure {
+  id             String        @id @default(cuid())
+  type           ProcedureType
+  reference      String?
+  status         DocStatus     @default(VALID)
+  validFrom      DateTime?
+  validTo        DateTime
+  notes          String?
+  vehicleId      String
+  vehicle        Vehicle       @relation(fields: [vehicleId], references: [id])
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([organizationId, validTo])
+  @@index([vehicleId, type])
+}
+
+model ParkingLog {
+  id             String       @id @default(cuid())
+  plate          String
+  driverName     String?
+  guardName      String
+  checkInAt      DateTime     @default(now())
+  checkOutAt     DateTime?
+  vehicleId      String?
+  vehicle        Vehicle?     @relation(fields: [vehicleId], references: [id])
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, checkInAt])
+  @@index([organizationId, checkOutAt])
+}
