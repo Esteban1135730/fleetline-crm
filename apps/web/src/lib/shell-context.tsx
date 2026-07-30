@@ -16,7 +16,8 @@ type ShellCtx = {
   toggleSidebar: () => void;
   inspectorOpen: boolean;
   inspectorTitle: string;
-  inspectorContent: ReactNode | null;
+  /** Slot UI del inspector (any evita conflicto de @types/react duplicados en monorepo). */
+  inspectorContent: any;
   openInspector: (title: string, content: ReactNode) => void;
   closeInspector: () => void;
   commandOpen: boolean;
@@ -32,9 +33,7 @@ export function ShellProvider({ children }: { children: ReactNode }) {
   const [sidebarCollapsed, setSidebarCollapsedState] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [inspectorTitle, setInspectorTitle] = useState("");
-  const [inspectorContent, setInspectorContent] = useState<ReactNode | null>(
-    null,
-  );
+  const [inspectorContent, setInspectorContent] = useState<any>(null);
   const [commandOpen, setCommandOpen] = useState(false);
   const [systemStatus, setSystemStatus] = useState<
     "NOMINAL" | "ALERT" | "OFFLINE"
