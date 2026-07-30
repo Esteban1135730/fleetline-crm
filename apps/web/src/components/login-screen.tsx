@@ -40,18 +40,17 @@ export function LoginScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [phase, setPhase] = useState<FormPhase>("idle");
-  const [clock, setClock] = useState(() =>
-    new Date().toISOString().replace("T", " ").slice(0, 19),
-  );
+  const [clock, setClock] = useState("");
 
   useEffect(() => {
     if (!loading && user) router.replace(homePath);
   }, [loading, user, homePath, router]);
 
   useEffect(() => {
-    const id = window.setInterval(() => {
+    const tick = () =>
       setClock(new Date().toISOString().replace("T", " ").slice(0, 19));
-    }, 1000);
+    tick();
+    const id = window.setInterval(tick, 1000);
     return () => window.clearInterval(id);
   }, []);
 
@@ -313,7 +312,9 @@ export function LoginScreen() {
         </p>
         <div className="flex flex-wrap gap-x-4 gap-y-1 font-data text-[10px] tracking-wide text-[var(--text-secondary)]">
           <span className="gps-coord">{AUTH_COPY.coords}</span>
-          <span className="timestamp-data">{clock}Z</span>
+          <span className="timestamp-data" suppressHydrationWarning>
+            {clock ? `${clock}Z` : "—"}
+          </span>
           <span className="hidden sm:inline">{AUTH_COPY.engineVersion}</span>
         </div>
       </footer>
