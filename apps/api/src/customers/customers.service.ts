@@ -1,14 +1,51 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  Inject,
+  forwardRef,
+} from "@nestjs/common";
 import {
   ContractStatus,
   CustomerSegment,
   QuoteStatus,
+  Prisma,
 } from "@fsg/db";
+import {
+  QuoteCalculateInputSchema,
+  calculateQuotePrice,
+  type QuoteCostBreakdown,
+} from "@fsg/shared";
 import { PrismaService } from "../prisma/prisma.service";
+import { LogisticsService } from "../logistics/logistics.service";
+import { SarlaftGuardService } from "../sarlaft/sarlaft-guard.service";
+
+function isWinStatus(status: string) {
+  const s = status.toUpperCase();
+  return s === "APPROVED" || s === "WON";
+}
+
+function parseCalc(raw: unknown): QuoteCostBreakdown | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as QuoteCostBreakdown;
+  if (
+    typeof o.origen !== "string" ||
+    typeof o.destino !== "string" ||
+    typeof o.precioSugerido !== "number"
+  ) {
+    return null;
+  }
+  return o;
+}
 
 @Injectable()
 export class CustomersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @Inject(forwardRef(() => LogisticsService))
+    private logistics: LogisticsService,
+    private sarlaft: SarlaftGuardService,
+  ) {}
 
   listCustomers(organizationId: string) {
     return this.prisma.customer.findMany({
@@ -18,7 +55,7 @@ export class CustomersService {
     });
   }
 
-  createCustomer(
+  async createCustomer(
     organizationId: string,
     data: {
       name: string;
@@ -26,8 +63,19 @@ export class CustomersService {
       email?: string;
       phone?: string;
       segment?: "B2B" | "ESCOLAR" | "TURISMO";
+      forceDespiteSarlaft?: boolean;
     },
+    actor?: { userId?: string; role?: string },
   ) {
+    await this.sarlaft.assertClear({
+      organizationId,
+      subjectDoc: data.nit,
+      context: "CUSTOMER_CREATE",
+      forceDespiteSarlaft: data.forceDespiteSarlaft,
+      actorUserId: actor?.userId,
+      actorRole: actor?.role,
+    });
+
     return this.prisma.customer.create({
       data: {
         organizationId,
@@ -73,14 +121,45 @@ export class CustomersService {
     });
   }
 
+  calculateQuote(body: unknown) {
+    const parsed = QuoteCalculateInputSchema.safeParse(body);
+    if (!parsed.success) {
+      throw new BadRequestException(
+        "Cotizador: origen, destino, tipoVehiculo y distanciaKm son obligatorios",
+      );
+    }
+    return calculateQuotePrice(parsed.data);
+  }
+
   async createQuote(
     organizationId: string,
-    data: { customerId: string; amount: number; notes?: string },
+    data: {
+      customerId: string;
+      amount?: number;
+      notes?: string;
+      calc?: unknown;
+    },
   ) {
     const customer = await this.prisma.customer.findFirst({
       where: { id: data.customerId, organizationId },
     });
     if (!customer) throw new NotFoundException("Cliente no encontrado");
+
+    let breakdown: QuoteCostBreakdown | null = null;
+    let amount = data.amount;
+    if (data.calc) {
+      breakdown = this.calculateQuote(data.calc);
+      amount = breakdown.precioSugerido;
+    }
+    if (amount == null || Number.isNaN(Number(amount))) {
+      throw new BadRequestException(
+        "Indique amount o parámetros de cálculo (calc)",
+      );
+    }
+
+    const routeNote = breakdown
+      ? `${breakdown.origen} → ${breakdown.destino} · ${breakdown.tipoVehiculoLabel}`
+      : undefined;
 
     const count = await this.prisma.quote.count({
       where: { customer: { organizationId } },
@@ -89,8 +168,11 @@ export class CustomersService {
       data: {
         code: `COT-2026-${String(count + 1).padStart(3, "0")}`,
         customerId: data.customerId,
-        amount: data.amount,
-        notes: data.notes,
+        amount,
+        notes: data.notes || routeNote,
+        calcJson: breakdown
+          ? (breakdown as unknown as Prisma.InputJsonValue)
+          : undefined,
         status: QuoteStatus.DRAFT,
       },
       include: { customer: true },
@@ -104,12 +186,59 @@ export class CustomersService {
   ) {
     const q = await this.prisma.quote.findFirst({
       where: { id, customer: { organizationId } },
+      include: { customer: true },
     });
     if (!q) throw new NotFoundException("Cotización no encontrada");
-    return this.prisma.quote.update({
+
+    const mapped = status.toUpperCase() as QuoteStatus;
+    const wasOpen = !isWinStatus(q.status);
+    const willWin = isWinStatus(mapped);
+
+    const updated = await this.prisma.quote.update({
       where: { id },
-      data: { status: status.toUpperCase() as QuoteStatus },
+      data: { status: mapped },
       include: { customer: true },
+    });
+
+    let draftTrip: Awaited<
+      ReturnType<LogisticsService["createDraftTripFromQuote"]>
+    > | null = null;
+    if (wasOpen && willWin) {
+      draftTrip = await this.createTripFromWonQuote(organizationId, updated);
+    }
+
+    return { ...updated, draftTrip };
+  }
+
+  private async createTripFromWonQuote(
+    organizationId: string,
+    q: {
+      id: string;
+      code: string;
+      customerId: string;
+      amount: Prisma.Decimal | number;
+      notes: string | null;
+      calcJson: unknown;
+    },
+  ) {
+    const calc = parseCalc(q.calcJson);
+    let origin = calc?.origen || "Origen";
+    let destination = calc?.destino || "Destino";
+    if (!calc && q.notes) {
+      const parts = q.notes.split(/→|->/);
+      if (parts.length >= 2) {
+        origin = parts[0].trim() || origin;
+        destination = (parts[1].split("·")[0] || parts[1]).trim() || destination;
+      }
+    }
+
+    return this.logistics.createDraftTripFromQuote(organizationId, {
+      customerId: q.customerId,
+      origin,
+      destination,
+      fareAmount: Number(q.amount),
+      quoteCode: q.code,
+      notes: `Auto desde cotización ${q.code} (APPROVED/WON) — tarifa ${Number(q.amount).toLocaleString("es-CO")} COP`,
     });
   }
 
@@ -137,7 +266,7 @@ export class CustomersService {
     const count = await this.prisma.transportContract.count({
       where: { organizationId },
     });
-    return this.prisma.transportContract.create({
+    const contract = await this.prisma.transportContract.create({
       data: {
         code: `CTR-2026-${String(count + 1).padStart(3, "0")}`,
         name: data?.name || `Contrato desde ${q.code}`,
@@ -155,6 +284,25 @@ export class CustomersService {
         _count: { select: { trips: true } },
       },
     });
+
+    const routeParts = (contract.route || "Origen → Destino").split(/→|->|-/);
+    const origin = (routeParts[0] || "Origen").trim() || "Origen";
+    const destination =
+      (routeParts[1] || routeParts[0] || "Destino").trim() || "Destino";
+
+    const draftTrip = await this.logistics.createDraftTripFromContract(
+      organizationId,
+      {
+        contractId: contract.id,
+        customerId: q.customerId,
+        origin,
+        destination,
+        fareAmount: Number(q.amount),
+        notes: `Auto desde cotización ${q.code} → contrato ${contract.code}`,
+      },
+    );
+
+    return { ...contract, draftTrip };
   }
 
   listContracts(organizationId: string) {

@@ -9,8 +9,15 @@ import { NavIcon } from "@/components/shell/nav-icons";
 type NavItem = {
   href: string;
   view: ModuleId | "cuenta";
-  section: string;
+  label?: string;
+  section?: string;
 };
+
+function itemLabel(item: NavItem) {
+  if (item.label) return item.label;
+  if (item.view === "cuenta") return "Mi cuenta";
+  return MODULE_LABELS[item.view];
+}
 
 export function CommandSearch({ items }: { items: NavItem[] }) {
   const { commandOpen, setCommandOpen } = useShell();
@@ -24,15 +31,14 @@ export function CommandSearch({ items }: { items: NavItem[] }) {
     if (!q) return items.slice(0, 8);
     return items
       .filter((item) => {
-        const label =
-          item.view === "cuenta" ? "Mi cuenta" : MODULE_LABELS[item.view];
+        const label = itemLabel(item);
         const help =
           item.view === "cuenta" ? "perfil" : MODULE_HELP[item.view] || "";
         return (
           label.toLowerCase().includes(q) ||
           help.toLowerCase().includes(q) ||
           item.href.includes(q) ||
-          item.section.toLowerCase().includes(q)
+          (item.section || "").toLowerCase().includes(q)
         );
       })
       .slice(0, 10);
@@ -86,7 +92,7 @@ export function CommandSearch({ items }: { items: NavItem[] }) {
                 go(results[active].href);
               }
             }}
-            placeholder="Buscar vehículo, cliente, viaje o guía..."
+            placeholder="Buscar por placa, conductor o cliente…"
             className="w-full bg-transparent text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-secondary)]"
           />
           <kbd className="hidden font-data text-[10px] text-[var(--text-secondary)] sm:inline">
@@ -100,16 +106,13 @@ export function CommandSearch({ items }: { items: NavItem[] }) {
             </li>
           ) : (
             results.map((item, idx) => {
-              const label =
-                item.view === "cuenta"
-                  ? "Mi cuenta"
-                  : MODULE_LABELS[item.view];
+              const label = itemLabel(item);
               const help =
                 item.view === "cuenta"
                   ? "Perfil y clave de acceso"
                   : MODULE_HELP[item.view];
               return (
-                <li key={item.href}>
+                <li key={`${item.href}-${label}`}>
                   <button
                     type="button"
                     className={`flex w-full items-start gap-3 px-4 py-2.5 text-left transition-colors duration-150 ${
@@ -130,9 +133,6 @@ export function CommandSearch({ items }: { items: NavItem[] }) {
                       <span className="mt-0.5 block truncate text-xs text-[var(--text-secondary)]">
                         {help}
                       </span>
-                    </span>
-                    <span className="ml-auto font-data text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">
-                      {item.section}
                     </span>
                   </button>
                 </li>

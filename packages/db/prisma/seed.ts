@@ -759,6 +759,13 @@ async function main() {
         notes: "Revisar listas restrictivas trimestral",
         organizationId: org.id,
       },
+      {
+        subjectName: "Sujeto Bloqueo Piloto",
+        subjectDoc: "800111222-3",
+        risk: SarlaftRisk.BLOCKED,
+        notes: "Seed Sprint 1 — prueba de uplink bloqueado",
+        organizationId: org.id,
+      },
     ],
   });
 

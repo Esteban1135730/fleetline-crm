@@ -20,6 +20,9 @@ type ShellCtx = {
   inspectorContent: any;
   openInspector: (title: string, content: ReactNode) => void;
   closeInspector: () => void;
+  helpOpen: boolean;
+  setHelpOpen: (v: boolean) => void;
+  toggleHelp: () => void;
   commandOpen: boolean;
   setCommandOpen: (v: boolean) => void;
   systemStatus: "NOMINAL" | "ALERT" | "OFFLINE";
@@ -34,6 +37,7 @@ export function ShellProvider({ children }: { children: ReactNode }) {
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [inspectorTitle, setInspectorTitle] = useState("");
   const [inspectorContent, setInspectorContent] = useState<any>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
   const [systemStatus, setSystemStatus] = useState<
     "NOMINAL" | "ALERT" | "OFFLINE"
@@ -62,12 +66,21 @@ export function ShellProvider({ children }: { children: ReactNode }) {
     setInspectorTitle(title);
     setInspectorContent(content);
     setInspectorOpen(true);
+    setHelpOpen(false);
   }, []);
 
   const closeInspector = useCallback(() => {
     setInspectorOpen(false);
     setInspectorContent(null);
     setInspectorTitle("");
+  }, []);
+
+  const toggleHelp = useCallback(() => {
+    setHelpOpen((v) => {
+      const next = !v;
+      if (next) setInspectorOpen(false);
+      return next;
+    });
   }, []);
 
   useEffect(() => {
@@ -77,9 +90,14 @@ export function ShellProvider({ children }: { children: ReactNode }) {
         e.preventDefault();
         setCommandOpen(true);
       }
+      if (isMod && e.key === "/") {
+        e.preventDefault();
+        setHelpOpen((v) => !v);
+      }
       if (e.key === "Escape") {
         setCommandOpen(false);
         setInspectorOpen(false);
+        setHelpOpen(false);
       }
     }
     window.addEventListener("keydown", onKey);
@@ -96,6 +114,9 @@ export function ShellProvider({ children }: { children: ReactNode }) {
       inspectorContent,
       openInspector,
       closeInspector,
+      helpOpen,
+      setHelpOpen,
+      toggleHelp,
       commandOpen,
       setCommandOpen,
       systemStatus,
@@ -110,6 +131,8 @@ export function ShellProvider({ children }: { children: ReactNode }) {
       inspectorContent,
       openInspector,
       closeInspector,
+      helpOpen,
+      toggleHelp,
       commandOpen,
       systemStatus,
     ],

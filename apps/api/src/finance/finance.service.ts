@@ -5,10 +5,14 @@ import {
 } from "@nestjs/common";
 import { InvoiceStatus, InvoiceType, JournalEntryStatus } from "@fsg/db";
 import { PrismaService } from "../prisma/prisma.service";
+import { SarlaftGuardService } from "../sarlaft/sarlaft-guard.service";
 
 @Injectable()
 export class FinanceService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private sarlaft: SarlaftGuardService,
+  ) {}
 
   async summary(organizationId: string) {
     await this.markOverdue(organizationId);
@@ -52,6 +56,7 @@ export class FinanceService {
       include: {
         customer: true,
         trip: { select: { id: true, code: true } },
+        paymentApprovedBy: { select: { id: true, name: true, email: true } },
       },
       orderBy: { dueDate: "asc" },
     });
@@ -215,9 +220,53 @@ export class FinanceService {
     });
   }
 
-  async markPaid(organizationId: string, id: string) {
+  async approvePayment(
+    organizationId: string,
+    id: string,
+    approverUserId: string,
+  ) {
     const inv = await this.prisma.invoice.findFirst({
       where: { id, organizationId },
+    });
+    if (!inv) throw new NotFoundException("Factura no encontrada");
+    if (inv.type !== InvoiceType.PAYABLE) {
+      throw new BadRequestException(
+        "La aprobación de pago solo aplica a cuentas por pagar (CxP)",
+      );
+    }
+    if (inv.status === InvoiceStatus.PAID) {
+      throw new BadRequestException("La factura ya está pagada");
+    }
+    if (inv.status === InvoiceStatus.CANCELLED) {
+      throw new BadRequestException("No se puede aprobar una factura anulada");
+    }
+
+    return this.prisma.invoice.update({
+      where: { id },
+      data: {
+        paymentApprovedAt: new Date(),
+        paymentApprovedById: approverUserId,
+      },
+      include: {
+        customer: true,
+        trip: { select: { id: true, code: true } },
+        paymentApprovedBy: { select: { id: true, name: true, email: true } },
+      },
+    });
+  }
+
+  async markPaid(
+    organizationId: string,
+    id: string,
+    opts?: {
+      forceDespiteSarlaft?: boolean;
+      actorUserId?: string;
+      actorRole?: string;
+    },
+  ) {
+    const inv = await this.prisma.invoice.findFirst({
+      where: { id, organizationId },
+      include: { customer: { select: { nit: true, name: true } } },
     });
     if (!inv) throw new NotFoundException("Factura no encontrada");
     if (inv.status === InvoiceStatus.PAID) {
@@ -225,6 +274,26 @@ export class FinanceService {
     }
     if (inv.status === InvoiceStatus.CANCELLED) {
       throw new BadRequestException("No se puede pagar una factura anulada");
+    }
+
+    if (inv.type === InvoiceType.PAYABLE && !inv.paymentApprovedAt) {
+      throw new BadRequestException(
+        "CxP sin aprobación: registre el aprobador antes de marcar como pagada",
+      );
+    }
+
+    if (inv.type === InvoiceType.PAYABLE) {
+      const supplierLabel = inv.supplierName || "";
+      const nitHint = inv.customer?.nit || "";
+      await this.sarlaft.assertClear({
+        organizationId,
+        subjectDoc: nitHint || supplierLabel,
+        subjectName: supplierLabel || undefined,
+        context: "INVOICE_PAY",
+        forceDespiteSarlaft: opts?.forceDespiteSarlaft,
+        actorUserId: opts?.actorUserId,
+        actorRole: opts?.actorRole,
+      });
     }
 
     const amount = Number(inv.amount);
@@ -247,7 +316,11 @@ export class FinanceService {
     return this.prisma.invoice.update({
       where: { id },
       data: { status: InvoiceStatus.PAID, paidAt: new Date() },
-      include: { customer: true, trip: { select: { id: true, code: true } } },
+      include: {
+        customer: true,
+        trip: { select: { id: true, code: true } },
+        paymentApprovedBy: { select: { id: true, name: true, email: true } },
+      },
     });
   }
 

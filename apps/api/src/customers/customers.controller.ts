@@ -25,7 +25,8 @@ export class CustomersController {
 
   @Post("customers")
   create(
-    @Req() req: { user: { organizationId: string } },
+    @Req()
+    req: { user: { organizationId: string; userId: string; role: string } },
     @Body()
     body: {
       name: string;
@@ -33,9 +34,13 @@ export class CustomersController {
       email?: string;
       phone?: string;
       segment?: "B2B" | "ESCOLAR" | "TURISMO";
+      forceDespiteSarlaft?: boolean;
     },
   ) {
-    return this.service.createCustomer(req.user.organizationId, body);
+    return this.service.createCustomer(req.user.organizationId, body, {
+      userId: req.user.userId,
+      role: req.user.role,
+    });
   }
 
   @Patch("customers/:id")
@@ -58,11 +63,21 @@ export class CustomersController {
     return this.service.listQuotes(req.user.organizationId);
   }
 
+  @Post("quotes/calculate")
+  calculateQuote(@Body() body: unknown) {
+    return this.service.calculateQuote(body);
+  }
+
   @Post("quotes")
   createQuote(
     @Req() req: { user: { organizationId: string } },
     @Body()
-    body: { customerId: string; amount: number; notes?: string },
+    body: {
+      customerId: string;
+      amount?: number;
+      notes?: string;
+      calc?: unknown;
+    },
   ) {
     return this.service.createQuote(req.user.organizationId, body);
   }

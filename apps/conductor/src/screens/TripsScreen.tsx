@@ -45,8 +45,13 @@ export default function TripsScreen({ navigation, onLogout }: Props) {
   const [incidentNotes, setIncidentNotes] = useState("");
   const [actionId, setActionId] = useState<string | null>(null);
 
-  const inTransitTrip = trips.find((t) => t.status === "IN_TRANSIT");
-  useGps(!!inTransitTrip, inTransitTrip?.vehicleId ?? inTransitTrip?.vehicle?.id);
+  const inTransitTrip = trips.find(
+    (t) => t.status === "IN_TRANSIT" && !!t.preoperationalAt,
+  );
+  useGps(
+    !!inTransitTrip,
+    inTransitTrip?.vehicleId ?? inTransitTrip?.vehicle?.id,
+  );
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -72,6 +77,12 @@ export default function TripsScreen({ navigation, onLogout }: Props) {
   );
 
   async function handleStatus(trip: Trip, status: string) {
+    if (status === "IN_TRANSIT") {
+      if (!trip.preoperationalAt) {
+        navigation.navigate("Preoperational", { trip });
+        return;
+      }
+    }
     setActionId(trip.id);
     try {
       await updateTripStatus(trip.id, status);
@@ -116,7 +127,7 @@ export default function TripsScreen({ navigation, onLogout }: Props) {
     navigation.setOptions({
       headerRight: () => (
         <Pressable onPress={() => void handleLogout()} style={{ marginRight: 8 }}>
-          <Text style={{ color: "#fff", fontWeight: "600" }}>Salir</Text>
+          <Text style={{ color: "#F8FAFC", fontWeight: "600" }}>Salir</Text>
         </Pressable>
       ),
     });
@@ -125,7 +136,7 @@ export default function TripsScreen({ navigation, onLogout }: Props) {
   if (loading && trips.length === 0) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#1e3a5f" />
+        <ActivityIndicator size="large" color="#10B981" />
       </View>
     );
   }
@@ -143,7 +154,7 @@ export default function TripsScreen({ navigation, onLogout }: Props) {
       {inTransitTrip ? (
         <View style={styles.gpsBanner}>
           <Text style={styles.gpsText}>
-            GPS activo — enviando ubicación cada ~12s ({inTransitTrip.code})
+            GPS activo — uplink cada ~12s ({inTransitTrip.code})
           </Text>
         </View>
       ) : null}
@@ -158,6 +169,7 @@ export default function TripsScreen({ navigation, onLogout }: Props) {
               setRefreshing(true);
               void load(true);
             }}
+            tintColor="#10B981"
           />
         }
         ListEmptyComponent={
@@ -178,24 +190,45 @@ export default function TripsScreen({ navigation, onLogout }: Props) {
               {item.vehicle?.plate ? (
                 <Text style={styles.meta}>Vehículo: {item.vehicle.plate}</Text>
               ) : null}
-              {item.notes ? (
-                <Text style={styles.notes}>Notas: {item.notes}</Text>
+              {item.preoperationalAt ? (
+                <Text style={styles.preopOk}>Preoperacional OK</Text>
+              ) : item.status === "ASSIGNED" || item.status === "PENDING" ? (
+                <Text style={styles.preopPending}>
+                  Requiere inspección preoperacional
+                </Text>
               ) : null}
 
               <View style={styles.actions}>
                 {item.status === "ASSIGNED" || item.status === "PENDING" ? (
-                  <Pressable
-                    style={[styles.btn, styles.btnPrimary]}
-                    disabled={busy}
-                    onPress={() => void handleStatus(item, "IN_TRANSIT")}
-                  >
-                    <Text style={styles.btnTextPrimary}>
-                      {busy ? "…" : "En vía"}
-                    </Text>
-                  </Pressable>
+                  <>
+                    <Pressable
+                      style={[styles.btn, styles.btnEmerald]}
+                      disabled={busy}
+                      onPress={() =>
+                        navigation.navigate("Preoperational", { trip: item })
+                      }
+                    >
+                      <Text style={styles.btnTextPrimary}>
+                        {item.preoperationalAt
+                          ? "Ver / iniciar ruta"
+                          : "Inspección preop."}
+                      </Text>
+                    </Pressable>
+                    {item.preoperationalAt ? (
+                      <Pressable
+                        style={[styles.btn, styles.btnPrimary]}
+                        disabled={busy}
+                        onPress={() => void handleStatus(item, "IN_TRANSIT")}
+                      >
+                        <Text style={styles.btnTextPrimary}>
+                          {busy ? "…" : "INICIAR RUTA"}
+                        </Text>
+                      </Pressable>
+                    ) : null}
+                  </>
                 ) : null}
 
-                {item.status === "IN_TRANSIT" || item.status === "ASSIGNED" ? (
+                {item.status === "IN_TRANSIT" ? (
                   <Pressable
                     style={[styles.btn, styles.btnSuccess]}
                     disabled={busy}
@@ -239,6 +272,7 @@ export default function TripsScreen({ navigation, onLogout }: Props) {
               value={incidentNotes}
               onChangeText={setIncidentNotes}
               placeholder="Ej. tráfico, avería, retraso…"
+              placeholderTextColor="#64748B"
             />
             <View style={styles.modalActions}>
               <Pressable
@@ -262,44 +296,44 @@ export default function TripsScreen({ navigation, onLogout }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f0f4f8" },
+  container: { flex: 1, backgroundColor: "#0A0D14" },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   driver: {
     padding: 16,
     fontSize: 15,
     fontWeight: "600",
-    color: "#1e3a5f",
+    color: "#F8FAFC",
   },
   warning: {
     padding: 16,
     fontSize: 14,
-    color: "#b45309",
-    backgroundColor: "#fef3c7",
+    color: "#FFB800",
+    backgroundColor: "rgba(255,184,0,0.12)",
   },
   gpsBanner: {
     marginHorizontal: 16,
     marginBottom: 8,
     padding: 10,
-    backgroundColor: "#dbeafe",
+    backgroundColor: "rgba(16,185,129,0.15)",
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#10B981",
   },
-  gpsText: { color: "#1d4ed8", fontSize: 13, fontWeight: "500" },
+  gpsText: { color: "#10B981", fontSize: 13, fontWeight: "600" },
   empty: {
     textAlign: "center",
-    color: "#64748b",
+    color: "#94A3B8",
     marginTop: 40,
     fontSize: 15,
   },
   card: {
-    backgroundColor: "#fff",
+    backgroundColor: "#121722",
     marginHorizontal: 16,
     marginBottom: 12,
     borderRadius: 10,
     padding: 16,
-    shadowColor: "#000",
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.07)",
   },
   cardHeader: {
     flexDirection: "row",
@@ -307,19 +341,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 8,
   },
-  code: { fontSize: 17, fontWeight: "700", color: "#0f172a" },
+  code: { fontSize: 17, fontWeight: "700", color: "#F8FAFC" },
   badge: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#1e3a5f",
-    backgroundColor: "#e2e8f0",
+    color: "#10B981",
+    backgroundColor: "rgba(16,185,129,0.15)",
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
   },
-  route: { fontSize: 15, color: "#334155", marginBottom: 6 },
-  meta: { fontSize: 13, color: "#64748b", marginBottom: 4 },
-  notes: { fontSize: 13, color: "#b45309", marginBottom: 8 },
+  route: { fontSize: 15, color: "#94A3B8", marginBottom: 6 },
+  meta: { fontSize: 13, color: "#64748B", marginBottom: 4, fontFamily: "monospace" },
+  preopOk: { fontSize: 12, color: "#10B981", marginBottom: 4, fontWeight: "600" },
+  preopPending: { fontSize: 12, color: "#FFB800", marginBottom: 4 },
   actions: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 },
   btn: {
     paddingHorizontal: 14,
@@ -328,35 +363,37 @@ const styles = StyleSheet.create({
     minWidth: 80,
     alignItems: "center",
   },
-  btnPrimary: { backgroundColor: "#2563eb" },
+  btnPrimary: { backgroundColor: "#0D9488" },
+  btnEmerald: { backgroundColor: "#10B981" },
   btnSuccess: { backgroundColor: "#059669" },
-  btnWarn: { backgroundColor: "#d97706" },
-  btnGhost: { backgroundColor: "#e2e8f0" },
-  btnTextPrimary: { color: "#fff", fontWeight: "600" },
-  btnGhostText: { color: "#334155", fontWeight: "600" },
+  btnWarn: { backgroundColor: "#D97706" },
+  btnGhost: { backgroundColor: "#1e293b" },
+  btnTextPrimary: { color: "#F8FAFC", fontWeight: "700" },
+  btnGhostText: { color: "#94A3B8", fontWeight: "600" },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
+    backgroundColor: "rgba(0,0,0,0.55)",
     justifyContent: "flex-end",
   },
   modalCard: {
-    backgroundColor: "#fff",
+    backgroundColor: "#121722",
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     padding: 20,
     paddingBottom: 32,
   },
-  modalTitle: { fontSize: 18, fontWeight: "700", color: "#0f172a" },
-  modalSub: { fontSize: 14, color: "#64748b", marginVertical: 10 },
+  modalTitle: { fontSize: 18, fontWeight: "700", color: "#F8FAFC" },
+  modalSub: { fontSize: 14, color: "#94A3B8", marginVertical: 10 },
   textArea: {
     borderWidth: 1,
-    borderColor: "#cbd5e1",
+    borderColor: "rgba(255,255,255,0.1)",
     borderRadius: 8,
     padding: 12,
     minHeight: 100,
     textAlignVertical: "top",
     fontSize: 15,
     marginBottom: 16,
+    color: "#F8FAFC",
   },
   modalActions: { flexDirection: "row", justifyContent: "flex-end", gap: 10 },
 });

@@ -3,13 +3,15 @@ import { ActivityIndicator, View } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { StatusBar } from "expo-status-bar";
-import { getToken } from "./src/api";
+import { getToken, type Trip } from "./src/api";
 import LoginScreen from "./src/screens/LoginScreen";
 import TripsScreen from "./src/screens/TripsScreen";
+import PreoperationalScreen from "./src/screens/PreoperationalScreen";
 
 export type RootStackParamList = {
   Login: undefined;
   Trips: undefined;
+  Preoperational: { trip: Trip };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -27,7 +29,7 @@ export default function App() {
   if (!ready) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size="large" color="#1e3a5f" />
+        <ActivityIndicator size="large" color="#10B981" />
       </View>
     );
   }
@@ -37,13 +39,13 @@ export default function App() {
       <StatusBar style="light" />
       <Stack.Navigator
         screenOptions={{
-          headerStyle: { backgroundColor: "#1e3a5f" },
-          headerTintColor: "#fff",
+          headerStyle: { backgroundColor: "#0A0D14" },
+          headerTintColor: "#F8FAFC",
           headerTitleStyle: { fontWeight: "600" },
         }}
       >
         {!authed ? (
-          <Stack.Screen name="Login" options={{ title: "FSG Conductor" }}>
+          <Stack.Screen name="Login" options={{ title: "Fleetline Conductor" }}>
             {(props) => (
               <LoginScreen
                 {...props}
@@ -52,14 +54,21 @@ export default function App() {
             )}
           </Stack.Screen>
         ) : (
-          <Stack.Screen name="Trips" options={{ title: "Mis viajes" }}>
-            {(props) => (
-              <TripsScreen
-                {...props}
-                onLogout={() => setAuthed(false)}
-              />
-            )}
-          </Stack.Screen>
+          <>
+            <Stack.Screen name="Trips" options={{ title: "Mis viajes" }}>
+              {(props) => (
+                <TripsScreen
+                  {...props}
+                  onLogout={() => setAuthed(false)}
+                />
+              )}
+            </Stack.Screen>
+            <Stack.Screen
+              name="Preoperational"
+              component={PreoperationalScreen}
+              options={{ title: "Preoperacional" }}
+            />
+          </>
         )}
       </Stack.Navigator>
     </NavigationContainer>

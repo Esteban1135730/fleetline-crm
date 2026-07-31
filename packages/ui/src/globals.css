@@ -288,3 +288,62 @@ html.light .flt-kpi {
   position: relative;
   overflow: hidden;
 }
+
+/* Tooltip Hyper-Explained */
+.flt-tip {
+  position: relative;
+  display: inline-flex;
+  max-width: 100%;
+  vertical-align: middle;
+}
+
+.flt-tip::after {
+  content: attr(data-tip);
+  position: absolute;
+  z-index: 80;
+  width: max-content;
+  max-width: min(280px, 70vw);
+  padding: 0.45rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface-1);
+  color: var(--text-primary);
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.35;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 120ms ease, visibility 120ms ease;
+}
+
+.flt-tip[data-side="top"]::after {
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.flt-tip[data-side="bottom"]::after {
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.flt-tip[data-side="left"]::after {
+  right: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.flt-tip[data-side="right"]::after {
+  left: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.flt-tip:hover::after,
+.flt-tip:focus-within::after {
+  opacity: 1;
+  visibility: visible;
+}

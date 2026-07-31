@@ -22,6 +22,8 @@ type Invoice = {
   dueDate?: string;
   description?: string | null;
   supplierName?: string | null;
+  paymentApprovedAt?: string | null;
+  paymentApprovedBy?: { name: string } | null;
   customer?: { name: string } | null;
   trip?: { code: string } | null;
 };
@@ -238,6 +240,11 @@ export default function FinanzasPage() {
                   >
                     {inv.status}
                   </Badge>
+                  {inv.type === "PAYABLE" && inv.paymentApprovedAt ? (
+                    <div className="mt-1 font-data text-[10px] text-[var(--accent-primary)]">
+                      Aprobado: {inv.paymentApprovedBy?.name || "registrado"}
+                    </div>
+                  ) : null}
                 </td>
                 <td className="px-4 py-2.5">
                   {inv.status !== "PAID" && inv.status !== "CANCELLED" ? (
@@ -270,13 +277,32 @@ export default function FinanzasPage() {
                       <Button
                         variant="ghost"
                         onClick={async () => {
-                          await api(`/finance/invoices/${inv.id}/pay`, {
-                            method: "PATCH",
-                          });
-                          await load();
+                          try {
+                            if (
+                              inv.type === "PAYABLE" &&
+                              !inv.paymentApprovedAt
+                            ) {
+                              await api(
+                                `/finance/invoices/${inv.id}/approve-payment`,
+                                { method: "PATCH" },
+                              );
+                            }
+                            await api(`/finance/invoices/${inv.id}/pay`, {
+                              method: "PATCH",
+                            });
+                            await load();
+                          } catch (err) {
+                            window.alert(
+                              err instanceof Error
+                                ? err.message
+                                : "No se pudo pagar",
+                            );
+                          }
                         }}
                       >
-                        Marcar pagada
+                        {inv.type === "PAYABLE" && !inv.paymentApprovedAt
+                          ? "Aprobar y pagar"
+                          : "Marcar pagada"}
                       </Button>
                       <Button
                         variant="ghost"

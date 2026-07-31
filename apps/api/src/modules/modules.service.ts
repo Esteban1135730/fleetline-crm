@@ -1,3 +1,5 @@
+import { createHash } from "crypto";
+import { readFile } from "fs/promises";
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import {
   ArchiveCategory,
@@ -16,6 +18,10 @@ import { PrismaService } from "../prisma/prisma.service";
 @Injectable()
 export class ModulesService {
   constructor(private prisma: PrismaService) {}
+
+  private sha256Hex(buf: Buffer) {
+    return createHash("sha256").update(buf).digest("hex");
+  }
 
   // —— RRHH ——
   listEmployees(organizationId: string) {
@@ -336,10 +342,44 @@ export class ModulesService {
   }
 
   // —— Archivo ——
-  listArchive(organizationId: string) {
+  listArchive(
+    organizationId: string,
+    filters?: { category?: string; q?: string },
+  ) {
+    const q = filters?.q?.trim();
     return this.prisma.archiveDocument.findMany({
-      where: { organizationId },
+      where: {
+        organizationId,
+        ...(filters?.category
+          ? { category: filters.category as ArchiveCategory }
+          : {}),
+        ...(q
+          ? {
+              OR: [
+                { title: { contains: q, mode: "insensitive" } },
+                { tags: { contains: q, mode: "insensitive" } },
+                { contentHash: { contains: q, mode: "insensitive" } },
+                { fileRef: { contains: q, mode: "insensitive" } },
+              ],
+            }
+          : {}),
+      },
+      include: {
+        uploadedBy: { select: { id: true, name: true, email: true } },
+      },
       orderBy: { createdAt: "desc" },
+    });
+  }
+
+  listArchiveAudit(organizationId: string, take = 50) {
+    return this.prisma.auditLog.findMany({
+      where: {
+        entity: "ArchiveDocument",
+        meta: { path: ["organizationId"], equals: organizationId },
+      },
+      include: { user: { select: { id: true, name: true, email: true } } },
+      orderBy: { createdAt: "desc" },
+      take: Math.min(take, 200),
     });
   }
 
@@ -351,19 +391,38 @@ export class ModulesService {
       fileRef?: string;
       tags?: string;
     },
+    actorUserId?: string,
   ) {
-    return this.prisma.archiveDocument.create({
-      data: {
-        organizationId,
-        title: data.title,
-        category: (data.category as ArchiveCategory) || ArchiveCategory.OTHER,
-        fileRef: data.fileRef,
-        tags: data.tags,
-      },
-    });
+    return this.prisma.archiveDocument
+      .create({
+        data: {
+          organizationId,
+          title: data.title,
+          category: (data.category as ArchiveCategory) || ArchiveCategory.OTHER,
+          fileRef: data.fileRef,
+          tags: data.tags,
+          uploadedById: actorUserId,
+        },
+      })
+      .then(async (doc) => {
+        await this.prisma.auditLog.create({
+          data: {
+            action: "ARCHIVE_INDEX",
+            entity: "ArchiveDocument",
+            entityId: doc.id,
+            userId: actorUserId,
+            meta: {
+              organizationId,
+              title: doc.title,
+              category: doc.category,
+            },
+          },
+        });
+        return doc;
+      });
   }
 
-  createArchiveWithFile(
+  async createArchiveWithFile(
     organizationId: string,
     data: {
       title: string;
@@ -371,17 +430,55 @@ export class ModulesService {
       tags?: string;
       storedName: string;
       originalName: string;
+      absolutePath: string;
+      byteSize?: number;
     },
+    actorUserId?: string,
   ) {
-    return this.prisma.archiveDocument.create({
+    let contentHash: string | null = null;
+    try {
+      const buf = await readFile(data.absolutePath);
+      contentHash = this.sha256Hex(buf);
+    } catch {
+      throw new BadRequestException(
+        "Fallo de sellado criptográfico — reintentar uplink",
+      );
+    }
+
+    const doc = await this.prisma.archiveDocument.create({
       data: {
         organizationId,
         title: data.title || data.originalName,
         category: (data.category as ArchiveCategory) || ArchiveCategory.OTHER,
         fileRef: `/uploads/${data.storedName}`,
         tags: data.tags,
+        contentHash,
+        byteSize: data.byteSize ?? null,
+        uploadedById: actorUserId,
+      },
+      include: {
+        uploadedBy: { select: { id: true, name: true, email: true } },
       },
     });
+
+    await this.prisma.auditLog.create({
+      data: {
+        action: "ARCHIVE_VAULT",
+        entity: "ArchiveDocument",
+        entityId: doc.id,
+        userId: actorUserId,
+        meta: {
+          organizationId,
+          title: doc.title,
+          category: doc.category,
+          contentHash,
+          byteSize: doc.byteSize,
+          fileRef: doc.fileRef,
+        },
+      },
+    });
+
+    return doc;
   }
 
   async updateArchive(
@@ -405,12 +502,29 @@ export class ModulesService {
     });
   }
 
-  async deleteArchive(organizationId: string, id: string) {
+  async deleteArchive(
+    organizationId: string,
+    id: string,
+    actorUserId?: string,
+  ) {
     const d = await this.prisma.archiveDocument.findFirst({
       where: { id, organizationId },
     });
     if (!d) throw new NotFoundException();
     await this.prisma.archiveDocument.delete({ where: { id } });
+    await this.prisma.auditLog.create({
+      data: {
+        action: "ARCHIVE_DELETE",
+        entity: "ArchiveDocument",
+        entityId: id,
+        userId: actorUserId,
+        meta: {
+          organizationId,
+          title: d.title,
+          contentHash: d.contentHash,
+        },
+      },
+    });
     return { ok: true };
   }
 
@@ -769,7 +883,7 @@ export class ModulesService {
     const daysLeft = (validTo.getTime() - Date.now()) / 86400000;
     let status: DocStatus = DocStatus.VALID;
     if (daysLeft < 0) status = DocStatus.EXPIRED;
-    else if (daysLeft < 30) status = DocStatus.EXPIRING;
+    else if (daysLeft < 15) status = DocStatus.EXPIRING;
 
     return this.prisma.vehicleProcedure.create({
       data: {
@@ -803,7 +917,7 @@ export class ModulesService {
       const daysLeft = (validTo.getTime() - Date.now()) / 86400000;
       status = DocStatus.VALID;
       if (daysLeft < 0) status = DocStatus.EXPIRED;
-      else if (daysLeft < 30) status = DocStatus.EXPIRING;
+      else if (daysLeft < 15) status = DocStatus.EXPIRING;
     }
     return this.prisma.vehicleProcedure.update({
       where: { id },

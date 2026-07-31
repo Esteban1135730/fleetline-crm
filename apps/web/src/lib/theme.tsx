@@ -91,7 +91,7 @@ export function ThemeToggle({ className = "" }: { className?: string }) {
           className={`theme-toggle-opt ${mode === "light" ? "is-active" : ""}`}
           onClick={() => setMode("light")}
           aria-pressed={mode === "light"}
-          title="Aluminium & Quartz"
+          title="Modo claro Aluminium & Quartz — fondos claros para oficina"
         >
           <SunIcon />
           <span className="hidden sm:inline">Claro</span>
@@ -101,7 +101,7 @@ export function ThemeToggle({ className = "" }: { className?: string }) {
           className={`theme-toggle-opt ${mode === "dark" ? "is-active" : ""}`}
           onClick={() => setMode("dark")}
           aria-pressed={mode === "dark"}
-          title="Obsidian Telemetry"
+          title="Modo oscuro Obsidian Telemetry — torre de control"
         >
           <MoonIcon />
           <span className="hidden sm:inline">Oscuro</span>

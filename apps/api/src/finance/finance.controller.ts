@@ -63,12 +63,30 @@ export class FinanceController {
     return this.service.updateInvoice(req.user.organizationId, id, body);
   }
 
-  @Patch("invoices/:id/pay")
-  pay(
-    @Req() req: { user: { organizationId: string } },
+  @Patch("invoices/:id/approve-payment")
+  approvePayment(
+    @Req() req: { user: { organizationId: string; userId: string } },
     @Param("id") id: string,
   ) {
-    return this.service.markPaid(req.user.organizationId, id);
+    return this.service.approvePayment(
+      req.user.organizationId,
+      id,
+      req.user.userId,
+    );
+  }
+
+  @Patch("invoices/:id/pay")
+  pay(
+    @Req()
+    req: { user: { organizationId: string; userId: string; role: string } },
+    @Param("id") id: string,
+    @Body() body?: { forceDespiteSarlaft?: boolean },
+  ) {
+    return this.service.markPaid(req.user.organizationId, id, {
+      forceDespiteSarlaft: body?.forceDespiteSarlaft,
+      actorUserId: req.user.userId,
+      actorRole: req.user.role,
+    });
   }
 
   @Patch("invoices/:id/cancel")

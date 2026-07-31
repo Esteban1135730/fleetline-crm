@@ -2,45 +2,45 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   MODULE_LABELS,
+  NAV_DEPARTMENTS,
+  ROLE_DEFAULT_NAV_DEPT,
   ROLE_LABELS,
   ROLE_VIEWS,
+  navDeptForPath,
   type ModuleId,
+  type NavDeptId,
+  type NavDepartment,
+  type Role,
 } from "@fsg/shared";
-import { Button } from "@fsg/ui";
+import { Button, Tooltip } from "@fsg/ui";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
 import { brand } from "@/lib/brand";
+import { guideForPath } from "@/lib/module-guides";
 import { ThemeToggle } from "@/lib/theme";
 import { ShellProvider, useShell } from "@/lib/shell-context";
 import { CommandSearch } from "@/components/shell/command-search";
 import { NavIcon } from "@/components/shell/nav-icons";
 
-const NAV: { href: string; view: ModuleId | "cuenta"; section: string }[] = [
-  { href: "/dashboard", view: "dashboard", section: "Gerencia" },
-  { href: "/apps", view: "apps", section: "Gerencia" },
-  { href: "/usuarios", view: "usuarios", section: "Gerencia" },
-  { href: "/comercial", view: "comercial", section: "Comercial" },
-  { href: "/logistica", view: "logistica", section: "Operaciones" },
-  { href: "/parqueadero", view: "parqueadero", section: "Operaciones" },
-  { href: "/tramites", view: "tramites", section: "Operaciones" },
-  { href: "/taller", view: "taller", section: "Flota" },
-  { href: "/compras", view: "compras", section: "Compras" },
-  { href: "/finanzas", view: "finanzas", section: "Tesorería" },
-  { href: "/contabilidad", view: "contabilidad", section: "Tesorería" },
-  { href: "/revisoria", view: "revisoria", section: "Tesorería" },
-  { href: "/rrhh", view: "rrhh", section: "Personas" },
-  { href: "/atencion", view: "atencion", section: "Call Center" },
-  { href: "/calidad", view: "calidad", section: "HSQE" },
-  { href: "/recepcion", view: "recepcion", section: "Archivo y sede" },
-  { href: "/archivo", view: "archivo", section: "Archivo y sede" },
-  { href: "/juridico", view: "juridico", section: "Cumplimiento" },
-  { href: "/sarlaft", view: "sarlaft", section: "Cumplimiento" },
-  { href: "/sistemas", view: "sistemas", section: "Tecnología" },
-  { href: "/cuenta", view: "cuenta", section: "Cuenta" },
-];
+const NAV_OPEN_KEY = "flt-nav-depts-open";
+
+const DEPT_TIPS: Record<NavDeptId, string> = {
+  operaciones:
+    "Despacho, patio y documentos de flota. Abrir/cerrar sin cerrar otros departamentos.",
+  comercial: "Clientes B2B, cotizaciones, contratos y canales CRM.",
+  mantenimiento: "Órdenes de trabajo e inventario / compras.",
+  finanzas: "Tesorería, archivo, SARLAFT, calidad y gobierno contable.",
+  mando: "Inicio, personas, call center, sistemas y cuenta.",
+};
+
+type FlatNavItem = {
+  href: string;
+  view: ModuleId | "cuenta";
+  label: string;
+};
 
 function BrandMark({ className = "h-7 w-7" }: { className?: string }) {
   return (
@@ -65,6 +65,30 @@ function currentModuleLabel(pathname: string): string {
   return "Fleet Operations";
 }
 
+function pathMatches(href: string, pathname: string) {
+  const base = href.split("#")[0];
+  if (base === "/dashboard") {
+    return pathname === "/dashboard" || pathname === "/";
+  }
+  return pathname === base || pathname.startsWith(`${base}/`);
+}
+
+function readOpenDepts(fallback: NavDeptId[]): NavDeptId[] {
+  try {
+    const raw = localStorage.getItem(NAV_OPEN_KEY);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return fallback;
+    return parsed.filter((x): x is NavDeptId => typeof x === "string");
+  } catch {
+    return fallback;
+  }
+}
+
+function persistOpenDepts(ids: NavDeptId[]) {
+  localStorage.setItem(NAV_OPEN_KEY, JSON.stringify(ids));
+}
+
 function TopBar({
   userName,
   roleLabel,
@@ -74,25 +98,39 @@ function TopBar({
   roleLabel: string;
   moduleBadge: string;
 }) {
-  const { systemStatus, setCommandOpen, toggleSidebar } = useShell();
+  const {
+    systemStatus,
+    setCommandOpen,
+    toggleSidebar,
+    toggleHelp,
+    helpOpen,
+  } = useShell();
   const statusClass =
     systemStatus === "NOMINAL"
       ? "text-[var(--accent-primary)]"
       : systemStatus === "ALERT"
         ? "text-[var(--accent-metric)]"
         : "text-[var(--accent-alert)]";
+  const modLabel =
+    typeof navigator !== "undefined" &&
+    /Mac|iPhone|iPad/.test(navigator.platform)
+      ? "⌘K"
+      : "Ctrl K";
 
   return (
     <header className="flt-topbar">
       <div className="flex min-w-0 items-center gap-3">
-        <button
-          type="button"
-          className="flt-icon-btn lg:hidden"
-          onClick={toggleSidebar}
-          aria-label="Abrir navegación"
-        >
-          <NavIcon view="menu" className="h-4 w-4" />
-        </button>
+        <Tooltip content="Abrir o cerrar el menú de departamentos">
+          <button
+            type="button"
+            className="flt-icon-btn lg:hidden"
+            onClick={toggleSidebar}
+            aria-label="Abrir navegación"
+            title="Abrir menú de departamentos"
+          >
+            <NavIcon view="menu" className="h-4 w-4" />
+          </button>
+        </Tooltip>
         <div className="flex min-w-0 items-center gap-2.5">
           <BrandMark className="hidden h-7 w-7 sm:block" />
           <div className="min-w-0">
@@ -104,32 +142,62 @@ function TopBar({
             </p>
           </div>
         </div>
-        <span className="flt-module-badge hidden md:inline-flex">{moduleBadge}</span>
+        <Tooltip content={`Módulo activo: ${moduleBadge}`}>
+          <span className="flt-module-badge hidden md:inline-flex">
+            {moduleBadge}
+          </span>
+        </Tooltip>
       </div>
 
-      <button
-        type="button"
-        className="flt-search-trigger"
-        onClick={() => setCommandOpen(true)}
+      <Tooltip
+        content={`Buscar en todo el sistema (${modLabel}). Placa, conductor, cliente o módulo.`}
+        side="bottom"
       >
-        <NavIcon view="search" className="h-3.5 w-3.5 shrink-0" />
-        <span className="truncate">Buscar vehículo, cliente, viaje o guía...</span>
-        <kbd className="flt-kbd hidden sm:inline-flex">
-          {typeof navigator !== "undefined" &&
-          /Mac|iPhone|iPad/.test(navigator.platform)
-            ? "⌘K"
-            : "Ctrl K"}
-        </kbd>
-      </button>
+        <button
+          type="button"
+          className="flt-search-trigger flt-search-trigger--hero"
+          onClick={() => setCommandOpen(true)}
+          title={`Buscar en todo el sistema (${modLabel})`}
+        >
+          <NavIcon view="search" className="h-4 w-4 shrink-0" />
+          <span className="truncate">
+            Buscar por placa, conductor o cliente…
+          </span>
+          <kbd className="flt-kbd hidden sm:inline-flex">{modLabel}</kbd>
+        </button>
+      </Tooltip>
 
       <div className="flex items-center justify-end gap-2 sm:gap-3">
-        <p
-          className={`hidden font-data text-[10px] uppercase tracking-[0.12em] xl:block ${statusClass}`}
+        <Tooltip content="Estado del uplink API/DB: NOMINAL, ALERT u OFFLINE">
+          <p
+            className={`hidden font-data text-[10px] uppercase tracking-[0.12em] xl:block ${statusClass}`}
+          >
+            SYSTEM STATUS: {systemStatus}
+          </p>
+        </Tooltip>
+        <Tooltip
+          content={
+            helpOpen
+              ? "Cerrar guía del módulo (Esc o Cmd/Ctrl+/)"
+              : "Abrir guía de 3 pasos de este módulo (Cmd/Ctrl+/)"
+          }
         >
-          SYSTEM STATUS: {systemStatus}
-        </p>
+          <button
+            type="button"
+            className={`flt-help-btn ${helpOpen ? "is-active" : ""}`}
+            onClick={toggleHelp}
+            aria-label="Centro de ayuda"
+            aria-pressed={helpOpen}
+            title="Centro de ayuda del módulo actual (Cmd/Ctrl+/)"
+          >
+            ?
+          </button>
+        </Tooltip>
         <ThemeToggle />
-        <div className="flt-user-chip">
+        <div
+          className="flt-user-chip"
+          title={`${userName} · rol ${roleLabel}`}
+        >
           <div className="min-w-0 text-right">
             <p className="truncate text-xs font-semibold text-[var(--text-primary)]">
               {userName}
@@ -148,14 +216,51 @@ function TopBar({
 }
 
 function SideNav({
-  navBySection,
+  departments,
+  defaultOpenId,
   onLogout,
 }: {
-  navBySection: { section: string; items: typeof NAV }[];
+  departments: NavDepartment[];
+  defaultOpenId: NavDeptId;
   onLogout: () => void;
 }) {
   const pathname = usePathname();
   const { sidebarCollapsed, setSidebarCollapsed, toggleSidebar } = useShell();
+  const pathDept = navDeptForPath(pathname);
+  const [hydrated, setHydrated] = useState(false);
+  const [openIds, setOpenIds] = useState<NavDeptId[]>([defaultOpenId]);
+
+  useEffect(() => {
+    const initial = readOpenDepts([defaultOpenId]);
+    const withDefault = initial.includes(defaultOpenId)
+      ? initial
+      : [...initial, defaultOpenId];
+    setOpenIds(withDefault);
+    persistOpenDepts(withDefault);
+    setHydrated(true);
+    // solo al montar / cambio de rol default
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultOpenId]);
+
+  useEffect(() => {
+    if (!hydrated || !pathDept) return;
+    setOpenIds((prev) => {
+      if (prev.includes(pathDept)) return prev;
+      const next = [...prev, pathDept];
+      persistOpenDepts(next);
+      return next;
+    });
+  }, [pathDept, hydrated]);
+
+  const toggleDept = useCallback((id: NavDeptId) => {
+    setOpenIds((prev) => {
+      const next = prev.includes(id)
+        ? prev.filter((x) => x !== id)
+        : [...prev, id];
+      persistOpenDepts(next);
+      return next;
+    });
+  }, []);
 
   return (
     <>
@@ -164,6 +269,7 @@ function SideNav({
           type="button"
           className="flt-sidebar-scrim lg:hidden"
           aria-label="Cerrar navegación"
+          title="Cerrar menú"
           onClick={() => setSidebarCollapsed(true)}
         />
       ) : null}
@@ -172,78 +278,215 @@ function SideNav({
       >
         <div className="flex h-[60px] items-center justify-between border-b border-[var(--border-subtle)] px-3">
           {!sidebarCollapsed ? (
-            <p className="px-1 font-data text-[9px] uppercase tracking-[0.16em] text-[var(--text-secondary)]">
-              Navegación
+            <p
+              className="px-1 font-data text-[9px] uppercase tracking-[0.16em] text-[var(--text-secondary)]"
+              title="Menú multi-acordeón: varios departamentos abiertos a la vez"
+            >
+              Departamentos
             </p>
           ) : (
             <span className="mx-auto text-[var(--accent-primary)]">
               <BrandMark className="h-6 w-6" />
             </span>
           )}
-          <button
-            type="button"
-            className="flt-icon-btn"
-            onClick={toggleSidebar}
-            title={sidebarCollapsed ? "Expandir" : "Colapsar"}
-            aria-label={sidebarCollapsed ? "Expandir sidebar" : "Colapsar sidebar"}
+          <Tooltip
+            content={
+              sidebarCollapsed
+                ? "Expandir menú lateral"
+                : "Colapsar menú lateral (iconos)"
+            }
           >
-            <NavIcon
-              view="collapse"
-              className={`h-4 w-4 transition-transform duration-150 ${
-                sidebarCollapsed ? "rotate-180" : ""
-              }`}
-            />
-          </button>
+            <button
+              type="button"
+              className="flt-icon-btn"
+              onClick={toggleSidebar}
+              title={sidebarCollapsed ? "Expandir menú" : "Colapsar menú"}
+              aria-label={
+                sidebarCollapsed ? "Expandir sidebar" : "Colapsar sidebar"
+              }
+            >
+              <NavIcon
+                view="collapse"
+                className={`h-4 w-4 transition-transform duration-150 ${
+                  sidebarCollapsed ? "rotate-180" : ""
+                }`}
+              />
+            </button>
+          </Tooltip>
         </div>
 
-        <nav className="flex-1 overflow-y-auto py-3">
-          {navBySection.map((group) => (
-            <div key={group.section} className="mb-3">
-              {!sidebarCollapsed ? (
-                <p className="px-4 pb-1.5 font-data text-[9px] uppercase tracking-[0.16em] text-[var(--text-secondary)]">
-                  {group.section}
-                </p>
-              ) : null}
-              {group.items.map((item) => {
-                const active = pathname.startsWith(item.href);
-                const label =
-                  item.view === "cuenta"
-                    ? "Mi cuenta"
-                    : MODULE_LABELS[item.view];
-                return (
+        <nav className="flex-1 overflow-y-auto py-2">
+          {departments.map((dept) => {
+            const expanded = openIds.includes(dept.id);
+            const hasActive = dept.items.some((i) =>
+              pathMatches(i.href, pathname),
+            );
+
+            if (sidebarCollapsed) {
+              const first = dept.items[0];
+              if (!first) return null;
+              return (
+                <Tooltip
+                  key={dept.id}
+                  content={`${dept.label}: ${DEPT_TIPS[dept.id]}`}
+                  side="right"
+                >
                   <Link
-                    key={item.href}
-                    href={item.href}
-                    title={label}
-                    className={`flt-nav-item ${active ? "is-active" : ""}`}
+                    href={first.href.split("#")[0]}
+                    title={dept.label}
+                    className={`flt-nav-item ${hasActive ? "is-active" : ""}`}
                     onClick={() => {
                       if (window.innerWidth < 1024) setSidebarCollapsed(true);
                     }}
                   >
-                    <NavIcon view={item.view} className="h-4 w-4 shrink-0" />
-                    {!sidebarCollapsed ? (
-                      <span className="truncate">{label}</span>
-                    ) : null}
+                    <NavIcon view={first.view} className="h-4 w-4 shrink-0" />
                   </Link>
-                );
-              })}
-            </div>
-          ))}
+                </Tooltip>
+              );
+            }
+
+            return (
+              <div key={dept.id} className="flt-dept">
+                <Tooltip content={DEPT_TIPS[dept.id]} side="right" className="w-full">
+                  <button
+                    type="button"
+                    className={`flt-dept-trigger ${hasActive ? "is-current" : ""} ${expanded ? "is-open" : ""}`}
+                    aria-expanded={expanded}
+                    title={`${expanded ? "Cerrar" : "Abrir"} ${dept.label} (no cierra otros)`}
+                    onClick={() => toggleDept(dept.id)}
+                  >
+                    <span className="truncate">{dept.label}</span>
+                    <svg
+                      viewBox="0 0 24 24"
+                      className={`h-3.5 w-3.5 shrink-0 transition-transform duration-150 ${
+                        expanded ? "rotate-180" : ""
+                      }`}
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      aria-hidden
+                    >
+                      <path d="M6 9l6 6 6-6" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                </Tooltip>
+                {expanded ? (
+                  <div className="flt-dept-items">
+                    {dept.items.map((item) => {
+                      const active = pathMatches(item.href, pathname);
+                      return (
+                        <Tooltip
+                          key={`${item.href}-${item.label}`}
+                          content={`Abrir: ${item.label}`}
+                          side="right"
+                          className="w-full"
+                        >
+                          <Link
+                            href={item.href}
+                            title={item.label}
+                            className={`flt-nav-item flt-nav-item--nested ${active ? "is-active" : ""}`}
+                            onClick={() => {
+                              if (window.innerWidth < 1024) {
+                                setSidebarCollapsed(true);
+                              }
+                            }}
+                          >
+                            <NavIcon
+                              view={item.view}
+                              className="h-3.5 w-3.5 shrink-0"
+                            />
+                            <span className="truncate">{item.label}</span>
+                          </Link>
+                        </Tooltip>
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
         </nav>
 
         <div className="border-t border-[var(--border-subtle)] p-3">
-          <Button
-            variant="ghost"
-            className={`w-full ${sidebarCollapsed ? "!justify-center !px-0" : "!justify-start"}`}
-            onClick={onLogout}
-            title="Cerrar sesión"
-          >
-            {sidebarCollapsed ? (
+          <Tooltip content="Cerrar sesión y limpiar token local">
+            <Button
+              variant="ghost"
+              className={`w-full ${sidebarCollapsed ? "!justify-center !px-0" : "!justify-start"}`}
+              onClick={onLogout}
+              title="Cerrar sesión"
+            >
+              {sidebarCollapsed ? (
+                <NavIcon view="close" className="h-4 w-4" />
+              ) : (
+                "Cerrar sesión"
+              )}
+            </Button>
+          </Tooltip>
+        </div>
+      </aside>
+    </>
+  );
+}
+
+function HelpSheet() {
+  const pathname = usePathname();
+  const { helpOpen, setHelpOpen } = useShell();
+  const guide = guideForPath(pathname);
+
+  return (
+    <>
+      <div
+        className={`flt-help-scrim ${helpOpen ? "is-open" : ""}`}
+        onClick={() => setHelpOpen(false)}
+        aria-hidden={!helpOpen}
+      />
+      <aside
+        className={`flt-help-sheet ${helpOpen ? "is-open" : ""}`}
+        aria-hidden={!helpOpen}
+        aria-label="Centro de ayuda"
+      >
+        <div className="flex h-[60px] items-center justify-between border-b border-[var(--border-subtle)] px-4">
+          <div className="min-w-0">
+            <p className="font-data text-[9px] uppercase tracking-[0.16em] text-[var(--text-secondary)]">
+              Asistencia
+            </p>
+            <h2 className="truncate text-sm font-semibold text-[var(--text-primary)]">
+              {guide.title}
+            </h2>
+          </div>
+          <Tooltip content="Cerrar guía (Esc)">
+            <button
+              type="button"
+              className="flt-icon-btn"
+              onClick={() => setHelpOpen(false)}
+              aria-label="Cerrar ayuda"
+              title="Cerrar ayuda"
+            >
               <NavIcon view="close" className="h-4 w-4" />
-            ) : (
-              "Cerrar sesión"
-            )}
-          </Button>
+            </button>
+          </Tooltip>
+        </div>
+        <div className="flex-1 space-y-5 overflow-y-auto p-4">
+          <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
+            {guide.summary}
+          </p>
+          <ol className="space-y-3">
+            {guide.steps.map((step, i) => (
+              <li
+                key={step}
+                className="flt-help-step"
+                title={`Paso ${i + 1}`}
+              >
+                <span className="flt-help-step-num font-data">{i + 1}</span>
+                <p className="text-sm leading-relaxed text-[var(--text-primary)]">
+                  {step}
+                </p>
+              </li>
+            ))}
+          </ol>
+          <p className="font-data text-[10px] uppercase tracking-[0.12em] text-[var(--text-secondary)]">
+            Atajo: Cmd/Ctrl + / · Esc cierra
+          </p>
         </div>
       </aside>
     </>
@@ -274,14 +517,17 @@ function InspectorDrawer() {
               {inspectorTitle || "Detalle"}
             </h2>
           </div>
-          <button
-            type="button"
-            className="flt-icon-btn"
-            onClick={closeInspector}
-            aria-label="Cerrar inspector"
-          >
-            <NavIcon view="close" className="h-4 w-4" />
-          </button>
+          <Tooltip content="Cerrar inspector (Esc)">
+            <button
+              type="button"
+              className="flt-icon-btn"
+              onClick={closeInspector}
+              aria-label="Cerrar inspector"
+              title="Cerrar inspector"
+            >
+              <NavIcon view="close" className="h-4 w-4" />
+            </button>
+          </Tooltip>
         </div>
         <div className="flex-1 overflow-y-auto p-4">{inspectorContent}</div>
       </aside>
@@ -319,27 +565,32 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     }
   }, [user, setSystemStatus]);
 
-  const navBySection = useMemo(() => {
+  const departments = useMemo(() => {
     if (!user) return [];
-    const allowed = ROLE_VIEWS[user.role] || [];
-    const items = NAV.filter(
-      (n) => n.view === "cuenta" || allowed.includes(n.view as ModuleId),
-    );
-    const sections: { section: string; items: typeof NAV }[] = [];
-    for (const item of items) {
-      const last = sections[sections.length - 1];
-      if (!last || last.section !== item.section) {
-        sections.push({ section: item.section, items: [item] });
-      } else {
-        last.items.push(item);
-      }
-    }
-    return sections;
+    const allowed = new Set(ROLE_VIEWS[user.role] || []);
+    return NAV_DEPARTMENTS.map((dept) => ({
+      ...dept,
+      items: dept.items.filter(
+        (item) =>
+          item.view === "cuenta" || allowed.has(item.view as ModuleId),
+      ),
+    })).filter((d) => d.items.length > 0);
   }, [user]);
 
-  const flatNav = useMemo(
-    () => navBySection.flatMap((g) => g.items),
-    [navBySection],
+  const defaultOpenId: NavDeptId = user
+    ? ROLE_DEFAULT_NAV_DEPT[user.role as Role] || "operaciones"
+    : "operaciones";
+
+  const flatNav: FlatNavItem[] = useMemo(
+    () =>
+      departments.flatMap((d) =>
+        d.items.map((i) => ({
+          href: i.href.split("#")[0],
+          view: i.view,
+          label: i.label,
+        })),
+      ),
+    [departments],
   );
 
   if (pathname === "/login") return <>{children}</>;
@@ -365,9 +616,18 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
         moduleBadge={currentModuleLabel(pathname)}
       />
       <div className="flt-shell-body">
-        <SideNav navBySection={navBySection} onLogout={logout} />
+        <SideNav
+          departments={departments}
+          defaultOpenId={
+            departments.some((d) => d.id === defaultOpenId)
+              ? defaultOpenId
+              : departments[0]?.id || "operaciones"
+          }
+          onLogout={logout}
+        />
         <main className="flt-workbench">{children}</main>
         <InspectorDrawer />
+        <HelpSheet />
       </div>
       <CommandSearch items={flatNav} />
     </div>

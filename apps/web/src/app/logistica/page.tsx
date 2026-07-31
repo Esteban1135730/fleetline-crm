@@ -1,10 +1,17 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { io, Socket } from "socket.io-client";
-import { Badge, Button } from "@fsg/ui";
+import { Badge, Button, Tooltip } from "@fsg/ui";
 import { api, getStoredUser, getTokenPublic, API_URL } from "@/lib/api";
 import { HowToBox, PageIntro } from "@/components/page-intro";
+import {
+  WorkbenchSearch,
+  WorkbenchTabs,
+  WorkbenchToolbar,
+} from "@/components/workbench-toolbar";
+import { useShell } from "@/lib/shell-context";
+import { PreoperationalFicha } from "@/components/logistica/preoperational-ficha";
 
 type Trip = {
   id: string;
@@ -18,6 +25,8 @@ type Trip = {
   contract?: { code: string; name: string } | null;
   invoice?: { id: string; number: string; status: string } | null;
   notes?: string | null;
+  preoperationalAt?: string | null;
+  preoperationalJson?: unknown;
 };
 
 type Gps = {
@@ -31,6 +40,23 @@ type Gps = {
 
 type Opt = { id: string; name?: string; plate?: string; code?: string };
 
+type VehicleReady = {
+  vehicleId: string;
+  plate: string;
+  semaphore: "GREEN" | "YELLOW" | "RED";
+  dispatchable: boolean;
+  blockReasons: string[];
+  warnings: string[];
+};
+
+type DriverReady = {
+  driverId: string;
+  name: string;
+  dispatchable: boolean;
+  blockReasons: string[];
+  warnings: string[];
+};
+
 const STATUS_ES: Record<string, string> = {
   PENDING: "Pendiente",
   ASSIGNED: "Asignado",
@@ -41,6 +67,7 @@ const STATUS_ES: Record<string, string> = {
 };
 
 export default function LogisticaPage() {
+  const { openInspector } = useShell();
   const [trips, setTrips] = useState<Trip[]>([]);
   const [gps, setGps] = useState<Gps[]>([]);
   const [connected, setConnected] = useState(false);
@@ -48,6 +75,9 @@ export default function LogisticaPage() {
   const [contracts, setContracts] = useState<Opt[]>([]);
   const [vehicles, setVehicles] = useState<Opt[]>([]);
   const [drivers, setDrivers] = useState<Opt[]>([]);
+  const [vehicleReady, setVehicleReady] = useState<VehicleReady[]>([]);
+  const [driverReady, setDriverReady] = useState<DriverReady[]>([]);
+  const [createError, setCreateError] = useState("");
   const [form, setForm] = useState({
     origin: "",
     destination: "",
@@ -74,6 +104,8 @@ export default function LogisticaPage() {
     lat: "",
     lng: "",
   });
+  const [tripTab, setTripTab] = useState<"all" | "route" | "alerts">("all");
+  const [tripQuery, setTripQuery] = useState("");
 
   async function reloadTrips() {
     await api<Trip[]>("/logistics/trips").then(setTrips);
@@ -85,7 +117,7 @@ export default function LogisticaPage() {
   }, []);
 
   async function loadOptions() {
-    const [c, ctr, v, d, dall] = await Promise.all([
+    const [c, ctr, v, d, dall, board] = await Promise.all([
       api<{ id: string; name: string }[]>("/comercial/customers"),
       api<{ id: string; code: string; name: string }[]>("/comercial/contracts"),
       api<{ id: string; plate: string }[]>("/fleet/vehicles"),
@@ -93,12 +125,17 @@ export default function LogisticaPage() {
       api<
         { id: string; name: string; document: string; phone?: string | null; active: boolean }[]
       >("/logistics/drivers?all=1"),
+      api<{ vehicles: VehicleReady[]; drivers: DriverReady[] }>(
+        "/logistics/dispatch-board",
+      ),
     ]);
     setCustomers(c);
     setContracts(ctr);
     setVehicles(v);
     setDrivers(d);
     setDriversList(dall);
+    setVehicleReady(board.vehicles);
+    setDriverReady(board.drivers);
   }
 
   useEffect(() => {
@@ -163,30 +200,116 @@ export default function LogisticaPage() {
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
-    await api("/logistics/trips", {
-      method: "POST",
-      body: JSON.stringify({
-        origin: form.origin,
-        destination: form.destination,
-        scheduledAt: form.scheduledAt,
-        customerId: form.customerId || undefined,
-        contractId: form.contractId || undefined,
-        vehicleId: form.vehicleId || undefined,
-        driverId: form.driverId || undefined,
-        fareAmount: form.fareAmount ? Number(form.fareAmount) : undefined,
-      }),
+    setCreateError("");
+    try {
+      await api("/logistics/trips", {
+        method: "POST",
+        body: JSON.stringify({
+          origin: form.origin,
+          destination: form.destination,
+          scheduledAt: form.scheduledAt,
+          customerId: form.customerId || undefined,
+          contractId: form.contractId || undefined,
+          vehicleId: form.vehicleId || undefined,
+          driverId: form.driverId || undefined,
+          fareAmount: form.fareAmount ? Number(form.fareAmount) : undefined,
+        }),
+      });
+      setForm({
+        origin: "",
+        destination: "",
+        scheduledAt: "",
+        customerId: form.customerId,
+        contractId: "",
+        vehicleId: "",
+        driverId: "",
+        fareAmount: "",
+      });
+      await reloadTrips();
+      await loadOptions();
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : "No se pudo crear el viaje");
+    }
+  }
+
+  const filteredTrips = useMemo(() => {
+    const q = tripQuery.trim().toLowerCase();
+    return trips.filter((t) => {
+      if (tripTab === "route" && t.status !== "IN_TRANSIT") return false;
+      if (
+        tripTab === "alerts" &&
+        t.status !== "INCIDENT" &&
+        t.status !== "PENDING"
+      ) {
+        return false;
+      }
+      if (!q) return true;
+      const hay = [
+        t.code,
+        t.origin,
+        t.destination,
+        t.vehicle?.plate,
+        t.driver?.name,
+        t.contract?.code,
+        t.contract?.name,
+        t.notes,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(q);
     });
-    setForm({
-      origin: "",
-      destination: "",
-      scheduledAt: "",
-      customerId: form.customerId,
-      contractId: "",
-      vehicleId: "",
-      driverId: "",
-      fareAmount: "",
-    });
-    await reloadTrips();
+  }, [trips, tripTab, tripQuery]);
+
+  const tripCounts = useMemo(
+    () => ({
+      all: trips.length,
+      route: trips.filter((t) => t.status === "IN_TRANSIT").length,
+      alerts: trips.filter(
+        (t) => t.status === "INCIDENT" || t.status === "PENDING",
+      ).length,
+    }),
+    [trips],
+  );
+
+  function openTripInspector(t: Trip) {
+    const preopTime = t.preoperationalAt
+      ? new Date(t.preoperationalAt).toLocaleString("es-CO", {
+          dateStyle: "short",
+          timeStyle: "medium",
+        })
+      : null;
+    openInspector(
+      `${t.code} · ficha`,
+      <div className="space-y-5">
+        <div className="space-y-1 text-sm">
+          <p className="font-data text-xs text-[var(--text-primary)]">
+            {t.origin} → {t.destination}
+          </p>
+          <p className="text-xs text-[var(--text-secondary)]">
+            {t.vehicle?.plate ? `Unidad ${t.vehicle.plate}` : "Sin unidad"} ·{" "}
+            {t.driver?.name || "Sin conductor"}
+          </p>
+          {preopTime ? (
+            <p
+              className="font-data text-[11px] text-[var(--accent-primary)]"
+              title={`Preoperacional validado por el conductor a las ${preopTime}`}
+            >
+              Preoperacional validado a las {preopTime}
+            </p>
+          ) : (
+            <p className="text-[11px] text-[var(--accent-metric)]">
+              Preoperacional pendiente — GPS bloqueado hasta firmar
+            </p>
+          )}
+        </div>
+        <PreoperationalFicha
+          tripCode={t.code}
+          preoperationalAt={t.preoperationalAt}
+          preoperationalJson={t.preoperationalJson}
+        />
+      </div>,
+    );
   }
 
   return (
@@ -194,9 +317,9 @@ export default function LogisticaPage() {
       <PageIntro module="logistica" title="Centro de control operativo" />
       <HowToBox
         steps={[
-          "Crea un viaje con origen, destino, fecha y, si aplica, contrato/cliente/unidad.",
-          "Marca «En vía» al despachar y «Cerrar» al terminar. «Novedad» registra un incidente real.",
-          "Las coordenadas GPS son las guardadas en flota (sin movimiento inventado).",
+          "Cree un viaje y asigne unidad/conductor aptos (semáforo verde).",
+          "El conductor firma el preoperacional en la app; sin eso no hay «En vía» ni GPS.",
+          "Clic en un viaje abre la ficha preoperacional en el inspector.",
         ]}
       />
 
@@ -358,11 +481,23 @@ export default function LogisticaPage() {
           onChange={(e) => setForm({ ...form, vehicleId: e.target.value })}
         >
           <option value="">Vehículo (opcional)</option>
-          {vehicles.map((v) => (
-            <option key={v.id} value={v.id}>
-              {v.plate}
-            </option>
-          ))}
+          {vehicles.map((v) => {
+            const ready = vehicleReady.find((r) => r.vehicleId === v.id);
+            const blocked = ready && !ready.dispatchable;
+            const warn = ready?.semaphore === "YELLOW";
+            return (
+              <option key={v.id} value={v.id} disabled={blocked}>
+                {v.plate}
+                {blocked
+                  ? ` — BLOQUEADO`
+                  : warn
+                    ? ` — por vencer`
+                    : ready
+                      ? ` — OK`
+                      : ""}
+              </option>
+            );
+          })}
         </select>
         <select
           className="field"
@@ -370,12 +505,62 @@ export default function LogisticaPage() {
           onChange={(e) => setForm({ ...form, driverId: e.target.value })}
         >
           <option value="">Conductor (opcional)</option>
-          {drivers.map((d) => (
-            <option key={d.id} value={d.id}>
-              {d.name}
-            </option>
-          ))}
+          {drivers.map((d) => {
+            const ready = driverReady.find((r) => r.driverId === d.id);
+            const blocked = ready && !ready.dispatchable;
+            return (
+              <option key={d.id} value={d.id} disabled={blocked}>
+                {d.name}
+                {blocked ? " — NO DISPONIBLE" : ""}
+              </option>
+            );
+          })}
         </select>
+        {createError ? (
+          <p className="md:col-span-4 text-sm text-[var(--accent-alert)]">
+            {createError}
+          </p>
+        ) : null}
+        {form.vehicleId || form.driverId ? (
+          <div className="md:col-span-4 flex flex-wrap gap-2">
+            {form.vehicleId
+              ? (() => {
+                  const r = vehicleReady.find(
+                    (x) => x.vehicleId === form.vehicleId,
+                  );
+                  if (!r) return null;
+                  return (
+                    <Badge
+                      tone={
+                        r.semaphore === "RED"
+                          ? "rose"
+                          : r.semaphore === "YELLOW"
+                            ? "amber"
+                            : "emerald"
+                      }
+                    >
+                      {r.plate}: {r.semaphore}
+                      {r.blockReasons[0] ? ` · ${r.blockReasons[0]}` : ""}
+                    </Badge>
+                  );
+                })()
+              : null}
+            {form.driverId
+              ? (() => {
+                  const r = driverReady.find(
+                    (x) => x.driverId === form.driverId,
+                  );
+                  if (!r) return null;
+                  return (
+                    <Badge tone={r.dispatchable ? "emerald" : "rose"}>
+                      {r.name}: {r.dispatchable ? "DISPONIBLE" : "BLOQUEADO"}
+                      {r.blockReasons[0] ? ` · ${r.blockReasons[0]}` : ""}
+                    </Badge>
+                  );
+                })()
+              : null}
+          </div>
+        ) : null}
         <Button type="submit" variant="primary" className="md:col-span-4">
           Crear viaje
         </Button>
@@ -519,8 +704,43 @@ export default function LogisticaPage() {
         </div>
 
         <div className="fsg-panel data-shell overflow-hidden lg:col-span-2">
-          <div className="border-b border-[var(--brand-line)] px-4 py-3 font-display text-sm font-semibold">
-            Viajes ({trips.length})
+          <div className="space-y-3 border-b border-[var(--brand-line)] px-4 py-3">
+            <div className="font-display text-sm font-semibold">
+              Viajes ({filteredTrips.length}/{trips.length})
+            </div>
+            <WorkbenchToolbar>
+              <WorkbenchTabs
+                value={tripTab}
+                onChange={(id) =>
+                  setTripTab(id as "all" | "route" | "alerts")
+                }
+                tabs={[
+                  {
+                    id: "all",
+                    label: "Todos",
+                    count: tripCounts.all,
+                    tip: "Muestra todos los viajes del nodo",
+                  },
+                  {
+                    id: "route",
+                    label: "En ruta",
+                    count: tripCounts.route,
+                    tip: "Solo viajes IN_TRANSIT (en vía ahora)",
+                  },
+                  {
+                    id: "alerts",
+                    label: "Alertas / pendientes",
+                    count: tripCounts.alerts,
+                    tip: "Incidentes y viajes pendientes de despacho",
+                  },
+                ]}
+              />
+              <WorkbenchSearch
+                value={tripQuery}
+                onChange={setTripQuery}
+                placeholder="Buscar placa, conductor, código o ruta…"
+              />
+            </WorkbenchToolbar>
           </div>
           <table className="w-full text-left text-sm">
             <thead>
@@ -533,8 +753,22 @@ export default function LogisticaPage() {
               </tr>
             </thead>
             <tbody>
-              {trips.map((t) => (
-                <tr key={t.id} className="border-t border-[var(--brand-line)]">
+              {filteredTrips.map((t) => {
+                const preopTip = t.preoperationalAt
+                  ? `Preoperacional validado por el conductor a las ${new Date(
+                      t.preoperationalAt,
+                    ).toLocaleString("es-CO", {
+                      dateStyle: "short",
+                      timeStyle: "medium",
+                    })}`
+                  : "Sin preoperacional: no se puede iniciar ruta ni GPS hasta firmar en la app conductor";
+                return (
+                <tr
+                  key={t.id}
+                  className="cursor-pointer border-t border-[var(--brand-line)] hover:bg-[color-mix(in_srgb,var(--accent-primary)_6%,transparent)]"
+                  onClick={() => openTripInspector(t)}
+                  title="Abrir ficha preoperacional en el inspector"
+                >
                   <td className="px-4 py-2.5 font-data text-xs">
                     {t.code}
                     {t.contract ? (
@@ -559,44 +793,68 @@ export default function LogisticaPage() {
                       </div>
                     ) : null}
                   </td>
-                  <td className="px-4 py-2.5">
-                    <Badge
-                      tone={
-                        t.status === "INCIDENT"
-                          ? "rose"
-                          : t.status === "IN_TRANSIT"
-                            ? "emerald"
-                            : "cyan"
-                      }
-                    >
-                      {STATUS_ES[t.status] || t.status}
-                    </Badge>
+                  <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
+                    <Tooltip content={preopTip} side="top">
+                      <span>
+                        <Badge
+                          tone={
+                            t.status === "INCIDENT"
+                              ? "rose"
+                              : t.status === "IN_TRANSIT"
+                                ? "emerald"
+                                : "cyan"
+                          }
+                          title={preopTip}
+                        >
+                          {STATUS_ES[t.status] || t.status}
+                        </Badge>
+                      </span>
+                    </Tooltip>
                   </td>
-                  <td className="px-4 py-2.5">
+                  <td
+                    className="px-4 py-2.5"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <div className="flex flex-wrap gap-1">
                       <Button
                         variant="ghost"
+                        title="Abrir ficha preoperacional"
+                        onClick={() => openTripInspector(t)}
+                      >
+                        Preop.
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        title="Marcar viaje en ruta (IN_TRANSIT) — despacho activo"
                         onClick={() => setStatus(t.id, "IN_TRANSIT")}
                       >
                         En vía
                       </Button>
                       <Button
                         variant="ghost"
+                        title="Cerrar viaje (COMPLETED) — puede generar odómetro/OT"
                         onClick={() => setStatus(t.id, "COMPLETED")}
                       >
                         Cerrar
                       </Button>
                       <Button
                         variant="ghost"
+                        title="Registrar novedad/incidente real en el viaje"
                         onClick={() => reportIncident(t.id)}
                       >
                         Novedad
                       </Button>
                       {t.invoice ? (
-                        <Badge tone="emerald">{t.invoice.number}</Badge>
+                        <Badge
+                          tone="emerald"
+                          title={`Factura ${t.invoice.number} vinculada a este viaje`}
+                        >
+                          {t.invoice.number}
+                        </Badge>
                       ) : t.status === "COMPLETED" ? (
                         <Button
                           variant="ghost"
+                          title="Generar factura CxC desde este viaje cerrado"
                           onClick={() => invoiceTrip(t.id)}
                         >
                           Facturar
@@ -605,6 +863,7 @@ export default function LogisticaPage() {
                       {t.status !== "CANCELLED" && t.status !== "COMPLETED" ? (
                         <Button
                           variant="ghost"
+                          title="Cancelar viaje — no facturable"
                           onClick={() => setStatus(t.id, "CANCELLED")}
                         >
                           Cancelar
@@ -613,7 +872,8 @@ export default function LogisticaPage() {
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

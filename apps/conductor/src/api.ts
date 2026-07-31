@@ -32,6 +32,16 @@ export type AuthUser = {
   organizationId: string;
 };
 
+/** Alineado a PreoperationalChecklistSchema (@fsg/shared) */
+export type PreoperationalPayload = {
+  frenos: boolean;
+  luces: boolean;
+  llantas: boolean;
+  kitCarretera: boolean;
+  nivelAceite: boolean;
+  observaciones?: string;
+};
+
 export type Trip = {
   id: string;
   code: string;
@@ -42,6 +52,8 @@ export type Trip = {
   vehicle?: { id: string; plate: string } | null;
   driver?: { id: string; name: string } | null;
   notes?: string | null;
+  preoperationalAt?: string | null;
+  preoperationalJson?: PreoperationalPayload | Record<string, unknown> | null;
 };
 
 export type MyTripsResponse = {
@@ -98,10 +110,24 @@ export function fetchMyTrips() {
   return apiRequest<MyTripsResponse>("/logistics/my-trips");
 }
 
-export function updateTripStatus(tripId: string, status: string) {
+export function updateTripStatus(
+  tripId: string,
+  status: string,
+  distanceKm?: number,
+) {
   return apiRequest<Trip>(`/logistics/trips/${tripId}/status`, {
     method: "PATCH",
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({ status, distanceKm }),
+  });
+}
+
+export function submitPreoperational(
+  tripId: string,
+  checklist: PreoperationalPayload,
+) {
+  return apiRequest<Trip>(`/logistics/trips/${tripId}/preoperational`, {
+    method: "POST",
+    body: JSON.stringify(checklist),
   });
 }
 

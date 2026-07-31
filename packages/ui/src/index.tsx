@@ -112,15 +112,41 @@ export function Badge({
   children,
   tone = "success",
   dot = true,
+  title,
 }: {
   children: ReactNode;
   tone?: StatusTone | LegacyBadgeTone;
   dot?: boolean;
+  /** Explicación contextual (semáforo, estado) */
+  title?: string;
 }) {
   const resolved = resolveTone(tone);
   return (
-    <span className={`flt-badge flt-badge-${resolved}`}>
+    <span className={`flt-badge flt-badge-${resolved}`} title={title}>
       {dot ? <span className="flt-badge-dot" aria-hidden /> : null}
+      {children}
+    </span>
+  );
+}
+
+/** Tooltip flotante minimalista — usabilidad Hyper-Explained */
+export function Tooltip({
+  content,
+  children,
+  side = "top",
+  className = "",
+}: {
+  content: string;
+  children: ReactNode;
+  side?: "top" | "bottom" | "left" | "right";
+  className?: string;
+}) {
+  return (
+    <span
+      className={`flt-tip ${className}`.trim()}
+      data-side={side}
+      data-tip={content}
+    >
       {children}
     </span>
   );

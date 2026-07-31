@@ -71,21 +71,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
     const stored = getStoredUser();
     if (!stored) {
       setLoading(false);
       return;
     }
+
+    const safety = window.setTimeout(() => {
+      if (!cancelled) {
+        clearSession();
+        setUser(null);
+        setLoading(false);
+      }
+    }, 15_000);
+
     api<AuthUser>("/auth/me")
       .then((me) => {
+        if (cancelled) return;
         setUser(me);
         localStorage.setItem("fsg_user", JSON.stringify(me));
       })
       .catch(() => {
+        if (cancelled) return;
         clearSession();
         setUser(null);
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        window.clearTimeout(safety);
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(safety);
+    };
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {

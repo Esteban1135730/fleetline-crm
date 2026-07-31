@@ -1,255 +1,189 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import {
-  MODULE_HELP,
-  MODULE_LABELS,
-  ROLE_LABELS,
-  ROLE_VIEWS,
-  type ModuleId,
-} from "@fsg/shared";
-import { StatCard, ColorLegend, WorkbenchHeader, KpiRow, Button } from "@fsg/ui";
+import { useEffect, useState } from "react";
+import { ROLE_LABELS } from "@fsg/shared";
+import { Tooltip } from "@fsg/ui";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { useShell } from "@/lib/shell-context";
-import { brand } from "@/lib/brand";
-import {
-  DashboardCharts,
-  type ChartsPayload,
-} from "@/components/dashboard-charts";
 
 type Metrics = {
   ingresosMtd: number;
-  egresosAbiertos: number;
-  margenUtilidad: number;
-  flotaOperacion: number;
-  flotaTotal: number;
   viajesActivos: number;
   viajesMes: number;
   novedades: number;
-  vehiculosTaller: number;
-  nps: number;
-  ticketsOpen: number;
+  bloqueosHoy: number;
 };
-
-const HREF: Partial<Record<ModuleId, string>> = {
-  comercial: "/comercial",
-  logistica: "/logistica",
-  parqueadero: "/parqueadero",
-  tramites: "/tramites",
-  taller: "/taller",
-  compras: "/compras",
-  finanzas: "/finanzas",
-  contabilidad: "/contabilidad",
-  revisoria: "/revisoria",
-  rrhh: "/rrhh",
-  atencion: "/atencion",
-  calidad: "/calidad",
-  juridico: "/juridico",
-  sarlaft: "/sarlaft",
-  archivo: "/archivo",
-  recepcion: "/recepcion",
-  sistemas: "/sistemas",
-  usuarios: "/usuarios",
-  apps: "/apps",
-};
-
-const WORKFLOW: ModuleId[] = [
-  "comercial",
-  "logistica",
-  "parqueadero",
-  "tramites",
-  "taller",
-  "compras",
-  "atencion",
-  "finanzas",
-  "rrhh",
-  "calidad",
-  "juridico",
-  "sarlaft",
-  "archivo",
-  "recepcion",
-  "revisoria",
-  "contabilidad",
-  "apps",
-  "usuarios",
-  "sistemas",
-];
 
 function money(n: number) {
   return `$${(n / 1_000_000).toFixed(1)}M`;
 }
 
+const ACTIONS = [
+  {
+    href: "/logistica",
+    title: "Crear nuevo viaje",
+    hint: "Despacho y ruta",
+    tip: "Abre Logística para registrar un viaje con origen, destino y unidad.",
+  },
+  {
+    href: "/taller",
+    title: "Registrar mantenimiento",
+    hint: "Orden de trabajo",
+    tip: "Abre Taller para crear o actualizar una OT de la flota.",
+  },
+  {
+    href: "/tramites",
+    title: "Consultar vehículo",
+    hint: "Semáforo documental",
+    tip: "Abre Trámites para ver SOAT/tecnomecánica y bloqueos de despacho.",
+  },
+  {
+    href: "/logistica",
+    title: "Ver mapa en vivo",
+    hint: "GPS de flota",
+    tip: "Muestra coordenadas GPS registradas de las unidades en Logística.",
+  },
+] as const;
+
 export default function DashboardPage() {
   const { user } = useAuth();
-  const { openInspector } = useShell();
+  const { setHelpOpen } = useShell();
   const [m, setM] = useState<Metrics | null>(null);
-  const [charts, setCharts] = useState<ChartsPayload | null>(null);
   const [error, setError] = useState("");
+  const firstName = user?.name?.split(" ")[0] || "Operador";
 
   useEffect(() => {
-    Promise.all([
-      api<Metrics>("/dashboard/metrics"),
-      api<ChartsPayload>("/dashboard/charts"),
-    ])
-      .then(([metrics, chartData]) => {
-        setM(metrics);
-        setCharts(chartData);
-      })
-      .catch((e) => setError(e instanceof Error ? e.message : "Error"));
+    api<Metrics>("/dashboard/metrics")
+      .then(setM)
+      .catch((e) => setError(e instanceof Error ? e.message : "Error de uplink"));
   }, []);
 
-  const cards = useMemo(() => {
-    if (!user) return [];
-    const allowed = new Set(ROLE_VIEWS[user.role] || []);
-    return WORKFLOW.filter((id) => allowed.has(id));
-  }, [user]);
+  const alertas = m ? m.bloqueosHoy + m.novedades : 0;
+  const alertTone =
+    alertas === 0 ? "ok" : alertas <= 3 ? "warn" : "critical";
 
   return (
-    <div className="fade-in mx-auto max-w-[1200px] space-y-8">
-      <WorkbenchHeader
-        eyebrow={`${brand.name} · telemetría viva`}
-        title={`Torre de control · ${user?.name?.split(" ")[0] || "Operador"}`}
-        subtitle={`Rol ${user ? ROLE_LABELS[user.role] : "—"}. Métricas calculadas desde facturas, viajes, flota y calidad.`}
-        action={
-          <Button
-            variant="primary"
-            onClick={() =>
-              openInspector(
-                "Estado del nodo",
-                <div className="space-y-3 text-sm">
-                  <p className="font-data text-[10px] uppercase tracking-[0.14em] text-[var(--accent-primary)]">
-                    SYSTEM STATUS: NOMINAL
-                  </p>
-                  <p className="text-[var(--text-secondary)]">
-                    Uplink de métricas activo. Use Cmd/Ctrl+K para saltar entre
-                    módulos sin abandonar el workbench.
-                  </p>
-                  {m ? (
-                    <dl className="space-y-2 font-data text-xs">
-                      <div className="flex justify-between gap-3">
-                        <dt className="text-[var(--text-secondary)]">Viajes activos</dt>
-                        <dd className="text-[var(--text-primary)]">{m.viajesActivos}</dd>
-                      </div>
-                      <div className="flex justify-between gap-3">
-                        <dt className="text-[var(--text-secondary)]">Flota</dt>
-                        <dd className="text-[var(--text-primary)]">
-                          {m.flotaOperacion}/{m.flotaTotal}
-                        </dd>
-                      </div>
-                      <div className="flex justify-between gap-3">
-                        <dt className="text-[var(--text-secondary)]">Tickets</dt>
-                        <dd className="text-[var(--text-primary)]">{m.ticketsOpen}</dd>
-                      </div>
-                    </dl>
-                  ) : null}
-                </div>,
-              )
-            }
-          >
-            Inspeccionar nodo
-          </Button>
-        }
-      />
-
-      <div className="flt-panel !border-l-[3px] !border-l-[var(--accent-primary)]">
-        <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-          Cómo leer los colores
-        </p>
-        <ColorLegend
-          items={[
-            { color: "verde", label: "Esmeralda: rutas OK / GPS / acciones" },
-            { color: "amarillo", label: "Ámbar: KPIs / pendientes" },
-            { color: "rojo", label: "Carmesí: fallas / retrasos / novedades" },
-            { color: "azul", label: "Neutro: filtros / metadatos" },
-          ]}
-        />
-      </div>
+    <div className="fade-in mx-auto max-w-[960px] space-y-10 py-2">
+      <header className="flt-cockpit-banner">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="font-data text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-primary)]">
+              Clean Cockpit · {user ? ROLE_LABELS[user.role] : "—"}
+            </p>
+            <h1 className="mt-2 font-display text-2xl font-bold tracking-tight text-[var(--text-primary)] sm:text-3xl">
+              Hola {firstName}, este es el estado operativo de hoy
+            </h1>
+            <p className="mt-2 max-w-xl text-sm text-[var(--text-secondary)]">
+              Tres señales. Cuatro acciones. Sin ruido.
+            </p>
+          </div>
+          <Tooltip content="Abre la guía de 3 pasos de este cockpit (también Cmd/Ctrl+/)">
+            <button
+              type="button"
+              className="flt-help-btn"
+              onClick={() => setHelpOpen(true)}
+              title="Cómo leer el cockpit"
+              aria-label="Cómo leer el cockpit"
+            >
+              ?
+            </button>
+          </Tooltip>
+        </div>
+      </header>
 
       {error ? (
         <p className="text-sm text-[var(--accent-alert)]">{error}</p>
       ) : null}
 
       {m ? (
-        <KpiRow>
-          <StatCard
-            label="Ingresos MTD"
-            value={money(m.ingresosMtd)}
-            hint={`Margen ${m.margenUtilidad}%`}
-            trend={m.margenUtilidad >= 0 ? `+${m.margenUtilidad}%` : `${m.margenUtilidad}%`}
-            accent="primary"
-          />
-          <StatCard
-            label="Viajes activos"
-            value={String(m.viajesActivos)}
-            hint={`${m.viajesMes} este mes`}
-            trend={m.viajesActivos > 0 ? `+${m.viajesActivos}` : "0"}
-            accent="amber"
-          />
-          <StatCard
-            label="Flota lista"
-            value={`${m.flotaOperacion}/${m.flotaTotal}`}
-            hint={`${m.vehiculosTaller} en taller`}
-            accent="primary"
-          />
-          <StatCard
-            label="NPS"
-            value={m.nps ? `${m.nps}/5` : "—"}
-            hint={`${m.ticketsOpen} tickets abiertos`}
-            accent="rose"
-          />
-        </KpiRow>
+        <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div
+            className="flt-kpi-giant flt-kpi-giant--ok"
+            title="Viajes en ASSIGNED o IN_TRANSIT ahora mismo"
+          >
+            <p className="flt-kpi-giant-label">Viajes activos</p>
+            <p className="flt-kpi-giant-value font-data">{m.viajesActivos}</p>
+            <p className="flt-kpi-giant-hint font-data">
+              {m.viajesMes} programados este mes
+            </p>
+          </div>
+          <div
+            className={`flt-kpi-giant ${
+              alertTone === "ok"
+                ? "flt-kpi-giant--ok"
+                : alertTone === "warn"
+                  ? "flt-kpi-giant--warn"
+                  : "flt-kpi-giant--critical"
+            }`}
+            title="Suma de novedades e incidentes de hoy. Rojo/ámbar = revisar Trámites o Logística"
+          >
+            <p className="flt-kpi-giant-label">Alertas / bloqueos</p>
+            <p className="flt-kpi-giant-value font-data">{alertas}</p>
+            <p className="flt-kpi-giant-hint font-data">
+              {m.bloqueosHoy} hoy · {m.novedades} novedades
+            </p>
+          </div>
+          <div
+            className="flt-kpi-giant flt-kpi-giant--metric"
+            title="Ingresos CxC del mes (pagadas + emitidas abiertas)"
+          >
+            <p className="flt-kpi-giant-label">Facturación del mes</p>
+            <p className="flt-kpi-giant-value font-data">
+              {money(m.ingresosMtd)}
+            </p>
+            <p className="flt-kpi-giant-hint font-data">CxC MTD</p>
+          </div>
+        </section>
       ) : (
-        <p className="text-sm text-[var(--text-secondary)]">Cargando métricas…</p>
+        <p className="text-sm text-[var(--text-secondary)]">
+          Sincronizando estado operativo…
+        </p>
       )}
 
-      {charts ? (
-        <section className="space-y-3">
-          <h3 className="font-display text-lg font-bold tracking-tight">
-            Analítica operativa
-          </h3>
-          <p className="text-sm text-[var(--text-secondary)]">
-            Cada gráfico usa colores con significado operativo.
-          </p>
-          <DashboardCharts data={charts} />
-        </section>
-      ) : null}
-
-      <div className="flt-panel !border-l-[3px] !border-l-[var(--accent-primary)]">
-        <p className="text-sm font-semibold text-[var(--text-primary)]">
-          Flujo del día
-        </p>
-        <p className="mt-1 text-sm leading-relaxed text-[var(--text-secondary)]">
-          Cliente → Viaje → Taller (si falla) → Cobro. Use los módulos de abajo
-          según su rol.
-        </p>
-      </div>
-
-      <section>
-        <h3 className="font-display mb-3 text-lg font-semibold tracking-tight">
-          Módulos del nodo
-        </h3>
+      <section className="space-y-3">
+        <h2 className="font-display text-lg font-semibold tracking-tight">
+          Acciones rápidas
+        </h2>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {cards.map((id) => (
-            <Link
-              key={id}
-              href={HREF[id] || "/dashboard"}
-              className="flt-panel group flex flex-col gap-2 !p-4 transition duration-150 hover:-translate-y-0.5 hover:border-[var(--accent-primary)]"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-display text-base font-semibold">
-                  {MODULE_LABELS[id]}
+          {ACTIONS.map((a) => (
+            <Tooltip key={a.title} content={a.tip} side="bottom" className="w-full">
+              <Link href={a.href} className="flt-quick-action group w-full" title={a.tip}>
+                <span className="min-w-0">
+                  <span className="block font-display text-base font-semibold text-[var(--text-primary)]">
+                    {a.title}
+                  </span>
+                  <span className="mt-0.5 block text-sm text-[var(--text-secondary)]">
+                    {a.hint}
+                  </span>
                 </span>
-                <span className="text-xs font-semibold text-[var(--accent-primary)] opacity-0 transition group-hover:opacity-100">
+                <span className="font-data text-xs font-semibold text-[var(--accent-primary)] opacity-70 transition group-hover:opacity-100">
                   Abrir →
                 </span>
-              </div>
-              <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
-                {MODULE_HELP[id]}
-              </p>
-            </Link>
+              </Link>
+            </Tooltip>
           ))}
+        </div>
+        <div className="flex flex-wrap gap-3 pt-1 text-sm">
+          <Tooltip content="Ir a Tesorería: CxC / CxP y aprobación de pagos">
+            <Link
+              href="/finanzas"
+              className="text-[var(--accent-primary)] underline-offset-2 hover:underline"
+              title="Abrir Tesorería"
+            >
+              Tesorería
+            </Link>
+          </Tooltip>
+          <Tooltip content="Ir al Data Room: documentos con hash SHA-256">
+            <Link
+              href="/archivo"
+              className="text-[var(--accent-primary)] underline-offset-2 hover:underline"
+              title="Abrir Archivo digital"
+            >
+              Archivo
+            </Link>
+          </Tooltip>
         </div>
       </section>
     </div>

@@ -1,9 +1,14 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
 import { api } from "@/lib/api";
 import { HowToBox, PageIntro } from "@/components/page-intro";
+import {
+  WorkbenchSearch,
+  WorkbenchTabs,
+  WorkbenchToolbar,
+} from "@/components/workbench-toolbar";
 
 type Vehicle = { id: string; plate: string; brand: string; model: string };
 
@@ -15,6 +20,19 @@ type Procedure = {
   validTo: string;
   notes?: string | null;
   vehicle: { plate: string; brand: string; model: string };
+};
+
+type FleetMatrix = {
+  counts: { green: number; yellow: number; red: number };
+  vehicles: {
+    vehicleId: string;
+    plate: string;
+    semaphore: "GREEN" | "YELLOW" | "RED";
+    dispatchable: boolean;
+    blockReasons: string[];
+    warnings: string[];
+    odometerKm: number;
+  }[];
 };
 
 const TYPE_ES: Record<string, string> = {
@@ -29,6 +47,7 @@ const TYPE_ES: Record<string, string> = {
 export default function TramitesPage() {
   const [rows, setRows] = useState<Procedure[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [matrix, setMatrix] = useState<FleetMatrix | null>(null);
   const [form, setForm] = useState({
     vehicleId: "",
     type: "SOAT",
@@ -36,14 +55,18 @@ export default function TramitesPage() {
     validTo: "",
     notes: "",
   });
+  const [fleetTab, setFleetTab] = useState<"all" | "route" | "alerts">("all");
+  const [fleetQuery, setFleetQuery] = useState("");
 
   async function load() {
-    const [p, v] = await Promise.all([
+    const [p, v, m] = await Promise.all([
       api<Procedure[]>("/tramites/procedures"),
       api<Vehicle[]>("/fleet/vehicles"),
+      api<FleetMatrix>("/tramites/fleet-matrix"),
     ]);
     setRows(p);
     setVehicles(v);
+    setMatrix(m);
     if (!form.vehicleId && v[0]) setForm((f) => ({ ...f, vehicleId: v[0].id }));
   }
 
@@ -62,16 +85,155 @@ export default function TramitesPage() {
     await load();
   }
 
+  const filteredFleet = useMemo(() => {
+    const list = matrix?.vehicles || [];
+    const q = fleetQuery.trim().toLowerCase();
+    return list.filter((v) => {
+      if (fleetTab === "route" && v.semaphore !== "GREEN") return false;
+      if (
+        fleetTab === "alerts" &&
+        v.semaphore !== "YELLOW" &&
+        v.semaphore !== "RED"
+      ) {
+        return false;
+      }
+      if (!q) return true;
+      const hay = [v.plate, ...v.blockReasons, ...v.warnings]
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(q);
+    });
+  }, [matrix, fleetTab, fleetQuery]);
+
   return (
     <div className="fade-in mx-auto max-w-[1600px] space-y-6">
       <PageIntro module="tramites" title="Trámites y documentos del vehículo" />
       <HowToBox
         steps={[
-          "Selecciona el vehículo y el tipo de trámite (SOAT, tecnomecánica, etc.).",
-          "Indica la fecha de vencimiento; el sistema alerta si está por vencer.",
-          "Los vencidos aparecen en rojo para gestión con el área de trámites/carros.",
+          "El semáforo usa regla dura: verde >15 días, amarillo ≤15, rojo vencido.",
+          "Documentos en rojo bloquean despacho en Logística.",
+          "Registre SOAT / tecnomecánica / tarjeta de operación por vehículo.",
         ]}
       />
+
+      {matrix ? (
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="flt-panel !border-l-[3px] !border-l-[var(--accent-primary)]" title="Unidades con documentación vigente (>15 días). Aptas para despacho.">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
+              Verde · aptos
+            </p>
+            <p className="mt-2 font-data text-3xl font-extrabold text-[var(--accent-primary)]">
+              {matrix.counts.green}
+            </p>
+          </div>
+          <div className="flt-panel !border-l-[3px] !border-l-[var(--accent-metric)]" title="Documentos que vencen en ≤15 días. Planifique renovación.">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
+              Amarillo · ≤15 días
+            </p>
+            <p className="mt-2 font-data text-3xl font-extrabold text-[var(--accent-metric)]">
+              {matrix.counts.yellow}
+            </p>
+          </div>
+          <div className="flt-panel !border-l-[3px] !border-l-[var(--accent-alert)]" title="Bloqueo activo: documentación vencida (ej. SOAT). No se puede despachar.">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
+              Rojo · bloqueados
+            </p>
+            <p className="mt-2 font-data text-3xl font-extrabold text-[var(--accent-alert)]">
+              {matrix.counts.red}
+            </p>
+          </div>
+        </div>
+      ) : null}
+
+      {matrix ? (
+        <div className="flt-panel data-shell overflow-hidden !p-0">
+          <div className="space-y-3 border-b border-[var(--border-subtle)] px-4 py-3">
+            <div className="text-sm font-semibold">Semáforo de flota</div>
+            <WorkbenchToolbar>
+              <WorkbenchTabs
+                value={fleetTab}
+                onChange={(id) =>
+                  setFleetTab(id as "all" | "route" | "alerts")
+                }
+                tabs={[
+                  {
+                    id: "all",
+                    label: "Todos",
+                    count: matrix.vehicles.length,
+                    tip: "Toda la flota con semáforo documental",
+                  },
+                  {
+                    id: "route",
+                    label: "Aptos",
+                    count: matrix.counts.green,
+                    tip: "Verde: documentación vigente (>15 días). Aptos para despacho.",
+                  },
+                  {
+                    id: "alerts",
+                    label: "Alertas / bloqueados",
+                    count: matrix.counts.yellow + matrix.counts.red,
+                    tip: "Amarillo ≤15 días o rojo vencido. Rojo bloquea despacho.",
+                  },
+                ]}
+              />
+              <WorkbenchSearch
+                value={fleetQuery}
+                onChange={setFleetQuery}
+                placeholder="Buscar por placa…"
+              />
+            </WorkbenchToolbar>
+          </div>
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr>
+                <th className="px-4 py-2">Placa</th>
+                <th className="px-4 py-2">Odómetro</th>
+                <th className="px-4 py-2">Semáforo</th>
+                <th className="px-4 py-2">Detalle</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredFleet.map((v) => (
+                <tr key={v.vehicleId} className="border-t border-[var(--border-subtle)]">
+                  <td className="px-4 py-2.5 font-data">{v.plate}</td>
+                  <td className="px-4 py-2.5 font-data text-xs">
+                    {v.odometerKm.toLocaleString("es-CO")} km
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <Badge
+                      tone={
+                        v.semaphore === "GREEN"
+                          ? "emerald"
+                          : v.semaphore === "YELLOW"
+                            ? "amber"
+                            : "rose"
+                      }
+                      title={
+                        v.semaphore === "GREEN"
+                          ? "Apto: documentación vigente. Puede despacharse."
+                          : v.semaphore === "YELLOW"
+                            ? "Alerta: algún documento vence en ≤15 días. Planifique renovación."
+                            : v.blockReasons[0]
+                              ? `Bloqueo activo: ${v.blockReasons[0]}`
+                              : "Bloqueo activo: este vehículo no puede ser despachado por documentación vencida (ej. SOAT)."
+                      }
+                    >
+                      {v.semaphore === "GREEN"
+                        ? "Verde"
+                        : v.semaphore === "YELLOW"
+                          ? "Amarillo"
+                          : "Rojo · bloqueado"}
+                    </Badge>
+                  </td>
+                  <td className="px-4 py-2.5 text-xs text-[var(--text-secondary)]">
+                    {[...v.blockReasons, ...v.warnings].join(" · ") || "Documentación al día"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
 
       <form
         onSubmit={onCreate}

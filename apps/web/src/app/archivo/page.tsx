@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
 import { api, API_URL } from "@/lib/api";
 import { HowToBox, PageIntro } from "@/components/page-intro";
@@ -11,28 +11,63 @@ type Doc = {
   category: string;
   fileRef?: string | null;
   tags?: string | null;
+  contentHash?: string | null;
+  byteSize?: number | null;
   createdAt: string;
+  uploadedBy?: { name: string; email: string } | null;
 };
+
+type AuditRow = {
+  id: string;
+  action: string;
+  entityId?: string | null;
+  createdAt: string;
+  meta?: {
+    title?: string;
+    contentHash?: string;
+    category?: string;
+  } | null;
+  user?: { name: string; email: string } | null;
+};
+
+function shortHash(h?: string | null) {
+  if (!h) return "—";
+  return `${h.slice(0, 12)}…${h.slice(-8)}`;
+}
 
 export default function ArchivoPage() {
   const [rows, setRows] = useState<Doc[]>([]);
+  const [audit, setAudit] = useState<AuditRow[]>([]);
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("CONTRACT");
   const [tags, setTags] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState("");
+  const [statusMsg, setStatusMsg] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
+  const [q, setQ] = useState("");
 
-  async function load() {
-    setRows(await api<Doc[]>("/archivo/documents"));
-  }
+  const load = useCallback(async () => {
+    const params = new URLSearchParams();
+    if (categoryFilter) params.set("category", categoryFilter);
+    if (q.trim()) params.set("q", q.trim());
+    const qs = params.toString();
+    const [docs, logs] = await Promise.all([
+      api<Doc[]>(`/archivo/documents${qs ? `?${qs}` : ""}`),
+      api<AuditRow[]>("/archivo/audit?take=40"),
+    ]);
+    setRows(docs);
+    setAudit(logs);
+  }, [categoryFilter, q]);
+
   useEffect(() => {
     void load().catch(console.error);
-  }, []);
+  }, [load]);
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
     setError("");
+    setStatusMsg("");
     try {
       if (file) {
         const fd = new FormData();
@@ -40,19 +75,28 @@ export default function ArchivoPage() {
         fd.append("title", title || file.name);
         fd.append("category", category);
         if (tags) fd.append("tags", tags);
-        await api("/archivo/upload", { method: "POST", body: fd });
+        const sealed = await api<Doc>("/archivo/upload", {
+          method: "POST",
+          body: fd,
+        });
+        setStatusMsg(
+          sealed.contentHash
+            ? `DOCUMENTO SELLADO · HASH NOMINAL · ${shortHash(sealed.contentHash)}`
+            : "DOCUMENTO INDEXADO",
+        );
       } else {
         await api("/archivo/documents", {
           method: "POST",
           body: JSON.stringify({ title, category, tags }),
         });
+        setStatusMsg("Índice metadatos registrado (sin sello de archivo)");
       }
       setTitle("");
       setTags("");
       setFile(null);
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al guardar");
+      setError(err instanceof Error ? err.message : "Fallo de uplink — archivo");
     }
   }
 
@@ -61,11 +105,12 @@ export default function ArchivoPage() {
       <PageIntro module="archivo" title="Archivo / Data Room" />
       <HowToBox
         steps={[
-          "Sube un PDF o documento real (se guarda en el servidor).",
-          "También puedes indexar solo con título si aún no tienes el archivo.",
-          "La columna Ref enlaza al archivo descargable.",
+          "Sube un documento: el sistema sella SHA-256 en bóveda local.",
+          "Filtra por categoría o busca título, tag o hash.",
+          "El log de auditoría registra sellado, índice y borrado.",
         ]}
       />
+
       <form
         onSubmit={onCreate}
         className="fsg-panel grid grid-cols-1 gap-3 p-4 md:grid-cols-2"
@@ -101,17 +146,29 @@ export default function ArchivoPage() {
           onChange={(e) => setTags(e.target.value)}
         />
         <Button type="submit" variant="primary" className="md:col-span-2">
-          {file ? "Subir e indexar" : "Indexar sin archivo"}
+          {file ? "Sellar e indexar" : "Indexar sin archivo"}
         </Button>
+        {statusMsg ? (
+          <p className="font-data text-xs text-[var(--brand-primary)] md:col-span-2">
+            {statusMsg}
+          </p>
+        ) : null}
         {error ? (
           <p className="text-sm text-[var(--brand-signal)] md:col-span-2">
             {error}
           </p>
         ) : null}
       </form>
+
       <div className="fsg-panel data-shell overflow-hidden">
-        <div className="flex items-center gap-3 border-b border-[var(--brand-line)] px-4 py-3">
-          <span className="text-sm font-semibold">Documentos</span>
+        <div className="flex flex-wrap items-center gap-3 border-b border-[var(--brand-line)] px-4 py-3">
+          <span className="text-sm font-semibold">Expediente</span>
+          <input
+            className="field max-w-[280px] text-sm"
+            placeholder="Buscar título, tag o hash…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
           <select
             className="field ml-auto max-w-[200px] text-sm"
             value={categoryFilter}
@@ -131,19 +188,37 @@ export default function ArchivoPage() {
             <tr>
               <th className="px-4 py-2">Título</th>
               <th className="px-4 py-2">Categoría</th>
+              <th className="px-4 py-2">Hash SHA-256</th>
               <th className="px-4 py-2">Archivo</th>
               <th className="px-4 py-2">Fecha</th>
               <th className="px-4 py-2">Acciones</th>
             </tr>
           </thead>
           <tbody>
-            {rows
-              .filter((r) => !categoryFilter || r.category === categoryFilter)
-              .map((r) => (
+            {rows.map((r) => (
               <tr key={r.id} className="border-t border-[var(--brand-line)]">
-                <td className="px-4 py-2.5">{r.title}</td>
+                <td className="px-4 py-2.5">
+                  <div>{r.title}</div>
+                  {r.tags ? (
+                    <div className="text-xs text-[var(--brand-muted)]">
+                      {r.tags}
+                    </div>
+                  ) : null}
+                </td>
                 <td className="px-4 py-2.5">
                   <Badge>{r.category}</Badge>
+                </td>
+                <td
+                  className="px-4 py-2.5 font-data text-xs text-[var(--brand-muted)]"
+                  title={r.contentHash || undefined}
+                >
+                  {r.contentHash ? (
+                    <span className="text-[var(--brand-primary)]">
+                      {shortHash(r.contentHash)}
+                    </span>
+                  ) : (
+                    "sin sello"
+                  )}
                 </td>
                 <td className="px-4 py-2.5 font-data text-xs">
                   {r.fileRef ? (
@@ -171,15 +246,15 @@ export default function ArchivoPage() {
                     <Button
                       variant="ghost"
                       onClick={async () => {
-                        const title = window.prompt("Título", r.title);
-                        if (title === null) return;
-                        const tags = window.prompt("Tags", r.tags || "");
-                        if (tags === null) return;
+                        const nextTitle = window.prompt("Título", r.title);
+                        if (nextTitle === null) return;
+                        const nextTags = window.prompt("Tags", r.tags || "");
+                        if (nextTags === null) return;
                         await api(`/archivo/documents/${r.id}`, {
                           method: "PATCH",
                           body: JSON.stringify({
-                            title: title.trim() || r.title,
-                            tags: tags.trim() || undefined,
+                            title: nextTitle.trim() || r.title,
+                            tags: nextTags.trim() || undefined,
                           }),
                         });
                         await load();
@@ -203,6 +278,75 @@ export default function ArchivoPage() {
                 </td>
               </tr>
             ))}
+            {rows.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={6}
+                  className="px-4 py-8 text-center text-sm text-[var(--brand-muted)]"
+                >
+                  Sin documentos en expediente — uplink vacío
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="fsg-panel data-shell overflow-hidden">
+        <div className="border-b border-[var(--brand-line)] px-4 py-3">
+          <span className="text-sm font-semibold">Auditoría de bóveda</span>
+          <p className="text-xs text-[var(--brand-muted)]">
+            Eventos inmutables · ARCHIVE_VAULT / INDEX / DELETE
+          </p>
+        </div>
+        <table className="w-full text-left text-sm">
+          <thead>
+            <tr>
+              <th className="px-4 py-2">Acción</th>
+              <th className="px-4 py-2">Documento</th>
+              <th className="px-4 py-2">Hash</th>
+              <th className="px-4 py-2">Operador</th>
+              <th className="px-4 py-2">Timestamp</th>
+            </tr>
+          </thead>
+          <tbody>
+            {audit.map((a) => (
+              <tr key={a.id} className="border-t border-[var(--brand-line)]">
+                <td className="px-4 py-2.5">
+                  <Badge
+                    tone={
+                      a.action === "ARCHIVE_VAULT"
+                        ? "success"
+                        : a.action === "ARCHIVE_DELETE"
+                          ? "danger"
+                          : "info"
+                    }
+                  >
+                    {a.action}
+                  </Badge>
+                </td>
+                <td className="px-4 py-2.5">{a.meta?.title || a.entityId || "—"}</td>
+                <td className="px-4 py-2.5 font-data text-xs">
+                  {shortHash(a.meta?.contentHash)}
+                </td>
+                <td className="px-4 py-2.5 text-xs">
+                  {a.user?.name || "sistema"}
+                </td>
+                <td className="px-4 py-2.5 font-data text-xs">
+                  {new Date(a.createdAt).toLocaleString("es-CO")}
+                </td>
+              </tr>
+            ))}
+            {audit.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={5}
+                  className="px-4 py-6 text-center text-sm text-[var(--brand-muted)]"
+                >
+                  Sin eventos de auditoría
+                </td>
+              </tr>
+            ) : null}
           </tbody>
         </table>
       </div>

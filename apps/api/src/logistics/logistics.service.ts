@@ -9,20 +9,35 @@ import {
   JournalEntryStatus,
   TripStatus,
   VehicleStatus,
+  WorkOrderStatus,
 } from "@fsg/db";
+import { HARD_RULES, PreoperationalChecklistSchema } from "@fsg/shared";
+import type { PreoperationalChecklist } from "@fsg/shared";
 import { PrismaService } from "../prisma/prisma.service";
+import { ComplianceService } from "./compliance.service";
 
 const tripInclude = {
   customer: true,
   vehicle: true,
   driver: true,
-  contract: { select: { id: true, code: true, name: true, customerId: true, monthlyValue: true } },
+  contract: {
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      customerId: true,
+      monthlyValue: true,
+    },
+  },
   invoice: { select: { id: true, number: true, status: true } },
 } as const;
 
 @Injectable()
 export class LogisticsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private compliance: ComplianceService,
+  ) {}
 
   listTrips(organizationId: string) {
     return this.prisma.trip.findMany({
@@ -95,7 +110,6 @@ export class LogisticsService {
     });
   }
 
-  /** Viajes del conductor vinculado al usuario logueado (app móvil) */
   async myTrips(organizationId: string, userId: string) {
     const driver = await this.prisma.driver.findFirst({
       where: { organizationId, userId, active: true },
@@ -140,6 +154,7 @@ export class LogisticsService {
         lat: true,
         lng: true,
         status: true,
+        odometerKm: true,
         updatedAt: true,
       },
       orderBy: { plate: "asc" },
@@ -156,7 +171,7 @@ export class LogisticsService {
     });
     if (!vehicle) throw new NotFoundException("Vehículo no encontrado");
 
-    const updated = await this.prisma.vehicle.update({
+    return this.prisma.vehicle.update({
       where: { id: vehicleId },
       data: {
         lat: data.lat,
@@ -172,10 +187,10 @@ export class LogisticsService {
         lat: true,
         lng: true,
         status: true,
+        odometerKm: true,
         updatedAt: true,
       },
     });
-    return updated;
   }
 
   async createTrip(
@@ -206,6 +221,14 @@ export class LogisticsService {
       }
     }
 
+    if (data.vehicleId || data.driverId) {
+      await this.compliance.assertCanAssign(
+        organizationId,
+        data.vehicleId,
+        data.driverId,
+      );
+    }
+
     const count = await this.prisma.trip.count({ where: { organizationId } });
     return this.prisma.trip.create({
       data: {
@@ -226,17 +249,117 @@ export class LogisticsService {
     });
   }
 
-  async updateStatus(organizationId: string, id: string, status: string) {
+  async createDraftTripFromQuote(
+    organizationId: string,
+    data: {
+      customerId: string;
+      origin: string;
+      destination: string;
+      fareAmount: number;
+      notes?: string;
+      quoteCode?: string;
+    },
+  ) {
+    const count = await this.prisma.trip.count({ where: { organizationId } });
+    const scheduledAt = new Date();
+    scheduledAt.setDate(scheduledAt.getDate() + 1);
+    scheduledAt.setHours(6, 0, 0, 0);
+
+    return this.prisma.trip.create({
+      data: {
+        code: `TRP-${1000 + count + 1}`,
+        origin: data.origin,
+        destination: data.destination,
+        scheduledAt,
+        customerId: data.customerId,
+        fareAmount: data.fareAmount,
+        notes:
+          data.notes ||
+          `Borrador desde cotización ${data.quoteCode || ""} — asignar unidad y conductor`.trim(),
+        status: TripStatus.PENDING,
+        organizationId,
+      },
+      include: tripInclude,
+    });
+  }
+
+  async createDraftTripFromContract(
+    organizationId: string,
+    data: {
+      contractId: string;
+      customerId: string;
+      origin: string;
+      destination: string;
+      fareAmount?: number;
+      notes?: string;
+    },
+  ) {
+    const count = await this.prisma.trip.count({ where: { organizationId } });
+    const scheduledAt = new Date();
+    scheduledAt.setDate(scheduledAt.getDate() + 1);
+    scheduledAt.setHours(6, 0, 0, 0);
+
+    return this.prisma.trip.create({
+      data: {
+        code: `TRP-${1000 + count + 1}`,
+        origin: data.origin,
+        destination: data.destination,
+        scheduledAt,
+        customerId: data.customerId,
+        contractId: data.contractId,
+        fareAmount: data.fareAmount,
+        notes:
+          data.notes ||
+          "Borrador auto-generado desde Comercial — asignar vehículo y conductor",
+        status: TripStatus.PENDING,
+        organizationId,
+      },
+      include: tripInclude,
+    });
+  }
+
+  async updateStatus(
+    organizationId: string,
+    id: string,
+    status: string,
+    opts?: { distanceKm?: number },
+  ) {
     const trip = await this.prisma.trip.findFirst({
       where: { id, organizationId },
     });
     if (!trip) throw new NotFoundException("Viaje no encontrado");
 
     const mapped = status.toUpperCase() as TripStatus;
+
+    if (
+      mapped === TripStatus.ASSIGNED ||
+      mapped === TripStatus.IN_TRANSIT
+    ) {
+      await this.compliance.assertCanAssign(
+        organizationId,
+        trip.vehicleId,
+        trip.driverId,
+      );
+    }
+
+    if (mapped === TripStatus.IN_TRANSIT) {
+      if (!trip.preoperationalAt) {
+        throw new BadRequestException(
+          "Imposible iniciar viaje: Se requiere inspección preoperacional aprobada.",
+        );
+      }
+      if (!trip.vehicleId || !trip.driverId) {
+        throw new BadRequestException(
+          "Asigne vehículo y conductor antes de iniciar el viaje",
+        );
+      }
+    }
+
     const data: {
       status: TripStatus;
       startedAt?: Date | null;
       completedAt?: Date | null;
+      distanceKm?: number;
     } = {
       status: mapped,
       startedAt:
@@ -251,10 +374,23 @@ export class LogisticsService {
         data: { status: VehicleStatus.IN_SERVICE },
       });
     }
-    if (
-      (mapped === TripStatus.COMPLETED || mapped === TripStatus.CANCELLED) &&
-      trip.vehicleId
-    ) {
+
+    if (mapped === TripStatus.COMPLETED && trip.vehicleId) {
+      const distance =
+        opts?.distanceKm != null && opts.distanceKm > 0
+          ? opts.distanceKm
+          : HARD_RULES.DEFAULT_TRIP_DISTANCE_KM;
+      data.distanceKm = distance;
+      await this.applyOdometerAndPreventive(
+        organizationId,
+        trip.vehicleId,
+        distance,
+      );
+      await this.prisma.vehicle.update({
+        where: { id: trip.vehicleId },
+        data: { status: VehicleStatus.AVAILABLE },
+      });
+    } else if (mapped === TripStatus.CANCELLED && trip.vehicleId) {
       await this.prisma.vehicle.update({
         where: { id: trip.vehicleId },
         data: { status: VehicleStatus.AVAILABLE },
@@ -264,6 +400,109 @@ export class LogisticsService {
     return this.prisma.trip.update({
       where: { id },
       data,
+      include: tripInclude,
+    });
+  }
+
+  private async applyOdometerAndPreventive(
+    organizationId: string,
+    vehicleId: string,
+    distanceKm: number,
+  ) {
+    const vehicle = await this.prisma.vehicle.findFirst({
+      where: { id: vehicleId, organizationId },
+    });
+    if (!vehicle) return;
+
+    const prev = vehicle.odometerKm;
+    const next = prev + Math.round(distanceKm);
+    const interval = vehicle.maintenanceEveryKm || HARD_RULES.MAINTENANCE_INTERVAL_KM;
+    const crossed =
+      Math.floor(prev / interval) < Math.floor(next / interval);
+
+    await this.prisma.vehicle.update({
+      where: { id: vehicleId },
+      data: { odometerKm: next },
+    });
+
+    if (!crossed) return;
+
+    const openPreventive = await this.prisma.workOrder.findFirst({
+      where: {
+        vehicleId,
+        status: { in: [WorkOrderStatus.OPEN, WorkOrderStatus.IN_PROGRESS] },
+        description: { contains: "Preventivo odómetro" },
+      },
+    });
+    if (openPreventive) return;
+
+    const count = await this.prisma.workOrder.count();
+    await this.prisma.workOrder.create({
+      data: {
+        code: `OT-${count + 1}`,
+        description: `Preventivo odómetro — umbral ${interval} km alcanzado (${next} km)`,
+        status: WorkOrderStatus.OPEN,
+        vehicleId,
+      },
+    });
+    await this.prisma.vehicle.update({
+      where: { id: vehicleId },
+      data: { status: VehicleStatus.MAINTENANCE },
+    });
+  }
+
+  async submitPreoperational(
+    organizationId: string,
+    tripId: string,
+    body: unknown,
+  ) {
+    const parsed = PreoperationalChecklistSchema.safeParse(body);
+    if (!parsed.success) {
+      throw new BadRequestException(
+        "Checklist inválido: frenos, luces, llantas, kitCarretera y nivelAceite son obligatorios (boolean)",
+      );
+    }
+    const checklist: PreoperationalChecklist = parsed.data;
+
+    const trip = await this.prisma.trip.findFirst({
+      where: { id: tripId, organizationId },
+    });
+    if (!trip) throw new NotFoundException("Viaje no encontrado");
+
+    if (
+      trip.status !== TripStatus.PENDING &&
+      trip.status !== TripStatus.ASSIGNED
+    ) {
+      throw new BadRequestException(
+        "El preoperacional solo aplica a viajes pendientes o asignados",
+      );
+    }
+
+    const ok =
+      checklist.frenos &&
+      checklist.luces &&
+      checklist.llantas &&
+      checklist.kitCarretera &&
+      checklist.nivelAceite;
+    if (!ok) {
+      throw new BadRequestException(
+        "Checklist incompleto: todos los ítems deben estar APTO (frenos, luces, llantas, kit, aceite)",
+      );
+    }
+
+    await this.compliance.assertCanAssign(
+      organizationId,
+      trip.vehicleId,
+      trip.driverId,
+    );
+
+    return this.prisma.trip.update({
+      where: { id: tripId },
+      data: {
+        preoperationalAt: new Date(),
+        preoperationalJson: checklist,
+        status: trip.vehicleId ? TripStatus.ASSIGNED : trip.status,
+      },
       include: tripInclude,
     });
   }
@@ -350,8 +589,12 @@ export class LogisticsService {
 
     try {
       const [clientes, ingresos] = await Promise.all([
-        this.prisma.account.findFirst({ where: { organizationId, code: "1305" } }),
-        this.prisma.account.findFirst({ where: { organizationId, code: "4135" } }),
+        this.prisma.account.findFirst({
+          where: { organizationId, code: "1305" },
+        }),
+        this.prisma.account.findFirst({
+          where: { organizationId, code: "4135" },
+        }),
       ]);
       if (clientes && ingresos) {
         const jCount = await this.prisma.journalEntry.count({
@@ -365,7 +608,12 @@ export class LogisticsService {
             organizationId,
             lines: {
               create: [
-                { accountId: clientes.id, debit: amount, credit: 0, memo: "CxC" },
+                {
+                  accountId: clientes.id,
+                  debit: amount,
+                  credit: 0,
+                  memo: "CxC",
+                },
                 {
                   accountId: ingresos.id,
                   debit: 0,

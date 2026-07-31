@@ -115,6 +115,7 @@ enum QuoteStatus {
   DRAFT
   SENT
   APPROVED
+  WON
   REJECTED
   EXPIRED
 }
@@ -200,6 +201,8 @@ model User {
   workOrders     WorkOrder[]  @relation("AssignedMechanic")
   tickets        Ticket[]     @relation("TicketAssignee")
   driverProfile  Driver?
+  approvedPayments Invoice[]  @relation("InvoicePaymentApprover")
+  archiveUploads ArchiveDocument[] @relation("ArchiveUploader")
 
   @@index([organizationId, role])
   @@index([organizationId, active])
@@ -246,6 +249,8 @@ model Quote {
   currency   String      @default("COP")
   status     QuoteStatus @default(DRAFT)
   notes      String?
+  /** Snapshot del cotizador (origen, destino, desglose, margen) */
+  calcJson   Json?
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
 
@@ -254,24 +259,26 @@ model Quote {
 }
 
 model Vehicle {
-  id             String         @id @default(cuid())
-  plate          String
-  brand          String
-  model          String
-  year           Int
-  capacity       Int            @default(20)
-  status         VehicleStatus  @default(AVAILABLE)
-  lat            Float          @default(4.711)
-  lng            Float          @default(-74.0721)
-  organizationId String
-  organization   Organization   @relation(fields: [organizationId], references: [id])
-  trips          Trip[]
-  workOrders     WorkOrder[]
-  fuecDocs       FuecDocument[]
-  procedures     VehicleProcedure[]
-  parkingLogs    ParkingLog[]
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  id                 String         @id @default(cuid())
+  plate              String
+  brand              String
+  model              String
+  year               Int
+  capacity           Int            @default(20)
+  status             VehicleStatus  @default(AVAILABLE)
+  lat                Float          @default(4.711)
+  lng                Float          @default(-74.0721)
+  odometerKm         Int            @default(0)
+  maintenanceEveryKm Int            @default(10000)
+  organizationId     String
+  organization       Organization   @relation(fields: [organizationId], references: [id])
+  trips              Trip[]
+  workOrders         WorkOrder[]
+  fuecDocs           FuecDocument[]
+  procedures         VehicleProcedure[]
+  parkingLogs        ParkingLog[]
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
 
   @@unique([organizationId, plate])
   @@index([organizationId, status])
@@ -297,29 +304,32 @@ model Driver {
 }
 
 model Trip {
-  id             String       @id @default(cuid())
-  code           String
-  origin         String
-  destination    String
-  status         TripStatus   @default(PENDING)
-  scheduledAt    DateTime
-  startedAt      DateTime?
-  completedAt    DateTime?
-  fareAmount     Decimal?     @db.Decimal(14, 2)
-  customerId     String?
-  customer       Customer?    @relation(fields: [customerId], references: [id])
-  contractId     String?
-  contract       TransportContract? @relation(fields: [contractId], references: [id])
-  vehicleId      String?
-  vehicle        Vehicle?     @relation(fields: [vehicleId], references: [id])
-  driverId       String?
-  driver         Driver?      @relation(fields: [driverId], references: [id])
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  notes          String?
-  invoice        Invoice?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  id                 String       @id @default(cuid())
+  code               String
+  origin             String
+  destination        String
+  status             TripStatus   @default(PENDING)
+  scheduledAt        DateTime
+  startedAt          DateTime?
+  completedAt        DateTime?
+  fareAmount         Decimal?     @db.Decimal(14, 2)
+  distanceKm         Float?
+  preoperationalAt   DateTime?
+  preoperationalJson Json?
+  customerId         String?
+  customer           Customer?    @relation(fields: [customerId], references: [id])
+  contractId         String?
+  contract           TransportContract? @relation(fields: [contractId], references: [id])
+  vehicleId          String?
+  vehicle            Vehicle?     @relation(fields: [vehicleId], references: [id])
+  driverId           String?
+  driver             Driver?      @relation(fields: [driverId], references: [id])
+  organizationId     String
+  organization       Organization @relation(fields: [organizationId], references: [id])
+  notes              String?
+  invoice            Invoice?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
 
   @@unique([organizationId, code])
   @@index([organizationId, status])
@@ -348,26 +358,29 @@ model WorkOrder {
 }
 
 model Invoice {
-  id             String        @id @default(cuid())
-  number         String
-  type           InvoiceType
-  status         InvoiceStatus @default(DRAFT)
-  amount         Decimal       @db.Decimal(14, 2)
-  currency       String        @default("COP")
-  dueDate        DateTime
-  issuedAt       DateTime      @default(now())
-  paidAt         DateTime?
-  customerId     String?
-  customer       Customer?     @relation(fields: [customerId], references: [id])
-  supplierName   String?
-  tripId         String?       @unique
-  trip           Trip?         @relation(fields: [tripId], references: [id])
-  organizationId String
-  organization   Organization  @relation(fields: [organizationId], references: [id])
-  description    String?
-  journalEntryId String?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  id                  String        @id @default(cuid())
+  number              String
+  type                InvoiceType
+  status              InvoiceStatus @default(DRAFT)
+  amount              Decimal       @db.Decimal(14, 2)
+  currency            String        @default("COP")
+  dueDate             DateTime
+  issuedAt            DateTime      @default(now())
+  paidAt              DateTime?
+  paymentApprovedAt   DateTime?
+  paymentApprovedById String?
+  paymentApprovedBy   User?         @relation("InvoicePaymentApprover", fields: [paymentApprovedById], references: [id])
+  customerId          String?
+  customer            Customer?     @relation(fields: [customerId], references: [id])
+  supplierName        String?
+  tripId              String?       @unique
+  trip                Trip?         @relation(fields: [tripId], references: [id])
+  organizationId      String
+  organization        Organization  @relation(fields: [organizationId], references: [id])
+  description         String?
+  journalEntryId      String?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
 
   @@unique([organizationId, number])
   @@index([organizationId, type, status])
@@ -506,10 +519,18 @@ model ArchiveDocument {
   category       ArchiveCategory @default(OTHER)
   fileRef        String?
   tags           String?
+  /** SHA-256 hex del contenido (bóveda inmutable local) */
+  contentHash    String?
+  byteSize       Int?
+  uploadedById   String?
+  uploadedBy     User?           @relation("ArchiveUploader", fields: [uploadedById], references: [id])
   organizationId String
   organization   Organization    @relation(fields: [organizationId], references: [id])
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
+
+  @@index([organizationId, category])
+  @@index([organizationId, contentHash])
 }
 
 model Visitor {

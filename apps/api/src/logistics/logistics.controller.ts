@@ -13,6 +13,7 @@ import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { ModulesGuard, RequireModule } from "../auth/modules.guard";
 import { LogisticsService } from "./logistics.service";
 import { LogisticsGateway } from "./logistics.gateway";
+import { ComplianceService } from "./compliance.service";
 
 @Controller("logistics")
 @UseGuards(JwtAuthGuard, ModulesGuard)
@@ -21,11 +22,17 @@ export class LogisticsController {
   constructor(
     private service: LogisticsService,
     private gateway: LogisticsGateway,
+    private compliance: ComplianceService,
   ) {}
 
   @Get("trips")
   trips(@Req() req: { user: { organizationId: string } }) {
     return this.service.listTrips(req.user.organizationId);
+  }
+
+  @Get("dispatch-board")
+  dispatchBoard(@Req() req: { user: { organizationId: string } }) {
+    return this.compliance.dispatchBoard(req.user.organizationId);
   }
 
   @Get("my-trips")
@@ -115,16 +122,32 @@ export class LogisticsController {
     return trip;
   }
 
+  @Post("trips/:id/preoperational")
+  async preoperational(
+    @Req() req: { user: { organizationId: string } },
+    @Param("id") id: string,
+    @Body() body: unknown,
+  ) {
+    const trip = await this.service.submitPreoperational(
+      req.user.organizationId,
+      id,
+      body,
+    );
+    this.gateway.emitUpdate(req.user.organizationId);
+    return trip;
+  }
+
   @Patch("trips/:id/status")
   async status(
     @Req() req: { user: { organizationId: string } },
     @Param("id") id: string,
-    @Body() body: { status: string },
+    @Body() body: { status: string; distanceKm?: number },
   ) {
     const trip = await this.service.updateStatus(
       req.user.organizationId,
       id,
       body.status,
+      { distanceKm: body.distanceKm },
     );
     this.gateway.emitUpdate(req.user.organizationId);
     return trip;

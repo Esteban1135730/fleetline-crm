@@ -5,6 +5,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UploadedFile,
   UseGuards,
@@ -12,16 +13,22 @@ import {
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { diskStorage } from "multer";
-import { extname, resolve } from "path";
+import { extname, join, resolve } from "path";
 import { randomUUID } from "crypto";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { ModulesGuard, RequireModule } from "../auth/modules.guard";
 import { ModulesService } from "./modules.service";
+import { ComplianceService } from "../logistics/compliance.service";
+
+const UPLOADS_DIR = resolve(__dirname, "../../../../uploads");
 
 @Controller()
 @UseGuards(JwtAuthGuard, ModulesGuard)
 export class ModulesController {
-  constructor(private svc: ModulesService) {}
+  constructor(
+    private svc: ModulesService,
+    private compliance: ComplianceService,
+  ) {}
 
   // RRHH
   @Get("rrhh/employees")
@@ -177,14 +184,30 @@ export class ModulesController {
   // Archivo
   @Get("archivo/documents")
   @RequireModule("archivo")
-  archive(@Req() req: { user: { organizationId: string } }) {
-    return this.svc.listArchive(req.user.organizationId);
+  archive(
+    @Req() req: { user: { organizationId: string } },
+    @Query("category") category?: string,
+    @Query("q") q?: string,
+  ) {
+    return this.svc.listArchive(req.user.organizationId, { category, q });
+  }
+
+  @Get("archivo/audit")
+  @RequireModule("archivo")
+  archiveAudit(
+    @Req() req: { user: { organizationId: string } },
+    @Query("take") take?: string,
+  ) {
+    return this.svc.listArchiveAudit(
+      req.user.organizationId,
+      take ? Number(take) : 50,
+    );
   }
 
   @Post("archivo/documents")
   @RequireModule("archivo")
   createArchive(
-    @Req() req: { user: { organizationId: string } },
+    @Req() req: { user: { organizationId: string; userId: string } },
     @Body()
     body: {
       title: string;
@@ -193,7 +216,11 @@ export class ModulesController {
       tags?: string;
     },
   ) {
-    return this.svc.createArchive(req.user.organizationId, body);
+    return this.svc.createArchive(
+      req.user.organizationId,
+      body,
+      req.user.userId,
+    );
   }
 
   @Post("archivo/upload")
@@ -201,7 +228,7 @@ export class ModulesController {
   @UseInterceptors(
     FileInterceptor("file", {
       storage: diskStorage({
-        destination: resolve(__dirname, "../../../../uploads"),
+        destination: UPLOADS_DIR,
         filename: (_req, file, cb) => {
           const safe = extname(file.originalname).toLowerCase().slice(0, 10);
           cb(null, `${randomUUID()}${safe}`);
@@ -211,17 +238,23 @@ export class ModulesController {
     }),
   )
   uploadArchive(
-    @Req() req: { user: { organizationId: string } },
+    @Req() req: { user: { organizationId: string; userId: string } },
     @UploadedFile() file: Express.Multer.File,
     @Body() body: { title?: string; category?: string; tags?: string },
   ) {
-    return this.svc.createArchiveWithFile(req.user.organizationId, {
-      title: body.title || file.originalname,
-      category: body.category,
-      tags: body.tags,
-      storedName: file.filename,
-      originalName: file.originalname,
-    });
+    return this.svc.createArchiveWithFile(
+      req.user.organizationId,
+      {
+        title: body.title || file.originalname,
+        category: body.category,
+        tags: body.tags,
+        storedName: file.filename,
+        originalName: file.originalname,
+        absolutePath: join(UPLOADS_DIR, file.filename),
+        byteSize: file.size,
+      },
+      req.user.userId,
+    );
   }
 
   // Recepción
@@ -345,6 +378,12 @@ export class ModulesController {
   }
 
   // Trámites
+  @Get("tramites/fleet-matrix")
+  @RequireModule("tramites")
+  fleetMatrix(@Req() req: { user: { organizationId: string } }) {
+    return this.compliance.fleetMatrix(req.user.organizationId);
+  }
+
   @Get("tramites/procedures")
   @RequireModule("tramites")
   procedures(@Req() req: { user: { organizationId: string } }) {
@@ -484,10 +523,14 @@ export class ModulesController {
   @Post("archivo/documents/:id/delete")
   @RequireModule("archivo")
   deleteArchive(
-    @Req() req: { user: { organizationId: string } },
+    @Req() req: { user: { organizationId: string; userId: string } },
     @Param("id") id: string,
   ) {
-    return this.svc.deleteArchive(req.user.organizationId, id);
+    return this.svc.deleteArchive(
+      req.user.organizationId,
+      id,
+      req.user.userId,
+    );
   }
 
   @Patch("compras/orders/:id")
