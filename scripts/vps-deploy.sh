@@ -4,23 +4,29 @@
 set -euo pipefail
 
 REPO_URL="${REPO_URL:-https://github.com/Esteban1135730/fleetline-crm.git}"
-APP_DIR="${APP_DIR:-/opt/fleetline}"
+# Instalación real en el VPS (ya desplegado previamente)
+APP_DIR="${APP_DIR:-/opt/fleetline/fleetline-crm}"
 VPS_IP="${VPS_IP:-76.13.101.203}"
 
 echo "==> Docker / puertos"
 docker compose ls || true
 ss -tlnp | grep -E ':(3010|4010|55432)\s' || echo "Puertos Fleetline libres (OK)"
 
-mkdir -p "$APP_DIR"
-cd "$APP_DIR"
-
-if [ -d .git ]; then
-  echo "==> git pull"
+mkdir -p "$(dirname "$APP_DIR")"
+if [ -d "$APP_DIR/.git" ]; then
+  echo "==> Actualizando repo en $APP_DIR"
+  cd "$APP_DIR"
   git fetch origin
   git reset --hard origin/main
+elif [ -d "$APP_DIR" ] && [ "$(ls -A "$APP_DIR" 2>/dev/null)" ]; then
+  echo "==> $APP_DIR existe sin .git — abortando para no pisar datos"
+  echo "    Revisa la ruta o define APP_DIR=/ruta/correcta"
+  exit 1
 else
-  echo "==> git clone"
-  git clone "$REPO_URL" .
+  echo "==> git clone → $APP_DIR"
+  mkdir -p "$APP_DIR"
+  git clone "$REPO_URL" "$APP_DIR"
+  cd "$APP_DIR"
 fi
 
 if [ ! -f .env.production ]; then
