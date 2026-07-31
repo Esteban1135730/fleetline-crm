@@ -9,7 +9,7 @@ import { Reflector } from "@nestjs/core";
 import { canAccessModule, type ModuleId } from "@fsg/shared";
 
 export const MODULE_KEY = "modules";
-export const RequireModule = (...modules: ModuleId[]) =>
+export const RequireModule = (...modules: Array<ModuleId | string>) =>
   SetMetadata(MODULE_KEY, modules);
 
 @Injectable()

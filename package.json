@@ -8,7 +8,7 @@
     "lint": "turbo run lint",
     "db:generate": "pnpm --filter @fsg/db generate",
     "db:migrate": "pnpm --filter @fsg/db migrate",
-    "db:seed": "pnpm --filter @fsg/db seed",
+    "db:seed": "pnpm --filter @fsg/db db:seed",
     "db:studio": "pnpm --filter @fsg/db studio",
     "docker:up": "docker compose -p fleetline up -d",
     "docker:down": "docker compose -p fleetline down",

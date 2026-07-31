@@ -1,16 +1,17 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
 import {
+  ComplianceDocType,
   DocStatus,
   EmployeeStatus,
-  type ProcedureType,
+  VehicleStatus,
 } from "@fsg/db";
 import { HARD_RULES, type DispatchSemaphore } from "@fsg/shared";
 import { PrismaService } from "../prisma/prisma.service";
 
-const CRITICAL_DOC_TYPES: ProcedureType[] = [
-  "SOAT",
-  "TECNOMECANICA",
-  "TARJETA_OPERACION",
+const CRITICAL_DOC_TYPES: ComplianceDocType[] = [
+  ComplianceDocType.SOAT,
+  ComplianceDocType.TECNOMECANICA,
+  ComplianceDocType.TARJETA_OPERACION,
 ];
 
 export type VehicleReadiness = {
@@ -68,24 +69,26 @@ export class ComplianceService {
   ): Promise<VehicleReadiness> {
     const vehicle = await this.prisma.vehicle.findFirst({
       where: { id: vehicleId, organizationId },
-      include: { procedures: true },
+      include: { complianceDocs: true },
     });
     if (!vehicle) {
       throw new BadRequestException("Vehículo no encontrado");
     }
 
-    const byType = new Map<string, (typeof vehicle.procedures)[0]>();
-    for (const p of vehicle.procedures) {
+    const byType = new Map<string, (typeof vehicle.complianceDocs)[0]>();
+    for (const p of vehicle.complianceDocs) {
       const prev = byType.get(p.type);
-      if (!prev || p.validTo > prev.validTo) byType.set(p.type, p);
+      const pExp = p.expiresAt?.getTime() ?? 0;
+      const prevExp = prev?.expiresAt?.getTime() ?? 0;
+      if (!prev || pExp > prevExp) byType.set(p.type, p);
     }
 
     const procedures = [...byType.values()].map((p) => {
-      const days = this.daysLeft(p.validTo);
+      const days = p.expiresAt ? this.daysLeft(p.expiresAt) : -999;
       return {
         type: p.type,
         status: p.status,
-        validTo: p.validTo.toISOString(),
+        validTo: p.expiresAt?.toISOString() ?? "",
         daysLeft: Math.floor(days),
       };
     });
@@ -94,29 +97,40 @@ export class ComplianceService {
     const warnings: string[] = [];
     let worst: DispatchSemaphore = "GREEN";
 
+    if (vehicle.complianceBlocked) {
+      blockReasons.push(
+        vehicle.complianceReason || "complianceBlocked=true",
+      );
+      worst = "RED";
+    }
+    if (vehicle.status === VehicleStatus.MAINTENANCE) {
+      blockReasons.push("Vehículo en mantenimiento");
+      worst = "RED";
+    }
+    if (vehicle.status === VehicleStatus.OUT_OF_SERVICE) {
+      blockReasons.push("Vehículo fuera de servicio");
+      worst = "RED";
+    }
+    if (vehicle.status === VehicleStatus.COMPLIANCE_BLOCKED) {
+      blockReasons.push("Estado COMPLIANCE_BLOCKED");
+      worst = "RED";
+    }
+
     for (const type of CRITICAL_DOC_TYPES) {
       const p = byType.get(type);
       if (!p) {
-        warnings.push(`Sin registro de ${type} en trámites`);
-        if (worst === "GREEN") worst = "YELLOW";
+        warnings.push(`Sin registro de ${type}`);
         continue;
       }
-      const days = this.daysLeft(p.validTo);
+      const days = p.expiresAt ? this.daysLeft(p.expiresAt) : -1;
       const sem = this.semaphoreFromDays(days);
       if (sem === "RED") {
-        blockReasons.push(
-          `${type} vencido (${p.validTo.toISOString().slice(0, 10)})`,
-        );
+        blockReasons.push(`${type} vencido`);
         worst = "RED";
       } else if (sem === "YELLOW") {
-        warnings.push(`${type} vence en ${Math.floor(days)} día(s)`);
+        warnings.push(`${type} por vencer (${Math.floor(days)}d)`);
         if (worst === "GREEN") worst = "YELLOW";
       }
-    }
-
-    if (vehicle.status === "OUT_OF_SERVICE" || vehicle.status === "MAINTENANCE") {
-      blockReasons.push(`Vehículo en estado ${vehicle.status}`);
-      worst = "RED";
     }
 
     return {
@@ -150,27 +164,37 @@ export class ComplianceService {
     if (!driver.active) {
       blockReasons.push("Conductor inactivo en despacho");
     }
-    if (!driver.license?.trim()) {
+    if (driver.dispatchBlocked) {
+      blockReasons.push(driver.blockReason || "dispatchBlocked=true");
+    }
+    if (!driver.licenseNumber?.trim()) {
       warnings.push("Sin licencia registrada en ficha de conductor");
     }
+    if (driver.licenseExpiresAt && driver.licenseExpiresAt <= new Date()) {
+      blockReasons.push("Licencia de conducción vencida");
+    }
 
-    const fatigueScore = employee?.fatigueScore ?? null;
+    const fatigueScore = driver.fatigueScore ?? employee?.fatigueScore ?? null;
     const employeeStatus = employee?.status ?? null;
+
+    if (fatigueScore != null && fatigueScore >= HARD_RULES.FATIGUE_BLOCK_SCORE) {
+      blockReasons.push(
+        `Fatiga alta (${fatigueScore}/${HARD_RULES.FATIGUE_BLOCK_SCORE})`,
+      );
+    } else if (
+      fatigueScore != null &&
+      fatigueScore >= HARD_RULES.FATIGUE_BLOCK_SCORE - 20
+    ) {
+      warnings.push(`Fatiga elevada (${fatigueScore})`);
+    }
 
     if (employee) {
       if (employee.status === EmployeeStatus.INACTIVE) {
         blockReasons.push("Empleado INACTIVO en RRHH");
       } else if (employee.status === EmployeeStatus.MEDICAL) {
-        blockReasons.push("Empleado en estado MÉDICO — no disponible para despacho");
+        blockReasons.push("Empleado en estado MÉDICO");
       } else if (employee.status === EmployeeStatus.VACATION) {
-        blockReasons.push("Empleado en VACACIONES — no disponible para despacho");
-      }
-      if (employee.fatigueScore >= HARD_RULES.FATIGUE_BLOCK_SCORE) {
-        blockReasons.push(
-          `Fatiga alta (${employee.fatigueScore}/${HARD_RULES.FATIGUE_BLOCK_SCORE}) — bloqueado por RRHH`,
-        );
-      } else if (employee.fatigueScore >= HARD_RULES.FATIGUE_BLOCK_SCORE - 20) {
-        warnings.push(`Fatiga elevada (${employee.fatigueScore})`);
+        blockReasons.push("Empleado en VACACIONES");
       }
     }
 
@@ -213,7 +237,6 @@ export class ComplianceService {
   async fleetMatrix(organizationId: string) {
     const vehicles = await this.prisma.vehicle.findMany({
       where: { organizationId },
-      include: { procedures: true },
       orderBy: { plate: "asc" },
     });
 

@@ -273,21 +273,26 @@ export function LoginScreen() {
 
           <div className="pt-1 text-center">
             {mode === "login" ? (
-              <p className="text-xs text-[var(--text-secondary)]">
-                {AUTH_COPY.registerHint}{" "}
-                <button
-                  type="button"
-                  className="font-semibold text-[var(--accent-primary)] transition-colors duration-150 hover:underline"
-                  onClick={() => {
-                    setMode("register");
-                    setErrorMessage("");
-                    setPhase("idle");
-                  }}
-                  disabled={isLoading}
-                >
-                  {AUTH_COPY.registerCta}
-                </button>
-              </p>
+              <>
+                <p className="mb-2 font-data text-[10px] leading-relaxed text-[var(--text-secondary)]">
+                  {AUTH_COPY.demoHint}
+                </p>
+                <p className="text-xs text-[var(--text-secondary)]">
+                  {AUTH_COPY.registerHint}{" "}
+                  <button
+                    type="button"
+                    className="font-semibold text-[var(--accent-primary)] transition-colors duration-150 hover:underline"
+                    onClick={() => {
+                      setMode("register");
+                      setErrorMessage("");
+                      setPhase("idle");
+                    }}
+                    disabled={isLoading}
+                  >
+                    {AUTH_COPY.registerCta}
+                  </button>
+                </p>
+              </>
             ) : (
               <button
                 type="button"

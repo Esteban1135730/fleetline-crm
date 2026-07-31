@@ -8,6 +8,7 @@ export const RoleSchema = z.enum([
   "rrhh",
   "atencion",
   "sistemas",
+  "revisoria",
 ]);
 export type Role = z.infer<typeof RoleSchema>;
 
@@ -19,6 +20,7 @@ export const ROLES: Role[] = [
   "rrhh",
   "atencion",
   "sistemas",
+  "revisoria",
 ];
 
 export const ROLE_LABELS: Record<Role, string> = {
@@ -29,87 +31,176 @@ export const ROLE_LABELS: Record<Role, string> = {
   rrhh: "Recursos humanos",
   atencion: "Atención al cliente",
   sistemas: "Tecnología",
+  revisoria: "Revisoría Fiscal",
 };
 
-/** Módulos del producto */
+/**
+ * 17 áreas corporativas (orden oficial dirección) + módulos secundarios
+ * (usuarios / jurídico / dashboard / apps — fuera del menú principal).
+ */
 export const MODULES = [
+  "presidencia",
+  "gerencia",
+  "rrhh",
+  "revisoria_fiscal",
+  "contabilidad",
+  "tesoreria",
+  "logistica",
+  "comercial",
+  "compras",
+  "qhse",
+  "sarlaft",
+  "tramites",
+  "tecnologia_ti",
+  "archivo",
+  "call_center",
+  "taller",
+  "parqueadero",
+  "usuarios",
+  "juridico",
   "dashboard",
   "apps",
-  "comercial",
-  "logistica",
-  "parqueadero",
-  "tramites",
-  "taller",
-  "compras",
-  "finanzas",
-  "contabilidad",
-  "revisoria",
-  "rrhh",
-  "atencion",
-  "calidad",
-  "juridico",
-  "sarlaft",
-  "archivo",
-  "recepcion",
-  "sistemas",
-  "usuarios",
 ] as const;
 export type ModuleId = (typeof MODULES)[number];
 
-export const MODULE_LABELS: Record<ModuleId, string> = {
-  dashboard: "Inicio",
-  apps: "Canales CRM",
-  comercial: "Comercial",
-  logistica: "Operaciones",
-  parqueadero: "Parqueadero",
-  tramites: "Trámites / Carros",
-  taller: "Taller",
-  compras: "Compras",
-  finanzas: "Tesorería",
-  contabilidad: "Contabilidad",
-  revisoria: "Revisoría fiscal",
-  rrhh: "Recursos humanos",
-  atencion: "Call Center",
-  calidad: "HSQE / Calidad",
-  juridico: "Jurídico",
-  sarlaft: "SARLAFT",
-  archivo: "Archivo",
-  recepcion: "Recepción",
-  sistemas: "Sistemas",
-  usuarios: "Usuarios",
+/** Alias legacy → ModuleId canónico (rutas y RequireModule antiguos) */
+export const MODULE_ALIASES: Record<string, ModuleId> = {
+  finanzas: "tesoreria",
+  revisoria: "revisoria_fiscal",
+  calidad: "qhse",
+  hqse: "qhse",
+  sistemas: "tecnologia_ti",
+  ti: "tecnologia_ti",
+  atencion: "call_center",
+  recepcion: "call_center",
+  pqrs: "call_center",
+  escolar: "apps",
+  monitora: "apps",
+  padres: "apps",
+  pasajeros: "apps",
+  "clientes-b2b": "apps",
+  b2b: "apps",
+  "revisoria-fiscal": "revisoria_fiscal",
+  "tecnologia-ti": "tecnologia_ti",
+  "call-center": "call_center",
+  gerencia_general: "gerencia",
 };
 
-/** Texto corto para que cualquiera entienda el módulo */
+export function resolveModuleId(raw: string): ModuleId | null {
+  const key = raw.trim().toLowerCase().replace(/^\//, "");
+  if ((MODULES as readonly string[]).includes(key)) return key as ModuleId;
+  return MODULE_ALIASES[key] ?? null;
+}
+
+/** Path segment (URL) por módulo canónico */
+export const MODULE_PATHS: Record<ModuleId, string> = {
+  presidencia: "/presidencia",
+  gerencia: "/gerencia",
+  rrhh: "/rrhh",
+  revisoria_fiscal: "/revisoria-fiscal",
+  contabilidad: "/contabilidad",
+  tesoreria: "/tesoreria",
+  logistica: "/logistica",
+  comercial: "/comercial",
+  compras: "/compras",
+  qhse: "/qhse",
+  sarlaft: "/sarlaft",
+  tramites: "/tramites",
+  tecnologia_ti: "/tecnologia-ti",
+  archivo: "/archivo",
+  call_center: "/call-center",
+  taller: "/taller",
+  parqueadero: "/parqueadero",
+  usuarios: "/usuarios",
+  juridico: "/juridico",
+  dashboard: "/dashboard",
+  apps: "/apps",
+};
+
+export const MODULE_LABELS: Record<ModuleId, string> = {
+  presidencia: "Presidencia",
+  gerencia: "Gerencia General",
+  rrhh: "Recursos Humanos",
+  revisoria_fiscal: "Revisoría Fiscal",
+  contabilidad: "Contabilidad",
+  tesoreria: "Tesorería",
+  logistica: "Logística",
+  comercial: "Comercial",
+  compras: "Compras",
+  qhse: "QHSE",
+  sarlaft: "SARLAFT",
+  tramites: "Trámites",
+  tecnologia_ti: "Tecnología y TI",
+  archivo: "Archivo y Papelería",
+  call_center: "Recepción y Call Center",
+  taller: "Taller",
+  parqueadero: "Parqueadero",
+  usuarios: "Usuarios",
+  juridico: "Jurídico",
+  dashboard: "Inicio",
+  apps: "Canales CRM",
+};
+
+/** Texto corto para tooltips y PageIntro */
 export const MODULE_HELP: Record<ModuleId, string> = {
-  dashboard: "Resumen del día con métricas calculadas desde la base de datos.",
-  apps: "Indicadores del CRM por canal operativo. Las apps móviles aún no están integradas.",
-  comercial:
-    "Clientes, cotizaciones y contratos operativos (privado o licitación).",
+  presidencia:
+    "Dirección estratégica, gobierno corporativo y tablero ejecutivo de flota.",
+  gerencia:
+    "Coordinación general de operaciones, metas y seguimiento inter-áreas.",
+  rrhh: "Personal por área, estado laboral y fatiga operativa.",
+  revisoria_fiscal:
+    "Hallazgos de revisoría fiscal registrados y seguidos en el CRM.",
+  contabilidad: "PUC, asientos de partida doble y balance de prueba.",
+  tesoreria: "Facturas por cobrar y por pagar; marcar pago cuando ocurre.",
   logistica:
     "Crear y gestionar viajes, reportar novedades y ver coordenadas GPS registradas.",
-  parqueadero:
-    "Ingreso y salida de vehículos en patio con registro real en base de datos.",
+  comercial:
+    "Clientes, cotizaciones y contratos operativos (privado o licitación).",
+  compras: "Solicitudes de compra y flujo de aprobación hasta recepción.",
+  qhse: "Calidad, seguridad, salud ocupacional e incidentes HSQE.",
+  sarlaft: "Chequeos de riesgo con bloqueo operativo en clientes y pagos CxP.",
   tramites:
     "SOAT, tecnomecánica y documentos del vehículo con control de vencimiento.",
-  taller: "Alta de flota y órdenes de trabajo con cambio de estado del vehículo.",
-  compras: "Solicitudes de compra y flujo de aprobación hasta recepción.",
-  finanzas: "Facturas por cobrar y por pagar; marcar pago cuando ocurre.",
-  contabilidad: "PUC, asientos de partida doble y balance de prueba.",
-  revisoria: "Hallazgos de revisoría fiscal registrados y seguidos en el CRM.",
-  rrhh: "Personal por área, estado laboral y fatiga operativa.",
-  atencion: "Tickets de call center registrados manualmente (sin WhatsApp API aún).",
-  calidad: "Eventos NPS e incidentes HSQE cargados en el sistema.",
-  juridico: "Documentos FUEC vinculados a vehículos y contratos.",
-  sarlaft: "Chequeos de riesgo con bloqueo operativo en clientes y pagos CxP.",
+  tecnologia_ti:
+    "Salud real de API/DB, uptime del proceso, NOC y alertas operativas.",
   archivo: "Data Room: bóveda documental con hash SHA-256 y auditoría inmutable.",
-  recepcion: "Check-in y check-out de visitantes en sede.",
-  sistemas: "Salud real de API/DB, uptime del proceso y alertas operativas.",
+  call_center:
+    "Recepción de visitantes y tickets de call center en un solo cockpit.",
+  taller: "Alta de flota y órdenes de trabajo con cambio de estado del vehículo.",
+  parqueadero:
+    "Ingreso y salida de vehículos en patio con registro real en base de datos.",
   usuarios: "Cuentas de acceso y roles por persona.",
+  juridico: "Documentos FUEC vinculados a vehículos y contratos.",
+  dashboard: "Resumen del día con métricas calculadas desde la base de datos.",
+  apps: "Indicadores del CRM por canal operativo. Las apps móviles aún no están integradas.",
 };
+
+/** Las 17 áreas del menú lateral (orden oficial) */
+export const CORPORATE_AREA_MODULES: ModuleId[] = [
+  "presidencia",
+  "gerencia",
+  "rrhh",
+  "revisoria_fiscal",
+  "contabilidad",
+  "tesoreria",
+  "logistica",
+  "comercial",
+  "compras",
+  "qhse",
+  "sarlaft",
+  "tramites",
+  "tecnologia_ti",
+  "archivo",
+  "call_center",
+  "taller",
+  "parqueadero",
+];
 
 export const ROLE_VIEWS: Record<Role, ModuleId[]> = {
   presidencia: [...MODULES],
   gerencia: [
+    "presidencia",
+    "gerencia",
     "dashboard",
     "apps",
     "comercial",
@@ -119,19 +210,21 @@ export const ROLE_VIEWS: Record<Role, ModuleId[]> = {
     "taller",
     "compras",
     "rrhh",
-    "atencion",
-    "calidad",
-    "recepcion",
+    "call_center",
+    "qhse",
+    "archivo",
   ],
   finanzas: [
     "dashboard",
-    "finanzas",
+    "tesoreria",
     "contabilidad",
-    "revisoria",
+    "revisoria_fiscal",
     "compras",
     "juridico",
     "sarlaft",
     "archivo",
+    "presidencia",
+    "gerencia",
   ],
   despacho: [
     "dashboard",
@@ -140,22 +233,47 @@ export const ROLE_VIEWS: Record<Role, ModuleId[]> = {
     "tramites",
     "taller",
     "comercial",
+    "contabilidad",
+    "tesoreria",
+    "compras",
     "apps",
+    "gerencia",
   ],
-  rrhh: ["dashboard", "rrhh", "calidad", "archivo"],
-  atencion: ["dashboard", "atencion", "calidad", "recepcion", "apps"],
-  sistemas: ["dashboard", "sistemas", "usuarios", "archivo"],
+  rrhh: ["dashboard", "rrhh", "qhse", "archivo", "gerencia"],
+  atencion: ["dashboard", "call_center", "qhse", "apps", "gerencia"],
+  sistemas: [
+    "dashboard",
+    "tecnologia_ti",
+    "usuarios",
+    "archivo",
+    "presidencia",
+    "gerencia",
+  ],
+  /** Ledger forense — solo lectura (RevisoriaReadOnlyGuard bloquea mutaciones). */
+  revisoria: [
+    "dashboard",
+    "revisoria_fiscal",
+    "contabilidad",
+    "tesoreria",
+    "compras",
+    "presidencia",
+    "gerencia",
+    "archivo",
+    "sarlaft",
+  ],
 };
 
 /** ¿El rol puede acceder a este módulo? (misma regla UI + API) */
 export function canAccessModule(
   role: string | Role,
-  module: ModuleId,
+  module: ModuleId | string,
 ): boolean {
   const key = String(role).toLowerCase() as Role;
   const views = ROLE_VIEWS[key];
   if (!views) return false;
-  return views.includes(module);
+  const resolved = resolveModuleId(String(module));
+  if (!resolved) return false;
+  return views.includes(resolved);
 }
 
 export function modulesForRole(role: string | Role): ModuleId[] {
@@ -229,8 +347,12 @@ export type WorkOrderStatus = z.infer<typeof WorkOrderStatusSchema>;
 export const HARD_RULES = {
   /** Días para semáforo amarillo / DocStatus.EXPIRING */
   DOC_EXPIRING_DAYS: 15,
-  /** Fatiga alta bloquea despacho (Employee.fatigueScore) */
+  /** Fatiga alta bloquea despacho (Driver.fatigueScore) */
   FATIGUE_BLOCK_SCORE: 80,
+  /** Horas continuas de conducción — umbral legal (bloquea despacho) */
+  FATIGUE_CONTINUOUS_HOURS: 8,
+  /** Horas acumuladas en ventana de 24h — umbral diario */
+  FATIGUE_DAILY_HOURS: 12,
   /** Km entre OT preventivas */
   MAINTENANCE_INTERVAL_KM: 10000,
   /** Distancia por defecto al cerrar viaje si no se envía distanceKm */

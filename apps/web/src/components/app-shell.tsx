@@ -10,6 +10,7 @@ import {
   ROLE_LABELS,
   ROLE_VIEWS,
   navDeptForPath,
+  resolveModuleId,
   type ModuleId,
   type NavDeptId,
   type NavDepartment,
@@ -26,15 +27,6 @@ import { CommandSearch } from "@/components/shell/command-search";
 import { NavIcon } from "@/components/shell/nav-icons";
 
 const NAV_OPEN_KEY = "flt-nav-depts-open";
-
-const DEPT_TIPS: Record<NavDeptId, string> = {
-  operaciones:
-    "Despacho, patio y documentos de flota. Abrir/cerrar sin cerrar otros departamentos.",
-  comercial: "Clientes B2B, cotizaciones, contratos y canales CRM.",
-  mantenimiento: "Órdenes de trabajo e inventario / compras.",
-  finanzas: "Tesorería, archivo, SARLAFT, calidad y gobierno contable.",
-  mando: "Inicio, personas, call center, sistemas y cuenta.",
-};
 
 type FlatNavItem = {
   href: string;
@@ -61,7 +53,8 @@ function BrandMark({ className = "h-7 w-7" }: { className?: string }) {
 function currentModuleLabel(pathname: string): string {
   const seg = pathname.split("/").filter(Boolean)[0] || "dashboard";
   if (seg === "cuenta") return "Cuenta";
-  if (seg in MODULE_LABELS) return MODULE_LABELS[seg as ModuleId];
+  const resolved = resolveModuleId(seg);
+  if (resolved) return MODULE_LABELS[resolved];
   return "Fleet Operations";
 }
 
@@ -111,22 +104,25 @@ function TopBar({
       : systemStatus === "ALERT"
         ? "text-[var(--accent-metric)]"
         : "text-[var(--accent-alert)]";
-  const modLabel =
-    typeof navigator !== "undefined" &&
-    /Mac|iPhone|iPad/.test(navigator.platform)
-      ? "⌘K"
-      : "Ctrl K";
+  /** Evita mismatch SSR/cliente (Mac vs Windows) */
+  const [modLabel, setModLabel] = useState("Ctrl K");
+  useEffect(() => {
+    const isApple = /Mac|iPhone|iPad|iPod/.test(
+      navigator.platform || navigator.userAgent,
+    );
+    setModLabel(isApple ? "⌘K" : "Ctrl K");
+  }, []);
 
   return (
     <header className="flt-topbar">
       <div className="flex min-w-0 items-center gap-3">
-        <Tooltip content="Abrir o cerrar el menú de departamentos">
+        <Tooltip content="Abrir o cerrar el menú de áreas corporativas">
           <button
             type="button"
             className="flt-icon-btn lg:hidden"
             onClick={toggleSidebar}
             aria-label="Abrir navegación"
-            title="Abrir menú de departamentos"
+            title="Abrir menú de áreas"
           >
             <NavIcon view="menu" className="h-4 w-4" />
           </button>
@@ -142,7 +138,7 @@ function TopBar({
             </p>
           </div>
         </div>
-        <Tooltip content={`Módulo activo: ${moduleBadge}`}>
+        <Tooltip content={`Área activa: ${moduleBadge}`}>
           <span className="flt-module-badge hidden md:inline-flex">
             {moduleBadge}
           </span>
@@ -150,7 +146,7 @@ function TopBar({
       </div>
 
       <Tooltip
-        content={`Buscar en todo el sistema (${modLabel}). Placa, conductor, cliente o módulo.`}
+        content={`Buscar en todo el sistema (${modLabel}). Placa, conductor, cliente o área.`}
         side="bottom"
       >
         <button
@@ -163,7 +159,9 @@ function TopBar({
           <span className="truncate">
             Buscar por placa, conductor o cliente…
           </span>
-          <kbd className="flt-kbd hidden sm:inline-flex">{modLabel}</kbd>
+          <kbd className="flt-kbd hidden sm:inline-flex" suppressHydrationWarning>
+            {modLabel}
+          </kbd>
         </button>
       </Tooltip>
 
@@ -178,8 +176,8 @@ function TopBar({
         <Tooltip
           content={
             helpOpen
-              ? "Cerrar guía del módulo (Esc o Cmd/Ctrl+/)"
-              : "Abrir guía de 3 pasos de este módulo (Cmd/Ctrl+/)"
+              ? "Cerrar guía del área (Esc o Cmd/Ctrl+/)"
+              : "Abrir guía de 3 pasos de esta área (Cmd/Ctrl+/)"
           }
         >
           <button
@@ -188,7 +186,7 @@ function TopBar({
             onClick={toggleHelp}
             aria-label="Centro de ayuda"
             aria-pressed={helpOpen}
-            title="Centro de ayuda del módulo actual (Cmd/Ctrl+/)"
+            title="Centro de ayuda del área actual (Cmd/Ctrl+/)"
           >
             ?
           </button>
@@ -231,14 +229,21 @@ function SideNav({
   const [openIds, setOpenIds] = useState<NavDeptId[]>([defaultOpenId]);
 
   useEffect(() => {
-    const initial = readOpenDepts([defaultOpenId]);
-    const withDefault = initial.includes(defaultOpenId)
-      ? initial
-      : [...initial, defaultOpenId];
+    const initial = readOpenDepts(
+      departments.map((d) => d.id).length
+        ? departments.map((d) => d.id)
+        : [defaultOpenId],
+    );
+    const withPath =
+      pathDept && !initial.includes(pathDept)
+        ? [...initial, pathDept]
+        : initial;
+    const withDefault = withPath.includes(defaultOpenId)
+      ? withPath
+      : [...withPath, defaultOpenId];
     setOpenIds(withDefault);
     persistOpenDepts(withDefault);
     setHydrated(true);
-    // solo al montar / cambio de rol default
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [defaultOpenId]);
 
@@ -280,9 +285,9 @@ function SideNav({
           {!sidebarCollapsed ? (
             <p
               className="px-1 font-data text-[9px] uppercase tracking-[0.16em] text-[var(--text-secondary)]"
-              title="Menú multi-acordeón: varios departamentos abiertos a la vez"
+              title="17 áreas independientes — preferencias en localStorage"
             >
-              Departamentos
+              Áreas corporativas
             </p>
           ) : (
             <span className="mx-auto text-[var(--accent-primary)]">
@@ -315,99 +320,62 @@ function SideNav({
           </Tooltip>
         </div>
 
-        <nav className="flex-1 overflow-y-auto py-2">
+        <nav className="flex-1 overflow-y-auto py-2" aria-label="Áreas corporativas">
           {departments.map((dept) => {
-            const expanded = openIds.includes(dept.id);
-            const hasActive = dept.items.some((i) =>
-              pathMatches(i.href, pathname),
-            );
+            const item = dept.items[0];
+            if (!item) return null;
+            const active = pathMatches(item.href, pathname);
+            const tip = item.tip || dept.tip;
 
             if (sidebarCollapsed) {
-              const first = dept.items[0];
-              if (!first) return null;
               return (
-                <Tooltip
-                  key={dept.id}
-                  content={`${dept.label}: ${DEPT_TIPS[dept.id]}`}
-                  side="right"
-                >
+                <Tooltip key={dept.id} content={tip} side="right">
                   <Link
-                    href={first.href.split("#")[0]}
+                    href={item.href}
                     title={dept.label}
-                    className={`flt-nav-item ${hasActive ? "is-active" : ""}`}
+                    className={`flt-nav-item ${active ? "is-active" : ""}`}
                     onClick={() => {
                       if (window.innerWidth < 1024) setSidebarCollapsed(true);
                     }}
                   >
-                    <NavIcon view={first.view} className="h-4 w-4 shrink-0" />
+                    <NavIcon view={item.view} className="h-4 w-4 shrink-0" />
                   </Link>
                 </Tooltip>
               );
             }
 
             return (
-              <div key={dept.id} className="flt-dept">
-                <Tooltip content={DEPT_TIPS[dept.id]} side="right" className="w-full">
-                  <button
-                    type="button"
-                    className={`flt-dept-trigger ${hasActive ? "is-current" : ""} ${expanded ? "is-open" : ""}`}
-                    aria-expanded={expanded}
-                    title={`${expanded ? "Cerrar" : "Abrir"} ${dept.label} (no cierra otros)`}
-                    onClick={() => toggleDept(dept.id)}
-                  >
-                    <span className="truncate">{dept.label}</span>
-                    <svg
-                      viewBox="0 0 24 24"
-                      className={`h-3.5 w-3.5 shrink-0 transition-transform duration-150 ${
-                        expanded ? "rotate-180" : ""
-                      }`}
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      aria-hidden
-                    >
-                      <path d="M6 9l6 6 6-6" strokeLinecap="round" />
-                    </svg>
-                  </button>
-                </Tooltip>
-                {expanded ? (
-                  <div className="flt-dept-items">
-                    {dept.items.map((item) => {
-                      const active = pathMatches(item.href, pathname);
-                      return (
-                        <Tooltip
-                          key={`${item.href}-${item.label}`}
-                          content={`Abrir: ${item.label}`}
-                          side="right"
-                          className="w-full"
-                        >
-                          <Link
-                            href={item.href}
-                            title={item.label}
-                            className={`flt-nav-item flt-nav-item--nested ${active ? "is-active" : ""}`}
-                            onClick={() => {
-                              if (window.innerWidth < 1024) {
-                                setSidebarCollapsed(true);
-                              }
-                            }}
-                          >
-                            <NavIcon
-                              view={item.view}
-                              className="h-3.5 w-3.5 shrink-0"
-                            />
-                            <span className="truncate">{item.label}</span>
-                          </Link>
-                        </Tooltip>
-                      );
-                    })}
-                  </div>
-                ) : null}
-              </div>
+              <Tooltip key={dept.id} content={tip} side="right" className="w-full">
+                <Link
+                  href={item.href}
+                  title={tip}
+                  className={`flt-nav-item ${active ? "is-active" : ""}`}
+                  onClick={() => {
+                    toggleDept(dept.id);
+                    if (window.innerWidth < 1024) setSidebarCollapsed(true);
+                  }}
+                >
+                  <NavIcon view={item.view} className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">{item.label}</span>
+                </Link>
+              </Tooltip>
             );
           })}
         </nav>
 
-        <div className="border-t border-[var(--border-subtle)] p-3">
+        <div className="border-t border-[var(--border-subtle)] p-3 space-y-1">
+          <Tooltip content="Perfil, contraseña y preferencias de cuenta">
+            <Link
+              href="/cuenta"
+              className={`flt-nav-item ${pathname.startsWith("/cuenta") ? "is-active" : ""}`}
+              title="Mi cuenta"
+            >
+              <NavIcon view="cuenta" className="h-3.5 w-3.5 shrink-0" />
+              {!sidebarCollapsed ? (
+                <span className="truncate">Mi cuenta</span>
+              ) : null}
+            </Link>
+          </Tooltip>
           <Tooltip content="Cerrar sesión y limpiar token local">
             <Button
               variant="ghost"
@@ -472,11 +440,7 @@ function HelpSheet() {
           </p>
           <ol className="space-y-3">
             {guide.steps.map((step, i) => (
-              <li
-                key={step}
-                className="flt-help-step"
-                title={`Paso ${i + 1}`}
-              >
+              <li key={step} className="flt-help-step" title={`Paso ${i + 1}`}>
                 <span className="flt-help-step-num font-data">{i + 1}</span>
                 <p className="text-sm leading-relaxed text-[var(--text-primary)]">
                   {step}
@@ -549,8 +513,10 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!user || pathname === "/login") return;
-    const view = pathname.split("/").filter(Boolean)[0] || "dashboard";
-    if (!canAccess(view)) {
+    const seg = pathname.split("/").filter(Boolean)[0] || "dashboard";
+    if (seg === "cuenta") return;
+    const resolved = resolveModuleId(seg) || seg;
+    if (!canAccess(resolved)) {
       router.replace(homePath);
     }
   }, [user, pathname, canAccess, homePath, router]);
@@ -568,30 +534,37 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
   const departments = useMemo(() => {
     if (!user) return [];
     const allowed = new Set(ROLE_VIEWS[user.role] || []);
-    return NAV_DEPARTMENTS.map((dept) => ({
+    return NAV_DEPARTMENTS.filter((dept) =>
+      dept.items.some(
+        (item) =>
+          item.view === "cuenta" || allowed.has(item.view as ModuleId),
+      ),
+    ).map((dept) => ({
       ...dept,
       items: dept.items.filter(
         (item) =>
           item.view === "cuenta" || allowed.has(item.view as ModuleId),
       ),
-    })).filter((d) => d.items.length > 0);
+    }));
   }, [user]);
 
   const defaultOpenId: NavDeptId = user
-    ? ROLE_DEFAULT_NAV_DEPT[user.role as Role] || "operaciones"
-    : "operaciones";
+    ? ROLE_DEFAULT_NAV_DEPT[user.role as Role] || "logistica"
+    : "logistica";
 
-  const flatNav: FlatNavItem[] = useMemo(
-    () =>
-      departments.flatMap((d) =>
-        d.items.map((i) => ({
-          href: i.href.split("#")[0],
-          view: i.view,
-          label: i.label,
-        })),
-      ),
-    [departments],
-  );
+  const flatNav: FlatNavItem[] = useMemo(() => {
+    const areas = departments.flatMap((d) =>
+      d.items.map((i) => ({
+        href: i.href.split("#")[0],
+        view: i.view,
+        label: i.label,
+      })),
+    );
+    return [
+      ...areas,
+      { href: "/cuenta", view: "cuenta" as const, label: "Mi cuenta" },
+    ];
+  }, [departments]);
 
   if (pathname === "/login") return <>{children}</>;
 
@@ -621,7 +594,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
           defaultOpenId={
             departments.some((d) => d.id === defaultOpenId)
               ? defaultOpenId
-              : departments[0]?.id || "operaciones"
+              : departments[0]?.id || "logistica"
           }
           onLogout={logout}
         />

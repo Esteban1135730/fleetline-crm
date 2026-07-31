@@ -110,28 +110,6 @@ export class CustomersController {
     return this.service.quoteToContract(req.user.organizationId, id, body);
   }
 
-  @Get("contracts")
-  contracts(@Req() req: { user: { organizationId: string } }) {
-    return this.service.listContracts(req.user.organizationId);
-  }
-
-  @Post("contracts")
-  createContract(
-    @Req() req: { user: { organizationId: string } },
-    @Body()
-    body: {
-      name: string;
-      customerId: string;
-      channel?: "PRIVATE" | "PUBLIC_TENDER";
-      route?: string;
-      startDate: string;
-      endDate: string;
-      monthlyValue?: number;
-    },
-  ) {
-    return this.service.createContract(req.user.organizationId, body);
-  }
-
   @Patch("contracts/:id")
   updateContract(
     @Req() req: { user: { organizationId: string } },

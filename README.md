@@ -30,12 +30,16 @@ pnpm --filter @fsg/web dev          # :3001
 
 ## Cuentas demo (seed)
 
-| Usuario | Clave | Uso |
-|---------|-------|-----|
-| `ceo@fsg.co` | `fsg2026` | Acceso completo |
-| `fin@fsg.co` | `fsg2026` | Tesorería / contabilidad |
-| `despacho@fsg.co` | `fsg2026` | Operaciones |
-| `ops@fsg.co`, `rrhh@fsg.co`, `atencion@fsg.co`, `ti@fsg.co` | `fsg2026` | Roles de área |
+Password: **`fsg2026`**
+
+| Usuario | Rol |
+|---------|-----|
+| `presidencia@fsg.co` | Presidencia (directivo READ_ONLY) |
+| `logistica@fsg.co` | Despacho / operaciones |
+| `revisoria@fsg.co` | Revisoría fiscal |
+| `conductor@fsg.co` | App conductor |
+
+Si el login falla, re-siembra: `pnpm db:seed`
 
 ## Checklist demo CRM (sin móvil)
 

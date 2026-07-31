@@ -9,7 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { ROLE_VIEWS, type Role } from "@fsg/shared";
+import { ROLE_VIEWS, resolveModuleId, type Role } from "@fsg/shared";
 import {
   api,
   clearSession,
@@ -40,30 +40,35 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function homePathForRole(role: Role): string {
   const views = ROLE_VIEWS[role] || [];
   const map: Record<string, string> = {
+    presidencia: "/presidencia",
+    gerencia: "/gerencia",
     dashboard: "/dashboard",
     logistica: "/logistica",
-    finanzas: "/finanzas",
+    tesoreria: "/tesoreria",
     rrhh: "/rrhh",
-    atencion: "/atencion",
-    sistemas: "/sistemas",
+    call_center: "/call-center",
+    tecnologia_ti: "/tecnologia-ti",
     usuarios: "/usuarios",
     comercial: "/comercial",
     taller: "/taller",
   };
   for (const preferred of [
+    "presidencia",
+    "gerencia",
     "dashboard",
     "logistica",
-    "finanzas",
+    "tesoreria",
     "rrhh",
-    "atencion",
-    "sistemas",
+    "call_center",
+    "tecnologia_ti",
     "comercial",
     "taller",
   ]) {
     if (views.includes(preferred as never)) return map[preferred];
   }
   const first = views[0];
-  return first ? `/${first}` : "/login";
+  if (!first) return "/login";
+  return map[first] || `/${first.replace(/_/g, "-")}`;
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -154,7 +159,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     (view: string) => {
       if (!user) return false;
       if (view === "cuenta") return true;
-      return (ROLE_VIEWS[user.role] || []).includes(view as never);
+      const resolved = resolveModuleId(view) || view;
+      return (ROLE_VIEWS[user.role] || []).includes(resolved as never);
     },
     [user],
   );

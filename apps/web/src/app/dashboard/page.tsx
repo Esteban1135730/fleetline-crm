@@ -168,7 +168,7 @@ export default function DashboardPage() {
         <div className="flex flex-wrap gap-3 pt-1 text-sm">
           <Tooltip content="Ir a Tesorería: CxC / CxP y aprobación de pagos">
             <Link
-              href="/finanzas"
+              href="/tesoreria"
               className="text-[var(--accent-primary)] underline-offset-2 hover:underline"
               title="Abrir Tesorería"
             >

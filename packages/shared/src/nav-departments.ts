@@ -1,127 +1,180 @@
 import type { ModuleId, Role } from "./index";
 
-/** Departamentos de navegación UI (IA simplificada — Zero Clutter) */
-export type NavDeptId =
-  | "operaciones"
-  | "comercial"
-  | "mantenimiento"
-  | "finanzas"
-  | "mando";
+/**
+ * Área corporativa = ítem plano del sidebar (orden oficial dirección).
+ * Se mantiene NAV_DEPARTMENTS por compatibilidad de imports.
+ */
+export type NavDeptId = ModuleId;
 
 export type NavDeptItem = {
   href: string;
   view: ModuleId | "cuenta";
-  /** Etiqueta corta operativa (no el MODULE_LABELS genérico) */
   label: string;
+  tip: string;
 };
 
 export type NavDepartment = {
   id: NavDeptId;
   label: string;
+  tip: string;
   items: NavDeptItem[];
 };
 
+const AREA = (
+  id: ModuleId,
+  href: string,
+  label: string,
+  tip: string,
+): NavDepartment => ({
+  id,
+  label,
+  tip,
+  items: [{ href, view: id, label, tip }],
+});
+
 /**
- * Menú lateral por departamentos (4–5 categorías).
- * Los ítems se filtran luego por ROLE_VIEWS.
+ * Lista plana de 17 áreas independientes — orden EXACTO de dirección.
+ * Cada área es un módulo con ruta propia.
  */
 export const NAV_DEPARTMENTS: NavDepartment[] = [
-  {
-    id: "operaciones",
-    label: "Operaciones y flota",
-    items: [
-      {
-        href: "/logistica",
-        view: "logistica",
-        label: "Logística y GPS en vivo",
-      },
-      {
-        href: "/parqueadero",
-        view: "parqueadero",
-        label: "Parqueadero y patio",
-      },
-      {
-        href: "/tramites",
-        view: "tramites",
-        label: "Trámites y documentación",
-      },
-    ],
-  },
-  {
-    id: "comercial",
-    label: "Comercial y clientes",
-    items: [
-      {
-        href: "/comercial",
-        view: "comercial",
-        label: "Cotizaciones y contratos",
-      },
-      {
-        href: "/comercial#clientes",
-        view: "comercial",
-        label: "Clientes / B2B",
-      },
-      { href: "/apps", view: "apps", label: "Canales CRM" },
-    ],
-  },
-  {
-    id: "mantenimiento",
-    label: "Mantenimiento y taller",
-    items: [
-      { href: "/taller", view: "taller", label: "Órdenes de trabajo" },
-      { href: "/compras", view: "compras", label: "Inventario / compras" },
-    ],
-  },
-  {
-    id: "finanzas",
-    label: "Finanzas y gobierno",
-    items: [
-      { href: "/finanzas", view: "finanzas", label: "Tesorería (CxC / CxP)" },
-      {
-        href: "/contabilidad",
-        view: "contabilidad",
-        label: "Contabilidad",
-      },
-      { href: "/archivo", view: "archivo", label: "Archivo digital" },
-      { href: "/sarlaft", view: "sarlaft", label: "SARLAFT" },
-      { href: "/calidad", view: "calidad", label: "Calidad / incidentes" },
-      { href: "/revisoria", view: "revisoria", label: "Revisoría fiscal" },
-      { href: "/juridico", view: "juridico", label: "Jurídico / FUEC" },
-    ],
-  },
-  {
-    id: "mando",
-    label: "Personas y mando",
-    items: [
-      { href: "/dashboard", view: "dashboard", label: "Inicio operativo" },
-      { href: "/rrhh", view: "rrhh", label: "Recursos humanos" },
-      { href: "/atencion", view: "atencion", label: "Call center" },
-      { href: "/recepcion", view: "recepcion", label: "Recepción" },
-      { href: "/sistemas", view: "sistemas", label: "Sistemas / NOC" },
-      { href: "/usuarios", view: "usuarios", label: "Usuarios" },
-      { href: "/cuenta", view: "cuenta", label: "Mi cuenta" },
-    ],
-  },
+  AREA(
+    "presidencia",
+    "/presidencia",
+    "Presidencia",
+    "Dirección estratégica, gobierno corporativo y tablero ejecutivo de flota.",
+  ),
+  AREA(
+    "gerencia",
+    "/gerencia",
+    "Gerencia General",
+    "Coordinación general de operaciones, metas y seguimiento inter-áreas.",
+  ),
+  AREA(
+    "rrhh",
+    "/rrhh",
+    "Recursos Humanos",
+    "Personal por área, estado laboral y fatiga operativa.",
+  ),
+  AREA(
+    "revisoria_fiscal",
+    "/revisoria-fiscal",
+    "Revisoría Fiscal",
+    "Hallazgos de revisoría fiscal registrados y seguidos en el CRM.",
+  ),
+  AREA(
+    "contabilidad",
+    "/contabilidad",
+    "Contabilidad",
+    "PUC, asientos de partida doble y balance de prueba.",
+  ),
+  AREA(
+    "tesoreria",
+    "/tesoreria",
+    "Tesorería",
+    "Facturas por cobrar y por pagar; control de CxC / CxP.",
+  ),
+  AREA(
+    "logistica",
+    "/logistica",
+    "Logística",
+    "Viajes, despacho, novedades y GPS en vivo.",
+  ),
+  AREA(
+    "comercial",
+    "/comercial",
+    "Comercial",
+    "Clientes, cotizaciones y contratos operativos.",
+  ),
+  AREA(
+    "compras",
+    "/compras",
+    "Compras",
+    "Solicitudes de compra y flujo de aprobación hasta recepción.",
+  ),
+  AREA(
+    "qhse",
+    "/qhse",
+    "QHSE",
+    "Calidad, seguridad, salud ocupacional e incidentes HSQE.",
+  ),
+  AREA(
+    "sarlaft",
+    "/sarlaft",
+    "SARLAFT",
+    "Chequeos de riesgo y bloqueo operativo.",
+  ),
+  AREA(
+    "tramites",
+    "/tramites",
+    "Trámites",
+    "SOAT, tecnomecánica y documentos de flota.",
+  ),
+  AREA(
+    "tecnologia_ti",
+    "/tecnologia-ti",
+    "Tecnología y TI",
+    "NOC, salud API/DB, uptime y alertas operativas.",
+  ),
+  AREA(
+    "archivo",
+    "/archivo",
+    "Archivo y Papelería",
+    "Data Room documental con hash SHA-256 y auditoría.",
+  ),
+  AREA(
+    "call_center",
+    "/call-center",
+    "Recepción y Call Center",
+    "Visitantes en sede y tickets de atención al cliente.",
+  ),
+  AREA(
+    "taller",
+    "/taller",
+    "Taller",
+    "Órdenes de trabajo y estado de mantenimiento de flota.",
+  ),
+  AREA(
+    "parqueadero",
+    "/parqueadero",
+    "Parqueadero",
+    "Ingreso y salida de vehículos en patio.",
+  ),
 ];
 
-/** Departamento abierto por defecto según rol (resto colapsado) */
+export const NAV_AREAS = NAV_DEPARTMENTS;
+
 export const ROLE_DEFAULT_NAV_DEPT: Record<Role, NavDeptId> = {
-  presidencia: "mando",
-  gerencia: "operaciones",
-  finanzas: "finanzas",
-  despacho: "operaciones",
-  rrhh: "mando",
-  atencion: "mando",
-  sistemas: "mando",
+  presidencia: "presidencia",
+  gerencia: "gerencia",
+  finanzas: "tesoreria",
+  despacho: "logistica",
+  rrhh: "rrhh",
+  atencion: "call_center",
+  sistemas: "tecnologia_ti",
+  revisoria: "revisoria_fiscal",
+};
+
+const PATH_ALIASES: Record<string, NavDeptId> = {
+  finanzas: "tesoreria",
+  revisoria: "revisoria_fiscal",
+  "revisoria-fiscal": "revisoria_fiscal",
+  calidad: "qhse",
+  qhse: "qhse",
+  sistemas: "tecnologia_ti",
+  "tecnologia-ti": "tecnologia_ti",
+  atencion: "call_center",
+  recepcion: "call_center",
+  "call-center": "call_center",
 };
 
 export function navDeptForPath(pathname: string): NavDeptId | null {
-  const seg = pathname.split("/").filter(Boolean)[0] || "dashboard";
+  const seg = pathname.split("/").filter(Boolean)[0] || "";
+  if (PATH_ALIASES[seg]) return PATH_ALIASES[seg];
   for (const dept of NAV_DEPARTMENTS) {
     if (
       dept.items.some((i) => {
         const base = i.href.split("#")[0];
-        return base === `/${seg}` || (seg === "dashboard" && base === "/dashboard");
+        return base === `/${seg}`;
       })
     ) {
       return dept.id;

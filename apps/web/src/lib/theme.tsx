@@ -79,29 +79,37 @@ export function useTheme() {
 
 export function ThemeToggle({ className = "" }: { className?: string }) {
   const { mode, setMode } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  /** SSR siempre asume dark; tras mount refleja localStorage/boot script */
+  const active: ThemeMode = mounted ? mode : "dark";
+
   return (
     <div
       className={`theme-toggle ${className}`.trim()}
       role="group"
       aria-label="Modo de visualización"
+      suppressHydrationWarning
     >
       <div className="theme-toggle-track">
         <button
           type="button"
-          className={`theme-toggle-opt ${mode === "light" ? "is-active" : ""}`}
+          className={`theme-toggle-opt ${active === "light" ? "is-active" : ""}`}
           onClick={() => setMode("light")}
-          aria-pressed={mode === "light"}
+          aria-pressed={active === "light"}
           title="Modo claro Aluminium & Quartz — fondos claros para oficina"
+          suppressHydrationWarning
         >
           <SunIcon />
           <span className="hidden sm:inline">Claro</span>
         </button>
         <button
           type="button"
-          className={`theme-toggle-opt ${mode === "dark" ? "is-active" : ""}`}
+          className={`theme-toggle-opt ${active === "dark" ? "is-active" : ""}`}
           onClick={() => setMode("dark")}
-          aria-pressed={mode === "dark"}
+          aria-pressed={active === "dark"}
           title="Modo oscuro Obsidian Telemetry — torre de control"
+          suppressHydrationWarning
         >
           <MoonIcon />
           <span className="hidden sm:inline">Oscuro</span>

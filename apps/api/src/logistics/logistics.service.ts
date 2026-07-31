@@ -1,12 +1,14 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   NotFoundException,
+  UnprocessableEntityException,
+  forwardRef,
 } from "@nestjs/common";
 import {
   InvoiceStatus,
   InvoiceType,
-  JournalEntryStatus,
   TripStatus,
   VehicleStatus,
   WorkOrderStatus,
@@ -14,12 +16,19 @@ import {
 import { HARD_RULES, PreoperationalChecklistSchema } from "@fsg/shared";
 import type { PreoperationalChecklist } from "@fsg/shared";
 import { PrismaService } from "../prisma/prisma.service";
+import { CommercialContractService } from "../comercial/commercial-contract.service";
 import { ComplianceService } from "./compliance.service";
+import { ComplianceGateService } from "./compliance-gate.service";
+import { KafkaEventsService } from "./kafka-events.service";
+import type { CreateTripDto, DispatchTripDto } from "./dto/trip.dto";
 
 const tripInclude = {
   customer: true,
   vehicle: true,
   driver: true,
+  route: true,
+  planilla: true,
+  preoperational: true,
   contract: {
     select: {
       id: true,
@@ -29,7 +38,7 @@ const tripInclude = {
       monthlyValue: true,
     },
   },
-  invoice: { select: { id: true, number: true, status: true } },
+  invoices: { select: { id: true, number: true, status: true }, take: 5 },
 } as const;
 
 @Injectable()
@@ -37,13 +46,17 @@ export class LogisticsService {
   constructor(
     private prisma: PrismaService,
     private compliance: ComplianceService,
+    private gate: ComplianceGateService,
+    private kafka: KafkaEventsService,
+    @Inject(forwardRef(() => CommercialContractService))
+    private commercialContracts: CommercialContractService,
   ) {}
 
   listTrips(organizationId: string) {
     return this.prisma.trip.findMany({
       where: { organizationId },
       include: tripInclude,
-      orderBy: { scheduledAt: "desc" },
+      orderBy: { departAt: "desc" },
     });
   }
 
@@ -74,7 +87,7 @@ export class LogisticsService {
         name: data.name,
         document: data.document,
         phone: data.phone,
-        license: data.license,
+        licenseNumber: data.license,
         userId: data.userId || undefined,
         active: true,
       },
@@ -102,7 +115,7 @@ export class LogisticsService {
       data: {
         name: data.name,
         phone: data.phone,
-        license: data.license,
+        licenseNumber: data.license,
         active: data.active,
         userId: data.userId === undefined ? undefined : data.userId,
       },
@@ -125,13 +138,15 @@ export class LogisticsService {
           in: [
             TripStatus.PENDING,
             TripStatus.ASSIGNED,
+            TripStatus.AWAITING_PREOP,
+            TripStatus.AWAITING_FUEC,
             TripStatus.IN_TRANSIT,
             TripStatus.INCIDENT,
           ],
         },
       },
       include: tripInclude,
-      orderBy: { scheduledAt: "asc" },
+      orderBy: { departAt: "asc" },
     });
     return { driver, trips };
   }
@@ -171,6 +186,14 @@ export class LogisticsService {
     });
     if (!vehicle) throw new NotFoundException("Vehículo no encontrado");
 
+    await this.prisma.gpsSnapshot.create({
+      data: {
+        vehicleId,
+        lat: data.lat,
+        lng: data.lng,
+      },
+    });
+
     return this.prisma.vehicle.update({
       where: { id: vehicleId },
       data: {
@@ -193,60 +216,152 @@ export class LogisticsService {
     });
   }
 
-  async createTrip(
-    organizationId: string,
-    data: {
-      origin: string;
-      destination: string;
-      scheduledAt: string;
-      customerId?: string;
-      contractId?: string;
-      vehicleId?: string;
-      driverId?: string;
-      fareAmount?: number;
-      notes?: string;
-    },
-  ) {
+  /**
+   * Crea viaje. Si trae vehicleId+driverId, el ComplianceGuard ya validó Hard-Stop.
+   * Emite `trip.dispatched` cuando nace asignado (con unidad y conductor).
+   */
+  async createTrip(organizationId: string, data: CreateTripDto) {
     let customerId = data.customerId || undefined;
     let fareAmount = data.fareAmount;
+    const departAt = new Date(data.departAt || data.scheduledAt || new Date());
 
     if (data.contractId) {
-      const contract = await this.prisma.transportContract.findFirst({
-        where: { id: data.contractId, organizationId },
-      });
-      if (!contract) throw new NotFoundException("Contrato no encontrado");
+      const contract = await this.commercialContracts.assertAssignableForDispatch(
+        organizationId,
+        data.contractId,
+        {
+          departAt,
+          estimatedFare: fareAmount,
+        },
+      );
       if (!customerId) customerId = contract.customerId;
       if (fareAmount == null && contract.monthlyValue != null) {
         fareAmount = Number(contract.monthlyValue);
       }
     }
 
-    if (data.vehicleId || data.driverId) {
-      await this.compliance.assertCanAssign(
+    if (data.vehicleId && data.driverId) {
+      const gate = await this.gate.evaluate({
         organizationId,
-        data.vehicleId,
-        data.driverId,
-      );
+        vehicleId: data.vehicleId,
+        driverId: data.driverId,
+        departAt,
+        requireFuec: data.requireFuec === true || data.dispatch === true,
+      });
+      if (!gate.ok) {
+        throw new UnprocessableEntityException({
+          error: "COMPLIANCE_GATE_BLOCKED",
+          message:
+            "Hard-Stop: el viaje no puede despacharse por incumplimiento normativo",
+          blocks: gate.violations.map((v) => v.code),
+          violations: gate.violations,
+        });
+      }
     }
 
     const count = await this.prisma.trip.count({ where: { organizationId } });
-    return this.prisma.trip.create({
+    const assigned = Boolean(data.vehicleId && data.driverId);
+
+    const trip = await this.prisma.trip.create({
       data: {
         code: `TRP-${1000 + count + 1}`,
         origin: data.origin,
         destination: data.destination,
-        scheduledAt: new Date(data.scheduledAt),
+        departAt,
         customerId,
         contractId: data.contractId || undefined,
         vehicleId: data.vehicleId || undefined,
         driverId: data.driverId || undefined,
-        fareAmount,
-        notes: data.notes,
-        status: data.vehicleId ? TripStatus.ASSIGNED : TripStatus.PENDING,
+        routeId: data.routeId || undefined,
+        fareAmount: fareAmount ?? 0,
+        status: assigned ? TripStatus.ASSIGNED : TripStatus.PENDING,
         organizationId,
       },
       include: tripInclude,
     });
+
+    if (assigned && trip.vehicleId && trip.driverId) {
+      await this.kafka.emitTripDispatched({
+        tripId: trip.id,
+        organizationId,
+        vehicleId: trip.vehicleId,
+        driverId: trip.driverId,
+        code: trip.code,
+        departAt: trip.departAt.toISOString(),
+      });
+    }
+
+    return trip;
+  }
+
+  /**
+   * Despacho / asignación de unidad+conductor a un viaje existente.
+   * ComplianceGuard + gate con FUEC obligatorio → emite trip.dispatched.
+   */
+  async dispatchTrip(
+    organizationId: string,
+    tripId: string,
+    data: DispatchTripDto,
+  ) {
+    const trip = await this.prisma.trip.findFirst({
+      where: { id: tripId, organizationId },
+    });
+    if (!trip) throw new NotFoundException("Viaje no encontrado");
+
+    const departAt = data.departAt
+      ? new Date(data.departAt)
+      : trip.departAt;
+
+    if (trip.contractId) {
+      await this.commercialContracts.assertAssignableForDispatch(
+        organizationId,
+        trip.contractId,
+        {
+          departAt,
+          estimatedFare: Number(trip.fareAmount) || undefined,
+        },
+      );
+    }
+
+    const gate = await this.gate.evaluate({
+      organizationId,
+      vehicleId: data.vehicleId,
+      driverId: data.driverId,
+      departAt,
+      requireFuec: true,
+    });
+    if (!gate.ok) {
+      throw new UnprocessableEntityException({
+        error: "COMPLIANCE_GATE_BLOCKED",
+        message:
+          "Hard-Stop: el viaje no puede despacharse por incumplimiento normativo",
+        blocks: gate.violations.map((v) => v.code),
+        violations: gate.violations,
+      });
+    }
+
+    const updated = await this.prisma.trip.update({
+      where: { id: tripId },
+      data: {
+        vehicleId: data.vehicleId,
+        driverId: data.driverId,
+        routeId: data.routeId ?? trip.routeId,
+        departAt,
+        status: TripStatus.ASSIGNED,
+      },
+      include: tripInclude,
+    });
+
+    await this.kafka.emitTripDispatched({
+      tripId: updated.id,
+      organizationId,
+      vehicleId: data.vehicleId,
+      driverId: data.driverId,
+      code: updated.code,
+      departAt: updated.departAt.toISOString(),
+    });
+
+    return updated;
   }
 
   async createDraftTripFromQuote(
@@ -261,21 +376,18 @@ export class LogisticsService {
     },
   ) {
     const count = await this.prisma.trip.count({ where: { organizationId } });
-    const scheduledAt = new Date();
-    scheduledAt.setDate(scheduledAt.getDate() + 1);
-    scheduledAt.setHours(6, 0, 0, 0);
+    const departAt = new Date();
+    departAt.setDate(departAt.getDate() + 1);
+    departAt.setHours(6, 0, 0, 0);
 
     return this.prisma.trip.create({
       data: {
         code: `TRP-${1000 + count + 1}`,
         origin: data.origin,
         destination: data.destination,
-        scheduledAt,
+        departAt,
         customerId: data.customerId,
         fareAmount: data.fareAmount,
-        notes:
-          data.notes ||
-          `Borrador desde cotización ${data.quoteCode || ""} — asignar unidad y conductor`.trim(),
         status: TripStatus.PENDING,
         organizationId,
       },
@@ -295,22 +407,19 @@ export class LogisticsService {
     },
   ) {
     const count = await this.prisma.trip.count({ where: { organizationId } });
-    const scheduledAt = new Date();
-    scheduledAt.setDate(scheduledAt.getDate() + 1);
-    scheduledAt.setHours(6, 0, 0, 0);
+    const departAt = new Date();
+    departAt.setDate(departAt.getDate() + 1);
+    departAt.setHours(6, 0, 0, 0);
 
     return this.prisma.trip.create({
       data: {
         code: `TRP-${1000 + count + 1}`,
         origin: data.origin,
         destination: data.destination,
-        scheduledAt,
+        departAt,
         customerId: data.customerId,
         contractId: data.contractId,
-        fareAmount: data.fareAmount,
-        notes:
-          data.notes ||
-          "Borrador auto-generado desde Comercial — asignar vehículo y conductor",
+        fareAmount: data.fareAmount ?? 0,
         status: TripStatus.PENDING,
         organizationId,
       },
@@ -326,24 +435,34 @@ export class LogisticsService {
   ) {
     const trip = await this.prisma.trip.findFirst({
       where: { id, organizationId },
+      include: { preoperational: true },
     });
     if (!trip) throw new NotFoundException("Viaje no encontrado");
 
     const mapped = status.toUpperCase() as TripStatus;
 
-    if (
-      mapped === TripStatus.ASSIGNED ||
-      mapped === TripStatus.IN_TRANSIT
-    ) {
-      await this.compliance.assertCanAssign(
-        organizationId,
-        trip.vehicleId,
-        trip.driverId,
-      );
+    if (mapped === TripStatus.ASSIGNED || mapped === TripStatus.IN_TRANSIT) {
+      if (trip.vehicleId && trip.driverId) {
+        const gate = await this.gate.evaluate({
+          organizationId,
+          vehicleId: trip.vehicleId,
+          driverId: trip.driverId,
+          departAt: trip.departAt,
+          requireFuec: mapped === TripStatus.IN_TRANSIT,
+        });
+        if (!gate.ok) {
+          throw new UnprocessableEntityException({
+            error: "COMPLIANCE_GATE_BLOCKED",
+            message: "Hard-Stop al cambiar estado",
+            blocks: gate.violations.map((v) => v.code),
+            violations: gate.violations,
+          });
+        }
+      }
     }
 
     if (mapped === TripStatus.IN_TRANSIT) {
-      if (!trip.preoperationalAt) {
+      if (!trip.preoperational?.approved) {
         throw new BadRequestException(
           "Imposible iniciar viaje: Se requiere inspección preoperacional aprobada.",
         );
@@ -354,19 +473,6 @@ export class LogisticsService {
         );
       }
     }
-
-    const data: {
-      status: TripStatus;
-      startedAt?: Date | null;
-      completedAt?: Date | null;
-      distanceKm?: number;
-    } = {
-      status: mapped,
-      startedAt:
-        mapped === TripStatus.IN_TRANSIT ? new Date() : trip.startedAt,
-      completedAt:
-        mapped === TripStatus.COMPLETED ? new Date() : trip.completedAt,
-    };
 
     if (mapped === TripStatus.IN_TRANSIT && trip.vehicleId) {
       await this.prisma.vehicle.update({
@@ -380,12 +486,15 @@ export class LogisticsService {
         opts?.distanceKm != null && opts.distanceKm > 0
           ? opts.distanceKm
           : HARD_RULES.DEFAULT_TRIP_DISTANCE_KM;
-      data.distanceKm = distance;
       await this.applyOdometerAndPreventive(
         organizationId,
         trip.vehicleId,
         distance,
       );
+      await this.prisma.trip.update({
+        where: { id },
+        data: { distanceKm: distance },
+      });
       await this.prisma.vehicle.update({
         where: { id: trip.vehicleId },
         data: { status: VehicleStatus.AVAILABLE },
@@ -397,11 +506,23 @@ export class LogisticsService {
       });
     }
 
-    return this.prisma.trip.update({
+    const updated = await this.prisma.trip.update({
       where: { id },
-      data,
+      data: { status: mapped },
       include: tripInclude,
     });
+
+    if (mapped === TripStatus.COMPLETED) {
+      await this.kafka.emitTripCompleted({
+        organizationId,
+        tripId: updated.id,
+        code: updated.code,
+        amount: Number(updated.fareAmount),
+        contractId: updated.contractId,
+      });
+    }
+
+    return updated;
   }
 
   private async applyOdometerAndPreventive(
@@ -416,9 +537,9 @@ export class LogisticsService {
 
     const prev = vehicle.odometerKm;
     const next = prev + Math.round(distanceKm);
-    const interval = vehicle.maintenanceEveryKm || HARD_RULES.MAINTENANCE_INTERVAL_KM;
-    const crossed =
-      Math.floor(prev / interval) < Math.floor(next / interval);
+    const interval =
+      vehicle.maintenanceEveryKm || HARD_RULES.MAINTENANCE_INTERVAL_KM;
+    const crossed = Math.floor(prev / interval) < Math.floor(next / interval);
 
     await this.prisma.vehicle.update({
       where: { id: vehicleId },
@@ -430,19 +551,21 @@ export class LogisticsService {
     const openPreventive = await this.prisma.workOrder.findFirst({
       where: {
         vehicleId,
+        organizationId,
         status: { in: [WorkOrderStatus.OPEN, WorkOrderStatus.IN_PROGRESS] },
         description: { contains: "Preventivo odómetro" },
       },
     });
     if (openPreventive) return;
 
-    const count = await this.prisma.workOrder.count();
+    const count = await this.prisma.workOrder.count({ where: { organizationId } });
     await this.prisma.workOrder.create({
       data: {
         code: `OT-${count + 1}`,
         description: `Preventivo odómetro — umbral ${interval} km alcanzado (${next} km)`,
         status: WorkOrderStatus.OPEN,
         vehicleId,
+        organizationId,
       },
     });
     await this.prisma.vehicle.update({
@@ -459,7 +582,7 @@ export class LogisticsService {
     const parsed = PreoperationalChecklistSchema.safeParse(body);
     if (!parsed.success) {
       throw new BadRequestException(
-        "Checklist inválido: frenos, luces, llantas, kitCarretera y nivelAceite son obligatorios (boolean)",
+        "Checklist inválido: frenos, luces, llantas, kitCarretera y nivelAceite son obligatorios",
       );
     }
     const checklist: PreoperationalChecklist = parsed.data;
@@ -468,10 +591,14 @@ export class LogisticsService {
       where: { id: tripId, organizationId },
     });
     if (!trip) throw new NotFoundException("Viaje no encontrado");
+    if (!trip.driverId) {
+      throw new BadRequestException("El viaje no tiene conductor asignado");
+    }
 
     if (
       trip.status !== TripStatus.PENDING &&
-      trip.status !== TripStatus.ASSIGNED
+      trip.status !== TripStatus.ASSIGNED &&
+      trip.status !== TripStatus.AWAITING_PREOP
     ) {
       throw new BadRequestException(
         "El preoperacional solo aplica a viajes pendientes o asignados",
@@ -486,21 +613,48 @@ export class LogisticsService {
       checklist.nivelAceite;
     if (!ok) {
       throw new BadRequestException(
-        "Checklist incompleto: todos los ítems deben estar APTO (frenos, luces, llantas, kit, aceite)",
+        "Checklist incompleto: todos los ítems deben estar APTO",
       );
     }
 
-    await this.compliance.assertCanAssign(
-      organizationId,
-      trip.vehicleId,
-      trip.driverId,
-    );
+    if (trip.vehicleId) {
+      await this.compliance.assertCanAssign(
+        organizationId,
+        trip.vehicleId,
+        trip.driverId,
+      );
+    }
+
+    await this.prisma.preoperational.upsert({
+      where: { tripId },
+      create: {
+        tripId,
+        driverId: trip.driverId,
+        brakesOk: checklist.frenos,
+        lightsOk: checklist.luces,
+        tiresOk: checklist.llantas,
+        kitOk: checklist.kitCarretera,
+        oilOk: checklist.nivelAceite,
+        observations: checklist.observaciones,
+        approved: true,
+        payload: checklist,
+      },
+      update: {
+        brakesOk: checklist.frenos,
+        lightsOk: checklist.luces,
+        tiresOk: checklist.llantas,
+        kitOk: checklist.kitCarretera,
+        oilOk: checklist.nivelAceite,
+        observations: checklist.observaciones,
+        approved: true,
+        payload: checklist,
+        signedAt: new Date(),
+      },
+    });
 
     return this.prisma.trip.update({
       where: { id: tripId },
       data: {
-        preoperationalAt: new Date(),
-        preoperationalJson: checklist,
         status: trip.vehicleId ? TripStatus.ASSIGNED : trip.status,
       },
       include: tripInclude,
@@ -517,7 +671,7 @@ export class LogisticsService {
       where: { id },
       data: {
         status: TripStatus.INCIDENT,
-        notes: notes.trim() || "Novedad operativa reportada",
+        incidentNote: notes.trim() || "Novedad operativa reportada",
       },
       include: tripInclude,
     });
@@ -526,7 +680,11 @@ export class LogisticsService {
   async invoiceFromTrip(organizationId: string, tripId: string) {
     const trip = await this.prisma.trip.findFirst({
       where: { id: tripId, organizationId },
-      include: { customer: true, contract: true, invoice: true },
+      include: {
+        customer: true,
+        contract: true,
+        invoices: { take: 1 },
+      },
     });
     if (!trip) throw new NotFoundException("Viaje no encontrado");
     if (trip.status !== TripStatus.COMPLETED) {
@@ -534,9 +692,9 @@ export class LogisticsService {
         "Solo se puede facturar un viaje en estado Terminado",
       );
     }
-    if (trip.invoice) {
+    if (trip.invoices.length) {
       throw new BadRequestException(
-        `Este viaje ya tiene factura ${trip.invoice.number}`,
+        `Este viaje ya tiene factura ${trip.invoices[0].number}`,
       );
     }
 
@@ -563,76 +721,28 @@ export class LogisticsService {
       });
     }
     if (amount <= 0) {
-      throw new BadRequestException(
-        "El viaje no tiene valor. Indica fareAmount al crear el viaje o en el contrato.",
-      );
+      throw new BadRequestException("El viaje no tiene valor (fareAmount).");
     }
 
     const count = await this.prisma.invoice.count({ where: { organizationId } });
     const due = new Date();
     due.setDate(due.getDate() + 15);
+    const counterparty =
+      trip.customer?.name || trip.customer?.nit || "Cliente flota";
 
-    const inv = await this.prisma.invoice.create({
+    return this.prisma.invoice.create({
       data: {
         number: `FV-2026-${String(count + 1).padStart(3, "0")}`,
         type: InvoiceType.RECEIVABLE,
         status: InvoiceStatus.ISSUED,
+        counterparty,
         amount,
         dueDate: due,
         customerId,
         tripId: trip.id,
         organizationId,
-        description: `Viaje ${trip.code}: ${trip.origin} → ${trip.destination}`,
       },
       include: { customer: true, trip: { select: { id: true, code: true } } },
     });
-
-    try {
-      const [clientes, ingresos] = await Promise.all([
-        this.prisma.account.findFirst({
-          where: { organizationId, code: "1305" },
-        }),
-        this.prisma.account.findFirst({
-          where: { organizationId, code: "4135" },
-        }),
-      ]);
-      if (clientes && ingresos) {
-        const jCount = await this.prisma.journalEntry.count({
-          where: { organizationId },
-        });
-        const entry = await this.prisma.journalEntry.create({
-          data: {
-            number: `AS-2026-${String(jCount + 1).padStart(3, "0")}`,
-            description: `Emisión ${inv.number}`,
-            status: JournalEntryStatus.POSTED,
-            organizationId,
-            lines: {
-              create: [
-                {
-                  accountId: clientes.id,
-                  debit: amount,
-                  credit: 0,
-                  memo: "CxC",
-                },
-                {
-                  accountId: ingresos.id,
-                  debit: 0,
-                  credit: amount,
-                  memo: "Ingreso transporte",
-                },
-              ],
-            },
-          },
-        });
-        await this.prisma.invoice.update({
-          where: { id: inv.id },
-          data: { journalEntryId: entry.id },
-        });
-      }
-    } catch {
-      /* PUC incompleto */
-    }
-
-    return inv;
   }
 }

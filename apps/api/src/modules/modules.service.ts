@@ -3,17 +3,19 @@ import { readFile } from "fs/promises";
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import {
   ArchiveCategory,
+  ComplianceDocType,
   DocStatus,
   EmployeeStatus,
   InvoiceStatus,
   InvoiceType,
   PurchaseStatus,
-  ProcedureType,
   SarlaftRisk,
   TicketChannel,
+  TicketPriority,
   TicketStatus,
 } from "@fsg/db";
 import { PrismaService } from "../prisma/prisma.service";
+import { buildVisitorPass } from "../pqrs/pqrs.calc";
 
 @Injectable()
 export class ModulesService {
@@ -121,6 +123,13 @@ export class ModulesService {
       );
     }
     const count = await this.prisma.ticket.count({ where: { organizationId } });
+    const rawPriority = (data.priority || "MEDIUM").toUpperCase();
+    const priority =
+      rawPriority === "NORMAL"
+        ? TicketPriority.MEDIUM
+        : ((["LOW", "MEDIUM", "HIGH", "URGENT"].includes(rawPriority)
+            ? rawPriority
+            : "MEDIUM") as TicketPriority);
     return this.prisma.ticket.create({
       data: {
         code: `TK-${1000 + count + 1}`,
@@ -128,7 +137,7 @@ export class ModulesService {
         requester: data.requester,
         message: data.message,
         channel: (data.channel as TicketChannel) || TicketChannel.WHATSAPP,
-        priority: data.priority || "NORMAL",
+        priority,
         organizationId,
       },
     });
@@ -158,7 +167,11 @@ export class ModulesService {
     return this.prisma.ticket.update({
       where: { id },
       data: {
-        priority: data.priority,
+        priority: data.priority
+          ? ((data.priority.toUpperCase() === "NORMAL"
+              ? "MEDIUM"
+              : data.priority.toUpperCase()) as TicketPriority)
+          : undefined,
         status: data.status
           ? (data.status.toUpperCase() as TicketStatus)
           : undefined,
@@ -291,7 +304,7 @@ export class ModulesService {
     return this.prisma.sarlaftCheck.findMany({
       where: { organizationId },
       include: { customer: { select: { name: true } } },
-      orderBy: { checkedAt: "desc" },
+      orderBy: { createdAt: "desc" },
     });
   }
 
@@ -312,7 +325,7 @@ export class ModulesService {
       data: {
         organizationId,
         subjectName: data.subjectName,
-        subjectDoc: data.subjectDoc,
+        document: data.subjectDoc,
         risk: (data.risk as SarlaftRisk) || SarlaftRisk.LOW,
         notes: data.notes,
         customerId: data.customerId,
@@ -357,9 +370,10 @@ export class ModulesService {
           ? {
               OR: [
                 { title: { contains: q, mode: "insensitive" } },
-                { tags: { contains: q, mode: "insensitive" } },
+                { tags: { has: q } },
                 { contentHash: { contains: q, mode: "insensitive" } },
                 { fileRef: { contains: q, mode: "insensitive" } },
+                { plate: { contains: q, mode: "insensitive" } },
               ],
             }
           : {}),
@@ -400,7 +414,14 @@ export class ModulesService {
           title: data.title,
           category: (data.category as ArchiveCategory) || ArchiveCategory.OTHER,
           fileRef: data.fileRef,
-          tags: data.tags,
+          tags: Array.isArray(data.tags)
+            ? data.tags
+            : data.tags
+              ? String(data.tags)
+                  .split(/[,;]/)
+                  .map((t) => t.trim())
+                  .filter(Boolean)
+              : [],
           uploadedById: actorUserId,
         },
       })
@@ -451,7 +472,12 @@ export class ModulesService {
         title: data.title || data.originalName,
         category: (data.category as ArchiveCategory) || ArchiveCategory.OTHER,
         fileRef: `/uploads/${data.storedName}`,
-        tags: data.tags,
+        tags: data.tags
+          ? String(data.tags)
+              .split(/[,;]/)
+              .map((t) => t.trim())
+              .filter(Boolean)
+          : [],
         contentHash,
         byteSize: data.byteSize ?? null,
         uploadedById: actorUserId,
@@ -497,7 +523,12 @@ export class ModulesService {
         category: data.category
           ? (data.category as ArchiveCategory)
           : undefined,
-        tags: data.tags,
+        tags: data.tags
+          ? String(data.tags)
+              .split(/[,;]/)
+              .map((t) => t.trim())
+              .filter(Boolean)
+          : undefined,
       },
     });
   }
@@ -552,8 +583,23 @@ export class ModulesService {
         "Visitante requiere name, document, purpose y hostName",
       );
     }
+    const { passCode, qrPayload } = buildVisitorPass({
+      organizationId,
+      document: data.document.trim(),
+      name: data.name.trim(),
+    });
     return this.prisma.visitor.create({
-      data: { organizationId, ...data },
+      data: {
+        organizationId,
+        name: data.name.trim(),
+        document: data.document.trim(),
+        reason: data.purpose.trim(),
+        hostName: data.hostName.trim(),
+        company: data.company,
+        passCode,
+        qrPayload,
+        badgeIssuedAt: new Date(),
+      },
     });
   }
 
@@ -693,7 +739,14 @@ export class ModulesService {
       where: { id, organizationId },
     });
     if (!v) throw new NotFoundException();
-    return this.prisma.visitor.update({ where: { id }, data });
+    return this.prisma.visitor.update({
+      where: { id },
+      data: {
+        reason: data.purpose,
+        hostName: data.hostName,
+        company: data.company,
+      },
+    });
   }
 
   // —— Apps (métricas reales del CRM; sin apps móviles aún) ——
@@ -859,16 +912,44 @@ export class ModulesService {
     });
   }
 
-  // —— Trámites vehículo ——
-  listProcedures(organizationId: string) {
-    return this.prisma.vehicleProcedure.findMany({
-      where: { organizationId },
-      include: { vehicle: { select: { plate: true, brand: true, model: true } } },
-      orderBy: { validTo: "asc" },
-    });
+  // —— Trámites vehículo (ComplianceDocument) ——
+  private mapProcedureRow(d: {
+    id: string;
+    type: ComplianceDocType;
+    reference: string | null;
+    status: DocStatus;
+    expiresAt: Date | null;
+    issuedAt: Date | null;
+    notes: string | null;
+    vehicle: { plate: string; brand: string; model: string } | null;
+  }) {
+    return {
+      id: d.id,
+      type: d.type,
+      reference: d.reference,
+      status: d.status,
+      validTo: d.expiresAt?.toISOString() ?? null,
+      validFrom: d.issuedAt?.toISOString() ?? null,
+      notes: d.notes,
+      vehicle: d.vehicle ?? { plate: "—", brand: "", model: "" },
+    };
   }
 
-  createProcedure(
+  async listProcedures(organizationId: string) {
+    const rows = await this.prisma.complianceDocument.findMany({
+      where: {
+        organizationId,
+        vehicleId: { not: null },
+      },
+      include: {
+        vehicle: { select: { plate: true, brand: true, model: true } },
+      },
+      orderBy: [{ expiresAt: "asc" }, { createdAt: "desc" }],
+    });
+    return rows.map((d) => this.mapProcedureRow(d));
+  }
+
+  async createProcedure(
     organizationId: string,
     data: {
       vehicleId: string;
@@ -879,66 +960,135 @@ export class ModulesService {
       notes?: string;
     },
   ) {
-    const validTo = new Date(data.validTo);
-    const daysLeft = (validTo.getTime() - Date.now()) / 86400000;
+    const vehicle = await this.prisma.vehicle.findFirst({
+      where: { id: data.vehicleId, organizationId },
+    });
+    if (!vehicle) throw new NotFoundException("Vehículo no encontrado");
+
+    const typeKey = data.type.toUpperCase() as ComplianceDocType;
+    if (!(Object.values(ComplianceDocType) as string[]).includes(typeKey)) {
+      throw new BadRequestException(`Tipo de trámite inválido: ${data.type}`);
+    }
+
+    const expiresAt = new Date(data.validTo);
+    const daysLeft = (expiresAt.getTime() - Date.now()) / 86400000;
     let status: DocStatus = DocStatus.VALID;
     if (daysLeft < 0) status = DocStatus.EXPIRED;
     else if (daysLeft < 15) status = DocStatus.EXPIRING;
 
-    return this.prisma.vehicleProcedure.create({
+    const created = await this.prisma.complianceDocument.create({
       data: {
         organizationId,
         vehicleId: data.vehicleId,
-        type: data.type as ProcedureType,
+        type: typeKey,
         reference: data.reference,
-        validFrom: data.validFrom ? new Date(data.validFrom) : undefined,
-        validTo,
+        issuedAt: data.validFrom ? new Date(data.validFrom) : new Date(),
+        expiresAt,
         notes: data.notes,
         status,
+        runtVerified: false,
       },
-      include: { vehicle: { select: { plate: true } } },
+      include: {
+        vehicle: { select: { plate: true, brand: true, model: true } },
+      },
     });
+
+    // Hard-Stop flags en unidad cuando aplica SOAT / Tecno
+    if (typeKey === ComplianceDocType.SOAT) {
+      await this.prisma.vehicle.update({
+        where: { id: vehicle.id },
+        data: {
+          soatActivo: status === DocStatus.VALID || status === DocStatus.EXPIRING,
+          complianceBlocked: status === DocStatus.EXPIRED,
+          complianceReason:
+            status === DocStatus.EXPIRED
+              ? "HARD-STOP: SOAT vencido — unidad no despachable"
+              : null,
+        },
+      });
+    }
+    if (typeKey === ComplianceDocType.TECNOMECANICA) {
+      await this.prisma.vehicle.update({
+        where: { id: vehicle.id },
+        data: {
+          tecnoActiva: status === DocStatus.VALID || status === DocStatus.EXPIRING,
+        },
+      });
+    }
+
+    return this.mapProcedureRow(created);
   }
 
   async updateProcedure(
     organizationId: string,
     id: string,
-    data: { validTo?: string; reference?: string; status?: string; notes?: string },
+    data: {
+      validTo?: string;
+      reference?: string;
+      status?: string;
+      notes?: string;
+    },
   ) {
-    const p = await this.prisma.vehicleProcedure.findFirst({
+    const p = await this.prisma.complianceDocument.findFirst({
       where: { id, organizationId },
     });
-    if (!p) throw new NotFoundException();
+    if (!p) throw new NotFoundException("Trámite no encontrado");
+
     let status = data.status
       ? (data.status.toUpperCase() as DocStatus)
       : undefined;
     if (data.validTo && !status) {
-      const validTo = new Date(data.validTo);
-      const daysLeft = (validTo.getTime() - Date.now()) / 86400000;
+      const expiresAt = new Date(data.validTo);
+      const daysLeft = (expiresAt.getTime() - Date.now()) / 86400000;
       status = DocStatus.VALID;
       if (daysLeft < 0) status = DocStatus.EXPIRED;
       else if (daysLeft < 15) status = DocStatus.EXPIRING;
     }
-    return this.prisma.vehicleProcedure.update({
+
+    const updated = await this.prisma.complianceDocument.update({
       where: { id },
       data: {
-        validTo: data.validTo ? new Date(data.validTo) : undefined,
+        expiresAt: data.validTo ? new Date(data.validTo) : undefined,
         reference: data.reference,
         notes: data.notes,
         status,
       },
-      include: { vehicle: { select: { plate: true } } },
+      include: {
+        vehicle: { select: { plate: true, brand: true, model: true } },
+      },
     });
+    return this.mapProcedureRow(updated);
   }
 
   // —— Parqueadero ——
-  listParking(organizationId: string) {
-    return this.prisma.parkingLog.findMany({
+  private mapParkingRow(log: {
+    id: string;
+    plate: string;
+    driverName: string | null;
+    guardName: string | null;
+    checkedInAt: Date;
+    checkedOutAt: Date | null;
+    vehicle: { plate: string; brand: string } | null;
+  }) {
+    return {
+      id: log.id,
+      plate: log.plate,
+      driverName: log.driverName,
+      guardName: log.guardName ?? "Sistema",
+      checkInAt: log.checkedInAt.toISOString(),
+      checkOutAt: log.checkedOutAt?.toISOString() ?? null,
+      vehicle: log.vehicle,
+    };
+  }
+
+  async listParking(organizationId: string) {
+    const rows = await this.prisma.parkingLog.findMany({
       where: { organizationId },
       include: { vehicle: { select: { plate: true, brand: true } } },
-      orderBy: { checkInAt: "desc" },
+      orderBy: { checkedInAt: "desc" },
       take: 100,
     });
+    return rows.map((r) => this.mapParkingRow(r));
   }
 
   async checkInParking(
@@ -953,16 +1103,15 @@ export class ModulesService {
     if (!data.plate?.trim()) {
       throw new BadRequestException("Parqueadero requiere plate");
     }
-    const vehicle =
-      data.vehicleId
-        ? await this.prisma.vehicle.findFirst({
-            where: { id: data.vehicleId, organizationId },
-          })
-        : await this.prisma.vehicle.findFirst({
-            where: { organizationId, plate: data.plate.toUpperCase() },
-          });
+    const vehicle = data.vehicleId
+      ? await this.prisma.vehicle.findFirst({
+          where: { id: data.vehicleId, organizationId },
+        })
+      : await this.prisma.vehicle.findFirst({
+          where: { organizationId, plate: data.plate.toUpperCase() },
+        });
 
-    return this.prisma.parkingLog.create({
+    const created = await this.prisma.parkingLog.create({
       data: {
         organizationId,
         plate: (vehicle?.plate || data.plate).toUpperCase(),
@@ -972,29 +1121,33 @@ export class ModulesService {
       },
       include: { vehicle: { select: { plate: true, brand: true } } },
     });
+    return this.mapParkingRow(created);
   }
 
   async checkOutParking(organizationId: string, id: string) {
     const log = await this.prisma.parkingLog.findFirst({
-      where: { id, organizationId, checkOutAt: null },
+      where: { id, organizationId, checkedOutAt: null },
     });
-    if (!log) throw new NotFoundException();
-    return this.prisma.parkingLog.update({
+    if (!log) throw new NotFoundException("Ingreso no encontrado o ya cerrado");
+    const updated = await this.prisma.parkingLog.update({
       where: { id },
-      data: { checkOutAt: new Date() },
-      include: { vehicle: { select: { plate: true } } },
+      data: { checkedOutAt: new Date() },
+      include: { vehicle: { select: { plate: true, brand: true } } },
     });
+    return this.mapParkingRow(updated);
   }
 
   async parkingSummary(organizationId: string) {
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
     const [inside, todayIn] = await Promise.all([
       this.prisma.parkingLog.count({
-        where: { organizationId, checkOutAt: null },
+        where: { organizationId, checkedOutAt: null },
       }),
       this.prisma.parkingLog.count({
         where: {
           organizationId,
-          checkInAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) },
+          checkedInAt: { gte: startOfDay },
         },
       }),
     ]);

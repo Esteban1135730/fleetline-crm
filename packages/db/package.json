@@ -16,6 +16,7 @@
     "migrate": "prisma migrate deploy",
     "migrate:dev": "prisma migrate dev",
     "seed": "tsx prisma/seed.ts",
+    "db:seed": "prisma db seed",
     "studio": "prisma studio",
     "dev": "tsc -p tsconfig.json --watch",
     "lint": "echo ok"

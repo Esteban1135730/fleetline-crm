@@ -22,6 +22,7 @@ export class AuthService {
     name: string;
     role: Role;
     organizationId: string;
+    directiveReadOnly?: boolean;
   }) {
     return {
       id: user.id,
@@ -34,8 +35,10 @@ export class AuthService {
         | "despacho"
         | "rrhh"
         | "atencion"
-        | "sistemas",
+        | "sistemas"
+        | "revisoria",
       organizationId: user.organizationId,
+      directiveReadOnly: Boolean(user.directiveReadOnly),
     };
   }
 
@@ -54,6 +57,7 @@ export class AuthService {
       email: user.email,
       role: user.role,
       organizationId: user.organizationId,
+      directiveReadOnly: user.directiveReadOnly,
     };
     return {
       accessToken: await this.jwt.signAsync(payload),

@@ -34,6 +34,23 @@ export function NavIcon({
 }) {
   const c = className;
   switch (view) {
+    case "presidencia":
+      return (
+        <IconFrame className={c}>
+          <path d="M4 20h16" />
+          <path d="M6 20V10l6-4 6 4v10" />
+          <path d="M10 20v-4h4v4" />
+        </IconFrame>
+      );
+    case "gerencia":
+      return (
+        <IconFrame className={c}>
+          <rect x="3" y="7" width="18" height="13" rx="1.5" />
+          <path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+          <path d="M12 11v4" />
+          <path d="M10 13h4" />
+        </IconFrame>
+      );
     case "dashboard":
       return (
         <IconFrame className={c}>
@@ -103,7 +120,7 @@ export function NavIcon({
           <circle cx="18" cy="20" r="1.2" />
         </IconFrame>
       );
-    case "finanzas":
+    case "tesoreria":
       return (
         <IconFrame className={c}>
           <circle cx="12" cy="12" r="8" />
@@ -120,7 +137,7 @@ export function NavIcon({
           <path d="M8 16h5" />
         </IconFrame>
       );
-    case "revisoria":
+    case "revisoria_fiscal":
       return (
         <IconFrame className={c}>
           <circle cx="11" cy="11" r="7" />
@@ -138,14 +155,14 @@ export function NavIcon({
           <path d="M15 19c0-2 1.5-3.5 4-3.5.7 0 1.4.1 2 .4" />
         </IconFrame>
       );
-    case "atencion":
+    case "call_center":
       return (
         <IconFrame className={c}>
           <path d="M4 5h10a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H9l-4 3v-3H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z" />
           <path d="M18 9h1a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-1v2l-3-2" />
         </IconFrame>
       );
-    case "calidad":
+    case "qhse":
       return (
         <IconFrame className={c}>
           <path d="M12 3 4 7v5c0 4.5 3.2 7.8 8 9 4.8-1.2 8-4.5 8-9V7z" />
@@ -176,14 +193,7 @@ export function NavIcon({
           <path d="M3 7V5a2 2 0 0 1 2-2h4l2 2" />
         </IconFrame>
       );
-    case "recepcion":
-      return (
-        <IconFrame className={c}>
-          <path d="M3 20V9l9-5 9 5v11" />
-          <path d="M9 20v-6h6v6" />
-        </IconFrame>
-      );
-    case "sistemas":
+    case "tecnologia_ti":
       return (
         <IconFrame className={c}>
           <rect x="3" y="4" width="18" height="12" rx="2" />

@@ -272,10 +272,12 @@ export class CustomersService {
         name: data?.name || `Contrato desde ${q.code}`,
         customerId: q.customerId,
         channel: "PRIVATE",
-        route: data?.route || q.notes || undefined,
-        startDate: start,
-        endDate: end,
+        routeLabel: data?.route || q.notes || "Ruta cotizada",
+        startsAt: start,
+        endsAt: end,
         monthlyValue: q.amount,
+        fixedFare: Number(q.amount),
+        rateType: "FIXED",
         organizationId,
         status: ContractStatus.ACTIVE,
       },
@@ -285,7 +287,9 @@ export class CustomersService {
       },
     });
 
-    const routeParts = (contract.route || "Origen → Destino").split(/→|->|-/);
+    const routeParts = (contract.routeLabel || "Origen → Destino").split(
+      /→|->|-/,
+    );
     const origin = (routeParts[0] || "Origen").trim() || "Origen";
     const destination =
       (routeParts[1] || routeParts[0] || "Destino").trim() || "Destino";
@@ -312,7 +316,7 @@ export class CustomersService {
         customer: { select: { name: true, nit: true } },
         _count: { select: { trips: true } },
       },
-      orderBy: { startDate: "desc" },
+      orderBy: { startsAt: "desc" },
     });
   }
 
@@ -337,11 +341,14 @@ export class CustomersService {
         name: data.name,
         customerId: data.customerId,
         channel: data.channel || "PRIVATE",
-        route: data.route,
-        startDate: new Date(data.startDate),
-        endDate: new Date(data.endDate),
-        monthlyValue: data.monthlyValue,
+        routeLabel: data.route || "Ruta contratada",
+        startsAt: new Date(data.startDate),
+        endsAt: new Date(data.endDate),
+        monthlyValue: data.monthlyValue ?? 0,
+        fixedFare: data.monthlyValue ?? null,
+        rateType: "FIXED",
         organizationId,
+        status: ContractStatus.ACTIVE,
       },
       include: { customer: { select: { name: true } } },
     });
@@ -366,9 +373,9 @@ export class CustomersService {
       where: { id },
       data: {
         name: data.name,
-        route: data.route,
+        routeLabel: data.route,
         monthlyValue: data.monthlyValue,
-        endDate: data.endDate ? new Date(data.endDate) : undefined,
+        endsAt: data.endDate ? new Date(data.endDate) : undefined,
         status: data.status
           ? (data.status.toUpperCase() as ContractStatus)
           : undefined,

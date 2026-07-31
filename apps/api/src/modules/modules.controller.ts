@@ -71,13 +71,13 @@ export class ModulesController {
 
   // Atención
   @Get("atencion/tickets")
-  @RequireModule("atencion")
+  @RequireModule("call_center", "atencion")
   tickets(@Req() req: { user: { organizationId: string } }) {
     return this.svc.listTickets(req.user.organizationId);
   }
 
   @Post("atencion/tickets")
-  @RequireModule("atencion")
+  @RequireModule("call_center", "atencion")
   createTicket(
     @Req() req: { user: { organizationId: string } },
     @Body()
@@ -93,7 +93,7 @@ export class ModulesController {
   }
 
   @Patch("atencion/tickets/:id/status")
-  @RequireModule("atencion")
+  @RequireModule("call_center", "atencion")
   ticketStatus(
     @Req() req: { user: { organizationId: string } },
     @Param("id") id: string,
@@ -108,19 +108,19 @@ export class ModulesController {
 
   // Calidad
   @Get("calidad/events")
-  @RequireModule("calidad")
+  @RequireModule("qhse", "calidad")
   quality(@Req() req: { user: { organizationId: string } }) {
     return this.svc.listQuality(req.user.organizationId);
   }
 
   @Get("calidad/summary")
-  @RequireModule("calidad")
+  @RequireModule("qhse", "calidad")
   qualitySummary(@Req() req: { user: { organizationId: string } }) {
     return this.svc.qualitySummary(req.user.organizationId);
   }
 
   @Post("calidad/events")
-  @RequireModule("calidad")
+  @RequireModule("qhse", "calidad")
   createQuality(
     @Req() req: { user: { organizationId: string } },
     @Body()
@@ -259,13 +259,13 @@ export class ModulesController {
 
   // Recepción
   @Get("recepcion/visitors")
-  @RequireModule("recepcion")
+  @RequireModule("call_center", "recepcion")
   visitors(@Req() req: { user: { organizationId: string } }) {
     return this.svc.listVisitors(req.user.organizationId);
   }
 
   @Post("recepcion/visitors")
-  @RequireModule("recepcion")
+  @RequireModule("call_center", "recepcion")
   createVisitor(
     @Req() req: { user: { organizationId: string } },
     @Body()
@@ -281,7 +281,7 @@ export class ModulesController {
   }
 
   @Patch("recepcion/visitors/:id/checkout")
-  @RequireModule("recepcion")
+  @RequireModule("call_center", "recepcion")
   checkout(
     @Req() req: { user: { organizationId: string } },
     @Param("id") id: string,
@@ -291,19 +291,19 @@ export class ModulesController {
 
   // Sistemas
   @Get("sistemas/alerts")
-  @RequireModule("sistemas")
+  @RequireModule("tecnologia_ti", "sistemas")
   alerts(@Req() req: { user: { organizationId: string } }) {
     return this.svc.listAlerts(req.user.organizationId);
   }
 
   @Get("sistemas/health")
-  @RequireModule("sistemas")
+  @RequireModule("tecnologia_ti", "sistemas")
   health(@Req() req: { user: { organizationId: string } }) {
     return this.svc.systemsHealth(req.user.organizationId);
   }
 
   @Patch("sistemas/alerts/:id/resolve")
-  @RequireModule("sistemas")
+  @RequireModule("tecnologia_ti", "sistemas")
   resolveAlert(
     @Req() req: { user: { organizationId: string } },
     @Param("id") id: string,
@@ -313,13 +313,13 @@ export class ModulesController {
 
   // Revisoría
   @Get("revisoria/findings")
-  @RequireModule("revisoria")
+  @RequireModule("revisoria_fiscal", "revisoria")
   forensic(@Req() req: { user: { organizationId: string } }) {
     return this.svc.listForensic(req.user.organizationId);
   }
 
   @Post("revisoria/findings")
-  @RequireModule("revisoria")
+  @RequireModule("revisoria_fiscal", "revisoria")
   createForensic(
     @Req() req: { user: { organizationId: string } },
     @Body()
@@ -464,7 +464,7 @@ export class ModulesController {
   }
 
   @Patch("atencion/tickets/:id")
-  @RequireModule("atencion")
+  @RequireModule("call_center", "atencion")
   updateTicket(
     @Req() req: { user: { organizationId: string } },
     @Param("id") id: string,
@@ -475,7 +475,7 @@ export class ModulesController {
   }
 
   @Patch("calidad/events/:id")
-  @RequireModule("calidad")
+  @RequireModule("qhse", "calidad")
   updateQuality(
     @Req() req: { user: { organizationId: string } },
     @Param("id") id: string,
@@ -566,7 +566,7 @@ export class ModulesController {
   }
 
   @Patch("revisoria/findings/:id")
-  @RequireModule("revisoria")
+  @RequireModule("revisoria_fiscal", "revisoria")
   updateForensic(
     @Req() req: { user: { organizationId: string } },
     @Param("id") id: string,
@@ -576,7 +576,7 @@ export class ModulesController {
   }
 
   @Post("sistemas/alerts")
-  @RequireModule("sistemas")
+  @RequireModule("tecnologia_ti", "sistemas")
   createAlert(
     @Req() req: { user: { organizationId: string } },
     @Body() body: { severity?: string; source: string; message: string },
@@ -585,7 +585,7 @@ export class ModulesController {
   }
 
   @Patch("recepcion/visitors/:id")
-  @RequireModule("recepcion")
+  @RequireModule("call_center", "recepcion")
   updateVisitor(
     @Req() req: { user: { organizationId: string } },
     @Param("id") id: string,

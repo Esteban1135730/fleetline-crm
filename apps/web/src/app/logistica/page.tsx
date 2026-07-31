@@ -98,7 +98,7 @@ export default function LogisticaPage() {
     phone: "",
     license: "",
   });
-  const [nowTick, setNowTick] = useState(() => Date.now());
+  const [nowTick, setNowTick] = useState(0);
   const [gpsForm, setGpsForm] = useState({
     vehicleId: "",
     lat: "",
@@ -112,6 +112,7 @@ export default function LogisticaPage() {
   }
 
   useEffect(() => {
+    setNowTick(Date.now());
     const t = setInterval(() => setNowTick(Date.now()), 5000);
     return () => clearInterval(t);
   }, []);
@@ -656,12 +657,15 @@ export default function LogisticaPage() {
                     new Date(a.updatedAt).getTime(),
                 )
                 .map((g) => {
-                  const ageSec = Math.max(
-                    0,
-                    Math.round(
-                      (nowTick - new Date(g.updatedAt).getTime()) / 1000,
-                    ),
-                  );
+                  const ageSec =
+                    nowTick > 0
+                      ? Math.max(
+                          0,
+                          Math.round(
+                            (nowTick - new Date(g.updatedAt).getTime()) / 1000,
+                          ),
+                        )
+                      : 0;
                   const fresh = ageSec <= 20;
                   const stale = ageSec > 120;
                   return (

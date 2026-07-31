@@ -14,6 +14,8 @@ import { ModulesGuard, RequireModule } from "../auth/modules.guard";
 import { LogisticsService } from "./logistics.service";
 import { LogisticsGateway } from "./logistics.gateway";
 import { ComplianceService } from "./compliance.service";
+import { ComplianceGuard } from "./compliance.guard";
+import { CreateTripDto, DispatchTripDto } from "./dto/trip.dto";
 
 @Controller("logistics")
 @UseGuards(JwtAuthGuard, ModulesGuard)
@@ -102,22 +104,31 @@ export class LogisticsController {
   }
 
   @Post("trips")
+  @UseGuards(ComplianceGuard)
   async create(
     @Req() req: { user: { organizationId: string } },
-    @Body()
-    body: {
-      origin: string;
-      destination: string;
-      scheduledAt: string;
-      customerId?: string;
-      contractId?: string;
-      vehicleId?: string;
-      driverId?: string;
-      fareAmount?: number;
-      notes?: string;
-    },
+    @Body() body: CreateTripDto,
   ) {
     const trip = await this.service.createTrip(req.user.organizationId, body);
+    this.gateway.emitUpdate(req.user.organizationId);
+    return trip;
+  }
+
+  @Post("trips/:id/dispatch")
+  @UseGuards(ComplianceGuard)
+  async dispatch(
+    @Req() req: { user: { organizationId: string } },
+    @Param("id") id: string,
+    @Body() body: DispatchTripDto,
+  ) {
+    // Marca despacho para el guard (requireFuec)
+    body.dispatch = true;
+    body.requireFuec = true;
+    const trip = await this.service.dispatchTrip(
+      req.user.organizationId,
+      id,
+      body,
+    );
     this.gateway.emitUpdate(req.user.organizationId);
     return trip;
   }

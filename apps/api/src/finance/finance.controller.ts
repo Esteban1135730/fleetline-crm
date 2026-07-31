@@ -15,7 +15,7 @@ import { FinanceService } from "./finance.service";
 
 @Controller("finance")
 @UseGuards(JwtAuthGuard, ModulesGuard)
-@RequireModule("finanzas")
+@RequireModule("tesoreria", "finanzas")
 export class FinanceController {
   constructor(private service: FinanceService) {}
 

@@ -91,7 +91,7 @@ export const DEPARTMENTS: Department[] = [
       "Auxiliar contable",
       "Gestora contable",
     ],
-    modules: ["finanzas", "contabilidad"],
+    modules: ["tesoreria", "contabilidad"],
   },
   {
     id: "rrhh",
@@ -103,13 +103,13 @@ export const DEPARTMENTS: Department[] = [
     id: "call_center",
     label: "Call Center",
     subAreas: ["Tickets", "WhatsApp", "Correo", "Teléfono"],
-    modules: ["atencion"],
+    modules: ["call_center"],
   },
   {
     id: "hsqe",
     label: "HSQE / Calidad",
     subAreas: ["NPS", "Incidentes", "SARLAFT", "Auditorías"],
-    modules: ["calidad", "sarlaft"],
+    modules: ["qhse", "sarlaft"],
   },
   {
     id: "juridico",
@@ -121,7 +121,7 @@ export const DEPARTMENTS: Department[] = [
     id: "archivo",
     label: "Archivo",
     subAreas: ["Papelería", "Contratos", "Documentos históricos"],
-    modules: ["archivo", "recepcion"],
+    modules: ["archivo", "call_center"],
   },
 ];
 
