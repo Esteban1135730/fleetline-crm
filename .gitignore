@@ -9,7 +9,12 @@ dist
 .DS_Store
 coverage
 apps/api/uploads
+uploads
 packages/db/prisma/*.db
 packages/db/prisma/*.db-journal
 *.xlsx
 .cursor
+# Specs PDF / briefings para agentes Cursor (no van al repo ni al VPS)
+Nueva carpeta/
+**/Nueva carpeta/
+apps/web/tsconfig.tsbuildinfo
