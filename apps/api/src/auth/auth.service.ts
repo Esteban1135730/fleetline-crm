@@ -36,7 +36,9 @@ export class AuthService {
         | "rrhh"
         | "atencion"
         | "sistemas"
-        | "revisoria",
+        | "revisoria"
+        | "conductor"
+        | "monitora",
       organizationId: user.organizationId,
       directiveReadOnly: Boolean(user.directiveReadOnly),
     };

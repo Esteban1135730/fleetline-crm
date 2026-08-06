@@ -30,44 +30,7 @@ export class ModulesController {
     private compliance: ComplianceService,
   ) {}
 
-  // RRHH
-  @Get("rrhh/employees")
-  @RequireModule("rrhh")
-  employees(@Req() req: { user: { organizationId: string } }) {
-    return this.svc.listEmployees(req.user.organizationId);
-  }
-
-  @Post("rrhh/employees")
-  @RequireModule("rrhh")
-  createEmployee(
-    @Req() req: { user: { organizationId: string } },
-    @Body()
-    body: {
-      name: string;
-      document: string;
-      position: string;
-      area: string;
-      phone?: string;
-      email?: string;
-      fatigueScore?: number;
-    },
-  ) {
-    return this.svc.createEmployee(req.user.organizationId, body);
-  }
-
-  @Patch("rrhh/employees/:id/status")
-  @RequireModule("rrhh")
-  employeeStatus(
-    @Req() req: { user: { organizationId: string } },
-    @Param("id") id: string,
-    @Body() body: { status: string },
-  ) {
-    return this.svc.updateEmployeeStatus(
-      req.user.organizationId,
-      id,
-      body.status,
-    );
-  }
+  // RRHH routes live in RrhhController (@Controller("rrhh"))
 
   // Atención
   @Get("atencion/tickets")
@@ -444,24 +407,7 @@ export class ModulesController {
     return this.svc.checkOutParking(req.user.organizationId, id);
   }
 
-  @Patch("rrhh/employees/:id")
-  @RequireModule("rrhh")
-  updateEmployee(
-    @Req() req: { user: { organizationId: string } },
-    @Param("id") id: string,
-    @Body()
-    body: {
-      name?: string;
-      position?: string;
-      area?: string;
-      phone?: string;
-      email?: string;
-      fatigueScore?: number;
-      status?: string;
-    },
-  ) {
-    return this.svc.updateEmployee(req.user.organizationId, id, body);
-  }
+  // parking routes above — RRHH PATCH moved to RrhhController
 
   @Patch("atencion/tickets/:id")
   @RequireModule("call_center", "atencion")

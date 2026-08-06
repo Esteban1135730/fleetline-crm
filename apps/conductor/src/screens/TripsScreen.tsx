@@ -40,6 +40,7 @@ export default function TripsScreen({ navigation, onLogout }: Props) {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [driverName, setDriverName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [incidentTrip, setIncidentTrip] = useState<Trip | null>(null);
   const [incidentNotes, setIncidentNotes] = useState("");
@@ -57,9 +58,13 @@ export default function TripsScreen({ navigation, onLogout }: Props) {
     if (!silent) setLoading(true);
     try {
       const data = await fetchMyTrips();
+      setLoadFailed(false);
       setDriverName(data.driver?.name ?? null);
-      setTrips(data.trips);
+      setTrips(data.trips ?? []);
     } catch (err) {
+      setLoadFailed(true);
+      setDriverName(null);
+      setTrips([]);
       Alert.alert(
         "Error",
         err instanceof Error ? err.message : "No se pudieron cargar los viajes",
@@ -143,11 +148,16 @@ export default function TripsScreen({ navigation, onLogout }: Props) {
 
   return (
     <View style={styles.container}>
-      {driverName ? (
+      {loadFailed ? (
+        <Text style={styles.warning}>
+          Fallo de uplink al cargar viajes. Desliza hacia abajo para reintentar.
+        </Text>
+      ) : driverName ? (
         <Text style={styles.driver}>Conductor: {driverName}</Text>
       ) : (
         <Text style={styles.warning}>
-          Tu usuario no está vinculado a un conductor. Contacta a despacho.
+          Tu usuario no está vinculado a un conductor. Usa conductor@fsg.co /
+          fsg2026 o contacta a despacho.
         </Text>
       )}
 

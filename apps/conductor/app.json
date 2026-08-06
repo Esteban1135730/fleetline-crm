@@ -5,7 +5,10 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "scheme": "fsg-conductor",
-    "platforms": ["ios", "android"],
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "userInterfaceStyle": "light",
     "splash": {
       "backgroundColor": "#1e3a5f"
@@ -26,7 +29,8 @@
         {
           "locationAlwaysAndWhenInUsePermission": "Permite a FSG Conductor enviar tu ubicación durante viajes en curso."
         }
-      ]
+      ],
+      "expo-secure-store"
     ]
   }
 }

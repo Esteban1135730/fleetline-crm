@@ -22,7 +22,7 @@ function money(n: number) {
 
 const ACTIONS = [
   {
-    href: "/logistica",
+    href: "/logistica/servicios",
     title: "Crear nuevo viaje",
     hint: "Despacho y ruta",
     tip: "Abre Logística para registrar un viaje con origen, destino y unidad.",
@@ -40,7 +40,7 @@ const ACTIONS = [
     tip: "Abre Trámites para ver SOAT/tecnomecánica y bloqueos de despacho.",
   },
   {
-    href: "/logistica",
+    href: "/logistica/servicios",
     title: "Ver mapa en vivo",
     hint: "GPS de flota",
     tip: "Muestra coordenadas GPS registradas de las unidades en Logística.",

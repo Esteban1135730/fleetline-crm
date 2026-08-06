@@ -1,10 +1,22 @@
-import { Body, Controller, Get, Param, Post, Req, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from "@nestjs/common";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { ModulesGuard, RequireModule } from "../auth/modules.guard";
 import { RrhhService } from "./rrhh.service";
 import { FatigueManagementService } from "./fatigue-management.service";
 import { PayrollService } from "./payroll.service";
 import {
+  CreateTrainingSchema,
+  PatchEmployeeSchema,
   PayrollCalculateSchema,
   ShiftCheckInSchema,
   ShiftCheckOutSchema,
@@ -23,6 +35,11 @@ export class RrhhController {
     private payroll: PayrollService,
   ) {}
 
+  @Get("overview")
+  overview(@Req() req: AuthReq) {
+    return this.rrhh.overview(req.user.organizationId);
+  }
+
   @Get("employees")
   listEmployees(@Req() req: AuthReq) {
     return this.rrhh.listEmployees(req.user.organizationId);
@@ -32,6 +49,21 @@ export class RrhhController {
   upsertEmployee(@Req() req: AuthReq, @Body() body: unknown) {
     const dto = UpsertEmployeeSchema.parse(body ?? {});
     return this.rrhh.upsertEmployee(req.user.organizationId, dto);
+  }
+
+  @Patch("employees/:id")
+  patchEmployee(
+    @Req() req: AuthReq,
+    @Param("id") id: string,
+    @Body() body: unknown,
+  ) {
+    const dto = PatchEmployeeSchema.parse(body ?? {});
+    return this.rrhh.patchEmployee(req.user.organizationId, id, dto);
+  }
+
+  @Get("drivers")
+  listDrivers(@Req() req: AuthReq) {
+    return this.rrhh.listDriversForOps(req.user.organizationId);
   }
 
   @Post("shifts/check-in")
@@ -51,9 +83,36 @@ export class RrhhController {
     return this.rrhh.fatigueStatus(req.user.organizationId, id);
   }
 
+  @Post("licenses/audit")
+  auditLicenses(@Req() req: AuthReq) {
+    return this.rrhh.auditLicenses(req.user.organizationId);
+  }
+
   @Post("payroll/calculate")
   calculatePayroll(@Req() req: AuthReq, @Body() body: unknown) {
     const dto = PayrollCalculateSchema.parse(body ?? {});
     return this.payroll.calculate(req.user.organizationId, dto);
+  }
+
+  @Get("payroll/runs")
+  listPayrollRuns(
+    @Req() req: AuthReq,
+    @Query("take") take?: string,
+  ) {
+    return this.rrhh.listPayrollRuns(
+      req.user.organizationId,
+      take ? Number(take) : 20,
+    );
+  }
+
+  @Get("trainings")
+  listTrainings(@Req() req: AuthReq) {
+    return this.rrhh.listTrainings(req.user.organizationId);
+  }
+
+  @Post("trainings")
+  createTraining(@Req() req: AuthReq, @Body() body: unknown) {
+    const dto = CreateTrainingSchema.parse(body ?? {});
+    return this.rrhh.createTraining(req.user.organizationId, dto);
   }
 }

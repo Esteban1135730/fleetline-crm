@@ -109,6 +109,23 @@ export class LogisticsGateway
     });
   }
 
+  emitReassign(
+    organizationId: string,
+    payload: {
+      tripId: string;
+      code: string;
+      fromDriverId: string | null;
+      toDriverId: string;
+      notify: Array<{
+        role: string;
+        driverId: string | null;
+        message: string;
+      }>;
+    },
+  ) {
+    this.server.to(`org:${organizationId}`).emit("trip.reassigned", payload);
+  }
+
   private async pushSnapshot(organizationId: string) {
     const [trips, gps] = await Promise.all([
       this.logistics.listTrips(organizationId),

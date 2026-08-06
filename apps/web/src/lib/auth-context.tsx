@@ -43,7 +43,7 @@ export function homePathForRole(role: Role): string {
     presidencia: "/presidencia",
     gerencia: "/gerencia",
     dashboard: "/dashboard",
-    logistica: "/logistica",
+    logistica: "/logistica/servicios",
     tesoreria: "/tesoreria",
     rrhh: "/rrhh",
     call_center: "/call-center",

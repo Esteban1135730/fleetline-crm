@@ -17,9 +17,10 @@ export class CreateTripDto {
   @MinLength(2)
   destination!: string;
 
-  /** ISO-8601 — salida programada */
+  /** ISO-8601 — salida programada (opcional: el service usa ahora si falta) */
+  @IsOptional()
   @IsDateString()
-  departAt!: string;
+  departAt?: string;
 
   @IsOptional()
   @IsString()

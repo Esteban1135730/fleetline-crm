@@ -1,5 +1,5 @@
 /**
- * FLEETLINE OS — Seed demo SSOT (datos visibles en CRM web)
+ * INRETRANS OS — Seed demo SSOT (datos visibles en CRM web)
  *
  * Cuentas (password: fsg2026):
  *  - presidencia@fsg.co  → PRESIDENCIA READ_ONLY
@@ -23,6 +23,7 @@ import {
   ContractStatus,
   CustomerSegment,
   DocStatus,
+  DriverNoveltyKind,
   EmployeeStatus,
   FleetModule,
   IncidentKind,
@@ -183,7 +184,7 @@ async function seedRoleMatrix(organizationId: string) {
 }
 
 async function main() {
-  console.log("[seed] FLEETLINE OS — demo datos CRM");
+  console.log("[seed] INRETRANS OS — demo datos CRM");
   await wipe();
 
   const org = await prisma.organization.create({
@@ -265,10 +266,10 @@ async function main() {
       document: "1002002002",
       phone: "3104445566",
       licenseNumber: "LIC-DEMO-002",
-      licenseExpiresAt: daysFromNow(400),
+      licenseExpiresAt: daysFromNow(20),
       licenseCategory: "C2",
       active: true,
-      fatigueScore: 28,
+      fatigueScore: 45,
       organizationId: org.id,
     },
   });
@@ -278,10 +279,12 @@ async function main() {
       document: "1003003003",
       phone: "3207778899",
       licenseNumber: "LIC-DEMO-003",
-      licenseExpiresAt: daysFromNow(500),
+      licenseExpiresAt: daysFromNow(-5),
       licenseCategory: "C1",
       active: true,
-      fatigueScore: 8,
+      fatigueScore: 88,
+      dispatchBlocked: true,
+      blockReason: "DRIVER_FATIGUE",
       organizationId: org.id,
     },
   });
@@ -1023,38 +1026,90 @@ async function main() {
   });
 
   // ——— RRHH ———
-  await prisma.employee.createMany({
+  await prisma.employee.create({
+    data: {
+      name: "Luis Director Logística",
+      document: "80111222",
+      title: "Director de Logística",
+      area: "Operaciones",
+      status: EmployeeStatus.ACTIVE,
+      baseSalary: 8500000,
+      hourlyRate: 45000,
+      email: "logistica@fsg.co",
+      organizationId: org.id,
+    },
+  });
+  await prisma.employee.create({
+    data: {
+      name: "Sofía Nómina",
+      document: "52999888",
+      title: "Analista RRHH",
+      area: "Talento Humano",
+      status: EmployeeStatus.ACTIVE,
+      baseSalary: 4200000,
+      hourlyRate: 28000,
+      organizationId: org.id,
+    },
+  });
+  await prisma.employee.create({
+    data: {
+      name: "Carlos Conductor Prueba",
+      document: "1001001001",
+      title: "Conductor C2",
+      area: "Flota",
+      status: EmployeeStatus.ACTIVE,
+      baseSalary: 2800000,
+      hourlyRate: 18000,
+      fatigueScore: 12,
+      driverId: driverCarlos.id,
+      organizationId: org.id,
+    },
+  });
+  await prisma.employee.create({
+    data: {
+      name: "Pedro Rutas Norte",
+      document: "1002002002",
+      title: "Conductor C2",
+      area: "Flota",
+      status: EmployeeStatus.ACTIVE,
+      baseSalary: 2600000,
+      hourlyRate: 17000,
+      fatigueScore: 45,
+      driverId: driverPedro.id,
+      organizationId: org.id,
+    },
+  });
+  await prisma.employee.create({
+    data: {
+      name: "Lucía Escolar Sur",
+      document: "1003003003",
+      title: "Conductora C1",
+      area: "Flota",
+      status: EmployeeStatus.ACTIVE,
+      baseSalary: 2500000,
+      hourlyRate: 16000,
+      fatigueScore: 88,
+      driverId: driverLucia.id,
+      organizationId: org.id,
+    },
+  });
+
+  await prisma.hqseTrainingRecord.createMany({
     data: [
       {
-        name: "Luis Director Logística",
-        document: "80111222",
-        title: "Director de Logística",
-        area: "Operaciones",
-        status: EmployeeStatus.ACTIVE,
-        baseSalary: 8500000,
-        hourlyRate: 45000,
-        email: "logistica@fsg.co",
+        driverId: driverCarlos.id,
+        topic: "PESV — Fatiga operativa",
+        completedAt: daysFromNow(-40),
+        expiresAt: daysFromNow(325),
+        provider: "FSG Academia",
         organizationId: org.id,
       },
       {
-        name: "Sofía Nómina",
-        document: "52999888",
-        title: "Analista RRHH",
-        area: "Talento Humano",
-        status: EmployeeStatus.ACTIVE,
-        baseSalary: 4200000,
-        hourlyRate: 28000,
-        organizationId: org.id,
-      },
-      {
-        name: "Carlos Conductor Prueba",
-        document: "1001001001",
-        title: "Conductor C2",
-        area: "Flota",
-        status: EmployeeStatus.ACTIVE,
-        baseSalary: 2800000,
-        hourlyRate: 18000,
-        fatigueScore: 12,
+        driverId: driverPedro.id,
+        topic: "Manejo defensivo",
+        completedAt: daysFromNow(-10),
+        expiresAt: daysFromNow(355),
+        provider: "SENA Movilidad",
         organizationId: org.id,
       },
     ],
@@ -1561,6 +1616,38 @@ async function main() {
       utterance: "¿Cuántos viajes en tránsito hay hoy?",
       generatedSql: "SELECT count(*) FROM \"Trip\" WHERE status = 'IN_TRANSIT'",
       answerText: "1 viaje en tránsito (TRP-2026-0001).",
+    },
+  });
+
+  await prisma.payrollLaborConfig.upsert({
+    where: { organizationId: org.id },
+    create: {
+      organizationId: org.id,
+      baseSalary: 1_423_500,
+      monthlyHoursDivisor: 230,
+      weeklyOrdinaryHours: 42,
+    },
+    update: {
+      baseSalary: 1_423_500,
+      monthlyHoursDivisor: 230,
+      weeklyOrdinaryHours: 42,
+    },
+  });
+
+  const vacFrom = new Date();
+  vacFrom.setDate(1);
+  vacFrom.setHours(0, 0, 0, 0);
+  const vacTo = new Date(vacFrom);
+  vacTo.setDate(5);
+  vacTo.setHours(23, 59, 59, 999);
+  await prisma.driverNovelty.create({
+    data: {
+      organizationId: org.id,
+      driverId: driverPedro.id,
+      kind: DriverNoveltyKind.VACATION_PAID,
+      dateFrom: vacFrom,
+      dateTo: vacTo,
+      notes: "Demo vacaciones — seed logística",
     },
   });
 

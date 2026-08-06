@@ -111,6 +111,29 @@ enum TripStatus {
   INCIDENT
 }
 
+enum DriverNoveltyKind {
+  ASSIGNED
+  AVAILABLE
+  INCAPACITY
+  VACATION_PAID
+  REST
+  AVAILABLE_NO_CONTRACT
+  UNJUSTIFIED_ABSENCE
+}
+
+enum TripAuditAction {
+  CREATED
+  ASSIGNED
+  STATUS_CHANGED
+  STARTED
+  COMPLETED
+  INCIDENT
+  REASSIGNED
+  NOVELTY
+  GPS_PING
+  OTHER
+}
+
 enum PlanillaStatus {
   DRAFT
   RELEASED
@@ -540,6 +563,9 @@ model Organization {
   parentNotifications ParentNotification[]
   boardingPasses     BoardingPass[]
   b2bServiceRequests B2bServiceRequest[]
+  tripAuditLogs      TripAuditLog[]
+  driverNovelties    DriverNovelty[]
+  payrollLaborConfigs PayrollLaborConfig[]
 
   @@index([nit])
 }
@@ -719,6 +745,7 @@ model Driver {
   hqseTrainings    HqseTrainingRecord[]
   pqrsTickets      Ticket[]
   schoolRoutes     SchoolRoute[]
+  novelties        DriverNovelty[]
 
   @@unique([organizationId, document])
   @@index([organizationId, active])
@@ -793,10 +820,23 @@ model Trip {
   origin         String
   destination    String
   departAt       DateTime
+  /// Fin programado del servicio
+  arriveAt       DateTime?
+  /// Inicio / fin reales (reloj servidor)
+  startedAt      DateTime?
+  completedAt    DateTime?
   status         TripStatus   @default(PENDING)
   fareAmount     Decimal      @db.Decimal(14, 2)
   distanceKm     Float?
   incidentNote   String?
+  /// Cliente / funcionario beneficiario del servicio
+  officerName    String?
+  officerDocument String?
+  suggestedPolyline String?
+  originLat      Float?
+  originLng      Float?
+  destLat        Float?
+  destLng        Float?
   customerId     String?
   customer       Customer?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
   contractId     String?
@@ -818,6 +858,9 @@ model Trip {
   invoices       Invoice[]
   boardingPasses BoardingPass[]
   b2bRequests    B2bServiceRequest[]
+  auditLogs      TripAuditLog[]
+  trackPoints    TripTrackPoint[]
+  overtimeLines  TripOvertimeLine[]
 
   @@unique([code])
   @@index([organizationId, status])
@@ -826,6 +869,110 @@ model Trip {
   @@index([driverId, status])
   @@index([customerId])
   @@index([status, departAt])
+}
+
+/// Auditoría inmutable vinculada al servicio
+model TripAuditLog {
+  id             String          @id @default(cuid())
+  organizationId String
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  tripId         String
+  trip           Trip            @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  action         TripAuditAction
+  message        String
+  meta           Json?
+  actorUserId    String?
+  serverTime     DateTime        @default(now())
+  createdAt      DateTime        @default(now())
+
+  @@index([tripId, createdAt])
+  @@index([organizationId, createdAt])
+}
+
+/// Histórico GPS por servicio (App conductor → uplink)
+model TripTrackPoint {
+  id         String   @id @default(cuid())
+  tripId     String
+  trip       Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  vehicleId  String?
+  lat        Float
+  lng        Float
+  speedKph   Float?
+  heading    Float?
+  recordedAt DateTime @default(now())
+
+  @@index([tripId, recordedAt])
+  @@index([vehicleId, recordedAt])
+}
+
+/// Novedades de disponibilidad / calendario conductor
+model DriverNovelty {
+  id             String            @id @default(cuid())
+  organizationId String
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  driverId       String
+  driver         Driver            @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  kind           DriverNoveltyKind
+  dateFrom       DateTime
+  dateTo         DateTime
+  notes          String?
+  createdById    String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@index([organizationId, driverId, dateFrom])
+  @@index([driverId, dateFrom, dateTo])
+  @@index([kind, dateFrom])
+}
+
+/// Parámetros liquidación horas extras (Excel Proyecto CRM)
+model PayrollLaborConfig {
+  id                   String       @id @default(cuid())
+  organizationId       String       @unique
+  organization         Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  baseSalary           Decimal      @db.Decimal(14, 2) @default(1423500)
+  monthlyHoursDivisor  Float        @default(230)
+  weeklyOrdinaryHours  Float        @default(42)
+  rnFactor             Float        @default(0.35)
+  hedFactor            Float        @default(1.25)
+  henFactor            Float        @default(1.75)
+  rodFestFactor        Float        @default(1.75)
+  hedfFactor           Float        @default(2.0)
+  henfFactor           Float        @default(2.5)
+  rnfFactor            Float        @default(1.1)
+  updatedAt            DateTime     @updatedAt
+  createdAt            DateTime     @default(now())
+}
+
+/// Pre-nómina de extras por servicio cerrado
+model TripOvertimeLine {
+  id             String   @id @default(cuid())
+  tripId         String
+  trip           Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  driverId       String
+  workDate       DateTime
+  ordinaryHours  Float    @default(0)
+  rnHours        Float    @default(0)
+  hedHours       Float    @default(0)
+  henHours       Float    @default(0)
+  rodFestHours   Float    @default(0)
+  hedfHours      Float    @default(0)
+  henfHours      Float    @default(0)
+  rnfHours       Float    @default(0)
+  hourlyRate     Decimal  @db.Decimal(14, 4)
+  rnAmount       Decimal  @db.Decimal(14, 2) @default(0)
+  hedAmount      Decimal  @db.Decimal(14, 2) @default(0)
+  henAmount      Decimal  @db.Decimal(14, 2) @default(0)
+  rodFestAmount  Decimal  @db.Decimal(14, 2) @default(0)
+  hedfAmount     Decimal  @db.Decimal(14, 2) @default(0)
+  henfAmount     Decimal  @db.Decimal(14, 2) @default(0)
+  rnfAmount      Decimal  @db.Decimal(14, 2) @default(0)
+  totalAmount    Decimal  @db.Decimal(14, 2) @default(0)
+  breakdown      Json?
+  createdAt      DateTime @default(now())
+
+  @@unique([tripId])
+  @@index([driverId, workDate])
 }
 
 /// Planilla operativa liberada tras Compliance Gate (preop + FUEC)

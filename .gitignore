@@ -18,3 +18,11 @@ packages/db/prisma/*.db-journal
 Nueva carpeta/
 **/Nueva carpeta/
 apps/web/tsconfig.tsbuildinfo
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+# Expo
+**/.expo/
+apps/api/Modulo_Horas_extras_Proyecto_CRM.csv

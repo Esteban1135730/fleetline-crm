@@ -3,9 +3,9 @@
  * Obsidian Telemetry (dark) · Aluminium & Quartz (light)
  */
 export const brand = {
-  name: "Fleetline",
-  shortName: "FLT",
-  tagline: "FLEETLINE OS",
+  name: "Inretrans",
+  shortName: "INR",
+  tagline: "INRETRANS OS",
   product: "CRM & Telemetry",
   engine: "TELEMETRY ENGINE V2.4",
 } as const;

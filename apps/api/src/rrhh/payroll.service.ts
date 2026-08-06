@@ -84,6 +84,61 @@ export class PayrollService {
         ordinaryDayHours: dto.ordinaryDayHours,
       });
 
+      // Pre-nómina Logística: acumula TripOvertimeLine (motor CSV horas extras)
+      if (driverId) {
+        const otAgg = await this.prisma.tripOvertimeLine.aggregate({
+          where: {
+            driverId,
+            workDate: { gte: dto.periodStart, lte: dto.periodEnd },
+            trip: { organizationId },
+          },
+          _sum: {
+            totalAmount: true,
+            hedHours: true,
+            henHours: true,
+            hedfHours: true,
+            henfHours: true,
+            rnHours: true,
+            rnfHours: true,
+            rnAmount: true,
+            rnfAmount: true,
+            ordinaryHours: true,
+          },
+        });
+        const logisticsOt = Number(otAgg._sum.totalAmount ?? 0);
+        const logisticsNight =
+          Number(otAgg._sum.rnAmount ?? 0) + Number(otAgg._sum.rnfAmount ?? 0);
+        const logisticsOtHours =
+          Number(otAgg._sum.hedHours ?? 0) +
+          Number(otAgg._sum.henHours ?? 0) +
+          Number(otAgg._sum.hedfHours ?? 0) +
+          Number(otAgg._sum.henfHours ?? 0);
+        if (logisticsOt > 0) {
+          breakdown.overtimeAmount = Math.round(
+            (breakdown.overtimeAmount + logisticsOt) * 100,
+          ) / 100;
+          breakdown.overtimeHours = Math.round(
+            (breakdown.overtimeHours + logisticsOtHours) * 100,
+          ) / 100;
+          breakdown.nightHours = Math.round(
+            (breakdown.nightHours +
+              Number(otAgg._sum.rnHours ?? 0) +
+              Number(otAgg._sum.rnfHours ?? 0)) *
+              100,
+          ) / 100;
+          breakdown.nightAmount = Math.round(
+            (breakdown.nightAmount + logisticsNight) * 100,
+          ) / 100;
+          breakdown.grossTotal = Math.round(
+            (Number(emp.baseSalary) +
+              breakdown.overtimeAmount +
+              breakdown.nightAmount +
+              breakdown.tripCommissions) *
+              100,
+          ) / 100;
+        }
+      }
+
       linesData.push(breakdown);
     }
 

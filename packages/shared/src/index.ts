@@ -9,6 +9,8 @@ export const RoleSchema = z.enum([
   "atencion",
   "sistemas",
   "revisoria",
+  "conductor",
+  "monitora",
 ]);
 export type Role = z.infer<typeof RoleSchema>;
 
@@ -21,6 +23,8 @@ export const ROLES: Role[] = [
   "atencion",
   "sistemas",
   "revisoria",
+  "conductor",
+  "monitora",
 ];
 
 export const ROLE_LABELS: Record<Role, string> = {
@@ -32,6 +36,8 @@ export const ROLE_LABELS: Record<Role, string> = {
   atencion: "Atención al cliente",
   sistemas: "Tecnología",
   revisoria: "Revisoría Fiscal",
+  conductor: "Conductor",
+  monitora: "Monitora escolar",
 };
 
 /**
@@ -100,7 +106,7 @@ export const MODULE_PATHS: Record<ModuleId, string> = {
   revisoria_fiscal: "/revisoria-fiscal",
   contabilidad: "/contabilidad",
   tesoreria: "/tesoreria",
-  logistica: "/logistica",
+  logistica: "/logistica/servicios",
   comercial: "/comercial",
   compras: "/compras",
   qhse: "/qhse",
@@ -147,7 +153,7 @@ export const MODULE_HELP: Record<ModuleId, string> = {
     "Dirección estratégica, gobierno corporativo y tablero ejecutivo de flota.",
   gerencia:
     "Coordinación general de operaciones, metas y seguimiento inter-áreas.",
-  rrhh: "Personal por área, estado laboral y fatiga operativa.",
+  rrhh: "Expedientes, fatiga PESV, nómina operativa y capacitaciones.",
   revisoria_fiscal:
     "Hallazgos de revisoría fiscal registrados y seguidos en el CRM.",
   contabilidad: "PUC, asientos de partida doble y balance de prueba.",
@@ -236,6 +242,8 @@ export const ROLE_VIEWS: Record<Role, ModuleId[]> = {
     "contabilidad",
     "tesoreria",
     "compras",
+    "archivo",
+    "rrhh",
     "apps",
     "gerencia",
   ],
@@ -261,6 +269,10 @@ export const ROLE_VIEWS: Record<Role, ModuleId[]> = {
     "archivo",
     "sarlaft",
   ],
+  /** App móvil: mis viajes, preoperacional, GPS, novedades */
+  conductor: ["logistica", "apps"],
+  /** App monitora / escolar */
+  monitora: ["apps", "logistica"],
 };
 
 /** ¿El rol puede acceder a este módulo? (misma regla UI + API) */
@@ -343,7 +355,7 @@ export const WorkOrderStatusSchema = z.enum([
 ]);
 export type WorkOrderStatus = z.infer<typeof WorkOrderStatusSchema>;
 
-/** Hard rules — umbrales operativos Fleetline OS */
+/** Hard rules — umbrales operativos Inretrans OS */
 export const HARD_RULES = {
   /** Días para semáforo amarillo / DocStatus.EXPIRING */
   DOC_EXPIRING_DAYS: 15,

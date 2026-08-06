@@ -34,7 +34,7 @@ export function AreaCockpitShell({
   const { toggleHelp } = useShell();
 
   return (
-    <div className="fade-in mx-auto max-w-[1600px] space-y-6">
+    <div className="fade-in mx-auto max-w-[1600px] space-y-6" data-testid="presidencia-cockpit">
       <PageIntro
         module={module}
         title={title || MODULE_LABELS[module]}
@@ -53,7 +53,10 @@ export function AreaCockpitShell({
         }
       />
 
-      <p className="font-data text-[11px] uppercase tracking-[0.14em] text-[var(--accent-primary)]">
+      <p
+        className="font-data text-[11px] uppercase tracking-[0.14em] text-[var(--accent-primary)]"
+        data-testid="cockpit-status"
+      >
         {statusLine}
       </p>
 

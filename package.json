@@ -14,9 +14,13 @@
     "docker:down": "docker compose -p fleetline down",
     "docker:prod:up": "docker compose -p fleetline -f docker-compose.prod.yml --env-file .env.production up -d --build",
     "docker:prod:down": "docker compose -p fleetline -f docker-compose.prod.yml --env-file .env.production down",
-    "docker:prod:logs": "docker compose -p fleetline -f docker-compose.prod.yml logs -f"
+    "docker:prod:logs": "docker compose -p fleetline -f docker-compose.prod.yml logs -f",
+    "test:visual": "playwright test --headed --reporter=html",
+    "test:visual:headless": "playwright test --reporter=html",
+    "test:visual:report": "playwright show-report"
   },
   "devDependencies": {
+    "@playwright/test": "^1.54.2",
     "turbo": "^2.5.4",
     "typescript": "^5.8.3"
   },

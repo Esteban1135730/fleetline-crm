@@ -131,7 +131,7 @@ function TopBar({
           <BrandMark className="hidden h-7 w-7 sm:block" />
           <div className="min-w-0">
             <p className="font-data text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--accent-primary)]">
-              FLEETLINE OS
+              {brand.tagline}
             </p>
             <p className="truncate font-display text-sm font-bold tracking-tight text-[var(--text-primary)]">
               {brand.name}
@@ -322,43 +322,122 @@ function SideNav({
 
         <nav className="flex-1 overflow-y-auto py-2" aria-label="Áreas corporativas">
           {departments.map((dept) => {
-            const item = dept.items[0];
-            if (!item) return null;
-            const active = pathMatches(item.href, pathname);
-            const tip = item.tip || dept.tip;
+            const multi = dept.items.length > 1;
+            const anyActive = dept.items.some((i) =>
+              pathMatches(i.href, pathname),
+            );
+            const open = openIds.includes(dept.id);
+            const primary = dept.items[0];
+            if (!primary) return null;
 
             if (sidebarCollapsed) {
               return (
-                <Tooltip key={dept.id} content={tip} side="right">
+                <Tooltip key={dept.id} content={dept.tip} side="right">
                   <Link
-                    href={item.href}
+                    href={primary.href}
                     title={dept.label}
-                    className={`flt-nav-item ${active ? "is-active" : ""}`}
+                    className={`flt-nav-item ${anyActive ? "is-active" : ""}`}
                     onClick={() => {
                       if (window.innerWidth < 1024) setSidebarCollapsed(true);
                     }}
                   >
-                    <NavIcon view={item.view} className="h-4 w-4 shrink-0" />
+                    <NavIcon view={primary.view} className="h-4 w-4 shrink-0" />
+                  </Link>
+                </Tooltip>
+              );
+            }
+
+            if (!multi) {
+              const tip = primary.tip || dept.tip;
+              return (
+                <Tooltip
+                  key={dept.id}
+                  content={tip}
+                  side="right"
+                  className="w-full"
+                >
+                  <Link
+                    href={primary.href}
+                    title={tip}
+                    className={`flt-nav-item ${anyActive ? "is-active" : ""}`}
+                    onClick={() => {
+                      if (window.innerWidth < 1024) setSidebarCollapsed(true);
+                    }}
+                  >
+                    <NavIcon
+                      view={primary.view}
+                      className="h-3.5 w-3.5 shrink-0"
+                    />
+                    <span className="truncate">{primary.label}</span>
                   </Link>
                 </Tooltip>
               );
             }
 
             return (
-              <Tooltip key={dept.id} content={tip} side="right" className="w-full">
-                <Link
-                  href={item.href}
-                  title={tip}
-                  className={`flt-nav-item ${active ? "is-active" : ""}`}
-                  onClick={() => {
-                    toggleDept(dept.id);
-                    if (window.innerWidth < 1024) setSidebarCollapsed(true);
-                  }}
+              <div key={dept.id} className="flt-dept">
+                <button
+                  type="button"
+                  className={`flt-dept-trigger ${open ? "is-open" : ""} ${
+                    anyActive ? "is-current" : ""
+                  }`}
+                  aria-expanded={open}
+                  title={dept.tip}
+                  onClick={() => toggleDept(dept.id)}
                 >
-                  <NavIcon view={item.view} className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate">{item.label}</span>
-                </Link>
-              </Tooltip>
+                  <span className="flex min-w-0 items-center gap-2">
+                    <NavIcon
+                      view={primary.view}
+                      className="h-3.5 w-3.5 shrink-0"
+                    />
+                    <span className="truncate">{dept.label}</span>
+                  </span>
+                  <svg
+                    viewBox="0 0 12 12"
+                    className={`h-3 w-3 shrink-0 opacity-70 transition-transform duration-150 ${
+                      open ? "rotate-90" : ""
+                    }`}
+                    aria-hidden
+                  >
+                    <path
+                      d="M4 2 L8 6 L4 10"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="square"
+                    />
+                  </svg>
+                </button>
+                {open ? (
+                  <div className="flt-dept-items" role="group" aria-label={dept.label}>
+                    {dept.items.map((item) => {
+                      const active = pathMatches(item.href, pathname);
+                      return (
+                        <Tooltip
+                          key={item.href}
+                          content={item.tip}
+                          side="right"
+                          className="w-full"
+                        >
+                          <Link
+                            href={item.href}
+                            title={item.tip}
+                            className={`flt-nav-item flt-nav-item--nested ${
+                              active ? "is-active" : ""
+                            }`}
+                            onClick={() => {
+                              if (window.innerWidth < 1024)
+                                setSidebarCollapsed(true);
+                            }}
+                          >
+                            <span className="truncate">{item.label}</span>
+                          </Link>
+                        </Tooltip>
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </div>
             );
           })}
         </nav>

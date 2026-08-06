@@ -39,7 +39,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     return {
       userId: user.id,
       email: user.email,
-      role: user.role,
+      // ROLE_VIEWS / canAccessModule esperan clave en minúsculas (despacho, no DESPACHO)
+      role: String(user.role).toLowerCase(),
       organizationId: user.organizationId,
       directiveReadOnly: user.directiveReadOnly,
     };

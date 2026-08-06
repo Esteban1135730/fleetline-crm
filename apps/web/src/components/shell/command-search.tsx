@@ -78,6 +78,7 @@ export function CommandSearch({ items }: { items: NavItem[] }) {
           <NavIcon view="search" className="h-4 w-4 text-[var(--text-secondary)]" />
           <input
             ref={inputRef}
+            data-testid="command-search-input"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {

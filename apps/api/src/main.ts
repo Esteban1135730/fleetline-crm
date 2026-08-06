@@ -17,14 +17,26 @@ async function bootstrap() {
 
   const origins = (
     process.env.CORS_ORIGINS ||
-    "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001,http://localhost:8081,http://localhost:19006"
+    "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001,http://localhost:8081,http://127.0.0.1:8081,http://localhost:19006,http://127.0.0.1:19006"
   )
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
 
   app.enableCors({
-    origin: origins,
+    // Expo Go / celular físico envían Origin variable; permitir LAN + lista fija
+    origin: (
+      origin: string | undefined,
+      callback: (err: Error | null, allow?: boolean) => void,
+    ) => {
+      if (!origin) return callback(null, true);
+      if (origins.includes(origin)) return callback(null, true);
+      if (/^exp:\/\//i.test(origin)) return callback(null, true);
+      if (/^http:\/\/192\.168\.\d+\.\d+(:\d+)?$/i.test(origin)) {
+        return callback(null, true);
+      }
+      return callback(null, origins.length === 0);
+    },
     credentials: true,
   });
 

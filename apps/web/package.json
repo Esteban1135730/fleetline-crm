@@ -6,7 +6,9 @@
     "dev": "next dev --port 3000",
     "build": "next build",
     "start": "next start",
-    "lint": "echo ok"
+    "lint": "echo ok",
+    "test:visual": "pnpm --dir ../.. test:visual",
+    "test:visual:report": "pnpm --dir ../.. test:visual:report"
   },
   "dependencies": {
     "@fsg/shared": "workspace:*",

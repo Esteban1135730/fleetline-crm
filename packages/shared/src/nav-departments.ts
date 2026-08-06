@@ -73,12 +73,25 @@ export const NAV_DEPARTMENTS: NavDepartment[] = [
     "Tesorería",
     "Facturas por cobrar y por pagar; control de CxC / CxP.",
   ),
-  AREA(
-    "logistica",
-    "/logistica",
-    "Logística",
-    "Viajes, despacho, novedades y GPS en vivo.",
-  ),
+  {
+    id: "logistica",
+    label: "Logística",
+    tip: "Programación de servicios, tracking GPS, conductores y nómina de extras.",
+    items: [
+      {
+        href: "/logistica/servicios",
+        view: "logistica",
+        label: "Programación de Servicios y Tracking GPS",
+        tip: "Crear servicios, asignar unidad/conductor y trazar ruta GPS en vivo.",
+      },
+      {
+        href: "/logistica/conductores",
+        view: "logistica",
+        label: "Gestión de Conductores y Nómina de Extras",
+        tip: "Calendario de disponibilidad, relevos PESV y liquidación de extras.",
+      },
+    ],
+  },
   AREA(
     "comercial",
     "/comercial",
@@ -152,6 +165,8 @@ export const ROLE_DEFAULT_NAV_DEPT: Record<Role, NavDeptId> = {
   atencion: "call_center",
   sistemas: "tecnologia_ti",
   revisoria: "revisoria_fiscal",
+  conductor: "logistica",
+  monitora: "logistica",
 };
 
 const PATH_ALIASES: Record<string, NavDeptId> = {
@@ -171,10 +186,16 @@ export function navDeptForPath(pathname: string): NavDeptId | null {
   const seg = pathname.split("/").filter(Boolean)[0] || "";
   if (PATH_ALIASES[seg]) return PATH_ALIASES[seg];
   for (const dept of NAV_DEPARTMENTS) {
+    if (dept.id === seg) return dept.id;
     if (
       dept.items.some((i) => {
         const base = i.href.split("#")[0];
-        return base === `/${seg}`;
+        return (
+          base === `/${seg}` ||
+          base.startsWith(`/${seg}/`) ||
+          pathname === base ||
+          pathname.startsWith(`${base}/`)
+        );
       })
     ) {
       return dept.id;

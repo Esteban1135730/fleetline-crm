@@ -113,10 +113,12 @@ export default function ArchivoPage() {
 
       <form
         onSubmit={onCreate}
+        data-testid="archivo-upload-form"
         className="fsg-panel grid grid-cols-1 gap-3 p-4 md:grid-cols-2"
       >
         <input
           className="field"
+          data-testid="archivo-title"
           placeholder="Título"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
@@ -124,6 +126,7 @@ export default function ArchivoPage() {
         />
         <select
           className="field"
+          data-testid="archivo-category"
           value={category}
           onChange={(e) => setCategory(e.target.value)}
         >
@@ -136,25 +139,39 @@ export default function ArchivoPage() {
         </select>
         <input
           className="field"
+          data-testid="archivo-file"
           type="file"
           onChange={(e) => setFile(e.target.files?.[0] || null)}
         />
         <input
           className="field"
+          data-testid="archivo-tags"
           placeholder="Tags"
           value={tags}
           onChange={(e) => setTags(e.target.value)}
         />
-        <Button type="submit" variant="primary" className="md:col-span-2">
+        <Button
+          type="submit"
+          variant="primary"
+          className="md:col-span-2"
+          data-testid="archivo-submit"
+        >
           {file ? "Sellar e indexar" : "Indexar sin archivo"}
         </Button>
         {statusMsg ? (
-          <p className="font-data text-xs text-[var(--brand-primary)] md:col-span-2">
+          <p
+            className="font-data text-xs text-[var(--brand-primary)] md:col-span-2"
+            data-testid="archivo-status"
+          >
             {statusMsg}
           </p>
         ) : null}
         {error ? (
-          <p className="text-sm text-[var(--brand-signal)] md:col-span-2">
+          <p
+            role="alert"
+            data-testid="archivo-error"
+            className="text-sm text-[var(--brand-signal)] md:col-span-2"
+          >
             {error}
           </p>
         ) : null}

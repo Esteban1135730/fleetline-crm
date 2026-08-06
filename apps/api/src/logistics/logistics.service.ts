@@ -124,9 +124,33 @@ export class LogisticsService {
   }
 
   async myTrips(organizationId: string, userId: string) {
-    const driver = await this.prisma.driver.findFirst({
+    let driver = await this.prisma.driver.findFirst({
       where: { organizationId, userId, active: true },
     });
+
+    // Auto-vínculo: usuario CONDUCTOR sin Driver.userId → enlazar por nombre exacto
+    if (!driver) {
+      const user = await this.prisma.user.findFirst({
+        where: { id: userId, organizationId, active: true },
+      });
+      if (user && String(user.role).toUpperCase() === "CONDUCTOR") {
+        const byName = await this.prisma.driver.findFirst({
+          where: {
+            organizationId,
+            active: true,
+            userId: null,
+            name: user.name,
+          },
+        });
+        if (byName) {
+          driver = await this.prisma.driver.update({
+            where: { id: byName.id },
+            data: { userId: user.id },
+          });
+        }
+      }
+    }
+
     if (!driver) {
       return { driver: null, trips: [] };
     }
@@ -194,6 +218,26 @@ export class LogisticsService {
       },
     });
 
+    // Histórico por servicio EN RUTA
+    const activeTrip = await this.prisma.trip.findFirst({
+      where: {
+        organizationId,
+        vehicleId,
+        status: TripStatus.IN_TRANSIT,
+      },
+      orderBy: { startedAt: "desc" },
+    });
+    if (activeTrip) {
+      await this.prisma.tripTrackPoint.create({
+        data: {
+          tripId: activeTrip.id,
+          vehicleId,
+          lat: data.lat,
+          lng: data.lng,
+        },
+      });
+    }
+
     return this.prisma.vehicle.update({
       where: { id: vehicleId },
       data: {
@@ -223,7 +267,14 @@ export class LogisticsService {
   async createTrip(organizationId: string, data: CreateTripDto) {
     let customerId = data.customerId || undefined;
     let fareAmount = data.fareAmount;
-    const departAt = new Date(data.departAt || data.scheduledAt || new Date());
+    const departAt = new Date(
+      data.departAt || data.scheduledAt || Date.now(),
+    );
+    if (Number.isNaN(departAt.getTime())) {
+      throw new BadRequestException(
+        "departAt debe ser una fecha ISO 8601 válida",
+      );
+    }
 
     if (data.contractId) {
       const contract = await this.commercialContracts.assertAssignableForDispatch(

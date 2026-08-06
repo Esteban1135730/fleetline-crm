@@ -1,27 +1,73 @@
 import { Platform } from "react-native";
+import Constants from "expo-constants";
 import * as SecureStore from "expo-secure-store";
 
 const TOKEN_KEY = "fsg_access_token";
 
-function resolveApiUrl(): string {
+/** Caché en memoria: SecureStore a veces falla o tarda en Expo Go. */
+let memoryToken: string | null = null;
+
+/** Host LAN del Metro (ej. 192.168.1.10:8081) — sirve para celular físico. */
+function lanHostFromExpo(): string | null {
+  const hostUri =
+    Constants.expoConfig?.hostUri ??
+    (Constants as { manifest2?: { extra?: { expoClient?: { hostUri?: string } } } })
+      .manifest2?.extra?.expoClient?.hostUri ??
+    (
+      Constants as { manifest?: { debuggerHost?: string; hostUri?: string } }
+    ).manifest?.debuggerHost ??
+    (
+      Constants as { manifest?: { hostUri?: string } }
+    ).manifest?.hostUri ??
+    Constants.linkingUri?.replace(/^[a-z]+:\/\//i, "") ??
+    null;
+  if (!hostUri) return null;
+  const host = String(hostUri).split("/")[0]?.split(":")[0];
+  if (!host || host === "localhost" || host === "127.0.0.1") return null;
+  return host;
+}
+
+/** Resolver en cada request: hostUri de Expo no siempre está listo al importar el módulo. */
+export function getApiUrl(): string {
   const fromEnv = process.env.EXPO_PUBLIC_API_URL;
   if (fromEnv) return fromEnv.replace(/\/$/, "");
+
+  const lan = lanHostFromExpo();
+  if (lan) return `http://${lan}:4000`;
+
   if (Platform.OS === "android") return "http://10.0.2.2:4000";
   return "http://localhost:4000";
 }
 
-export const API_URL = resolveApiUrl();
+/** @deprecated usar getApiUrl() */
+export const API_URL = getApiUrl();
 
 export async function getToken(): Promise<string | null> {
-  return SecureStore.getItemAsync(TOKEN_KEY);
+  if (memoryToken) return memoryToken;
+  try {
+    memoryToken = await SecureStore.getItemAsync(TOKEN_KEY);
+  } catch {
+    memoryToken = null;
+  }
+  return memoryToken;
 }
 
 export async function setToken(token: string): Promise<void> {
-  await SecureStore.setItemAsync(TOKEN_KEY, token);
+  memoryToken = token;
+  try {
+    await SecureStore.setItemAsync(TOKEN_KEY, token);
+  } catch {
+    /* memoria basta para la sesión actual */
+  }
 }
 
 export async function clearToken(): Promise<void> {
-  await SecureStore.deleteItemAsync(TOKEN_KEY);
+  memoryToken = null;
+  try {
+    await SecureStore.deleteItemAsync(TOKEN_KEY);
+  } catch {
+    /* ignore */
+  }
 }
 
 export type AuthUser = {
@@ -72,7 +118,15 @@ async function apiRequest<T>(
   };
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const res = await fetch(`${API_URL}${path}`, { ...options, headers });
+  let res: Response;
+  const base = getApiUrl();
+  try {
+    res = await fetch(`${base}${path}`, { ...options, headers });
+  } catch {
+    throw new Error(
+      `Sin uplink a la API (${base}). Arranca pnpm --filter @fsg/api dev y usa la misma Wi‑Fi.`,
+    );
+  }
   if (!res.ok) {
     let message = `Error ${res.status}`;
     try {
@@ -102,12 +156,30 @@ export async function login(
       body: JSON.stringify({ email, password }),
     },
   );
+  if (!data?.accessToken) {
+    throw new Error("Uplink de autenticación incompleto — sin token");
+  }
   await setToken(data.accessToken);
   return data;
 }
 
-export function fetchMyTrips() {
-  return apiRequest<MyTripsResponse>("/logistics/my-trips");
+export async function fetchMyTrips(): Promise<MyTripsResponse> {
+  const raw = await apiRequest<MyTripsResponse & { trips?: Trip[] }>(
+    "/logistics/my-trips",
+  );
+  const trips = (raw.trips ?? []).map((t) => {
+    const pre = (
+      t as Trip & {
+        preoperational?: { signedAt?: string } | null;
+      }
+    ).preoperational;
+    return {
+      ...t,
+      preoperationalAt: t.preoperationalAt ?? pre?.signedAt ?? null,
+      vehicleId: t.vehicleId ?? t.vehicle?.id ?? null,
+    };
+  });
+  return { driver: raw.driver ?? null, trips };
 }
 
 export function updateTripStatus(

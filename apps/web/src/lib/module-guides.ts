@@ -11,7 +11,7 @@ export type ModuleGuide = {
 
 const FALLBACK: ModuleGuide = {
   title: "Guía del área",
-  summary: "Tres pasos para operar sin fricción en Fleetline OS.",
+  summary: "Tres pasos para operar sin fricción en Inretrans OS.",
   steps: [
     "Use el menú de áreas corporativas a la izquierda para cambiar de módulo.",
     "Busque placa, conductor o cliente con Cmd/Ctrl+K.",
@@ -77,12 +77,13 @@ export const MODULE_GUIDES: Partial<Record<ModuleId | "cuenta", ModuleGuide>> =
       ],
     },
     logistica: {
-      title: "Cómo crear y controlar un viaje",
-      summary: "Despacho, preoperacional, ruta en vivo y cierre.",
+      title: "Cómo operar Logística",
+      summary:
+        "Submenú: Programación de Servicios / Gestión de Conductores y Nómina de Extras.",
       steps: [
-        "Asigne unidad y conductor aptos; el conductor firma el preoperacional en la app.",
-        "Sin preoperacional aprobado no hay IN_TRANSIT ni GPS. Revise la ficha en el inspector.",
-        "Marque «En vía», «Cerrar» o «Novedad»; filtre Todos / En ruta / Alertas.",
+        "Programación: cree el servicio con placa, conductor, horario y puntos origen/destino.",
+        "Pendiente = ruta sugerida; En proceso = GPS en vivo con TripAuditLog del servidor.",
+        "Conductores: novedades con relevos PESV; al cerrar servicio se liquidan extras CO.",
       ],
     },
     comercial: {

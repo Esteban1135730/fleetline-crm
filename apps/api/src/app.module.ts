@@ -6,6 +6,7 @@ import { DashboardModule } from "./dashboard/dashboard.module";
 import { CustomersModule } from "./customers/customers.module";
 import { ComercialModule } from "./comercial/comercial.module";
 import { LogisticsModule } from "./logistics/logistics.module";
+import { LogisticaModule } from "./logistica/logistica.module";
 import { TramitesModule } from "./tramites/tramites.module";
 import { ComprasModule } from "./compras/compras.module";
 import { TesoreriaModule } from "./tesoreria/tesoreria.module";
@@ -41,6 +42,7 @@ import { PrismaModule } from "./prisma/prisma.module";
     CustomersModule,
     ComercialModule,
     LogisticsModule,
+    LogisticaModule,
     TramitesModule,
     ComprasModule,
     TesoreriaModule,

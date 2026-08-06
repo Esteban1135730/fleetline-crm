@@ -25,10 +25,23 @@ export class ModulesService {
     return createHash("sha256").update(buf).digest("hex");
   }
 
-  // —— RRHH ——
+  // —— RRHH (legacy Modules — preferir apps/api/src/rrhh) ——
   listEmployees(organizationId: string) {
     return this.prisma.employee.findMany({
       where: { organizationId },
+      include: {
+        driver: {
+          select: {
+            id: true,
+            licenseNumber: true,
+            licenseCategory: true,
+            licenseExpiresAt: true,
+            fatigueScore: true,
+            dispatchBlocked: true,
+            blockReason: true,
+          },
+        },
+      },
       orderBy: { name: "asc" },
     });
   }
@@ -38,7 +51,8 @@ export class ModulesService {
     data: {
       name: string;
       document: string;
-      position: string;
+      position?: string;
+      title?: string;
       area: string;
       phone?: string;
       email?: string;
@@ -46,7 +60,17 @@ export class ModulesService {
     },
   ) {
     return this.prisma.employee.create({
-      data: { organizationId, ...data, status: EmployeeStatus.ACTIVE },
+      data: {
+        organizationId,
+        name: data.name,
+        document: data.document,
+        title: data.title || data.position || "Sin cargo",
+        area: data.area,
+        phone: data.phone,
+        email: data.email,
+        fatigueScore: data.fatigueScore,
+        status: EmployeeStatus.ACTIVE,
+      },
     });
   }
 
@@ -71,6 +95,7 @@ export class ModulesService {
     data: {
       name?: string;
       position?: string;
+      title?: string;
       area?: string;
       phone?: string;
       email?: string;
@@ -86,7 +111,7 @@ export class ModulesService {
       where: { id },
       data: {
         name: data.name,
-        position: data.position,
+        title: data.title ?? data.position,
         area: data.area,
         phone: data.phone,
         email: data.email,
@@ -94,6 +119,17 @@ export class ModulesService {
         status: data.status
           ? (data.status.toUpperCase() as EmployeeStatus)
           : undefined,
+      },
+      include: {
+        driver: {
+          select: {
+            id: true,
+            licenseExpiresAt: true,
+            licenseCategory: true,
+            fatigueScore: true,
+            dispatchBlocked: true,
+          },
+        },
       },
     });
   }

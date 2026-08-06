@@ -22,6 +22,7 @@ import { KafkaEventsService } from "./kafka-events.service";
   ],
   exports: [
     LogisticsService,
+    LogisticsGateway,
     ComplianceService,
     ComplianceGateService,
     KafkaEventsService,

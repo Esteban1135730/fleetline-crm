@@ -1,0 +1,40 @@
+PARAMETRO,VALOR,NOTA
+Salario base,1423500,Celda C53
+Hora salario base,=C53/30/7.66666666666666,≈ 6189.13 = base/230
+Divisor mensual horas,230,30 * 7.666...
+Jornada semanal ley,42,horas
+RN,0.35,Recargo nocturno 21:00-06:00
+HED,1.25,Hora extra diurna
+HEN,1.75,Hora extra nocturna
+ROD FEST,1.75,Recargo dominical/festivo ordinario
+HEDF,2.0,Hora extra diurna festiva
+HENF,2.5,Hora extra nocturna festiva
+RNF,1.1,Recargo nocturno dominical/festivo
+
+COLUMNAS_LIQUIDACION,DESCRIPCION
+B,MES
+C,DIAS
+D,FECHA
+E,HORARIO
+G,HORAS LABORADO
+H,JORNADA NORMAL
+I,DIFERENCIA
+J,RN
+K,Vlr
+L,HED
+M,Vlr
+N,HEN
+O,Vlr
+P,ROD FEST
+Q,Vlr
+R,HEDF
+S,Vlr
+T,HENF
+U,Vlr
+V,RNF
+W,Vlr
+Y,TL H. DIA
+Z,VALOR H DIA
+
+EJEMPLO_SERVICIO_HEADERS
+PLACA,CONDUCTOR,CEDULA,CONTRATO,HORA INICIO,HORA FINAL,ORIGEN,DESTINO,NOMBRE FUNCIONARIO,CEDULA

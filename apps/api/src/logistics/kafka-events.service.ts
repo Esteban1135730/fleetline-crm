@@ -143,6 +143,21 @@ export class KafkaEventsService {
     return this.emit("trip.completed", payload);
   }
 
+  emitTripReassigned(payload: {
+    organizationId: string;
+    tripId: string;
+    code: string;
+    fromDriverId: string | null;
+    toDriverId: string;
+    notify: Array<{
+      role: string;
+      driverId: string | null;
+      message: string;
+    }>;
+  }) {
+    return this.emit("trip.reassigned", payload);
+  }
+
   emitCommercialRevenueGenerated(payload: {
     organizationId: string;
     tripId: string;
