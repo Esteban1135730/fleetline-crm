@@ -233,7 +233,9 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-/** Geometría simple Bogotá para ruta sugerida (PENDING). */
+/** Geometría simple Bogotá para ruta sugerida (fallback si OSRM no responde).
+ * @deprecated Preferir fetchDrivingRoute en routing/osrm.route.ts
+ */
 export function suggestedRoutePolyline(
   originLat: number,
   originLng: number,

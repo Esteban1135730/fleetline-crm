@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   Post,
+  Query,
   Req,
   UseGuards,
 } from "@nestjs/common";
@@ -14,10 +15,23 @@ import {
   CreateServicioSchema,
   ReassignServicioSchema,
 } from "../dto/logistica.dto";
+import { z } from "zod";
 
 type AuthReq = {
   user: { organizationId: string; userId: string };
 };
+
+const PreviewRutaSchema = z.object({
+  originLat: z.coerce.number(),
+  originLng: z.coerce.number(),
+  destLat: z.coerce.number(),
+  destLng: z.coerce.number(),
+});
+
+const ReverseSchema = z.object({
+  lat: z.coerce.number(),
+  lng: z.coerce.number(),
+});
 
 /**
  * Submenú 1 — Programación de Servicios y Tracking GPS
@@ -32,6 +46,26 @@ export class ServiciosController {
   @Get()
   list(@Req() req: AuthReq) {
     return this.ops.listServicios(req.user.organizationId);
+  }
+
+  /** Búsqueda de lugares (tipo Uber) — Nominatim CO */
+  @Get("geocode")
+  geocode(@Query("q") q?: string) {
+    return this.ops.searchPlaces(q ?? "");
+  }
+
+  /** Click en mapa → dirección legible */
+  @Post("reverse-geocode")
+  reverse(@Body() body: unknown) {
+    const dto = ReverseSchema.parse(body ?? {});
+    return this.ops.reversePlace(dto.lat, dto.lng);
+  }
+
+  /** Vista previa de ruta antes de confirmar el servicio */
+  @Post("preview-ruta")
+  preview(@Body() body: unknown) {
+    const dto = PreviewRutaSchema.parse(body ?? {});
+    return this.ops.previewRuta(dto);
   }
 
   @Post()

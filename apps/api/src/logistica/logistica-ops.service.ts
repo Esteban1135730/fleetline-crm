@@ -17,8 +17,14 @@ import { PrismaService } from "../prisma/prisma.service";
 import {
   calculateServiceOvertime,
   DEFAULT_OVERTIME_FACTORS,
-  suggestedRoutePolyline,
 } from "./overtime/overtime-engine";
+import {
+  fetchDrivingRoute,
+  resolveServiceEndpoints,
+  reverseGeocodeColombia,
+  searchPlacesColombia,
+  straightRouteFallback,
+} from "./routing/osrm.route";
 import type {
   CreateServicioDto,
   DriverNoveltyDto,
@@ -56,6 +62,43 @@ export class LogisticaOpsService {
       iso: now.toISOString(),
       epochMs: now.getTime(),
       timezone: "America/Bogota",
+    };
+  }
+
+  searchPlaces(query: string) {
+    return searchPlacesColombia(query);
+  }
+
+  async reversePlace(lat: number, lng: number) {
+    const hit = await reverseGeocodeColombia(lat, lng);
+    return (
+      hit ?? {
+        lat,
+        lng,
+        label: `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+      }
+    );
+  }
+
+  async previewRuta(input: {
+    originLat: number;
+    originLng: number;
+    destLat: number;
+    destLng: number;
+  }) {
+    const origin = { lat: input.originLat, lng: input.originLng };
+    const dest = { lat: input.destLat, lng: input.destLng };
+    const route = await fetchDrivingRoute(origin, dest);
+    return {
+      origin,
+      dest,
+      points: route.points.length
+        ? route.points
+        : straightRouteFallback(origin, dest),
+      distanceM: route.distanceM,
+      durationS: route.durationS,
+      distanceKm: Math.round((route.distanceM / 1000) * 100) / 100,
+      durationMin: Math.round(route.durationS / 60),
     };
   }
 
@@ -167,16 +210,18 @@ export class LogisticaOpsService {
       }
     }
 
-    const originLat = dto.originLat ?? 4.711;
-    const originLng = dto.originLng ?? -74.072;
-    const destLat = dto.destLat ?? 4.65;
-    const destLng = dto.destLng ?? -74.1;
-    const poly = suggestedRoutePolyline(
-      originLat,
-      originLng,
-      destLat,
-      destLng,
-    );
+    const { origin, dest } = await resolveServiceEndpoints({
+      origin: dto.origin,
+      destination: dto.destination,
+      originLat: dto.originLat,
+      originLng: dto.originLng,
+      destLat: dto.destLat,
+      destLng: dto.destLng,
+    });
+    const route = await fetchDrivingRoute(origin, dest);
+    const poly = route.points.length
+      ? route.points
+      : straightRouteFallback(origin, dest);
 
     const count = await this.prisma.trip.count({ where: { organizationId } });
     const assigned = Boolean(dto.driverId && dto.vehicleId);
@@ -190,10 +235,10 @@ export class LogisticaOpsService {
         arriveAt: dto.arriveAt ?? null,
         officerName: dto.officerName ?? null,
         officerDocument: dto.officerDocument ?? null,
-        originLat,
-        originLng,
-        destLat,
-        destLng,
+        originLat: origin.lat,
+        originLng: origin.lng,
+        destLat: dest.lat,
+        destLng: dest.lng,
         suggestedPolyline: JSON.stringify(poly),
         customerId,
         contractId: dto.contractId,
@@ -213,7 +258,13 @@ export class LogisticaOpsService {
     await this.appendAudit(organizationId, trip.id, TripAuditAction.CREATED, {
       message: `Servicio ${trip.code} creado`,
       actorUserId,
-      meta: { status: trip.status },
+      meta: {
+        status: trip.status,
+        routePoints: poly.length,
+        distanceM: route.distanceM,
+        durationS: route.durationS,
+        routing: route.distanceM > 0 ? "OSRM" : "FALLBACK",
+      },
     });
     if (assigned) {
       await this.appendAudit(
@@ -288,13 +339,27 @@ export class LogisticaOpsService {
     } catch {
       suggested = [];
     }
-    if (!suggested.length && trip.originLat != null && trip.destLat != null) {
-      suggested = suggestedRoutePolyline(
-        trip.originLat,
-        trip.originLng ?? -74.072,
-        trip.destLat,
-        trip.destLng ?? -74.1,
-      );
+    if (
+      suggested.length <= 3 &&
+      trip.originLat != null &&
+      trip.destLat != null
+    ) {
+      const origin = {
+        lat: trip.originLat,
+        lng: trip.originLng ?? -74.072,
+      };
+      const dest = {
+        lat: trip.destLat,
+        lng: trip.destLng ?? -74.1,
+      };
+      const route = await fetchDrivingRoute(origin, dest);
+      suggested = route.points;
+      if (suggested.length >= 2) {
+        await this.prisma.trip.update({
+          where: { id: trip.id },
+          data: { suggestedPolyline: JSON.stringify(suggested) },
+        });
+      }
     }
 
     const live =
@@ -699,7 +764,9 @@ export class LogisticaOpsService {
       });
     }
 
-    let reassigned = null;
+    let reassigned: Awaited<
+      ReturnType<LogisticaOpsService["reassignServicio"]>
+    > | null = null;
     if (dto.reassignTripId && dto.substituteDriverId) {
       reassigned = await this.reassignServicio(
         organizationId,

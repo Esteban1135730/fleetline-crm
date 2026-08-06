@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { Button } from "@fsg/ui";
 import { api } from "@/lib/api";
 import { HowToBox, PageIntro } from "@/components/page-intro";
@@ -12,6 +13,22 @@ import {
   type Tracking,
   type Vehicle,
 } from "@/components/logistica/logistica-shared";
+import type { PlacePin } from "@/components/logistica/servicio-map-planner";
+
+const ServicioMapPlanner = dynamic(
+  () =>
+    import("@/components/logistica/servicio-map-planner").then(
+      (m) => m.ServicioMapPlanner,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="fsg-panel flex h-[420px] items-center justify-center text-sm text-[var(--brand-muted)]">
+        Cargando planificador de ruta…
+      </div>
+    ),
+  },
+);
 
 export default function LogisticaServiciosPage() {
   const [servicios, setServicios] = useState<Servicio[]>([]);
@@ -22,9 +39,9 @@ export default function LogisticaServiciosPage() {
   const [clock, setClock] = useState<string>("—");
   const [error, setError] = useState("");
   const [statusMsg, setStatusMsg] = useState("");
+  const [originPin, setOriginPin] = useState<PlacePin | null>(null);
+  const [destPin, setDestPin] = useState<PlacePin | null>(null);
   const [form, setForm] = useState({
-    origin: "",
-    destination: "",
     departAt: "",
     arriveAt: "",
     driverId: "",
@@ -92,12 +109,20 @@ export default function LogisticaServiciosPage() {
   async function onCreateServicio(e: FormEvent) {
     e.preventDefault();
     setError("");
+    if (!originPin || !destPin) {
+      setError("Selecciona origen (A) y destino (B) en el mapa antes de confirmar");
+      return;
+    }
     try {
       const created = await api<Servicio>("/logistica/servicios", {
         method: "POST",
         body: JSON.stringify({
-          origin: form.origin,
-          destination: form.destination,
+          origin: originPin.label,
+          destination: destPin.label,
+          originLat: originPin.lat,
+          originLng: originPin.lng,
+          destLat: destPin.lat,
+          destLng: destPin.lng,
           departAt: new Date(form.departAt).toISOString(),
           arriveAt: form.arriveAt
             ? new Date(form.arriveAt).toISOString()
@@ -108,10 +133,10 @@ export default function LogisticaServiciosPage() {
           officerDocument: form.officerDocument || undefined,
         }),
       });
-      setStatusMsg(`Servicio ${created.code} indexado`);
+      setStatusMsg(`Servicio ${created.code} indexado · ruta confirmada`);
+      setOriginPin(null);
+      setDestPin(null);
       setForm({
-        origin: "",
-        destination: "",
         departAt: "",
         arriveAt: "",
         driverId: "",
@@ -146,6 +171,8 @@ export default function LogisticaServiciosPage() {
     await loadServicios();
   }
 
+  const canConfirm = Boolean(originPin && destPin && form.departAt);
+
   return (
     <div className="fade-in mx-auto max-w-[1600px] space-y-6">
       <PageIntro
@@ -155,10 +182,9 @@ export default function LogisticaServiciosPage() {
       />
       <HowToBox
         steps={[
-          "Registra origen/destino, conductor, placa y horario programado.",
-          "Pendiente = ruta óptima sugerida; En proceso = traza GPS en vivo + histórico.",
-          "El reloj del servidor sella cada acción en TripAuditLog inmutable.",
-          "Al cerrar el servicio se liquidan HED/HEN/RN según tabla laboral CO.",
+          "Elige origen (A) y destino (B) en el mapa o búscalos — como en Uber.",
+          "Revisa la ruta estimada (km / min) y completa despacho antes de confirmar.",
+          "Pendiente = ruta vial; En proceso = GPS en vivo. El reloj del servidor sella auditoría.",
         ]}
       />
 
@@ -174,37 +200,32 @@ export default function LogisticaServiciosPage() {
       ) : null}
 
       <section className="space-y-4" data-testid="panel-servicios">
+        <ServicioMapPlanner
+          origin={originPin}
+          dest={destPin}
+          onOriginChange={setOriginPin}
+          onDestChange={setDestPin}
+        />
+
         <form
           onSubmit={onCreateServicio}
           className="fsg-panel grid grid-cols-1 gap-3 p-4 md:grid-cols-4"
           data-testid="servicio-form"
         >
           <input
-            className="field"
-            placeholder="Origen"
-            value={form.origin}
-            onChange={(e) => setForm({ ...form, origin: e.target.value })}
-            required
-          />
-          <input
-            className="field"
-            placeholder="Destino"
-            value={form.destination}
-            onChange={(e) => setForm({ ...form, destination: e.target.value })}
-            required
-          />
-          <input
             className="field font-data"
             type="datetime-local"
             value={form.departAt}
             onChange={(e) => setForm({ ...form, departAt: e.target.value })}
             required
+            aria-label="Salida"
           />
           <input
             className="field font-data"
             type="datetime-local"
             value={form.arriveAt}
             onChange={(e) => setForm({ ...form, arriveAt: e.target.value })}
+            aria-label="Llegada estimada"
           />
           <select
             className="field"
@@ -247,8 +268,13 @@ export default function LogisticaServiciosPage() {
               setForm({ ...form, officerDocument: e.target.value })
             }
           />
-          <Button type="submit" variant="primary" className="md:col-span-4">
-            Crear servicio
+          <Button
+            type="submit"
+            variant="primary"
+            className="md:col-span-4"
+            disabled={!canConfirm}
+          >
+            Confirmar servicio
           </Button>
         </form>
 
