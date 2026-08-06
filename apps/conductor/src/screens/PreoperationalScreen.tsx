@@ -12,8 +12,9 @@ import {
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../App";
 import {
+  getCurrentGps,
+  iniciarServicio,
   submitPreoperational,
-  updateTripStatus,
   type PreoperationalPayload,
 } from "../api";
 
@@ -97,7 +98,15 @@ export default function PreoperationalScreen({ navigation, route }: Props) {
     }
     setBusy(true);
     try {
-      await updateTripStatus(trip.id, "IN_TRANSIT");
+      const gps = await getCurrentGps();
+      const res = await iniciarServicio(trip.id, gps);
+      if (res.status === "PENDIENTE_APROBACION_SUPERVISOR") {
+        Alert.alert(
+          "Pendiente supervisor",
+          res.gate?.violations?.map((v) => v.detail).join("\n") ||
+            "Fuera de tolerancia — esperando aprobación",
+        );
+      }
       navigation.navigate("Trips");
     } catch (err) {
       Alert.alert(

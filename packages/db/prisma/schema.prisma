@@ -63,6 +63,9 @@ enum RoleCode {
   REVISORIA
   CONDUCTOR
   MONITORA
+  SUPERVISOR
+  PADRE
+  PASAJERO
   // Alias legado UI
   COMERCIAL
   TALLER
@@ -106,6 +109,8 @@ enum TripStatus {
   AWAITING_PREOP
   AWAITING_FUEC
   IN_TRANSIT
+  /// Inicio/fin fuera de geofence u horario — espera ACEPTAR/CANCELAR del supervisor
+  PENDING_SUPERVISOR_APPROVAL
   COMPLETED
   CANCELLED
   INCIDENT
@@ -131,6 +136,31 @@ enum TripAuditAction {
   REASSIGNED
   NOVELTY
   GPS_PING
+  DEVIATION_REQUESTED
+  DEVIATION_APPROVED
+  DEVIATION_REJECTED
+  CHAT
+  OTHER
+}
+
+enum TripDeviationAction {
+  START
+  END
+}
+
+enum TripDeviationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum TripIncidentCategory {
+  TRAFFIC
+  MECHANICAL
+  WEATHER
+  ROADBLOCK
+  RELIEF_REQUEST
+  DELAY
   OTHER
 }
 
@@ -566,6 +596,10 @@ model Organization {
   tripAuditLogs      TripAuditLog[]
   driverNovelties    DriverNovelty[]
   payrollLaborConfigs PayrollLaborConfig[]
+  tripDeviationRequests TripDeviationRequest[]
+  tripChatMessages   TripChatMessage[]
+  supportChatMessages SupportChatMessage[]
+  tripFieldIncidents TripFieldIncident[]
 
   @@index([nit])
 }
@@ -861,6 +895,9 @@ model Trip {
   auditLogs      TripAuditLog[]
   trackPoints    TripTrackPoint[]
   overtimeLines  TripOvertimeLine[]
+  deviationRequests TripDeviationRequest[]
+  chatMessages   TripChatMessage[]
+  fieldIncidents TripFieldIncident[]
 
   @@unique([code])
   @@index([organizationId, status])
@@ -905,6 +942,88 @@ model TripTrackPoint {
   @@index([vehicleId, recordedAt])
 }
 
+/// Solicitud de inicio/fin fuera de tolerancia (geofence / horario) — aprobación supervisor
+model TripDeviationRequest {
+  id               String              @id @default(cuid())
+  organizationId   String
+  organization     Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  tripId           String
+  trip             Trip                @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  action           TripDeviationAction
+  status           TripDeviationStatus @default(PENDING)
+  /// Estado del viaje antes de la solicitud (para restaurar si se rechaza)
+  previousStatus   TripStatus
+  reasonCodes      String[]
+  reasonDetail     String
+  lat              Float
+  lng              Float
+  distanceM        Float?
+  serverTime       DateTime            @default(now())
+  scheduledAt      DateTime?
+  requestedById    String?
+  resolvedById     String?
+  resolvedAt       DateTime?
+  resolveNote      String?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  @@index([organizationId, status, createdAt])
+  @@index([tripId, status])
+}
+
+/// Chat in-app por viaje (conductor ↔ supervisor)
+model TripChatMessage {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  tripId         String
+  trip           Trip         @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  authorUserId   String
+  authorName     String
+  authorRole     String
+  body           String
+  serverTime     DateTime     @default(now())
+  createdAt      DateTime     @default(now())
+
+  @@index([tripId, createdAt])
+  @@index([organizationId, createdAt])
+}
+
+/// Chat general de soporte técnico (app multi-rol)
+model SupportChatMessage {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  authorUserId   String
+  authorName     String
+  authorRole     String
+  body           String
+  serverTime     DateTime     @default(now())
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, createdAt])
+}
+
+/// Incidente / retraso de campo — NO bloquea el viaje ni el GPS
+model TripFieldIncident {
+  id             String               @id @default(cuid())
+  organizationId String
+  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  tripId         String
+  trip           Trip                 @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  category       TripIncidentCategory
+  notes          String?
+  photoUrl       String?
+  lat            Float?
+  lng            Float?
+  reportedById   String?
+  serverTime     DateTime             @default(now())
+  createdAt      DateTime             @default(now())
+
+  @@index([tripId, createdAt])
+  @@index([organizationId, createdAt])
+}
+
 /// Novedades de disponibilidad / calendario conductor
 model DriverNovelty {
   id             String            @id @default(cuid())
@@ -944,7 +1063,7 @@ model PayrollLaborConfig {
   createdAt            DateTime     @default(now())
 }
 
-/// Pre-nómina de extras por servicio cerrado
+/// Pre-nómina de extras por servicio cerrado (fuente del reporte mensual /nomina)
 model TripOvertimeLine {
   id             String   @id @default(cuid())
   tripId         String

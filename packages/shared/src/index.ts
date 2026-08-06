@@ -11,6 +11,9 @@ export const RoleSchema = z.enum([
   "revisoria",
   "conductor",
   "monitora",
+  "supervisor",
+  "padre",
+  "pasajero",
 ]);
 export type Role = z.infer<typeof RoleSchema>;
 
@@ -25,6 +28,9 @@ export const ROLES: Role[] = [
   "revisoria",
   "conductor",
   "monitora",
+  "supervisor",
+  "padre",
+  "pasajero",
 ];
 
 export const ROLE_LABELS: Record<Role, string> = {
@@ -38,6 +44,9 @@ export const ROLE_LABELS: Record<Role, string> = {
   revisoria: "Revisoría Fiscal",
   conductor: "Conductor",
   monitora: "Monitora escolar",
+  supervisor: "Supervisor de flota",
+  padre: "Padre / acudiente",
+  pasajero: "Pasajero",
 };
 
 /**
@@ -273,6 +282,17 @@ export const ROLE_VIEWS: Record<Role, ModuleId[]> = {
   conductor: ["logistica", "apps"],
   /** App monitora / escolar */
   monitora: ["apps", "logistica"],
+  /** Consola + app: aprueba desviaciones geofence/horario */
+  supervisor: [
+    "dashboard",
+    "logistica",
+    "apps",
+    "parqueadero",
+    "tramites",
+    "gerencia",
+  ],
+  padre: ["apps"],
+  pasajero: ["apps"],
 };
 
 /** ¿El rol puede acceder a este módulo? (misma regla UI + API) */

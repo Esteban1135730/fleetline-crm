@@ -90,6 +90,12 @@ export const NAV_DEPARTMENTS: NavDepartment[] = [
         label: "Gestión de Conductores y Nómina de Extras",
         tip: "Calendario de disponibilidad, relevos PESV y liquidación de extras.",
       },
+      {
+        href: "/logistica/conductores/reporte-nomina",
+        view: "logistica",
+        label: "Reporte Mensual Nómina / Extras",
+        tip: "Consolidado mensual, detalle día a día y exportación Excel/PDF.",
+      },
     ],
   },
   AREA(

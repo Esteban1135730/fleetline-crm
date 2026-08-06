@@ -11,7 +11,13 @@ export type AuthUser = {
     | "despacho"
     | "rrhh"
     | "atencion"
-    | "sistemas";
+    | "sistemas"
+    | "supervisor"
+    | "conductor"
+    | "monitora"
+    | "padre"
+    | "pasajero"
+    | "revisoria";
   organizationId: string;
 };
 
@@ -87,6 +93,37 @@ export async function api<T>(
   } finally {
     clearTimeout(timer);
   }
+}
+
+export async function apiDownload(
+  path: string,
+  filename: string,
+): Promise<void> {
+  const token = getToken();
+  const headers: HeadersInit = {};
+  if (token) {
+    (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
+  }
+
+  const res = await fetch(`${API_URL}${path}`, { headers });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: res.statusText }));
+    throw new Error(
+      Array.isArray(err.message)
+        ? err.message.join(", ")
+        : err.message || `Error ${res.status}`,
+    );
+  }
+
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 export function getTokenPublic() {

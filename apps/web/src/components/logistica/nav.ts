@@ -2,11 +2,11 @@
 
 /**
  * Contratos de UI para submenús Logística.
- * Rutas FE: /logistica/servicios | /logistica/conductores
- * API:     /logistica/servicios/* | /logistica/conductores/*
+ * Rutas FE: /logistica/servicios | /logistica/conductores | .../reporte-nomina
+ * API:     /logistica/* | /nomina/*
  */
 
-export type LogisticaSubmenuId = "servicios" | "conductores";
+export type LogisticaSubmenuId = "servicios" | "conductores" | "reporte-nomina";
 
 export const LOGISTICA_SUBMENUS = [
   {
@@ -20,5 +20,11 @@ export const LOGISTICA_SUBMENUS = [
     href: "/logistica/conductores",
     label: "Gestión de Conductores y Nómina de Extras",
     apiBase: "/logistica/conductores",
+  },
+  {
+    id: "reporte-nomina" as const,
+    href: "/logistica/conductores/reporte-nomina",
+    label: "Reporte Mensual Nómina / Extras",
+    apiBase: "/nomina",
   },
 ] as const;

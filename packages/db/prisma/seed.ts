@@ -239,11 +239,21 @@ async function main() {
     data: {
       email: "monitora@fsg.co",
       name: "María Monitora Escolar",
-      role: RoleCode.DESPACHO,
+      role: RoleCode.MONITORA,
       passwordHash,
       organizationId: org.id,
     },
   });
+  const supervisorUser = await prisma.user.create({
+    data: {
+      email: "supervisor@fsg.co",
+      name: "Sofía Supervisor Flota",
+      role: RoleCode.SUPERVISOR,
+      passwordHash,
+      organizationId: org.id,
+    },
+  });
+  void supervisorUser;
 
   const licenseOk = daysFromNow(730);
   const driverCarlos = await prisma.driver.create({
@@ -1688,7 +1698,7 @@ async function main() {
 
   console.log("[seed] Usuarios (password: fsg2026):");
   console.log("  - presidencia@fsg.co | logistica@fsg.co | revisoria@fsg.co");
-  console.log("  - conductor@fsg.co | monitora@fsg.co");
+  console.log("  - conductor@fsg.co | monitora@fsg.co | supervisor@fsg.co");
   console.log("[seed] Conteos:", counts);
   console.log("[seed] OK — refresca la web (logistica@fsg.co) para ver datos");
 }

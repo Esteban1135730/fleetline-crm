@@ -1,11 +1,14 @@
 import { Platform } from "react-native";
 import Constants from "expo-constants";
 import * as SecureStore from "expo-secure-store";
+import * as Location from "expo-location";
 
 const TOKEN_KEY = "fsg_access_token";
+const USER_KEY = "fsg_user_json";
 
 /** Caché en memoria: SecureStore a veces falla o tarda en Expo Go. */
 let memoryToken: string | null = null;
+let memoryUser: AuthUser | null = null;
 
 /** Host LAN del Metro (ej. 192.168.1.10:8081) — sirve para celular físico. */
 function lanHostFromExpo(): string | null {
@@ -27,19 +30,15 @@ function lanHostFromExpo(): string | null {
   return host;
 }
 
-/** Resolver en cada request: hostUri de Expo no siempre está listo al importar el módulo. */
 export function getApiUrl(): string {
   const fromEnv = process.env.EXPO_PUBLIC_API_URL;
   if (fromEnv) return fromEnv.replace(/\/$/, "");
-
   const lan = lanHostFromExpo();
   if (lan) return `http://${lan}:4000`;
-
   if (Platform.OS === "android") return "http://10.0.2.2:4000";
   return "http://localhost:4000";
 }
 
-/** @deprecated usar getApiUrl() */
 export const API_URL = getApiUrl();
 
 export async function getToken(): Promise<string | null> {
@@ -57,14 +56,16 @@ export async function setToken(token: string): Promise<void> {
   try {
     await SecureStore.setItemAsync(TOKEN_KEY, token);
   } catch {
-    /* memoria basta para la sesión actual */
+    /* memoria basta */
   }
 }
 
 export async function clearToken(): Promise<void> {
   memoryToken = null;
+  memoryUser = null;
   try {
     await SecureStore.deleteItemAsync(TOKEN_KEY);
+    await SecureStore.deleteItemAsync(USER_KEY);
   } catch {
     /* ignore */
   }
@@ -78,7 +79,6 @@ export type AuthUser = {
   organizationId: string;
 };
 
-/** Alineado a PreoperationalChecklistSchema (@fsg/shared) */
 export type PreoperationalPayload = {
   frenos: boolean;
   luces: boolean;
@@ -100,12 +100,71 @@ export type Trip = {
   notes?: string | null;
   preoperationalAt?: string | null;
   preoperationalJson?: PreoperationalPayload | Record<string, unknown> | null;
+  originLat?: number | null;
+  originLng?: number | null;
+  destLat?: number | null;
+  destLng?: number | null;
+  departAt?: string;
+  suggestedPolyline?: string | null;
 };
 
 export type MyTripsResponse = {
   driver: { id: string; name: string } | null;
   trips: Trip[];
 };
+
+export type AppRole =
+  | "conductor"
+  | "monitora"
+  | "pasajero"
+  | "padre"
+  | "supervisor"
+  | "despacho"
+  | string;
+
+export function normalizeRole(role: string): AppRole {
+  return String(role).toLowerCase() as AppRole;
+}
+
+export function homeTitleForRole(role: AppRole) {
+  switch (normalizeRole(role)) {
+    case "conductor":
+      return "Operación · Conductor";
+    case "monitora":
+      return "Escolar · Monitora";
+    case "padre":
+      return "Familia · Acudiente";
+    case "pasajero":
+      return "Pasajero";
+    case "supervisor":
+    case "despacho":
+      return "Supervisor de flota";
+    default:
+      return "INRETRANS OS";
+  }
+}
+
+export async function setSession(token: string, user: AuthUser) {
+  await setToken(token);
+  memoryUser = user;
+  try {
+    await SecureStore.setItemAsync(USER_KEY, JSON.stringify(user));
+  } catch {
+    /* memoria */
+  }
+}
+
+export async function getStoredUser(): Promise<AuthUser | null> {
+  if (memoryUser) return memoryUser;
+  try {
+    const raw = await SecureStore.getItemAsync(USER_KEY);
+    if (!raw) return null;
+    memoryUser = JSON.parse(raw) as AuthUser;
+    return memoryUser;
+  } catch {
+    return null;
+  }
+}
 
 async function apiRequest<T>(
   path: string,
@@ -159,7 +218,7 @@ export async function login(
   if (!data?.accessToken) {
     throw new Error("Uplink de autenticación incompleto — sin token");
   }
-  await setToken(data.accessToken);
+  await setSession(data.accessToken, data.user);
   return data;
 }
 
@@ -169,9 +228,7 @@ export async function fetchMyTrips(): Promise<MyTripsResponse> {
   );
   const trips = (raw.trips ?? []).map((t) => {
     const pre = (
-      t as Trip & {
-        preoperational?: { signedAt?: string } | null;
-      }
+      t as Trip & { preoperational?: { signedAt?: string } | null }
     ).preoperational;
     return {
       ...t,
@@ -182,6 +239,123 @@ export async function fetchMyTrips(): Promise<MyTripsResponse> {
   return { driver: raw.driver ?? null, trips };
 }
 
+export async function getCurrentGps() {
+  const { status } = await Location.requestForegroundPermissionsAsync();
+  if (status !== "granted") {
+    throw new Error("Permiso de ubicación denegado");
+  }
+  const pos = await Location.getCurrentPositionAsync({
+    accuracy: Location.Accuracy.High,
+  });
+  return { lat: pos.coords.latitude, lng: pos.coords.longitude };
+}
+
+export type ControlResult = {
+  status: "INICIADO" | "FINALIZADO" | "PENDIENTE_APROBACION_SUPERVISOR";
+  tripStatus: string;
+  serverTime: string;
+  gate?: {
+    violations: Array<{ code: string; detail: string }>;
+    distanceM: number | null;
+  };
+  deviation?: { id: string; reasonDetail: string };
+};
+
+export function iniciarServicio(tripId: string, gps: { lat: number; lng: number }) {
+  return apiRequest<ControlResult>(`/api/v1/servicios/${tripId}/iniciar`, {
+    method: "POST",
+    body: JSON.stringify(gps),
+  });
+}
+
+export function finalizarServicio(
+  tripId: string,
+  gps: { lat: number; lng: number },
+) {
+  return apiRequest<ControlResult>(`/api/v1/servicios/${tripId}/finalizar`, {
+    method: "POST",
+    body: JSON.stringify(gps),
+  });
+}
+
+export function reportarIncidente(
+  tripId: string,
+  payload: {
+    category: string;
+    notes?: string;
+    lat?: number;
+    lng?: number;
+    photoUrl?: string;
+  },
+) {
+  return apiRequest(`/api/v1/servicios/${tripId}/incidentes`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function fetchTripChat(tripId: string) {
+  return apiRequest<
+    Array<{
+      id: string;
+      authorName: string;
+      authorRole: string;
+      body: string;
+      serverTime: string;
+    }>
+  >(`/api/v1/chat/viaje/${tripId}`);
+}
+
+export function postTripChat(tripId: string, body: string) {
+  return apiRequest(`/api/v1/chat/viaje/${tripId}`, {
+    method: "POST",
+    body: JSON.stringify({ body }),
+  });
+}
+
+export function fetchSupportChat() {
+  return apiRequest<
+    Array<{
+      id: string;
+      authorName: string;
+      authorRole: string;
+      body: string;
+      serverTime: string;
+    }>
+  >(`/api/v1/chat/soporte-general`);
+}
+
+export function postSupportChat(body: string) {
+  return apiRequest(`/api/v1/chat/soporte-general`, {
+    method: "POST",
+    body: JSON.stringify({ body }),
+  });
+}
+
+export function fetchPendingDeviations() {
+  return apiRequest<
+    Array<{
+      id: string;
+      tripId: string;
+      action: string;
+      reasonDetail: string;
+      trip: { code: string; origin: string; destination: string };
+    }>
+  >(`/api/v1/servicios/desviaciones/pendientes`);
+}
+
+export function resolveDeviation(
+  tripId: string,
+  decision: "ACEPTAR" | "CANCELAR",
+  note?: string,
+) {
+  return apiRequest(`/api/v1/servicios/${tripId}/aprobar-desviacion`, {
+    method: "POST",
+    body: JSON.stringify({ decision, note }),
+  });
+}
+
+/** @deprecated preferir iniciarServicio con GPS */
 export function updateTripStatus(
   tripId: string,
   status: string,
@@ -204,10 +378,7 @@ export function submitPreoperational(
 }
 
 export function reportIncident(tripId: string, notes: string) {
-  return apiRequest<Trip>(`/logistics/trips/${tripId}/incident`, {
-    method: "PATCH",
-    body: JSON.stringify({ notes }),
-  });
+  return reportarIncidente(tripId, { category: "OTHER", notes });
 }
 
 export function updateVehicleGps(

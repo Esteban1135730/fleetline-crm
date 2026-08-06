@@ -411,7 +411,17 @@ function SideNav({
                 {open ? (
                   <div className="flt-dept-items" role="group" aria-label={dept.label}>
                     {dept.items.map((item) => {
-                      const active = pathMatches(item.href, pathname);
+                      const matching = dept.items.filter((i) =>
+                        pathMatches(i.href, pathname),
+                      );
+                      const best = matching.reduce<(typeof item) | null>(
+                        (acc, cur) =>
+                          !acc || cur.href.length > acc.href.length
+                            ? cur
+                            : acc,
+                        null,
+                      );
+                      const active = best?.href === item.href;
                       return (
                         <Tooltip
                           key={item.href}

@@ -14,6 +14,7 @@ import {
   type Vehicle,
 } from "@/components/logistica/logistica-shared";
 import type { PlacePin } from "@/components/logistica/servicio-map-planner";
+import { SupervisorDeviationsPanel } from "@/components/logistica/supervisor-deviations-panel";
 
 const ServicioMapPlanner = dynamic(
   () =>
@@ -198,6 +199,8 @@ export default function LogisticaServiciosPage() {
           {error}
         </p>
       ) : null}
+
+      <SupervisorDeviationsPanel />
 
       <section className="space-y-4" data-testid="panel-servicios">
         <ServicioMapPlanner

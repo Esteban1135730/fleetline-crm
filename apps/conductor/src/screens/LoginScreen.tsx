@@ -48,9 +48,10 @@ export default function LoginScreen({ onLoggedIn }: Props) {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <View style={styles.card}>
-        <Text style={styles.title}>App del conductor</Text>
+        <Text style={styles.title}>INRETRANS OS</Text>
         <Text style={styles.subtitle}>
-          Inicia sesión para ver tus viajes asignados y reportar novedades.
+          Login único multi-rol. Al autenticar, la interfaz se adapta a Conductor,
+          Supervisor, Monitora, Padre o Pasajero.
         </Text>
 
         <Text style={styles.label}>Email</Text>

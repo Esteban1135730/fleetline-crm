@@ -165,6 +165,7 @@ export class LogisticsService {
             TripStatus.AWAITING_PREOP,
             TripStatus.AWAITING_FUEC,
             TripStatus.IN_TRANSIT,
+            TripStatus.PENDING_SUPERVISOR_APPROVAL,
             TripStatus.INCIDENT,
           ],
         },

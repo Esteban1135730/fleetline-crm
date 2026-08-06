@@ -126,6 +126,78 @@ export class LogisticsGateway
     this.server.to(`org:${organizationId}`).emit("trip.reassigned", payload);
   }
 
+  emitDeviationAlert(
+    organizationId: string,
+    payload: {
+      deviationId: string;
+      tripId: string;
+      code: string;
+      action: string;
+      reasonDetail: string;
+      reasonCodes: string[];
+      lat: number;
+      lng: number;
+      serverTime: string;
+    },
+  ) {
+    this.server
+      .to(`org:${organizationId}`)
+      .emit("trip.deviation.pending", payload);
+  }
+
+  emitDeviationResolved(
+    organizationId: string,
+    payload: {
+      deviationId: string;
+      tripId: string;
+      decision: string;
+      action: string;
+    },
+  ) {
+    this.server
+      .to(`org:${organizationId}`)
+      .emit("trip.deviation.resolved", payload);
+  }
+
+  emitFieldIncident(
+    organizationId: string,
+    payload: {
+      incidentId: string;
+      tripId: string;
+      code: string;
+      category: string;
+      notes: string | null;
+      serverTime: string;
+    },
+  ) {
+    this.server.to(`org:${organizationId}`).emit("trip.incident", payload);
+  }
+
+  emitTripChat(organizationId: string, tripId: string, message: unknown) {
+    this.server.to(`org:${organizationId}`).emit("chat.trip", {
+      tripId,
+      message,
+    });
+    this.server.to(`trip:${tripId}`).emit("chat.trip", { tripId, message });
+  }
+
+  emitSupportChat(organizationId: string, message: unknown) {
+    this.server.to(`org:${organizationId}`).emit("chat.support", { message });
+  }
+
+  @SubscribeMessage("joinTrip")
+  handleJoinTrip(
+    @ConnectedSocket() client: Socket,
+    payload: { tripId?: string },
+  ) {
+    const user = client.data.user as SocketUser | undefined;
+    if (!user?.organizationId || !payload?.tripId) {
+      throw new WsException("No autorizado");
+    }
+    client.join(`trip:${payload.tripId}`);
+    return { ok: true, room: `trip:${payload.tripId}` };
+  }
+
   private async pushSnapshot(organizationId: string) {
     const [trips, gps] = await Promise.all([
       this.logistics.listTrips(organizationId),

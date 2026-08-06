@@ -6,6 +6,7 @@ import {
   Modal,
   Pressable,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -17,11 +18,16 @@ import type { RootStackParamList } from "../../App";
 import {
   clearToken,
   fetchMyTrips,
-  reportIncident,
-  updateTripStatus,
+  finalizarServicio,
+  getCurrentGps,
+  getStoredUser,
+  iniciarServicio,
+  reportarIncidente,
   type Trip,
 } from "../api";
 import { useGps } from "../hooks/useGps";
+import { TripRouteMap } from "../components/TripRouteMap";
+import * as ImagePicker from "expo-image-picker";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Trips"> & {
   onLogout: () => void;
@@ -31,10 +37,21 @@ const STATUS_ES: Record<string, string> = {
   PENDING: "Pendiente",
   ASSIGNED: "Asignado",
   IN_TRANSIT: "En ruta",
+  PENDING_SUPERVISOR_APPROVAL: "Pendiente supervisor",
   COMPLETED: "Terminado",
   CANCELLED: "Cancelado",
   INCIDENT: "Novedad",
 };
+
+const INCIDENT_CATEGORIES = [
+  { id: "TRAFFIC", label: "Tráfico denso" },
+  { id: "MECHANICAL", label: "Falla mecánica menor" },
+  { id: "WEATHER", label: "Lluvia / clima" },
+  { id: "ROADBLOCK", label: "Bloqueo de vía" },
+  { id: "RELIEF_REQUEST", label: "Relevo solicitado" },
+  { id: "DELAY", label: "Retraso" },
+  { id: "OTHER", label: "Otro" },
+] as const;
 
 export default function TripsScreen({ navigation, onLogout }: Props) {
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -44,6 +61,9 @@ export default function TripsScreen({ navigation, onLogout }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const [incidentTrip, setIncidentTrip] = useState<Trip | null>(null);
   const [incidentNotes, setIncidentNotes] = useState("");
+  const [incidentCategory, setIncidentCategory] =
+    useState<(typeof INCIDENT_CATEGORIES)[number]["id"]>("TRAFFIC");
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [actionId, setActionId] = useState<string | null>(null);
 
   const inTransitTrip = trips.find(
@@ -81,21 +101,50 @@ export default function TripsScreen({ navigation, onLogout }: Props) {
     }, [load]),
   );
 
-  async function handleStatus(trip: Trip, status: string) {
-    if (status === "IN_TRANSIT") {
-      if (!trip.preoperationalAt) {
-        navigation.navigate("Preoperational", { trip });
-        return;
-      }
+  async function handleStart(trip: Trip) {
+    if (!trip.preoperationalAt) {
+      navigation.navigate("Preoperational", { trip });
+      return;
     }
     setActionId(trip.id);
     try {
-      await updateTripStatus(trip.id, status);
+      const gps = await getCurrentGps();
+      const res = await iniciarServicio(trip.id, gps);
+      if (res.status === "PENDIENTE_APROBACION_SUPERVISOR") {
+        Alert.alert(
+          "Pendiente supervisor",
+          res.gate?.violations?.map((v) => v.detail).join("\n") ||
+            "Fuera de tolerancia — esperando ACEPTAR/CANCELAR",
+        );
+      }
       await load(true);
     } catch (err) {
       Alert.alert(
-        "Error",
-        err instanceof Error ? err.message : "No se pudo actualizar el viaje",
+        "No se pudo iniciar",
+        err instanceof Error ? err.message : "Error",
+      );
+    } finally {
+      setActionId(null);
+    }
+  }
+
+  async function handleEnd(trip: Trip) {
+    setActionId(trip.id);
+    try {
+      const gps = await getCurrentGps();
+      const res = await finalizarServicio(trip.id, gps);
+      if (res.status === "PENDIENTE_APROBACION_SUPERVISOR") {
+        Alert.alert(
+          "Cierre pendiente",
+          res.gate?.violations?.map((v) => v.detail).join("\n") ||
+            "Fuera de geofence/horario — supervisor debe autorizar",
+        );
+      }
+      await load(true);
+    } catch (err) {
+      Alert.alert(
+        "No se pudo cerrar",
+        err instanceof Error ? err.message : "Error",
       );
     } finally {
       setActionId(null);
@@ -103,20 +152,34 @@ export default function TripsScreen({ navigation, onLogout }: Props) {
   }
 
   async function submitIncident() {
-    if (!incidentTrip || !incidentNotes.trim()) {
-      Alert.alert("Novedad", "Escribe una descripción.");
-      return;
-    }
+    if (!incidentTrip) return;
     setActionId(incidentTrip.id);
     try {
-      await reportIncident(incidentTrip.id, incidentNotes.trim());
+      let gps: { lat?: number; lng?: number } = {};
+      try {
+        gps = await getCurrentGps();
+      } catch {
+        /* opcional */
+      }
+      await reportarIncidente(incidentTrip.id, {
+        category: incidentCategory,
+        notes: incidentNotes.trim() || undefined,
+        lat: gps.lat,
+        lng: gps.lng,
+        photoUrl: photoUrl || undefined,
+      });
       setIncidentTrip(null);
       setIncidentNotes("");
+      setPhotoUrl(null);
+      Alert.alert(
+        "Incidente enviado",
+        "El viaje y el GPS continúan sin bloqueo.",
+      );
       await load(true);
     } catch (err) {
       Alert.alert(
         "Error",
-        err instanceof Error ? err.message : "No se pudo reportar la novedad",
+        err instanceof Error ? err.message : "No se pudo reportar",
       );
     } finally {
       setActionId(null);
@@ -129,12 +192,20 @@ export default function TripsScreen({ navigation, onLogout }: Props) {
   }
 
   useLayoutEffect(() => {
-    navigation.setOptions({
-      headerRight: () => (
-        <Pressable onPress={() => void handleLogout()} style={{ marginRight: 8 }}>
-          <Text style={{ color: "#F8FAFC", fontWeight: "600" }}>Salir</Text>
-        </Pressable>
-      ),
+    void getStoredUser().then((u) => {
+      navigation.setOptions({
+        title: u ? `Viajes · ${u.name.split(" ")[0]}` : "Mis viajes",
+        headerRight: () => (
+          <View style={{ flexDirection: "row", gap: 12, marginRight: 8 }}>
+            <Pressable onPress={() => navigation.navigate("SupportChat")}>
+              <Text style={{ color: "#10B981", fontWeight: "700" }}>Soporte</Text>
+            </Pressable>
+            <Pressable onPress={() => void handleLogout()}>
+              <Text style={{ color: "#F8FAFC", fontWeight: "600" }}>Salir</Text>
+            </Pressable>
+          </View>
+        ),
+      });
     });
   }, [navigation, onLogout]);
 
@@ -150,21 +221,20 @@ export default function TripsScreen({ navigation, onLogout }: Props) {
     <View style={styles.container}>
       {loadFailed ? (
         <Text style={styles.warning}>
-          Fallo de uplink al cargar viajes. Desliza hacia abajo para reintentar.
+          Fallo de uplink. Desliza para reintentar.
         </Text>
       ) : driverName ? (
         <Text style={styles.driver}>Conductor: {driverName}</Text>
       ) : (
         <Text style={styles.warning}>
-          Tu usuario no está vinculado a un conductor. Usa conductor@fsg.co /
-          fsg2026 o contacta a despacho.
+          Usuario no vinculado a conductor. Usa conductor@fsg.co / fsg2026.
         </Text>
       )}
 
       {inTransitTrip ? (
         <View style={styles.gpsBanner}>
           <Text style={styles.gpsText}>
-            GPS activo — uplink cada ~12s ({inTransitTrip.code})
+            GPS activo · reloj servidor · {inTransitTrip.code}
           </Text>
         </View>
       ) : null}
@@ -198,8 +268,19 @@ export default function TripsScreen({ navigation, onLogout }: Props) {
                 {item.origin} → {item.destination}
               </Text>
               {item.vehicle?.plate ? (
-                <Text style={styles.meta}>Vehículo: {item.vehicle.plate}</Text>
+                <Text style={styles.meta}>Placa {item.vehicle.plate}</Text>
               ) : null}
+
+              <TripRouteMap
+                origin={item.origin}
+                destination={item.destination}
+                originLat={item.originLat}
+                originLng={item.originLng}
+                destLat={item.destLat}
+                destLng={item.destLng}
+                polylineJson={item.suggestedPolyline}
+              />
+
               {item.preoperationalAt ? (
                 <Text style={styles.preopOk}>Preoperacional OK</Text>
               ) : item.status === "ASSIGNED" || item.status === "PENDING" ? (
@@ -220,7 +301,7 @@ export default function TripsScreen({ navigation, onLogout }: Props) {
                     >
                       <Text style={styles.btnTextPrimary}>
                         {item.preoperationalAt
-                          ? "Ver / iniciar ruta"
+                          ? "Ver preop."
                           : "Inspección preop."}
                       </Text>
                     </Pressable>
@@ -228,10 +309,10 @@ export default function TripsScreen({ navigation, onLogout }: Props) {
                       <Pressable
                         style={[styles.btn, styles.btnPrimary]}
                         disabled={busy}
-                        onPress={() => void handleStatus(item, "IN_TRANSIT")}
+                        onPress={() => void handleStart(item)}
                       >
                         <Text style={styles.btnTextPrimary}>
-                          {busy ? "…" : "INICIAR RUTA"}
+                          {busy ? "…" : "INICIAR"}
                         </Text>
                       </Pressable>
                     ) : null}
@@ -242,25 +323,43 @@ export default function TripsScreen({ navigation, onLogout }: Props) {
                   <Pressable
                     style={[styles.btn, styles.btnSuccess]}
                     disabled={busy}
-                    onPress={() => void handleStatus(item, "COMPLETED")}
+                    onPress={() => void handleEnd(item)}
                   >
                     <Text style={styles.btnTextPrimary}>
-                      {busy ? "…" : "Cerrar"}
+                      {busy ? "…" : "FINALIZAR"}
                     </Text>
                   </Pressable>
                 ) : null}
 
-                {item.status !== "INCIDENT" && item.status !== "COMPLETED" ? (
-                  <Pressable
-                    style={[styles.btn, styles.btnWarn]}
-                    disabled={busy}
-                    onPress={() => {
-                      setIncidentTrip(item);
-                      setIncidentNotes("");
-                    }}
-                  >
-                    <Text style={styles.btnTextPrimary}>Novedad</Text>
-                  </Pressable>
+                {item.status === "PENDING_SUPERVISOR_APPROVAL" ? (
+                  <Text style={styles.preopPending}>
+                    Esperando ACEPTAR/CANCELAR del supervisor
+                  </Text>
+                ) : null}
+
+                {item.status !== "COMPLETED" && item.status !== "CANCELLED" ? (
+                  <>
+                    <Pressable
+                      style={[styles.btn, styles.btnWarn]}
+                      disabled={busy}
+                      onPress={() => {
+                        setIncidentTrip(item);
+                        setIncidentNotes("");
+                        setIncidentCategory("TRAFFIC");
+                        setPhotoUrl(null);
+                      }}
+                    >
+                      <Text style={styles.btnTextPrimary}>Incidente</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.btn, styles.btnGhost]}
+                      onPress={() =>
+                        navigation.navigate("TripChat", { tripId: item.id, code: item.code })
+                      }
+                    >
+                      <Text style={styles.btnGhostText}>Chat viaje</Text>
+                    </Pressable>
+                  </>
                 ) : null}
               </View>
             </View>
@@ -271,25 +370,77 @@ export default function TripsScreen({ navigation, onLogout }: Props) {
       <Modal visible={!!incidentTrip} transparent animationType="slide">
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Reportar novedad</Text>
+            <Text style={styles.modalTitle}>Reportar incidente</Text>
             <Text style={styles.modalSub}>
-              Viaje {incidentTrip?.code}: describe lo ocurrido.
+              {incidentTrip?.code} — no detiene el viaje ni el GPS
             </Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {INCIDENT_CATEGORIES.map((c) => (
+                <Pressable
+                  key={c.id}
+                  style={[
+                    styles.chip,
+                    incidentCategory === c.id && styles.chipActive,
+                  ]}
+                  onPress={() => setIncidentCategory(c.id)}
+                >
+                  <Text
+                    style={[
+                      styles.chipText,
+                      incidentCategory === c.id && styles.chipTextActive,
+                    ]}
+                  >
+                    {c.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
             <TextInput
               style={styles.textArea}
               multiline
-              numberOfLines={4}
+              numberOfLines={3}
               value={incidentNotes}
               onChangeText={setIncidentNotes}
-              placeholder="Ej. tráfico, avería, retraso…"
+              placeholder="Detalle opcional…"
               placeholderTextColor="#64748B"
             />
+            <Pressable
+              style={[styles.btn, styles.btnGhost, { marginBottom: 12 }]}
+              onPress={() => {
+                void (async () => {
+                  const perm =
+                    await ImagePicker.requestMediaLibraryPermissionsAsync();
+                  if (!perm.granted) {
+                    Alert.alert("Permiso", "Se requiere acceso a la galería.");
+                    return;
+                  }
+                  const pick = await ImagePicker.launchImageLibraryAsync({
+                    mediaTypes: ["images"],
+                    quality: 0.55,
+                    base64: true,
+                  });
+                  if (pick.canceled || !pick.assets[0]) return;
+                  const asset = pick.assets[0];
+                  if (asset.base64) {
+                    setPhotoUrl(
+                      `data:${asset.mimeType ?? "image/jpeg"};base64,${asset.base64.slice(0, 120_000)}`,
+                    );
+                  } else if (asset.uri) {
+                    setPhotoUrl(asset.uri);
+                  }
+                })();
+              }}
+            >
+              <Text style={styles.btnGhostText}>
+                {photoUrl ? "Foto lista · cambiar" : "Adjuntar foto (opcional)"}
+              </Text>
+            </Pressable>
             <View style={styles.modalActions}>
               <Pressable
                 style={[styles.btn, styles.btnGhost]}
                 onPress={() => setIncidentTrip(null)}
               >
-                <Text style={styles.btnGhostText}>Cancelar</Text>
+                <Text style={styles.btnGhostText}>Cerrar</Text>
               </Pressable>
               <Pressable
                 style={[styles.btn, styles.btnWarn]}
@@ -362,8 +513,18 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   route: { fontSize: 15, color: "#94A3B8", marginBottom: 6 },
-  meta: { fontSize: 13, color: "#64748B", marginBottom: 4, fontFamily: "monospace" },
-  preopOk: { fontSize: 12, color: "#10B981", marginBottom: 4, fontWeight: "600" },
+  meta: {
+    fontSize: 13,
+    color: "#64748B",
+    marginBottom: 4,
+    fontFamily: "monospace",
+  },
+  preopOk: {
+    fontSize: 12,
+    color: "#10B981",
+    marginBottom: 4,
+    fontWeight: "600",
+  },
   preopPending: { fontSize: 12, color: "#FFB800", marginBottom: 4 },
   actions: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 },
   btn: {
@@ -394,12 +555,27 @@ const styles = StyleSheet.create({
   },
   modalTitle: { fontSize: 18, fontWeight: "700", color: "#F8FAFC" },
   modalSub: { fontSize: 14, color: "#94A3B8", marginVertical: 10 },
+  chip: {
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginRight: 8,
+    marginBottom: 10,
+  },
+  chipActive: {
+    backgroundColor: "rgba(16,185,129,0.2)",
+    borderColor: "#10B981",
+  },
+  chipText: { color: "#94A3B8", fontSize: 12, fontWeight: "600" },
+  chipTextActive: { color: "#10B981" },
   textArea: {
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.1)",
     borderRadius: 8,
     padding: 12,
-    minHeight: 100,
+    minHeight: 80,
     textAlignVertical: "top",
     fontSize: 15,
     marginBottom: 16,
