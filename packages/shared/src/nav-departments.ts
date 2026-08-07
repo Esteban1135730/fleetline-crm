@@ -173,6 +173,9 @@ export const ROLE_DEFAULT_NAV_DEPT: Record<Role, NavDeptId> = {
   revisoria: "revisoria_fiscal",
   conductor: "logistica",
   monitora: "logistica",
+  supervisor: "logistica",
+  padre: "apps",
+  pasajero: "apps",
 };
 
 const PATH_ALIASES: Record<string, NavDeptId> = {
