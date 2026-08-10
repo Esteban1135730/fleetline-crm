@@ -12,7 +12,7 @@ import {
   TripDeviationStatus,
   TripIncidentCategory,
   TripStatus,
-} from "@prisma/client";
+} from "@fsg/db";
 import { PrismaService } from "../prisma/prisma.service";
 import { LogisticsGateway } from "../logistics/logistics.gateway";
 import { LogisticaOpsService } from "../logistica/logistica-ops.service";

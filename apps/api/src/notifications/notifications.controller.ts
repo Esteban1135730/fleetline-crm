@@ -9,7 +9,7 @@ import {
   Req,
   UseGuards,
 } from "@nestjs/common";
-import { DevicePlatform } from "@prisma/client";
+import { DevicePlatform } from "@fsg/db";
 import { z } from "zod";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { NotificationsService } from "./notifications.service";

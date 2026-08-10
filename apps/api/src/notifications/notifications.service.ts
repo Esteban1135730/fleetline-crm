@@ -4,7 +4,7 @@ import {
   NotificationChannel,
   NotificationKind,
   RoleCode,
-} from "@prisma/client";
+} from "@fsg/db";
 import { PrismaService } from "../prisma/prisma.service";
 import { LogisticsGateway } from "../logistics/logistics.gateway";
 

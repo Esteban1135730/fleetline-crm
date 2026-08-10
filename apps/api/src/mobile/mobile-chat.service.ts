@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { NotificationKind, TripAuditAction } from "@prisma/client";
+import { NotificationKind, TripAuditAction } from "@fsg/db";
 import { PrismaService } from "../prisma/prisma.service";
 import { LogisticsGateway } from "../logistics/logistics.gateway";
 import { NotificationsService } from "../notifications/notifications.service";
