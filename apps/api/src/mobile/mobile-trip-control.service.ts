@@ -6,6 +6,7 @@ import {
   UnprocessableEntityException,
 } from "@nestjs/common";
 import {
+  NotificationKind,
   TripAuditAction,
   TripDeviationAction,
   TripDeviationStatus,
@@ -15,6 +16,7 @@ import {
 import { PrismaService } from "../prisma/prisma.service";
 import { LogisticsGateway } from "../logistics/logistics.gateway";
 import { LogisticaOpsService } from "../logistica/logistica-ops.service";
+import { NotificationsService } from "../notifications/notifications.service";
 import { evaluateTripControl } from "./geofence";
 
 @Injectable()
@@ -23,6 +25,7 @@ export class MobileTripControlService {
     private prisma: PrismaService,
     private gateway: LogisticsGateway,
     private ops: LogisticaOpsService,
+    private notifications: NotificationsService,
   ) {}
 
   private async appendAudit(
@@ -234,6 +237,19 @@ export class MobileTripControlService {
       lng: input.gps.lng,
       serverTime: input.gate.serverTime.toISOString(),
     });
+    void this.notifications.notify({
+      organizationId: input.organizationId,
+      roles: NotificationsService.OPS_ROLES,
+      kind: NotificationKind.DEVIATION,
+      title: `Desviación ${input.action} · ${input.trip.code}`,
+      body: reasonDetail,
+      href: "/logistica/servicios",
+      payload: {
+        tripId: input.trip.id,
+        deviationId: deviation.id,
+        action: input.action,
+      },
+    });
     this.gateway.emitUpdate(input.organizationId);
 
     return {
@@ -306,6 +322,15 @@ export class MobileTripControlService {
         decision: "CANCELAR",
         action: pending.action,
       });
+      void this.notifications.notify({
+        organizationId,
+        userIds: [pending.requestedById],
+        kind: NotificationKind.DEVIATION,
+        title: `Desviación rechazada · ${pending.trip.code}`,
+        body: input.note || `Acción ${pending.action} no autorizada`,
+        href: "/logistica/servicios",
+        payload: { tripId, deviationId: pending.id, decision: "CANCELAR" },
+      });
       return { decision: "CANCELAR" as const, deviation: updatedDev, trip };
     }
 
@@ -346,6 +371,15 @@ export class MobileTripControlService {
       tripId,
       decision: "ACEPTAR",
       action: pending.action,
+    });
+    void this.notifications.notify({
+      organizationId,
+      userIds: [pending.requestedById],
+      kind: NotificationKind.DEVIATION,
+      title: `Desviación aceptada · ${pending.trip.code}`,
+      body: input.note || `Acción ${pending.action} autorizada — tracking activo`,
+      href: "/logistica/servicios",
+      payload: { tripId, deviationId: pending.id, decision: "ACEPTAR" },
     });
 
     return {
@@ -426,6 +460,15 @@ export class MobileTripControlService {
       category: input.category,
       notes: input.notes ?? null,
       serverTime: incident.serverTime.toISOString(),
+    });
+    void this.notifications.notify({
+      organizationId,
+      roles: NotificationsService.OPS_ROLES,
+      kind: NotificationKind.INCIDENT,
+      title: `Incidente ${input.category} · ${trip.code}`,
+      body: input.notes || "Incidente de campo reportado (viaje sigue activo)",
+      href: "/logistica/servicios",
+      payload: { tripId, incidentId: incident.id, category: input.category },
     });
 
     return {

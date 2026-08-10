@@ -3,15 +3,17 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { TripAuditAction } from "@prisma/client";
+import { NotificationKind, TripAuditAction } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { LogisticsGateway } from "../logistics/logistics.gateway";
+import { NotificationsService } from "../notifications/notifications.service";
 
 @Injectable()
 export class MobileChatService {
   constructor(
     private prisma: PrismaService,
     private gateway: LogisticsGateway,
+    private notifications: NotificationsService,
   ) {}
 
   async listTripChat(organizationId: string, tripId: string) {
@@ -66,6 +68,15 @@ export class MobileChatService {
     });
 
     this.gateway.emitTripChat(organizationId, tripId, msg);
+    void this.notifications.notify({
+      organizationId,
+      roles: NotificationsService.OPS_ROLES,
+      kind: NotificationKind.CHAT,
+      title: `Chat viaje ${trip.code}`,
+      body: `${author.name}: ${text.slice(0, 140)}`,
+      href: "/logistica/servicios",
+      payload: { tripId, messageId: msg.id },
+    });
     return msg;
   }
 
@@ -95,6 +106,15 @@ export class MobileChatService {
       },
     });
     this.gateway.emitSupportChat(organizationId, msg);
+    void this.notifications.notify({
+      organizationId,
+      roles: NotificationsService.OPS_ROLES,
+      kind: NotificationKind.SUPPORT,
+      title: "Soporte técnico",
+      body: `${author.name}: ${text.slice(0, 140)}`,
+      href: "/logistica/servicios",
+      payload: { messageId: msg.id },
+    });
     return msg;
   }
 }

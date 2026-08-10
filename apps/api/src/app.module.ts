@@ -9,6 +9,7 @@ import { LogisticsModule } from "./logistics/logistics.module";
 import { LogisticaModule } from "./logistica/logistica.module";
 import { NominaModule } from "./nomina/nomina.module";
 import { MobileModule } from "./mobile/mobile.module";
+import { NotificationsModule } from "./notifications/notifications.module";
 import { TramitesModule } from "./tramites/tramites.module";
 import { ComprasModule } from "./compras/compras.module";
 import { TesoreriaModule } from "./tesoreria/tesoreria.module";
@@ -47,6 +48,7 @@ import { PrismaModule } from "./prisma/prisma.module";
     LogisticaModule,
     NominaModule,
     MobileModule,
+    NotificationsModule,
     TramitesModule,
     ComprasModule,
     TesoreriaModule,

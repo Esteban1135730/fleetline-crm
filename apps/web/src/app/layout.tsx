@@ -28,6 +28,14 @@ export const metadata: Metadata = {
   title: `${brand.name} · ${brand.product}`,
   description: brand.tagline,
   manifest: "/manifest.json",
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
+    apple: [{ url: "/icon-192.png", sizes: "192x192", type: "image/png" }],
+    shortcut: ["/icon.svg"],
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",

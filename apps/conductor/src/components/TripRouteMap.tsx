@@ -1,5 +1,4 @@
 import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
-import { WebView } from "react-native-webview";
 
 type Props = {
   origin: string;
@@ -11,6 +10,21 @@ type Props = {
   polylineJson?: string | null;
   height?: number;
 };
+
+let WebViewComp: React.ComponentType<{
+  originWhitelist?: string[];
+  source: { html: string };
+  style?: object;
+  scrollEnabled?: boolean;
+}> | null = null;
+
+try {
+  // Carga diferida: si Expo Go falla con webview, no tumba el runtime
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  WebViewComp = require("react-native-webview").WebView;
+} catch {
+  WebViewComp = null;
+}
 
 function parsePolyline(
   raw?: string | null,
@@ -64,8 +78,8 @@ const pts = ${JSON.stringify(points.map((p) => [p.lat, p.lng]))};
 const map = L.map('m',{zoomControl:false}).setView(pts[0], 12);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
 L.polyline(pts,{color:'#10B981',weight:4}).addTo(map);
-L.circleMarker(pts[0],{radius:7,color:'#FFB800',fillColor:'#FFB800',fillOpacity:1}).addTo(map).bindTooltip('A');
-L.circleMarker(pts[pts.length-1],{radius:7,color:'#FF2A5F',fillColor:'#FF2A5F',fillOpacity:1}).addTo(map).bindTooltip('B');
+L.circleMarker(pts[0],{radius:7,color:'#FFB800',fillColor:'#FFB800',fillOpacity:1}).addTo(map);
+L.circleMarker(pts[pts.length-1],{radius:7,color:'#FF2A5F',fillColor:'#FF2A5F',fillOpacity:1}).addTo(map);
 map.fitBounds(L.latLngBounds(pts),{padding:[24,24]});
 </script></body></html>`
       : null;
@@ -81,18 +95,19 @@ map.fitBounds(L.latLngBounds(pts),{padding:[24,24]});
       <Text style={styles.caption} numberOfLines={2}>
         A {origin} → B {destination}
       </Text>
-      {html ? (
-        <WebView
+      {html && WebViewComp ? (
+        <WebViewComp
           originWhitelist={["*"]}
           source={{ html }}
           style={{ height, borderRadius: 8, overflow: "hidden" }}
           scrollEnabled={false}
         />
       ) : (
-        <View style={[styles.fallback, { height }]}>
+        <View style={[styles.fallback, { height: 88 }]}>
           <Text style={styles.fallbackText}>
-            Sin coordenadas de ruta. Programa el servicio con puntos en el mapa
-            CRM.
+            {hasCoords
+              ? `${originLat!.toFixed(4)}, ${originLng!.toFixed(4)} → ${destLat!.toFixed(4)}, ${destLng!.toFixed(4)}`
+              : "Sin coordenadas de ruta. Usa puntos del CRM."}
           </Text>
         </View>
       )}

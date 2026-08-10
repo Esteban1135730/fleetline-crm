@@ -166,7 +166,7 @@ export async function getStoredUser(): Promise<AuthUser | null> {
   }
 }
 
-async function apiRequest<T>(
+export async function apiFetch<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
@@ -202,6 +202,10 @@ async function apiRequest<T>(
   }
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
+}
+
+async function apiRequest<T>(path: string, options: RequestInit = {}) {
+  return apiFetch<T>(path, options);
 }
 
 export async function login(

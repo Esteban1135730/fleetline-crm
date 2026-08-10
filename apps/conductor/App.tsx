@@ -19,6 +19,8 @@ import {
   SupportChatScreen,
   TripChatScreen,
 } from "./src/screens/ChatScreens";
+import { AppErrorBoundary } from "./src/components/AppErrorBoundary";
+import { NotificationsLayer } from "./src/notifications/NotificationsLayer";
 
 export type RootStackParamList = {
   Login: undefined;
@@ -65,76 +67,80 @@ export default function App() {
   const start = initialRouteFor(user);
 
   return (
-    <NavigationContainer>
-      <StatusBar style="light" />
-      <Stack.Navigator
-        initialRouteName={start}
-        screenOptions={{
-          headerStyle: { backgroundColor: "#0A0D14" },
-          headerTintColor: "#F8FAFC",
-          headerTitleStyle: { fontWeight: "600" },
-        }}
-      >
-        {!authed ? (
-          <Stack.Screen name="Login" options={{ title: "INRETRANS OS" }}>
-            {(props) => (
-              <LoginScreen
-                {...props}
-                onLoggedIn={async () => {
-                  const u = await getStoredUser();
-                  setUser(u);
-                }}
-              />
+    <AppErrorBoundary>
+      <NotificationsLayer enabled={authed}>
+        <NavigationContainer>
+          <StatusBar style="light" />
+          <Stack.Navigator
+            initialRouteName={start}
+            screenOptions={{
+              headerStyle: { backgroundColor: "#0A0D14" },
+              headerTintColor: "#F8FAFC",
+              headerTitleStyle: { fontWeight: "600" },
+            }}
+          >
+            {!authed ? (
+              <Stack.Screen name="Login" options={{ title: "INRETRANS OS" }}>
+                {(props) => (
+                  <LoginScreen
+                    {...props}
+                    onLoggedIn={async () => {
+                      const u = await getStoredUser();
+                      setUser(u);
+                    }}
+                  />
+                )}
+              </Stack.Screen>
+            ) : (
+              <>
+                <Stack.Screen name="RoleHome" options={{ title: "INRETRANS OS" }}>
+                  {(props) => (
+                    <RoleHomeScreen
+                      {...props}
+                      user={user}
+                      onLogout={() => setUser(null)}
+                    />
+                  )}
+                </Stack.Screen>
+                <Stack.Screen name="Trips" options={{ title: "Mis viajes" }}>
+                  {(props) => (
+                    <TripsScreen
+                      {...props}
+                      onLogout={() => setUser(null)}
+                    />
+                  )}
+                </Stack.Screen>
+                <Stack.Screen
+                  name="SupervisorHome"
+                  options={{ title: "Supervisor" }}
+                >
+                  {(props) => (
+                    <SupervisorHomeScreen
+                      {...props}
+                      onLogout={() => setUser(null)}
+                    />
+                  )}
+                </Stack.Screen>
+                <Stack.Screen
+                  name="Preoperational"
+                  component={PreoperationalScreen}
+                  options={{ title: "Preoperacional" }}
+                />
+                <Stack.Screen
+                  name="TripChat"
+                  component={TripChatScreen}
+                  options={{ title: "Chat del viaje" }}
+                />
+                <Stack.Screen
+                  name="SupportChat"
+                  component={SupportChatScreen}
+                  options={{ title: "Soporte" }}
+                />
+              </>
             )}
-          </Stack.Screen>
-        ) : (
-          <>
-            <Stack.Screen name="RoleHome" options={{ title: "INRETRANS OS" }}>
-              {(props) => (
-                <RoleHomeScreen
-                  {...props}
-                  user={user}
-                  onLogout={() => setUser(null)}
-                />
-              )}
-            </Stack.Screen>
-            <Stack.Screen name="Trips" options={{ title: "Mis viajes" }}>
-              {(props) => (
-                <TripsScreen
-                  {...props}
-                  onLogout={() => setUser(null)}
-                />
-              )}
-            </Stack.Screen>
-            <Stack.Screen
-              name="SupervisorHome"
-              options={{ title: "Supervisor" }}
-            >
-              {(props) => (
-                <SupervisorHomeScreen
-                  {...props}
-                  onLogout={() => setUser(null)}
-                />
-              )}
-            </Stack.Screen>
-            <Stack.Screen
-              name="Preoperational"
-              component={PreoperationalScreen}
-              options={{ title: "Preoperacional" }}
-            />
-            <Stack.Screen
-              name="TripChat"
-              component={TripChatScreen}
-              options={{ title: "Chat del viaje" }}
-            />
-            <Stack.Screen
-              name="SupportChat"
-              component={SupportChatScreen}
-              options={{ title: "Soporte" }}
-            />
-          </>
-        )}
-      </Stack.Navigator>
-    </NavigationContainer>
+          </Stack.Navigator>
+        </NavigationContainer>
+      </NotificationsLayer>
+    </AppErrorBoundary>
   );
 }

@@ -164,6 +164,31 @@ enum TripIncidentCategory {
   OTHER
 }
 
+enum NotificationChannel {
+  IN_APP
+  WEB_PUSH
+  REMOTE_PUSH
+  LOCAL
+}
+
+enum NotificationKind {
+  DEVIATION
+  INCIDENT
+  CHAT
+  REASSIGN
+  SUPPORT
+  SYSTEM
+  REMINDER
+  OTHER
+}
+
+enum DevicePlatform {
+  WEB
+  IOS
+  ANDROID
+  EXPO
+}
+
 enum PlanillaStatus {
   DRAFT
   RELEASED
@@ -600,6 +625,9 @@ model Organization {
   tripChatMessages   TripChatMessage[]
   supportChatMessages SupportChatMessage[]
   tripFieldIncidents TripFieldIncident[]
+  userNotifications  UserNotification[]
+  webPushSubscriptions WebPushSubscription[]
+  devicePushTokens   DevicePushToken[]
 
   @@index([nit])
 }
@@ -634,6 +662,9 @@ model User {
   disbursedPayments  PaymentSchedule[]    @relation("PaymentDisburser")
   rodamientoLiquidations RodamientoLiquidation[] @relation("RodamientoLiquidator")
   sarlaftResolutions SarlaftCheck[] @relation("SarlaftResolver")
+  notifications      UserNotification[]
+  webPushSubscriptions WebPushSubscription[]
+  devicePushTokens   DevicePushToken[]
 
   @@index([organizationId, role])
   @@index([organizationId, active])
@@ -2232,6 +2263,62 @@ model SystemAlert {
 
   @@index([organizationId, resolved, createdAt])
   @@index([severity, resolved])
+}
+
+/// Inbox unificado (campana web + in-app móvil)
+model UserNotification {
+  id             String              @id @default(cuid())
+  organizationId String
+  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind           NotificationKind    @default(SYSTEM)
+  title          String
+  body           String
+  href           String?
+  payload        Json?
+  channels       NotificationChannel[]
+  readAt         DateTime?
+  createdAt      DateTime            @default(now())
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+  @@index([organizationId, createdAt])
+  @@index([kind, createdAt])
+}
+
+/// Suscripción Web Push (VAPID / Push API del navegador)
+model WebPushSubscription {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint       String
+  p256dh         String
+  auth           String
+  userAgent      String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([userId, endpoint])
+  @@index([organizationId, userId])
+}
+
+/// Token push remoto (Expo / FCM / APNs)
+model DevicePushToken {
+  id             String         @id @default(cuid())
+  organizationId String
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platform       DevicePlatform
+  token          String
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@unique([userId, token])
+  @@index([organizationId, platform])
 }
 
 /// Log centralizado NOC / Event Mesh (Módulo 17)

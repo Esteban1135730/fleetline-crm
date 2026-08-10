@@ -74,6 +74,7 @@ export class LogisticsGateway
       };
       client.data.user = user;
       client.join(`org:${user.organizationId}`);
+      client.join(`user:${user.userId}`);
     } catch {
       client.emit("error", { message: "WebSocket no autorizado" });
       client.disconnect(true);
@@ -185,6 +186,19 @@ export class LogisticsGateway
     this.server.to(`org:${organizationId}`).emit("chat.support", { message });
   }
 
+  emitUserNotification(
+    organizationId: string,
+    userId: string,
+    notification: unknown,
+  ) {
+    this.server
+      .to(`user:${userId}`)
+      .emit("notification", { notification });
+    this.server
+      .to(`org:${organizationId}`)
+      .emit("notification.org", { userId, notification });
+  }
+
   @SubscribeMessage("joinTrip")
   handleJoinTrip(
     @ConnectedSocket() client: Socket,
@@ -196,6 +210,14 @@ export class LogisticsGateway
     }
     client.join(`trip:${payload.tripId}`);
     return { ok: true, room: `trip:${payload.tripId}` };
+  }
+
+  @SubscribeMessage("joinUser")
+  handleJoinUser(@ConnectedSocket() client: Socket) {
+    const user = client.data.user as SocketUser | undefined;
+    if (!user?.userId) throw new WsException("No autorizado");
+    client.join(`user:${user.userId}`);
+    return { ok: true, room: `user:${user.userId}` };
   }
 
   private async pushSnapshot(organizationId: string) {

@@ -25,6 +25,11 @@ import { ThemeToggle } from "@/lib/theme";
 import { ShellProvider, useShell } from "@/lib/shell-context";
 import { CommandSearch } from "@/components/shell/command-search";
 import { NavIcon } from "@/components/shell/nav-icons";
+import {
+  NotificationBell,
+  NotificationToasts,
+} from "@/components/notifications/notification-center";
+import { NotificationsProvider } from "@/lib/notifications-context";
 
 const NAV_OPEN_KEY = "flt-nav-depts-open";
 
@@ -173,6 +178,7 @@ function TopBar({
             SYSTEM STATUS: {systemStatus}
           </p>
         </Tooltip>
+        <NotificationBell />
         <Tooltip
           content={
             helpOpen
@@ -671,28 +677,31 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flt-shell">
-      <TopBar
-        userName={user.name}
-        roleLabel={ROLE_LABELS[user.role]}
-        moduleBadge={currentModuleLabel(pathname)}
-      />
-      <div className="flt-shell-body">
-        <SideNav
-          departments={departments}
-          defaultOpenId={
-            departments.some((d) => d.id === defaultOpenId)
-              ? defaultOpenId
-              : departments[0]?.id || "logistica"
-          }
-          onLogout={logout}
+    <NotificationsProvider>
+      <div className="flt-shell">
+        <TopBar
+          userName={user.name}
+          roleLabel={ROLE_LABELS[user.role]}
+          moduleBadge={currentModuleLabel(pathname)}
         />
-        <main className="flt-workbench">{children}</main>
-        <InspectorDrawer />
-        <HelpSheet />
+        <div className="flt-shell-body">
+          <SideNav
+            departments={departments}
+            defaultOpenId={
+              departments.some((d) => d.id === defaultOpenId)
+                ? defaultOpenId
+                : departments[0]?.id || "logistica"
+            }
+            onLogout={logout}
+          />
+          <main className="flt-workbench">{children}</main>
+          <InspectorDrawer />
+          <HelpSheet />
+        </div>
+        <CommandSearch items={flatNav} />
+        <NotificationToasts />
       </div>
-      <CommandSearch items={flatNav} />
-    </div>
+    </NotificationsProvider>
   );
 }
 

@@ -27,7 +27,7 @@ import {
 } from "../api";
 import { useGps } from "../hooks/useGps";
 import { TripRouteMap } from "../components/TripRouteMap";
-import * as ImagePicker from "expo-image-picker";
+import { scheduleTripLocalReminder } from "../notifications/push";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Trips"> & {
   onLogout: () => void;
@@ -80,7 +80,21 @@ export default function TripsScreen({ navigation, onLogout }: Props) {
       const data = await fetchMyTrips();
       setLoadFailed(false);
       setDriverName(data.driver?.name ?? null);
-      setTrips(data.trips ?? []);
+      const list = data.trips ?? [];
+      setTrips(list);
+      for (const t of list) {
+        if (
+          t.departAt &&
+          ["PENDING", "ASSIGNED"].includes(String(t.status).toUpperCase())
+        ) {
+          void scheduleTripLocalReminder({
+            id: t.id,
+            code: t.code,
+            departAt: t.departAt,
+            origin: t.origin,
+          });
+        }
+      }
     } catch (err) {
       setLoadFailed(true);
       setDriverName(null);
@@ -408,25 +422,35 @@ export default function TripsScreen({ navigation, onLogout }: Props) {
               style={[styles.btn, styles.btnGhost, { marginBottom: 12 }]}
               onPress={() => {
                 void (async () => {
-                  const perm =
-                    await ImagePicker.requestMediaLibraryPermissionsAsync();
-                  if (!perm.granted) {
-                    Alert.alert("Permiso", "Se requiere acceso a la galería.");
-                    return;
-                  }
-                  const pick = await ImagePicker.launchImageLibraryAsync({
-                    mediaTypes: ["images"],
-                    quality: 0.55,
-                    base64: true,
-                  });
-                  if (pick.canceled || !pick.assets[0]) return;
-                  const asset = pick.assets[0];
-                  if (asset.base64) {
-                    setPhotoUrl(
-                      `data:${asset.mimeType ?? "image/jpeg"};base64,${asset.base64.slice(0, 120_000)}`,
+                  try {
+                    const ImagePicker = await import("expo-image-picker");
+                    const perm =
+                      await ImagePicker.requestMediaLibraryPermissionsAsync();
+                    if (!perm.granted) {
+                      Alert.alert("Permiso", "Se requiere acceso a la galería.");
+                      return;
+                    }
+                    const pick = await ImagePicker.launchImageLibraryAsync({
+                      mediaTypes: ["images"],
+                      quality: 0.55,
+                      base64: true,
+                    });
+                    if (pick.canceled || !pick.assets[0]) return;
+                    const asset = pick.assets[0];
+                    if (asset.base64) {
+                      setPhotoUrl(
+                        `data:${asset.mimeType ?? "image/jpeg"};base64,${asset.base64.slice(0, 120_000)}`,
+                      );
+                    } else if (asset.uri) {
+                      setPhotoUrl(asset.uri);
+                    }
+                  } catch (e) {
+                    Alert.alert(
+                      "Foto",
+                      e instanceof Error
+                        ? e.message
+                        : "No se pudo abrir la galería",
                     );
-                  } else if (asset.uri) {
-                    setPhotoUrl(asset.uri);
                   }
                 })();
               }}

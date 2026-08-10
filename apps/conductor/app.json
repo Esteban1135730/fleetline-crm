@@ -27,10 +27,23 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Permite a FSG Conductor enviar tu ubicación durante viajes en curso."
+          "locationAlwaysAndWhenInUsePermission": "Permite a INRETRANS OS enviar tu ubicación durante viajes en curso."
         }
       ],
-      "expo-secure-store"
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Permite adjuntar fotos de incidentes en ruta."
+        }
+      ],
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "color": "#10B981",
+          "defaultChannel": "default"
+        }
+      ]
     ]
   }
 }
