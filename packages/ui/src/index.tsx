@@ -82,7 +82,8 @@ export type LegacyBadgeTone =
   | "amber"
   | "rose"
   | "slate"
-  | "info";
+  | "info"
+  | "signal";
 
 function resolveTone(
   tone?: StatusTone | LegacyBadgeTone,
@@ -97,6 +98,7 @@ function resolveTone(
       return "warning";
     case "danger":
     case "rose":
+    case "signal":
       return "danger";
     case "info":
     case "slate":

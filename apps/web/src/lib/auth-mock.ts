@@ -124,7 +124,7 @@ export async function mockAuthenticate(
       id: "mock-node-001",
       email: "ops@fleetline.demo",
       name: "Operador Torre",
-      role: "despacho",
+      role: "gestor_operativo",
       companyId: "org-mock-fleetline",
     },
     authenticatedAt: new Date().toISOString(),

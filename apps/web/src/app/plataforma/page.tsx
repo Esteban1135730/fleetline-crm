@@ -254,7 +254,7 @@ export default function PlataformaPage() {
                 </td>
                 <td className="px-4 py-2.5">
                   <Badge
-                    tone={o.status === "ACTIVE" ? "emerald" : "signal"}
+                    tone={o.status === "ACTIVE" ? "emerald" : "rose"}
                   >
                     {o.status}
                   </Badge>
@@ -335,7 +335,7 @@ export default function PlataformaPage() {
                   {u.organization?.name || "—"}
                 </td>
                 <td className="px-4 py-2.5">
-                  <Badge tone={u.active ? "emerald" : "signal"}>
+                  <Badge tone={u.active ? "emerald" : "rose"}>
                     {u.active ? "ACTIVE" : "OFF"}
                   </Badge>
                 </td>
