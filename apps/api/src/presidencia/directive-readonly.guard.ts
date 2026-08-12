@@ -13,16 +13,17 @@ export const ALLOW_DIRECTIVE_QUERY_KEY = "allowDirectiveQuery";
 export const AllowDirectiveQuery = () =>
   SetMetadata(ALLOW_DIRECTIVE_QUERY_KEY, true);
 
-function isPresidenciaRole(roleRaw: string | undefined): boolean {
-  return String(roleRaw || "").toLowerCase() === "presidencia";
-}
-
+/**
+ * Solo flag directiveReadOnly fuerza lectura.
+ * Org admin / maestro pueden mutar (altas de usuarios, etc.).
+ * El rol legado PRESIDENCIA sin flag ya no bloquea mutaciones.
+ */
 function isDirectiveSession(user?: {
   role?: string;
   directiveReadOnly?: boolean;
 }): boolean {
   if (!user) return false;
-  return Boolean(user.directiveReadOnly) || isPresidenciaRole(user.role);
+  return Boolean(user.directiveReadOnly);
 }
 
 /**

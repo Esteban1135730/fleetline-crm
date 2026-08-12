@@ -8,7 +8,6 @@ import { AUTH_COPY, AuthNodeError } from "@/lib/auth-types";
 import { brand } from "@/lib/brand";
 import { ThemeToggle } from "@/lib/theme";
 
-type AuthMode = "login" | "register";
 type FormPhase = "idle" | "loading" | "success" | "error";
 
 function FleetMark({ className = "h-10 w-10" }: { className?: string }) {
@@ -28,15 +27,11 @@ function FleetMark({ className = "h-10 w-10" }: { className?: string }) {
 }
 
 export function LoginScreen() {
-  const { login, register, user, homePath, loading } = useAuth();
+  const { login, user, homePath, loading } = useAuth();
   const router = useRouter();
 
-  const [mode, setMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [orgName, setOrgName] = useState("");
-  const [nit, setNit] = useState("");
-  const [adminName, setAdminName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [phase, setPhase] = useState<FormPhase>("idle");
@@ -61,22 +56,9 @@ export function LoginScreen() {
     setPhase("loading");
 
     try {
-      if (mode === "login") {
-        const session = await authenticateNode(email, password, login);
-        setPhase("success");
-        router.replace(homePathForRole(session.user.role));
-        return;
-      }
-
-      const logged = await register({
-        organizationName: orgName,
-        nit,
-        adminName,
-        adminEmail: email,
-        adminPassword: password,
-      });
+      const session = await authenticateNode(email, password, login);
       setPhase("success");
-      router.replace(homePathForRole(logged.role));
+      router.replace(homePathForRole(session.user.role));
     } catch (err) {
       setPhase("error");
       if (err instanceof AuthNodeError) {
@@ -84,11 +66,7 @@ export function LoginScreen() {
       } else if (err instanceof Error && /fetch|network|ECONNREFUSED/i.test(err.message)) {
         setErrorMessage(AUTH_COPY.errors.NETWORK_SYNC_FAILURE);
       } else if (err instanceof Error && err.message) {
-        const mapped =
-          /credential|unauthorized|401|invalid|incorrect|wrong/i.test(err.message)
-            ? AUTH_COPY.errors.NODE_CREDENTIALS_NOT_FOUND
-            : err.message;
-        setErrorMessage(mapped);
+        setErrorMessage(err.message);
       } else {
         setErrorMessage(AUTH_COPY.errors.NETWORK_SYNC_FAILURE);
       }
@@ -101,11 +79,11 @@ export function LoginScreen() {
     phase === "error"
       ? AUTH_COPY.systemAlert
       : phase === "loading"
-        ? "SYSTEM STATUS: NOMINAL // UPLINK IN PROGRESS"
+        ? AUTH_COPY.systemOffline
         : AUTH_COPY.systemNominal;
 
   return (
-    <div className="login-canvas relative flex min-h-screen flex-col">
+    <div className="login-canvas relative flex min-h-screen flex-col overflow-hidden">
       <div className="absolute right-4 top-4 z-20 md:right-8 md:top-8">
         <ThemeToggle />
       </div>
@@ -133,60 +111,12 @@ export function LoginScreen() {
         >
           <div>
             <h2 className="font-display text-xl font-bold tracking-tight text-[var(--text-primary)] sm:text-2xl">
-              {mode === "login" ? AUTH_COPY.accessTitle : AUTH_COPY.registerTitle}
+              {AUTH_COPY.accessTitle}
             </h2>
             <p className="mt-1.5 text-sm leading-relaxed text-[var(--text-secondary)]">
-              {mode === "login"
-                ? AUTH_COPY.accessSubtitle
-                : AUTH_COPY.registerSubtitle}
+              {AUTH_COPY.accessSubtitle}
             </p>
           </div>
-
-          {mode === "register" ? (
-            <div className="space-y-3">
-              <div>
-                <label className="field-label" htmlFor="orgName">
-                  {AUTH_COPY.orgNameLabel}
-                </label>
-                <input
-                  id="orgName"
-                  className="login-field"
-                  value={orgName}
-                  onChange={(e) => setOrgName(e.target.value)}
-                  required
-                  disabled={isLoading}
-                  autoComplete="organization"
-                />
-              </div>
-              <div>
-                <label className="field-label" htmlFor="nit">
-                  {AUTH_COPY.nitLabel}
-                </label>
-                <input
-                  id="nit"
-                  className="login-field font-data"
-                  value={nit}
-                  onChange={(e) => setNit(e.target.value)}
-                  required
-                  disabled={isLoading}
-                />
-              </div>
-              <div>
-                <label className="field-label" htmlFor="adminName">
-                  {AUTH_COPY.adminNameLabel}
-                </label>
-                <input
-                  id="adminName"
-                  className="login-field"
-                  value={adminName}
-                  onChange={(e) => setAdminName(e.target.value)}
-                  required
-                  disabled={isLoading}
-                  autoComplete="name"
-                />
-              </div>
-            </div>
-          ) : null}
 
           <div>
             <label className="field-label" htmlFor="nodeEmail">
@@ -226,9 +156,7 @@ export function LoginScreen() {
               }}
               required
               disabled={isLoading}
-              autoComplete={
-                mode === "login" ? "current-password" : "new-password"
-              }
+              autoComplete="current-password"
               minLength={6}
             />
           </div>
@@ -264,50 +192,10 @@ export function LoginScreen() {
               </>
             ) : phase === "success" ? (
               AUTH_COPY.submitSuccess
-            ) : mode === "login" ? (
-              AUTH_COPY.submitIdle
             ) : (
-              AUTH_COPY.registerSubmit
+              AUTH_COPY.submitIdle
             )}
           </button>
-
-          <div className="pt-1 text-center">
-            {mode === "login" ? (
-              <>
-                <p className="mb-2 font-data text-[10px] leading-relaxed text-[var(--text-secondary)]">
-                  {AUTH_COPY.demoHint}
-                </p>
-                <p className="text-xs text-[var(--text-secondary)]">
-                  {AUTH_COPY.registerHint}{" "}
-                  <button
-                    type="button"
-                    className="font-semibold text-[var(--accent-primary)] transition-colors duration-150 hover:underline"
-                    onClick={() => {
-                      setMode("register");
-                      setErrorMessage("");
-                      setPhase("idle");
-                    }}
-                    disabled={isLoading}
-                  >
-                    {AUTH_COPY.registerCta}
-                  </button>
-                </p>
-              </>
-            ) : (
-              <button
-                type="button"
-                className="text-xs font-semibold text-[var(--accent-primary)] transition-colors duration-150 hover:underline"
-                onClick={() => {
-                  setMode("login");
-                  setErrorMessage("");
-                  setPhase("idle");
-                }}
-                disabled={isLoading}
-              >
-                {AUTH_COPY.backToLogin}
-              </button>
-            )}
-          </div>
         </form>
       </div>
 
@@ -315,13 +203,9 @@ export function LoginScreen() {
         <p className="font-data text-[10px] uppercase tracking-[0.12em] text-[var(--text-secondary)]">
           {statusLine}
         </p>
-        <div className="flex flex-wrap gap-x-4 gap-y-1 font-data text-[10px] tracking-wide text-[var(--text-secondary)]">
-          <span className="gps-coord">{AUTH_COPY.coords}</span>
-          <span className="timestamp-data" suppressHydrationWarning>
-            {clock ? `${clock}Z` : "—"}
-          </span>
-          <span className="hidden sm:inline">{AUTH_COPY.engineVersion}</span>
-        </div>
+        <p className="font-data text-[10px] text-[var(--text-secondary)]">
+          {clock} · {AUTH_COPY.coords}
+        </p>
       </footer>
     </div>
   );

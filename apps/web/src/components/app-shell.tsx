@@ -6,15 +6,20 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   MODULE_LABELS,
   NAV_DEPARTMENTS,
+  RECEPCIONISTA_NAV,
+  LIDER_TI_NAV,
+  GESTOR_DOCUMENTAL_NAV,
+  AUXILIAR_CONTABLE_NAV,
+  GESTOR_CONTABLE_NAV,
   ROLE_DEFAULT_NAV_DEPT,
   ROLE_LABELS,
   ROLE_VIEWS,
   navDeptForPath,
+  normalizeRole,
   resolveModuleId,
   type ModuleId,
   type NavDeptId,
   type NavDepartment,
-  type Role,
 } from "@fsg/shared";
 import { Button, Tooltip } from "@fsg/ui";
 import { useAuth } from "@/lib/auth-context";
@@ -622,13 +627,98 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       .then((h) => setSystemStatus(h.db === "ok" ? "NOMINAL" : "ALERT"))
       .catch(() => setSystemStatus("OFFLINE"));
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+      void (async () => {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map((r) => r.unregister()));
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => caches.delete(k)));
+        await navigator.serviceWorker.register("/sw.js?v=4", {
+          updateViaCache: "none",
+        });
+      })().catch(() => undefined);
     }
   }, [user, setSystemStatus]);
 
   const departments = useMemo(() => {
     if (!user) return [];
-    const allowed = new Set(ROLE_VIEWS[user.role] || []);
+    const role = normalizeRole(user.role);
+
+    if (role === "recepcionista") {
+      const dept: NavDepartment = {
+        id: "call_center",
+        label: "Recepción",
+        tip: "Concierge omnicanal · visitas · PQRS · radar lectura",
+        items: RECEPCIONISTA_NAV.map((i) => ({
+          href: i.href,
+          view: i.view as ModuleId,
+          label: i.label,
+          tip: i.tip,
+        })),
+      };
+      return [dept];
+    }
+
+    if (role === "lider_ti") {
+      const dept: NavDepartment = {
+        id: "tecnologia_ti",
+        label: "Tecnología e infraestructura",
+        tip: "Centro de Control · usuarios · help desk · NOC",
+        items: LIDER_TI_NAV.map((i) => ({
+          href: i.href,
+          view: i.view as ModuleId,
+          label: i.label,
+          tip: i.tip,
+        })),
+      };
+      return [dept];
+    }
+
+    if (role === "gestor_documental") {
+      const dept: NavDepartment = {
+        id: "archivo",
+        label: "Archivo y Papelería",
+        tip: "Custodia · papelería · búsqueda universal",
+        items: GESTOR_DOCUMENTAL_NAV.map((i) => ({
+          href: i.href,
+          view: i.view as ModuleId,
+          label: i.label,
+          tip: i.tip,
+        })),
+      };
+      return [dept];
+    }
+
+    if (role === "auxiliar_contable") {
+      const dept: NavDepartment = {
+        id: "contabilidad",
+        label: "Operación financiera",
+        tip: "CxP · legalizaciones · conciliación bancaria",
+        items: AUXILIAR_CONTABLE_NAV.map((i) => ({
+          href: i.href,
+          view: i.view as ModuleId,
+          label: i.label,
+          tip: i.tip,
+        })),
+      };
+      return [dept];
+    }
+
+    if (role === "gestor_contable") {
+      const dept: NavDepartment = {
+        id: "contabilidad",
+        label: "Contabilidad 4.0",
+        tip: "PUC · DIAN · Smart Wallet · costeo flota",
+        items: GESTOR_CONTABLE_NAV.map((i) => ({
+          href: i.href,
+          view: i.view as ModuleId,
+          label: i.label,
+          tip: i.tip,
+        })),
+      };
+      return [dept];
+    }
+
+    const allowed = new Set(ROLE_VIEWS[role] || []);
     return NAV_DEPARTMENTS.filter((dept) =>
       dept.items.some(
         (item) =>
@@ -644,7 +734,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
   }, [user]);
 
   const defaultOpenId: NavDeptId = user
-    ? ROLE_DEFAULT_NAV_DEPT[user.role as Role] || "logistica"
+    ? ROLE_DEFAULT_NAV_DEPT[normalizeRole(user.role)] || "logistica"
     : "logistica";
 
   const flatNav: FlatNavItem[] = useMemo(() => {
@@ -681,7 +771,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       <div className="flt-shell">
         <TopBar
           userName={user.name}
-          roleLabel={ROLE_LABELS[user.role]}
+          roleLabel={ROLE_LABELS[normalizeRole(user.role)] || user.role}
           moduleBadge={currentModuleLabel(pathname)}
         />
         <div className="flt-shell-body">

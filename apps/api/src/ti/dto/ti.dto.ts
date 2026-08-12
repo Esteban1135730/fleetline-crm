@@ -32,3 +32,25 @@ export const SynthesizeSchema = z.object({
   format: z.enum(["mp3", "wav", "ogg"]).optional(),
 });
 export type SynthesizeDto = z.infer<typeof SynthesizeSchema>;
+
+export const OnboardingLinkSchema = z.object({
+  email: z.string().email(),
+  name: z.string().min(2).max(120).optional(),
+  targetRole: z.string().min(2).max(64).optional(),
+  ttlMinutes: z.coerce.number().int().positive().max(7 * 24 * 60).optional(),
+});
+export type OnboardingLinkDto = z.infer<typeof OnboardingLinkSchema>;
+
+export const MdmPairQrSchema = z.object({
+  driverUserId: z.string().min(1).optional(),
+  lockDevice: z.boolean().optional(),
+  ttlMinutes: z.coerce.number().int().positive().max(120).optional(),
+});
+export type MdmPairQrDto = z.infer<typeof MdmPairQrSchema>;
+
+export const HelpdeskTicketSchema = z.object({
+  title: z.string().min(3).max(200),
+  detail: z.string().max(4000).optional(),
+  priority: z.enum(["HIGH", "MEDIUM", "LOW", "ALTA", "MEDIA", "BAJA"]).optional(),
+});
+export type HelpdeskTicketDto = z.infer<typeof HelpdeskTicketSchema>;

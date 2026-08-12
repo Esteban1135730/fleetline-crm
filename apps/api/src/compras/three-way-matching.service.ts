@@ -291,6 +291,7 @@ export class ThreeWayMatchingService {
 
     return {
       matchId: match.id,
+      invoiceId: invoice.id,
       status: evaluation.outcome,
       matchStatus: status,
       priceDelta: evaluation.priceDelta,

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
-export default function RecepcionRedirect() {
-  redirect("/call-center");
+export default function RecepcionIndex() {
+  redirect("/recepcion/dashboard");
 }

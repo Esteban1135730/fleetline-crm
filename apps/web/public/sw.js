@@ -1,43 +1,22 @@
-const CACHE = "inretrans-shell-v2";
-const ASSETS = ["/", "/login", "/manifest.json"];
+/** Solo Web Push — sin cache de fetch (evita chrome-extension / HMR en dev) */
+const CACHE = "inretrans-shell-v4";
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches
-      .open(CACHE)
-      .then((cache) => cache.addAll(ASSETS))
-      .then(() => self.skipWaiting()),
-  );
+  event.waitUntil(self.skipWaiting());
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) =>
-        Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))),
-      )
+      .then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
       .then(() => self.clients.claim()),
   );
 });
 
-self.addEventListener("fetch", (event) => {
-  const { request } = event;
-  if (request.method !== "GET") return;
-  if (request.url.includes("/api") || request.url.includes(":4000")) return;
+/** No interceptamos fetch: evita Cache.put con chrome-extension: y no rompe Next/HMR */
+self.addEventListener("fetch", () => undefined);
 
-  event.respondWith(
-    fetch(request)
-      .then((response) => {
-        const copy = response.clone();
-        caches.open(CACHE).then((cache) => cache.put(request, copy));
-        return response;
-      })
-      .catch(() => caches.match(request).then((r) => r || caches.match("/"))),
-  );
-});
-
-/** Web Push — llega aunque la pestaña esté cerrada */
 self.addEventListener("push", (event) => {
   let data = {
     title: "INRETRANS OS",

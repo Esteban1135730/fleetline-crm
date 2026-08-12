@@ -108,7 +108,7 @@ export class ComprasService {
           lines: dto.lines,
           scannedAt: new Date().toISOString(),
           barcodes: dto.lines.map((l) => l.barcode).filter(Boolean),
-        },
+        } as object,
       },
     });
 

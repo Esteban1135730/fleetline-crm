@@ -31,6 +31,8 @@ import { EscolarModule } from "./escolar/escolar.module";
 import { PasajerosModule } from "./pasajeros/pasajeros.module";
 import { ClientesB2bModule } from "./clientes-b2b/clientes-b2b.module";
 import { UsersModule } from "./users/users.module";
+import { PlatformModule } from "./platform/platform.module";
+import { RecepcionModule } from "./recepcion/recepcion.module";
 import { ModulesModule } from "./modules/modules.module";
 import { HealthController } from "./health.controller";
 import { PrismaModule } from "./prisma/prisma.module";
@@ -70,6 +72,8 @@ import { PrismaModule } from "./prisma/prisma.module";
     PasajerosModule,
     ClientesB2bModule,
     UsersModule,
+    PlatformModule,
+    RecepcionModule,
     ModulesModule,
   ],
   controllers: [HealthController],

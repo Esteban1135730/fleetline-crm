@@ -1,12 +1,16 @@
 /**
- * INRETRANS OS — Seed demo SSOT (datos visibles en CRM web)
+ * INRETRANS OS — Seed demo SSOT
  *
- * Cuentas (password: fsg2026):
- *  - presidencia@fsg.co  → PRESIDENCIA READ_ONLY
- *  - logistica@fsg.co    → DESPACHO (operar CRM)
- *  - revisoria@fsg.co    → REVISORIA READ_ONLY
- *  - conductor@fsg.co    → CONDUCTOR + Driver
- *  - monitora@fsg.co     → monitor escolar
+ * Empresa: Transportes FSG S.A.S. · Clave genérica: Inretrans2026*
+ *  - superadmin@inretrans.com       → SUPERADMIN
+ *  - recepcion@inretrans.com        → RECEPCIONISTA
+ *  - ti@inretrans.com               → LIDER_TI
+ *  - archivo@inretrans.com          → GESTOR_DOCUMENTAL
+ *  - contabilidad@inretrans.com     → GESTOR_CONTABLE
+ *  - auxiliarcontable@inretrans.com → AUXILIAR_CONTABLE
+ *  - tesoreria@inretrans.com        → TESORERIA
+ *  - conductor@inretrans.com        → CONDUCTOR
+ *  - logistica@inretrans.com        → SUPERVISOR_LOGISTICA
  */
 import {
   AccessLevel,
@@ -56,6 +60,7 @@ import {
   TicketPriority,
   TicketStatus,
   TripStatus,
+  UserAccountStatus,
   VehicleStatus,
   VisitorKind,
   WorkOrderStatus,
@@ -108,7 +113,8 @@ const DESPACHO_WRITE: FleetModule[] = [
   FleetModule.GERENCIA,
 ];
 
-const DEMO_PASSWORD = "fsg2026";
+const DEMO_PASSWORD = "Inretrans2026*";
+const MASTER_PASSWORD = "Inretrans2026*";
 
 function daysFromNow(d: number) {
   const x = new Date();
@@ -147,6 +153,13 @@ async function seedRoleMatrix(organizationId: string) {
   for (const module of ALL_MODULES) {
     rows.push({
       organizationId,
+      role: RoleCode.ORG_ADMIN,
+      module,
+      access: AccessLevel.ADMIN,
+      forceReadOnly: false,
+    });
+    rows.push({
+      organizationId,
       role: RoleCode.PRESIDENCIA,
       module,
       access: AccessLevel.READ_ONLY,
@@ -154,7 +167,14 @@ async function seedRoleMatrix(organizationId: string) {
     });
     rows.push({
       organizationId,
-      role: RoleCode.REVISORIA,
+      role: RoleCode.GERENTE_GENERAL,
+      module,
+      access: AccessLevel.READ_WRITE,
+      forceReadOnly: false,
+    });
+    rows.push({
+      organizationId,
+      role: RoleCode.REVISOR_FISCAL,
       module,
       access: AccessLevel.READ_ONLY,
       forceReadOnly: true,
@@ -162,9 +182,86 @@ async function seedRoleMatrix(organizationId: string) {
     const write = DESPACHO_WRITE.includes(module);
     rows.push({
       organizationId,
-      role: RoleCode.DESPACHO,
+      role: RoleCode.GESTOR_OPERATIVO,
       module,
       access: write ? AccessLevel.READ_WRITE : AccessLevel.READ_ONLY,
+      forceReadOnly: false,
+    });
+    rows.push({
+      organizationId,
+      role: RoleCode.SUPERVISOR_LOGISTICA,
+      module,
+      access: write ? AccessLevel.READ_WRITE : AccessLevel.READ_ONLY,
+      forceReadOnly: false,
+    });
+    rows.push({
+      organizationId,
+      role: RoleCode.CENTRO_CONTROL,
+      module,
+      access:
+        module === FleetModule.LOGISTICA || module === FleetModule.APP_CONDUCTOR
+          ? AccessLevel.READ_WRITE
+          : AccessLevel.READ_ONLY,
+      forceReadOnly: false,
+    });
+    rows.push({
+      organizationId,
+      role: RoleCode.TESORERIA,
+      module,
+      access:
+        module === FleetModule.TESORERIA || module === FleetModule.CONTABILIDAD
+          ? AccessLevel.READ_WRITE
+          : AccessLevel.READ_ONLY,
+      forceReadOnly: false,
+    });
+    rows.push({
+      organizationId,
+      role: RoleCode.RECEPCIONISTA,
+      module,
+      access:
+        module === FleetModule.RECEPCION_CALLCENTER
+          ? AccessLevel.READ_WRITE
+          : AccessLevel.READ_ONLY,
+      forceReadOnly: false,
+    });
+    rows.push({
+      organizationId,
+      role: RoleCode.LIDER_TI,
+      module,
+      access:
+        module === FleetModule.TECNOLOGIA
+          ? AccessLevel.ADMIN
+          : AccessLevel.READ_ONLY,
+      forceReadOnly: false,
+    });
+    rows.push({
+      organizationId,
+      role: RoleCode.GESTOR_DOCUMENTAL,
+      module,
+      access:
+        module === FleetModule.ARCHIVO
+          ? AccessLevel.ADMIN
+          : AccessLevel.READ_ONLY,
+      forceReadOnly: false,
+    });
+    rows.push({
+      organizationId,
+      role: RoleCode.GESTOR_CONTABLE,
+      module,
+      access:
+        module === FleetModule.CONTABILIDAD || module === FleetModule.TESORERIA
+          ? AccessLevel.READ_WRITE
+          : AccessLevel.READ_ONLY,
+      forceReadOnly: false,
+    });
+    rows.push({
+      organizationId,
+      role: RoleCode.AUXILIAR_CONTABLE,
+      module,
+      access:
+        module === FleetModule.CONTABILIDAD
+          ? AccessLevel.READ_WRITE
+          : AccessLevel.READ_ONLY,
       forceReadOnly: false,
     });
     let conductorAccess = AccessLevel.NONE;
@@ -187,31 +284,73 @@ async function main() {
   console.log("[seed] INRETRANS OS — demo datos CRM");
   await wipe();
 
-  const org = await prisma.organization.create({
-    data: { name: "FSG Transportes S.A.S.", nit: "900123456-1" },
+  const masterOrg = await prisma.organization.create({
+    data: {
+      name: "INRETRANS Plataforma",
+      nit: "901000000-0",
+      maxUsers: 10,
+      status: "ACTIVE",
+    },
   });
-  console.log(`[seed] Org: ${org.name}`);
+  const masterHash = await bcrypt.hash(MASTER_PASSWORD, 10);
+  await prisma.user.create({
+    data: {
+      email: "superadmin@inretrans.com",
+      name: "Usuario Maestro INRETRANS",
+      role: RoleCode.SUPERADMIN,
+      status: UserAccountStatus.ACTIVE,
+      directiveReadOnly: false,
+      passwordHash: masterHash,
+      organizationId: masterOrg.id,
+    },
+  });
+  console.log(`[seed] SUPERADMIN: superadmin@inretrans.com @ ${masterOrg.name}`);
+
+  const org = await prisma.organization.create({
+    data: {
+      name: "Transportes FSG S.A.S.",
+      nit: "900123456-1",
+      maxUsers: 80,
+      status: "ACTIVE",
+    },
+  });
+  console.log(`[seed] Tenant: ${org.name} · tenantId=${org.id}`);
 
   const permCount = await seedRoleMatrix(org.id);
   console.log(`[seed] RBAC: ${permCount} RolePermission`);
 
   const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 10);
 
+  const orgAdmin = await prisma.user.create({
+    data: {
+      email: "admin@fsg.co",
+      name: "Admin FSG (Org Admin)",
+      role: RoleCode.ORG_ADMIN,
+      status: UserAccountStatus.ACTIVE,
+      directiveReadOnly: false,
+      passwordHash,
+      organizationId: org.id,
+    },
+  });
+  void orgAdmin;
+
   const presidenci = await prisma.user.create({
     data: {
       email: "presidencia@fsg.co",
-      name: "Ana Presidencia (Directivo)",
+      name: "Ana Presidencia",
       role: RoleCode.PRESIDENCIA,
+      status: UserAccountStatus.ACTIVE,
       directiveReadOnly: true,
       passwordHash,
       organizationId: org.id,
     },
   });
+
   const logistica = await prisma.user.create({
     data: {
-      email: "logistica@fsg.co",
-      name: "Luis Director Logística",
-      role: RoleCode.DESPACHO,
+      email: "logistica@inretrans.com",
+      name: "Luis Supervisor Logística",
+      role: RoleCode.SUPERVISOR_LOGISTICA,
       passwordHash,
       organizationId: org.id,
     },
@@ -219,8 +358,8 @@ async function main() {
   const auditor = await prisma.user.create({
     data: {
       email: "revisoria@fsg.co",
-      name: "Elena Auditora Revisoría",
-      role: RoleCode.REVISORIA,
+      name: "Elena Revisor Fiscal",
+      role: RoleCode.REVISOR_FISCAL,
       directiveReadOnly: true,
       passwordHash,
       organizationId: org.id,
@@ -228,7 +367,7 @@ async function main() {
   });
   const conductorUser = await prisma.user.create({
     data: {
-      email: "conductor@fsg.co",
+      email: "conductor@inretrans.com",
       name: "Carlos Conductor Prueba",
       role: RoleCode.CONDUCTOR,
       passwordHash,
@@ -247,13 +386,248 @@ async function main() {
   const supervisorUser = await prisma.user.create({
     data: {
       email: "supervisor@fsg.co",
-      name: "Sofía Supervisor Flota",
-      role: RoleCode.SUPERVISOR,
+      name: "Sofía Centro de Control",
+      role: RoleCode.CENTRO_CONTROL,
       passwordHash,
       organizationId: org.id,
     },
   });
   void supervisorUser;
+
+  const flor = await prisma.user.create({
+    data: {
+      email: "recepcion@inretrans.com",
+      name: "Flor Recepcionista",
+      role: RoleCode.RECEPCIONISTA,
+      status: UserAccountStatus.ACTIVE,
+      passwordHash,
+      organizationId: org.id,
+    },
+  });
+  void flor;
+
+  const david = await prisma.user.create({
+    data: {
+      email: "ti@inretrans.com",
+      name: "David Líder TI",
+      role: RoleCode.LIDER_TI,
+      status: UserAccountStatus.ACTIVE,
+      passwordHash,
+      organizationId: org.id,
+      lastLoginAt: new Date(),
+      lastIp: "10.20.0.14",
+    },
+  });
+
+  await prisma.systemTicket.createMany({
+    data: [
+      {
+        organizationId: org.id,
+        createdById: david.id,
+        title: "Token Meta WhatsApp por vencer",
+        detail: "Refrescar credencial Cloud API antes del corte de uplink.",
+        priority: "HIGH",
+        status: "OPEN",
+      },
+      {
+        organizationId: org.id,
+        createdById: david.id,
+        title: "SIM Card GPS unidad BOG-214 — señal intermitente",
+        detail: "Revisar APN y saldo de datos en Wialon.",
+        priority: "MEDIUM",
+        status: "OPEN",
+      },
+      {
+        organizationId: org.id,
+        createdById: david.id,
+        title: "Actualizar base de conocimiento help desk",
+        detail: "Documentar flujo de reset MFA y onboarding MDM.",
+        priority: "LOW",
+        status: "OPEN",
+      },
+    ],
+  });
+
+  const roberto = await prisma.user.create({
+    data: {
+      email: "archivo@inretrans.com",
+      name: "Roberto Gestor Documental",
+      role: RoleCode.GESTOR_DOCUMENTAL,
+      status: UserAccountStatus.ACTIVE,
+      passwordHash,
+      organizationId: org.id,
+    },
+  });
+
+  await prisma.stationeryItem.createMany({
+    data: [
+      {
+        organizationId: org.id,
+        sku: "PAP-A4-75",
+        name: "Resma papel bond A4 75g",
+        unit: "RESMA",
+        quantity: 5,
+        minStock: 5,
+      },
+      {
+        organizationId: org.id,
+        sku: "TONER-HP-26A",
+        name: "Toner HP 26A",
+        unit: "UND",
+        quantity: 12,
+        minStock: 3,
+      },
+      {
+        organizationId: org.id,
+        sku: "FOLDER-OF",
+        name: "Carpeta oficio kraft",
+        unit: "UND",
+        quantity: 2,
+        minStock: 10,
+      },
+    ],
+  });
+
+  const sampleDoc = await prisma.archiveDocument.create({
+    data: {
+      organizationId: org.id,
+      title: "SOAT BUS-001 — pendiente escaneo físico",
+      plate: "BOG-892",
+      taxIdOrDocument: "900123456",
+      aisle: "A",
+      shelf: "3",
+      box: "12",
+      pendingDigitization: true,
+      custodyStatus: "AVAILABLE",
+      uploadedById: roberto.id,
+      tags: ["SOAT", "FLOTA"],
+    },
+  });
+  void sampleDoc;
+
+  const mateo = await prisma.user.create({
+    data: {
+      email: "auxiliarcontable@inretrans.com",
+      name: "Mateo Auxiliar Contable",
+      role: RoleCode.AUXILIAR_CONTABLE,
+      status: UserAccountStatus.ACTIVE,
+      passwordHash,
+      organizationId: org.id,
+    },
+  });
+
+  await prisma.expenseLegalization.create({
+    data: {
+      organizationId: org.id,
+      code: "LEG-2026-001",
+      driverName: "Carlos Conductor Prueba",
+      advanceAmount: 200000,
+      expensesTotal: 85000,
+      balance: 115000,
+      status: "IN_REVIEW",
+      lines: {
+        create: [
+          {
+            source: "SMART_WALLET",
+            description: "Combustible ruta norte",
+            amount: 85000,
+          },
+        ],
+      },
+    },
+  });
+
+  await prisma.invoice.create({
+    data: {
+      organizationId: org.id,
+      number: "FP-2026-SEED-01",
+      type: "SUPPLIER_ELECTRONIC",
+      status: "PENDING_MATCH",
+      counterparty: "Repuestos Andinos SAS",
+      amount: 450000,
+      xmlHash: "seed-xml-hash",
+    },
+  });
+
+  await prisma.invoice.create({
+    data: {
+      organizationId: org.id,
+      number: "FV-2026-SEED-01",
+      type: "RECEIVABLE",
+      status: "ISSUED",
+      counterparty: "Colegio Demo Norte",
+      amount: 1200000,
+    },
+  });
+  void mateo;
+
+  const diana = await prisma.user.create({
+    data: {
+      email: "contabilidad@inretrans.com",
+      name: "Diana Gestora Contable",
+      role: RoleCode.GESTOR_CONTABLE,
+      status: UserAccountStatus.ACTIVE,
+      passwordHash,
+      organizationId: org.id,
+    },
+  });
+
+  const tesorero = await prisma.user.create({
+    data: {
+      email: "tesoreria@inretrans.com",
+      name: "Tomás Tesorero",
+      role: RoleCode.TESORERIA,
+      status: UserAccountStatus.ACTIVE,
+      passwordHash,
+      organizationId: org.id,
+    },
+  });
+  void tesorero;
+
+  await prisma.routeExpense.createMany({
+    data: [
+      {
+        organizationId: org.id,
+        plate: "BOG-892",
+        kind: "PEAJE",
+        amount: 18500,
+        photoRef: "uploads/peaje-bog892.jpg",
+        aiExtracted: {
+          station: "Andes",
+          plate: "BOG-892",
+          amount: 18500,
+          confidence: 0.94,
+        },
+        driverName: "Carlos Conductor Prueba",
+        status: "PENDING",
+      },
+      {
+        organizationId: org.id,
+        plate: "BOG-892",
+        kind: "TANQUEO",
+        amount: 320000,
+        photoRef: "uploads/tanqueo-bog892.jpg",
+        aiExtracted: {
+          station: "Terpel Calle 80",
+          liters: 40,
+          amount: 320000,
+          confidence: 0.91,
+        },
+        driverName: "Carlos Conductor Prueba",
+        status: "PENDING",
+      },
+    ],
+  });
+
+  await prisma.costCenter.create({
+    data: {
+      organizationId: org.id,
+      plate: "BOG-892",
+      code: "CC-BOG-892",
+      name: "Centro costo BOG-892",
+    },
+  });
+  void diana;
 
   const licenseOk = daysFromNow(730);
   const driverCarlos = await prisma.driver.create({
@@ -1045,7 +1419,7 @@ async function main() {
       status: EmployeeStatus.ACTIVE,
       baseSalary: 8500000,
       hourlyRate: 45000,
-      email: "logistica@fsg.co",
+      email: "logistica@inretrans.com",
       organizationId: org.id,
     },
   });
@@ -1413,7 +1787,7 @@ async function main() {
         organizationId: org.id,
         level: SystemLogLevel.INFO,
         source: "api.auth",
-        message: "Login node logistica@fsg.co OK",
+        message: "Login node logistica@inretrans.com OK",
       },
       {
         organizationId: org.id,
@@ -1696,11 +2070,13 @@ async function main() {
     hqseIncidents: await prisma.hqseIncident.count(),
   };
 
-  console.log("[seed] Usuarios (password: fsg2026):");
-  console.log("  - presidencia@fsg.co | logistica@fsg.co | revisoria@fsg.co");
-  console.log("  - conductor@fsg.co | monitora@fsg.co | supervisor@fsg.co");
+  console.log("[seed] Usuarios (clave Inretrans2026*):");
+  console.log("  - superadmin@inretrans.com (SUPERADMIN)");
+  console.log("  - recepcion@inretrans.com | ti@inretrans.com | archivo@inretrans.com");
+  console.log("  - contabilidad@inretrans.com | auxiliarcontable@inretrans.com");
+  console.log("  - tesoreria@inretrans.com | logistica@inretrans.com | conductor@inretrans.com");
   console.log("[seed] Conteos:", counts);
-  console.log("[seed] OK — refresca la web (logistica@fsg.co) para ver datos");
+  console.log("[seed] OK — refresca la web");
 }
 
 main()

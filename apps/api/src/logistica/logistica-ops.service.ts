@@ -124,8 +124,10 @@ export class LogisticaOpsService {
 
     let customerId = dto.customerId;
     let fareAmount = dto.fareAmount;
+    let driverId = dto.driverId;
+    let vehicleId = dto.vehicleId;
+    const dispatchNotes: string[] = [];
 
-    // —— Hard-Stop Comercial (M03): vigencia / cupo / presupuesto ——
     if (dto.contractId) {
       const contract =
         await this.commercialContracts.assertAssignableForDispatch(
@@ -142,72 +144,78 @@ export class LogisticaOpsService {
       }
     }
 
-    if (dto.driverId) {
+    // Soft-assign: el servicio siempre se crea; bloqueos solo omiten asignación
+    if (driverId) {
       const d = await this.prisma.driver.findFirst({
-        where: { id: dto.driverId, organizationId },
+        where: { id: driverId, organizationId },
       });
       if (!d) throw new NotFoundException("Conductor no encontrado");
       if (d.dispatchBlocked) {
-        throw new UnprocessableEntityException({
-          error: "COMPLIANCE_GATE_BLOCKED",
-          message: `Hard-Stop RRHH/Fatiga: ${d.blockReason || "DISPATCH_BLOCKED"}`,
-          blocks: ["DRIVER_DISPATCH_BLOCKED"],
-        });
-      }
-      if (d.fatigueScore >= HARD_RULES.FATIGUE_BLOCK_SCORE) {
-        throw new UnprocessableEntityException({
-          error: "COMPLIANCE_GATE_BLOCKED",
-          message: `Hard-Stop fatiga: score ${d.fatigueScore}/${HARD_RULES.FATIGUE_BLOCK_SCORE}`,
-          blocks: ["DRIVER_FATIGUE"],
-        });
+        dispatchNotes.push(
+          `Conductor no asignado — bloqueado: ${d.blockReason || "DISPATCH_BLOCKED"}`,
+        );
+        driverId = undefined;
+      } else if (d.fatigueScore >= HARD_RULES.FATIGUE_BLOCK_SCORE) {
+        dispatchNotes.push(
+          `Conductor no asignado — fatiga ${d.fatigueScore}/${HARD_RULES.FATIGUE_BLOCK_SCORE}`,
+        );
+        driverId = undefined;
       }
     }
 
-    if (dto.vehicleId) {
+    if (vehicleId) {
       const v = await this.prisma.vehicle.findFirst({
-        where: { id: dto.vehicleId, organizationId },
+        where: { id: vehicleId, organizationId },
       });
       if (!v) throw new NotFoundException("Vehículo no encontrado");
       if (
         v.status === VehicleStatus.MAINTENANCE ||
         v.status === VehicleStatus.OUT_OF_SERVICE
       ) {
-        throw new UnprocessableEntityException({
-          error: "COMPLIANCE_GATE_BLOCKED",
-          message: `Hard-Stop Taller: vehículo ${v.plate} en ${v.status}`,
-          blocks:
-            v.status === VehicleStatus.MAINTENANCE
-              ? ["VEHICLE_MAINTENANCE"]
-              : ["VEHICLE_OUT_OF_SERVICE"],
-        });
-      }
-      if (v.complianceBlocked) {
-        throw new UnprocessableEntityException({
-          error: "COMPLIANCE_GATE_BLOCKED",
-          message: `Hard-Stop unidad: ${v.complianceReason || "COMPLIANCE_BLOCKED"}`,
-          blocks: ["VEHICLE_COMPLIANCE_BLOCKED"],
-        });
+        dispatchNotes.push(
+          `Vehículo ${v.plate} no asignado — estado ${v.status}`,
+        );
+        vehicleId = undefined;
+      } else if (v.complianceBlocked) {
+        dispatchNotes.push(
+          `Vehículo ${v.plate} no asignado — ${v.complianceReason || "COMPLIANCE_BLOCKED"}`,
+        );
+        vehicleId = undefined;
       }
     }
 
-    // —— Compliance Gate completo (docs, FUEC opcional en alta, fatiga, noche) ——
-    if (dto.vehicleId && dto.driverId) {
+    if (vehicleId && driverId) {
       const gate = await this.gate.evaluate({
         organizationId,
-        vehicleId: dto.vehicleId,
-        driverId: dto.driverId,
+        vehicleId,
+        driverId,
         departAt: dto.departAt,
         requireFuec: false,
       });
       if (!gate.ok) {
-        throw new UnprocessableEntityException({
-          error: "COMPLIANCE_GATE_BLOCKED",
-          message:
-            "Hard-Stop: el servicio no puede asignarse por incumplimiento normativo",
-          blocks: gate.violations.map((v) => v.code),
-          violations: gate.violations,
-        });
+        const detail = gate.violations
+          .map((v) => v.message)
+          .filter(Boolean)
+          .join(" · ");
+        dispatchNotes.push(
+          `Asignación omitida por normativa: ${detail || "docs incompletos"}`,
+        );
+        driverId = undefined;
+        vehicleId = undefined;
       }
+    } else if (!(driverId && vehicleId)) {
+      if (driverId && !vehicleId) {
+        dispatchNotes.push(
+          "Conductor pendiente: falta vehículo apto (servicio creado sin asignar)",
+        );
+      }
+      if (vehicleId && !driverId) {
+        dispatchNotes.push(
+          "Vehículo pendiente: falta conductor apto (servicio creado sin asignar)",
+        );
+      }
+      driverId = undefined;
+      vehicleId = undefined;
     }
 
     const { origin, dest } = await resolveServiceEndpoints({
@@ -224,7 +232,7 @@ export class LogisticaOpsService {
       : straightRouteFallback(origin, dest);
 
     const count = await this.prisma.trip.count({ where: { organizationId } });
-    const assigned = Boolean(dto.driverId && dto.vehicleId);
+    const assigned = Boolean(driverId && vehicleId);
 
     const trip = await this.prisma.trip.create({
       data: {
@@ -242,8 +250,8 @@ export class LogisticaOpsService {
         suggestedPolyline: JSON.stringify(poly),
         customerId,
         contractId: dto.contractId,
-        vehicleId: dto.vehicleId,
-        driverId: dto.driverId,
+        vehicleId,
+        driverId,
         fareAmount: fareAmount ?? 0,
         status: assigned ? TripStatus.ASSIGNED : TripStatus.PENDING,
         organizationId,
@@ -264,6 +272,7 @@ export class LogisticaOpsService {
         distanceM: route.distanceM,
         durationS: route.durationS,
         routing: route.distanceM > 0 ? "OSRM" : "FALLBACK",
+        dispatchNotes,
       },
     });
     if (assigned) {
@@ -272,9 +281,9 @@ export class LogisticaOpsService {
         trip.id,
         TripAuditAction.ASSIGNED,
         {
-          message: `Asignado conductor/vehículo`,
+          message: "Asignado conductor/vehículo",
           actorUserId,
-          meta: { driverId: dto.driverId, vehicleId: dto.vehicleId },
+          meta: { driverId, vehicleId },
         },
       );
       if (trip.vehicleId && trip.driverId) {
@@ -287,10 +296,25 @@ export class LogisticaOpsService {
           departAt: trip.departAt.toISOString(),
         });
       }
-      this.gateway.emitUpdate(organizationId);
+    } else if (dispatchNotes.length) {
+      await this.appendAudit(organizationId, trip.id, TripAuditAction.CREATED, {
+        message: dispatchNotes.join(" · "),
+        actorUserId,
+        meta: { softAssign: true, dispatchNotes },
+      });
     }
+    this.gateway.emitUpdate(organizationId);
 
-    return trip;
+    return {
+      ...trip,
+      dispatchNotes,
+      assigned,
+      message: assigned
+        ? `Servicio ${trip.code} creado y asignado`
+        : `Servicio ${trip.code} creado sin asignación${
+            dispatchNotes.length ? " — " + dispatchNotes.join(" · ") : ""
+          }`,
+    };
   }
 
   async listServicios(organizationId: string) {
@@ -533,6 +557,19 @@ export class LogisticaOpsService {
     end: Date,
   ) {
     const cfg = await this.ensureLaborConfig(organizationId);
+    const driver = await this.prisma.driver.findFirst({
+      where: { id: driverId, organizationId },
+      include: { employee: true },
+    });
+    const empBase =
+      driver?.employee && Number(driver.employee.baseSalary) > 0
+        ? Number(driver.employee.baseSalary)
+        : Number(cfg.baseSalary);
+    const empHourly =
+      driver?.employee && Number(driver.employee.hourlyRate) > 0
+        ? Number(driver.employee.hourlyRate)
+        : undefined;
+
     const weekStart = startOfWeekMonday(start);
     const prior = await this.prisma.tripOvertimeLine.aggregate({
       where: {
@@ -545,7 +582,9 @@ export class LogisticaOpsService {
       start,
       end,
       {
-        baseSalary: Number(cfg.baseSalary),
+        baseSalary: empHourly
+          ? empHourly * (cfg.monthlyHoursDivisor || 230)
+          : empBase,
         monthlyHoursDivisor: cfg.monthlyHoursDivisor,
         weeklyOrdinaryHours: cfg.weeklyOrdinaryHours,
         rnFactor: cfg.rnFactor,
@@ -959,6 +998,143 @@ export class LogisticaOpsService {
       trip: updated,
       notify,
     };
+  }
+
+  /** Pool de despacho: conductores + vehículos con checklist normativo */
+  async listDispatchPool(organizationId: string) {
+    const [drivers, vehicles] = await Promise.all([
+      this.prisma.driver.findMany({
+        where: { organizationId, active: true },
+        include: { complianceDocs: true },
+        orderBy: { name: "asc" },
+      }),
+      this.prisma.vehicle.findMany({
+        where: { organizationId },
+        include: { complianceDocs: true },
+        orderBy: { plate: "asc" },
+      }),
+    ]);
+
+    const now = new Date();
+    const docOk = (
+      docs: Array<{ type: string; status: string; expiresAt: Date | null }>,
+      type: string,
+    ) => {
+      const d = docs
+        .filter((x) => x.type === type)
+        .sort(
+          (a, b) =>
+            (b.expiresAt?.getTime() ?? 0) - (a.expiresAt?.getTime() ?? 0),
+        )[0];
+      if (!d) return { ok: false, label: `${type} faltante` };
+      if (
+        d.status === "EXPIRED" ||
+        d.status === "REJECTED" ||
+        (d.expiresAt && d.expiresAt <= now)
+      ) {
+        return { ok: false, label: `${type} vencido` };
+      }
+      return { ok: true, label: `${type} OK` };
+    };
+
+    return {
+      drivers: drivers.map((d) => {
+        const licenseFieldOk = Boolean(
+          d.licenseNumber?.trim() &&
+            d.licenseExpiresAt &&
+            d.licenseExpiresAt > now,
+        );
+        const licDoc = docOk(d.complianceDocs, "LICENCIA_CONDUCCION");
+        const licenseOk = licenseFieldOk || licDoc.ok;
+        const fatigueOk = d.fatigueScore < HARD_RULES.FATIGUE_BLOCK_SCORE;
+        const blockers: string[] = [];
+        if (d.dispatchBlocked)
+          blockers.push(d.blockReason || "Conductor bloqueado");
+        if (!fatigueOk) blockers.push(`Fatiga ${d.fatigueScore}`);
+        if (!licenseOk) blockers.push(licDoc.label || "Licencia faltante");
+        return {
+          id: d.id,
+          name: d.name,
+          document: d.document,
+          fatigueScore: d.fatigueScore,
+          dispatchBlocked: d.dispatchBlocked,
+          ready: blockers.length === 0,
+          blockers,
+        };
+      }),
+      vehicles: vehicles.map((v) => {
+        const soat = docOk(v.complianceDocs, "SOAT");
+        const tecno = docOk(v.complianceDocs, "TECNOMECANICA");
+        const blockers: string[] = [];
+        if (v.status === "MAINTENANCE" || v.status === "OUT_OF_SERVICE") {
+          blockers.push(`Estado ${v.status}`);
+        }
+        if (v.complianceBlocked) {
+          blockers.push(v.complianceReason || "Compliance bloqueado");
+        }
+        if (!soat.ok) blockers.push(soat.label);
+        if (!tecno.ok) blockers.push(tecno.label);
+        return {
+          id: v.id,
+          plate: v.plate,
+          status: v.status,
+          complianceBlocked: v.complianceBlocked,
+          ready: blockers.length === 0,
+          blockers,
+        };
+      }),
+    };
+  }
+
+  async assignServicio(
+    organizationId: string,
+    tripId: string,
+    input: { driverId: string; vehicleId: string },
+    actorUserId?: string,
+  ) {
+    const trip = await this.prisma.trip.findFirst({
+      where: { id: tripId, organizationId },
+    });
+    if (!trip) throw new NotFoundException("Servicio no encontrado");
+    if (
+      trip.status === TripStatus.COMPLETED ||
+      trip.status === TripStatus.CANCELLED
+    ) {
+      throw new BadRequestException("No se puede asignar un servicio cerrado");
+    }
+
+    const gate = await this.gate.evaluate({
+      organizationId,
+      vehicleId: input.vehicleId,
+      driverId: input.driverId,
+      departAt: trip.departAt,
+      requireFuec: false,
+    });
+    if (!gate.ok) {
+      const detail = gate.violations.map((v) => v.message).join(" · ");
+      throw new UnprocessableEntityException({
+        error: "COMPLIANCE_GATE_BLOCKED",
+        message: `No se puede asignar: ${detail}`,
+        violations: gate.violations,
+      });
+    }
+
+    const updated = await this.prisma.trip.update({
+      where: { id: tripId },
+      data: {
+        driverId: input.driverId,
+        vehicleId: input.vehicleId,
+        status: TripStatus.ASSIGNED,
+      },
+      include: { driver: true, vehicle: true },
+    });
+    await this.appendAudit(organizationId, tripId, TripAuditAction.ASSIGNED, {
+      message: `Asignado ${updated.driver?.name} / ${updated.vehicle?.plate}`,
+      actorUserId,
+      meta: input,
+    });
+    this.gateway.emitUpdate(organizationId);
+    return updated;
   }
 
   /** Lista conductores (delegado a LogisticsService). */

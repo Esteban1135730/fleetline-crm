@@ -1,24 +1,18 @@
+import type { Role } from "@fsg/shared";
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 export type AuthUser = {
   id: string;
   email: string;
   name: string;
-  role:
-    | "presidencia"
-    | "gerencia"
-    | "finanzas"
-    | "despacho"
-    | "rrhh"
-    | "atencion"
-    | "sistemas"
-    | "supervisor"
-    | "conductor"
-    | "monitora"
-    | "padre"
-    | "pasajero"
-    | "revisoria";
+  role: Role;
   organizationId: string;
+  /** Alias multi-tenant (= organizationId) */
+  tenantId?: string;
+  companyId?: string;
+  directiveReadOnly?: boolean;
+  status?: string;
 };
 
 function getToken() {
@@ -45,6 +39,43 @@ export function getStoredUser(): AuthUser | null {
   } catch {
     return null;
   }
+}
+
+function formatApiError(err: unknown, fallback: string): string {
+  if (!err || typeof err !== "object") return fallback;
+  const e = err as {
+    message?: unknown;
+    violations?: Array<{ message?: string }>;
+  };
+  if (typeof e.message === "string" && e.message.trim()) return e.message;
+  if (Array.isArray(e.message)) {
+    return e.message
+      .map((m) =>
+        typeof m === "string"
+          ? m
+          : m && typeof m === "object" && "message" in m
+            ? String((m as { message: unknown }).message)
+            : JSON.stringify(m),
+      )
+      .join(" · ");
+  }
+  if (e.message && typeof e.message === "object") {
+    const nested = e.message as {
+      message?: unknown;
+      violations?: Array<{ message?: string }>;
+    };
+    if (typeof nested.message === "string") {
+      const extras = nested.violations
+        ?.map((v) => v.message)
+        .filter(Boolean)
+        .join(" · ");
+      return extras ? `${nested.message} (${extras})` : nested.message;
+    }
+  }
+  if (e.violations?.length) {
+    return e.violations.map((v) => v.message).filter(Boolean).join(" · ");
+  }
+  return fallback;
 }
 
 export async function api<T>(
@@ -77,11 +108,7 @@ export async function api<T>(
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({ message: res.statusText }));
-      throw new Error(
-        Array.isArray(err.message)
-          ? err.message.join(", ")
-          : err.message || `Error ${res.status}`,
-      );
+      throw new Error(formatApiError(err, `Error ${res.status}`));
     }
     if (res.status === 204) return undefined as T;
     return res.json() as Promise<T>;

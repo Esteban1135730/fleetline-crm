@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@fsg/ui";
 import { api, apiDownload } from "@/lib/api";
 import { HowToBox, PageIntro } from "@/components/page-intro";
+import { TarifarioRecargosPanel } from "@/components/logistica/tarifario-recargos-panel";
 
 type DriverOpt = { id: string; name: string; document: string };
 
@@ -188,11 +189,13 @@ export default function ReporteNominaPage() {
       />
       <HowToBox
         steps={[
+          "Ajusta la base organizacional o la base por empleado en el tarifario de recargos.",
           "Selecciona el período YYYY-MM y el empleado (o Todos).",
-          "Revisa métricas, consolida extras HED/HEN/RN/HEDF/HENF y novedades.",
           "Exporta Excel (resumen + día a día) o PDF desprendible listo para firmar.",
         ]}
       />
+
+      <TarifarioRecargosPanel />
 
       {error ? (
         <p role="alert" className="text-sm text-[var(--brand-signal)]">

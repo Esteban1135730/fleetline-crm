@@ -1,13 +1,16 @@
 import {
+  Body,
   Controller,
   Get,
   Param,
+  Patch,
   Query,
   Req,
   Res,
   UseGuards,
 } from "@nestjs/common";
 import type { Response } from "express";
+import { z } from "zod";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { ModulesGuard, RequireModule } from "../auth/modules.guard";
 import { NominaExportService } from "./nomina-export.service";
@@ -17,8 +20,26 @@ type AuthReq = {
   user: { organizationId: string; userId: string };
 };
 
+const LaborConfigSchema = z.object({
+  baseSalary: z.coerce.number().positive().optional(),
+  monthlyHoursDivisor: z.coerce.number().positive().optional(),
+  weeklyOrdinaryHours: z.coerce.number().positive().optional(),
+  rnFactor: z.coerce.number().nonnegative().optional(),
+  hedFactor: z.coerce.number().nonnegative().optional(),
+  henFactor: z.coerce.number().nonnegative().optional(),
+  rodFestFactor: z.coerce.number().nonnegative().optional(),
+  hedfFactor: z.coerce.number().nonnegative().optional(),
+  henfFactor: z.coerce.number().nonnegative().optional(),
+  rnfFactor: z.coerce.number().nonnegative().optional(),
+});
+
+const EmpleadoBaseSchema = z.object({
+  baseSalary: z.coerce.number().positive().optional(),
+  hourlyRate: z.coerce.number().positive().optional(),
+});
+
 /**
- * Reporte mensual nómina / horas extras.
+ * Reporte mensual nómina / horas extras + tarifario de recargos.
  * Rutas: /nomina/* y /api/v1/nomina/* (alias).
  */
 @Controller(["nomina", "api/v1/nomina"])
@@ -29,6 +50,31 @@ export class NominaController {
     private reports: NominaReportService,
     private exports: NominaExportService,
   ) {}
+
+  @Get("tarifario")
+  tarifario(@Req() req: AuthReq) {
+    return this.reports.getTarifario(req.user.organizationId);
+  }
+
+  @Patch("tarifario")
+  updateTarifario(@Req() req: AuthReq, @Body() body: unknown) {
+    const dto = LaborConfigSchema.parse(body ?? {});
+    return this.reports.updateLaborConfig(req.user.organizationId, dto);
+  }
+
+  @Patch("tarifario/empleado/:driverId")
+  updateEmpleadoBase(
+    @Req() req: AuthReq,
+    @Param("driverId") driverId: string,
+    @Body() body: unknown,
+  ) {
+    const dto = EmpleadoBaseSchema.parse(body ?? {});
+    return this.reports.updateEmpleadoBase(
+      req.user.organizationId,
+      driverId,
+      dto,
+    );
+  }
 
   @Get("reporte-empleado/:empleadoId")
   reporteEmpleado(

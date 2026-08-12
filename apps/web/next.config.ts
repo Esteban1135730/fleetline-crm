@@ -19,7 +19,11 @@ const nextConfig: NextConfig = {
         permanent: false,
       },
       { source: "/atencion", destination: "/call-center", permanent: false },
-      { source: "/recepcion", destination: "/call-center", permanent: false },
+      {
+        source: "/recepcion",
+        destination: "/recepcion/dashboard",
+        permanent: false,
+      },
     ];
   },
 };

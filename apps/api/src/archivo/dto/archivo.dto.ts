@@ -62,3 +62,43 @@ export const OcrProcessSchema = z.object({
   docType: ArchiveDocTypeSchema.optional(),
 });
 export type OcrProcessDto = z.infer<typeof OcrProcessSchema>;
+
+export const CustodiaFisicaSchema = z.object({
+  documentId: z.string().min(1),
+  aisle: z.string().min(1).max(32),
+  shelf: z.string().min(1).max(32),
+  box: z.string().min(1).max(32),
+  title: z.string().min(1).max(200).optional(),
+  tags: z.array(z.string()).optional(),
+  plate: z.string().max(20).optional(),
+  documentNumber: z.string().max(40).optional(),
+  vehicleId: z.string().min(1).optional(),
+  driverId: z.string().min(1).optional(),
+  entityType: ArchiveEntityTypeSchema.optional(),
+  entityId: z.string().min(1).optional(),
+  pendingDigitization: z.boolean().optional(),
+});
+export type CustodiaFisicaDto = z.infer<typeof CustodiaFisicaSchema>;
+
+export const DespacharSuministroSchema = z
+  .object({
+    itemId: z.string().min(1).optional(),
+    sku: z.string().min(1).optional(),
+    quantity: z.coerce.number().int().positive(),
+    ticketRef: z.string().max(80).optional(),
+    notes: z.string().max(500).optional(),
+    requestedById: z.string().min(1).optional(),
+  })
+  .refine((v) => Boolean(v.itemId || v.sku), {
+    message: "itemId o sku requerido",
+  });
+export type DespacharSuministroDto = z.infer<typeof DespacharSuministroSchema>;
+
+export const PrestamoCheckOutSchema = z.object({
+  documentId: z.string().min(1),
+  borrowerUserId: z.string().min(1),
+  purpose: z.string().max(300).optional(),
+  notes: z.string().max(500).optional(),
+  dueDays: z.coerce.number().int().positive().max(90).optional(),
+});
+export type PrestamoCheckOutDto = z.infer<typeof PrestamoCheckOutSchema>;

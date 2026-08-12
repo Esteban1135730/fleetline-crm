@@ -1,4 +1,5 @@
 import {
+  buildTarifarioRows,
   calculateServiceOvertime,
   DEFAULT_OVERTIME_FACTORS,
   hourlyRateFromBase,
@@ -37,6 +38,18 @@ function loadCsvFactors() {
 describe("overtime-engine (Modulo_Horas_extras_Proyecto_CRM.csv)", () => {
   const hourly = hourlyRateFromBase(1_423_500, 230);
   const csv = loadCsvFactors();
+
+  it("tarifario: valores COP redondeados con hora ≈ 6.189", () => {
+    const rows = buildTarifarioRows(6_189);
+    const by = Object.fromEntries(rows.map((r) => [r.sigla, r.valor]));
+    expect(by.RN).toBe(2_166);
+    expect(by.HED).toBe(7_736);
+    expect(by.HEN).toBe(10_831);
+    expect(by["ROD FEST"]).toBe(10_831);
+    expect(by.HEDF).toBe(12_378);
+    expect(by.HENF).toBe(15_473);
+    expect(by.RNF).toBe(6_808);
+  });
 
   it("CSV: salario base 1.423.500 y factores RN/HED/HEN/…", () => {
     expect(csv.get("Salario base")).toBe(1_423_500);

@@ -1,6 +1,8 @@
 import { Body, Controller, Get, Post, Query, Req, UseGuards } from "@nestjs/common";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { ModulesGuard, RequireModule } from "../auth/modules.guard";
+import { Roles, RolesGuard } from "../auth/roles.guard";
+import { Permissions, PermissionsGuard } from "../auth/permissions.guard";
 import { CommercialContractService } from "./commercial-contract.service";
 import { SecopSyncService } from "./secop-sync.service";
 import { CommercialRevenueService } from "./commercial-revenue.service";
@@ -11,9 +13,18 @@ import {
 
 type AuthReq = { user: { organizationId: string; userId: string } };
 
-@Controller("comercial")
-@UseGuards(JwtAuthGuard, ModulesGuard)
+@Controller(["comercial", "api/v1/comercial"])
+@UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard, ModulesGuard)
 @RequireModule("comercial")
+@Roles(
+  "gestor_comercial",
+  "coordinador_comercial",
+  "gerente_general",
+  "org_admin",
+  "platform_master",
+  "director_operativo",
+  "comercial",
+)
 export class ComercialController {
   constructor(
     private contracts: CommercialContractService,
@@ -22,11 +33,13 @@ export class ComercialController {
   ) {}
 
   @Get("contracts")
+  @Permissions("contratos", "READ")
   listContracts(@Req() req: AuthReq) {
     return this.contracts.list(req.user.organizationId);
   }
 
   @Post("contracts")
+  @Permissions("contratos", "CREATE")
   createContract(@Req() req: AuthReq, @Body() body: unknown) {
     const dto = CreateContractSchema.parse(body ?? {});
     return this.contracts.create(req.user.organizationId, dto);

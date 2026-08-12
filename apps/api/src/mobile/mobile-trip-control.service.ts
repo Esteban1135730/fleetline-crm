@@ -269,7 +269,7 @@ export class MobileTripControlService {
   ) {
     const role = actor.role.toLowerCase();
     if (
-      !["supervisor", "despacho", "gerencia", "presidencia", "sistemas"].includes(
+      !["centro_control", "gestor_operativo", "director_operativo", "gerente_general", "presidencia", "org_admin", "tecnologia", "supervisor", "despacho", "gerencia", "sistemas"].includes(
         role,
       )
     ) {

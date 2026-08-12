@@ -43,9 +43,9 @@ export const AUTH_COPY = {
   accessTitle: "ACCESO A TORRE DE CONTROL",
   accessSubtitle: "Autenticación de nodo para flota y telemetría en vivo.",
   nodeEmailLabel: "Identificador de nodo",
-  nodeEmailPlaceholder: "logistica@fsg.co",
+  nodeEmailPlaceholder: "correo@empresa.com",
   passwordLabel: "Clave de acceso",
-  passwordPlaceholder: "fsg2026",
+  passwordPlaceholder: "••••••••",
   submitIdle: "Autenticar",
   submitLoading: "Sincronizando uplink…",
   submitSuccess: "Nodo autenticado",
@@ -58,8 +58,6 @@ export const AUTH_COPY = {
   nitLabel: "NIT",
   adminNameLabel: "Operador administrador",
   registerSubmit: "Provisionar y entrar",
-  demoHint:
-    "Demo seed: logistica@fsg.co · presidencia@fsg.co · revisoria@fsg.co — clave fsg2026",
   themeLight: "Claro",
   themeDark: "Oscuro",
   systemNominal: "SYSTEM STATUS: NOMINAL // ALL SYSTEMS GO",
@@ -67,7 +65,7 @@ export const AUTH_COPY = {
   systemOffline: "SYSTEM STATUS: OFFLINE // SIGNAL LOST",
   errors: {
     NODE_CREDENTIALS_NOT_FOUND:
-      "Credenciales de nodo no encontradas — use logistica@fsg.co / fsg2026 (seed)",
+      "Credenciales de nodo no encontradas — verifique identificador y clave",
     NETWORK_SYNC_FAILURE: "Error de sincronización con la red",
     EMPTY_PAYLOAD: "Payload incompleto — complete identificador y clave",
     UPLINK_TIMEOUT: "Signal lost — retrying uplink",

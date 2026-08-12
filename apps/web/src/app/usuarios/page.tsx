@@ -2,8 +2,9 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
-import { ROLE_LABELS, ROLES, type Role } from "@fsg/shared";
+import { ORG_ASSIGNABLE_ROLES, ROLE_LABELS, type Role } from "@fsg/shared";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
 import { HowToBox, PageIntro } from "@/components/page-intro";
 
 type UserRow = {
@@ -12,15 +13,26 @@ type UserRow = {
   email: string;
   role: Role;
   active: boolean;
+  status?: string;
+  organization?: { id: string; name: string; nit: string };
+  pendingAuthorization?: boolean;
+  message?: string;
 };
 
 export default function UsuariosPage() {
+  const { user: me } = useAuth();
+  const isMaster = me?.role === "platform_master";
+  const assignable = isMaster
+    ? ORG_ASSIGNABLE_ROLES
+    : ORG_ASSIGNABLE_ROLES.filter((r) => r !== "org_admin" || me?.role === "org_admin");
+
   const [users, setUsers] = useState<UserRow[]>([]);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("fsg2026");
-  const [role, setRole] = useState<Role>("despacho");
+  const [role, setRole] = useState<Role>("gestor_operativo");
   const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
 
   async function load() {
     setUsers(await api<UserRow[]>("/users"));
@@ -35,31 +47,89 @@ export default function UsuariosPage() {
   async function onCreate(e: FormEvent) {
     e.preventDefault();
     setError("");
+    setInfo("");
     try {
-      await api("/users", {
+      const created = await api<UserRow>("/users", {
         method: "POST",
         body: JSON.stringify({ name, email, password, role }),
       });
       setName("");
       setEmail("");
+      if (created.pendingAuthorization || created.status === "pending") {
+        setInfo(
+          created.message ||
+            "Alta registrada en PENDING — mando superior debe autorizar",
+        );
+      }
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error");
     }
   }
 
+  const pending = users.filter((u) => u.status === "pending");
+
   return (
     <div className="fade-in mx-auto max-w-[1600px] space-y-6">
       <div>
-        <PageIntro module="usuarios" title="Quién puede entrar" />
+        <PageIntro module="usuarios" title="Directorio de accesos" />
         <HowToBox
           steps={[
-            "Crea un usuario con email, clave y rol.",
-            "Esa persona verá solo los menús de su rol al iniciar sesión.",
-            "Puedes cambiar el rol después o desactivar la cuenta.",
+            "Crea usuario con email, clave y rol operativo.",
+            "Si el rol es de mando igual o superior al tuyo, queda PENDING hasta autorización.",
+            "Org admin puede modificar, resetear clave o desactivar usuarios de su empresa.",
           ]}
         />
       </div>
+
+      {pending.length > 0 ? (
+        <div className="fsg-panel space-y-3 border-[var(--brand-amber)]/40 p-4">
+          <div className="font-display text-sm font-semibold text-[var(--brand-amber)]">
+            Altas pendientes de autorización ({pending.length})
+          </div>
+          <ul className="space-y-2">
+            {pending.map((u) => (
+              <li
+                key={u.id}
+                className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--brand-line)] pb-2 last:border-0"
+              >
+                <div>
+                  <div className="text-sm font-medium">{u.name}</div>
+                  <div className="font-data text-xs text-[var(--brand-mute)]">
+                    {u.email} · {ROLE_LABELS[u.role] ?? u.role}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="primary"
+                    onClick={async () => {
+                      await api(`/users/${u.id}/authorize`, {
+                        method: "POST",
+                        body: JSON.stringify({ decision: "APPROVE" }),
+                      });
+                      await load();
+                    }}
+                  >
+                    Autorizar
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={async () => {
+                      await api(`/users/${u.id}/authorize`, {
+                        method: "POST",
+                        body: JSON.stringify({ decision: "REJECT" }),
+                      });
+                      await load();
+                    }}
+                  >
+                    Rechazar
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       <form
         onSubmit={onCreate}
@@ -93,28 +163,31 @@ export default function UsuariosPage() {
           value={role}
           onChange={(e) => setRole(e.target.value as Role)}
         >
-          {ROLES.map((r) => (
+          {assignable.map((r) => (
             <option key={r} value={r}>
               {ROLE_LABELS[r]}
             </option>
           ))}
         </select>
         <Button type="submit" variant="primary">
-          Crear usuario
+          Dar de alta
         </Button>
       </form>
 
       {error ? <p className="text-sm text-[var(--brand-signal)]">{error}</p> : null}
+      {info ? <p className="text-sm text-[var(--brand-amber)]">{info}</p> : null}
 
       <div className="fsg-panel data-shell overflow-hidden">
         <div className="border-b border-[var(--brand-line)] px-4 py-3 font-display text-sm font-semibold">
           Directorio ({users.length})
+          {isMaster ? " · todas las empresas" : ""}
         </div>
         <table className="w-full text-left text-sm">
           <thead>
             <tr>
               <th className="px-4 py-2">Nombre</th>
               <th className="px-4 py-2">Email</th>
+              {isMaster ? <th className="px-4 py-2">Empresa</th> : null}
               <th className="px-4 py-2">Rol</th>
               <th className="px-4 py-2">Estado</th>
               <th className="px-4 py-2" />
@@ -152,6 +225,11 @@ export default function UsuariosPage() {
                     }}
                   />
                 </td>
+                {isMaster ? (
+                  <td className="px-4 py-2.5 font-data text-xs text-[var(--brand-mute)]">
+                    {u.organization?.name ?? "—"}
+                  </td>
+                ) : null}
                 <td className="px-4 py-2.5">
                   <select
                     className="field py-1 text-xs"
@@ -164,7 +242,7 @@ export default function UsuariosPage() {
                       await load();
                     }}
                   >
-                    {ROLES.map((r) => (
+                    {assignable.map((r) => (
                       <option key={r} value={r}>
                         {ROLE_LABELS[r]}
                       </option>
@@ -172,8 +250,20 @@ export default function UsuariosPage() {
                   </select>
                 </td>
                 <td className="px-4 py-2.5">
-                  <Badge tone={u.active ? "emerald" : "rose"}>
-                    {u.active ? "ACTIVO" : "INACTIVO"}
+                  <Badge
+                    tone={
+                      u.status === "pending"
+                        ? "amber"
+                        : u.active
+                          ? "emerald"
+                          : "rose"
+                    }
+                  >
+                    {u.status === "pending"
+                      ? "PENDING"
+                      : u.active
+                        ? "ACTIVO"
+                        : "INACTIVO"}
                   </Badge>
                 </td>
                 <td className="px-4 py-2.5">
@@ -209,7 +299,10 @@ export default function UsuariosPage() {
                         onClick={async () => {
                           await api(`/users/${u.id}`, {
                             method: "PATCH",
-                            body: JSON.stringify({ active: true }),
+                            body: JSON.stringify({
+                              active: true,
+                              status: "ACTIVE",
+                            }),
                           });
                           await load();
                         }}

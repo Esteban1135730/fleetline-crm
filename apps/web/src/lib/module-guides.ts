@@ -22,6 +22,15 @@ const FALLBACK: ModuleGuide = {
 /** Guías de 3 pasos — 17 áreas + secundarios */
 export const MODULE_GUIDES: Partial<Record<ModuleId | "cuenta", ModuleGuide>> =
   {
+    plataforma: {
+      title: "Consola maestro",
+      summary: "Alta de empresas y Org Admin por organización.",
+      steps: [
+        "Registre la empresa con NIT único y datos del Org Admin.",
+        "El Org Admin gestiona usuarios de su flota desde Usuarios.",
+        "Use el directorio global en Usuarios para auditar todas las cuentas.",
+      ],
+    },
     presidencia: {
       title: "Cómo operar Presidencia",
       summary: "Gobierno corporativo y tablero ejecutivo.",

@@ -7,9 +7,12 @@ import {
   Query,
   Req,
   UseGuards,
+  BadRequestException,
 } from "@nestjs/common";
 import { JwtAuthGuard } from "../../auth/jwt-auth.guard";
 import { ModulesGuard, RequireModule } from "../../auth/modules.guard";
+import { Roles, RolesGuard } from "../../auth/roles.guard";
+import { Permissions, PermissionsGuard } from "../../auth/permissions.guard";
 import { LogisticaOpsService } from "../logistica-ops.service";
 import {
   CreateServicioSchema,
@@ -38,7 +41,7 @@ const ReverseSchema = z.object({
  * Prefijo: /logistica/servicios
  */
 @Controller("logistica/servicios")
-@UseGuards(JwtAuthGuard, ModulesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard, ModulesGuard)
 @RequireModule("logistica")
 export class ServiciosController {
   constructor(private ops: LogisticaOpsService) {}
@@ -69,10 +72,93 @@ export class ServiciosController {
   }
 
   @Post()
+  @Permissions("logistica_despacho", "CREATE")
+  @Roles(
+    "gestor_operativo",
+    "director_operativo",
+    "centro_control",
+    "supervisor_logistica",
+    "coordinador_operativo",
+    "org_admin",
+    "platform_master",
+    "gerente_general",
+  )
   create(@Req() req: AuthReq, @Body() body: unknown) {
-    const dto = CreateServicioSchema.parse(body ?? {});
+    const parsed = CreateServicioSchema.safeParse(body ?? {});
+    if (!parsed.success) {
+      const msg = parsed.error.issues
+        .map((i) => i.message)
+        .filter(Boolean)
+        .join(" · ");
+      throw new BadRequestException(msg || "Datos de servicio inválidos");
+    }
     return this.ops.createServicio(
       req.user.organizationId,
+      parsed.data,
+      req.user.userId,
+    );
+  }
+
+  @Get("recursos-despacho")
+  recursos(@Req() req: AuthReq) {
+    return this.ops.listDispatchPool(req.user.organizationId);
+  }
+
+  @Post("despachar")
+  @Permissions("logistica_despacho", "CREATE")
+  @Roles(
+    "gestor_operativo",
+    "director_operativo",
+    "centro_control",
+    "supervisor_logistica",
+    "coordinador_operativo",
+    "org_admin",
+    "platform_master",
+    "gerente_general",
+  )
+  despachar(
+    @Req() req: AuthReq,
+    @Body() body: { tripId?: string; id?: string; vehicleId?: string; driverId?: string },
+  ) {
+    const id = body.tripId || body.id;
+    if (!id) throw new BadRequestException("tripId requerido");
+    return this.ops.assignServicio(
+      req.user.organizationId,
+      id,
+      {
+        vehicleId: body.vehicleId!,
+        driverId: body.driverId!,
+      },
+      req.user.userId,
+    );
+  }
+
+  @Post(":id/asignar")
+  @Permissions("logistica_despacho", "CREATE")
+  @Roles(
+    "gestor_operativo",
+    "director_operativo",
+    "centro_control",
+    "supervisor_logistica",
+    "coordinador_operativo",
+    "org_admin",
+    "platform_master",
+    "gerente_general",
+  )
+  asignar(
+    @Req() req: AuthReq,
+    @Param("id") id: string,
+    @Body() body: unknown,
+  ) {
+    const dto = z
+      .object({
+        driverId: z.string().min(1),
+        vehicleId: z.string().min(1),
+      })
+      .parse(body ?? {});
+    return this.ops.assignServicio(
+      req.user.organizationId,
+      id,
       dto,
       req.user.userId,
     );
@@ -102,6 +188,17 @@ export class ServiciosController {
   }
 
   @Post("reasignar")
+  @Permissions("logistica_despacho", "UPDATE")
+  @Roles(
+    "gestor_operativo",
+    "director_operativo",
+    "centro_control",
+    "supervisor_logistica",
+    "coordinador_operativo",
+    "org_admin",
+    "platform_master",
+    "gerente_general",
+  )
   reasignar(@Req() req: AuthReq, @Body() body: unknown) {
     const dto = ReassignServicioSchema.parse(body ?? {});
     return this.ops.reassignServicio(

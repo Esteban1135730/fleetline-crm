@@ -1,21 +1,26 @@
 import { z } from "zod";
 
+const emptyToUndef = (v: unknown) =>
+  v === "" || v === null || v === undefined ? undefined : v;
+
 export const CreateServicioSchema = z.object({
-  origin: z.string().min(2),
-  destination: z.string().min(2),
-  departAt: z.coerce.date(),
-  arriveAt: z.coerce.date().optional(),
-  driverId: z.string().min(1).optional(),
-  vehicleId: z.string().min(1).optional(),
-  customerId: z.string().min(1).optional(),
-  contractId: z.string().min(1).optional(),
-  fareAmount: z.coerce.number().nonnegative().optional(),
-  officerName: z.string().optional(),
-  officerDocument: z.string().optional(),
-  originLat: z.coerce.number().optional(),
-  originLng: z.coerce.number().optional(),
-  destLat: z.coerce.number().optional(),
-  destLng: z.coerce.number().optional(),
+  origin: z.string().min(2, "Origen requerido"),
+  destination: z.string().min(2, "Destino requerido"),
+  departAt: z.coerce.date({
+    errorMap: () => ({ message: "Fecha/hora de salida inválida" }),
+  }),
+  arriveAt: z.preprocess(emptyToUndef, z.coerce.date().optional()),
+  driverId: z.preprocess(emptyToUndef, z.string().min(1).optional()),
+  vehicleId: z.preprocess(emptyToUndef, z.string().min(1).optional()),
+  customerId: z.preprocess(emptyToUndef, z.string().min(1).optional()),
+  contractId: z.preprocess(emptyToUndef, z.string().min(1).optional()),
+  fareAmount: z.preprocess(emptyToUndef, z.coerce.number().nonnegative().optional()),
+  officerName: z.preprocess(emptyToUndef, z.string().optional()),
+  officerDocument: z.preprocess(emptyToUndef, z.string().optional()),
+  originLat: z.preprocess(emptyToUndef, z.coerce.number().optional()),
+  originLng: z.preprocess(emptyToUndef, z.coerce.number().optional()),
+  destLat: z.preprocess(emptyToUndef, z.coerce.number().optional()),
+  destLng: z.preprocess(emptyToUndef, z.coerce.number().optional()),
 });
 export type CreateServicioDto = z.infer<typeof CreateServicioSchema>;
 

@@ -1,59 +1,224 @@
 import { z } from "zod";
 
+/** Roles canónicos (empresa + plataforma + apps) */
 export const RoleSchema = z.enum([
+  "platform_master",
+  "org_admin",
+  "lider_ti",
+  "gestor_documental",
+  "recepcionista",
+  "recepcion", // alias legado → recepcionista
+  "tecnologia",
+  "archivo",
+  "gestor_contable",
+  "auxiliar_contable",
+  "tesoreria",
+  "director_financiero",
+  "qhse",
+  "compras",
+  "director_operativo",
+  "gestor_operativo",
+  "coordinador_operativo",
+  "centro_control",
+  "control_interno",
   "presidencia",
-  "gerencia",
-  "finanzas",
-  "despacho",
-  "rrhh",
-  "atencion",
-  "sistemas",
-  "revisoria",
+  "vinculaciones",
+  "coordinador_comercial",
+  "gestor_comercial",
+  "gerente_general",
+  "juridico",
+  "revisor_fiscal",
+  "coordinador_taller",
+  "auxiliar_contable_taller",
+  "mecanico",
+  "coordinador_patio",
+  "auxiliar_patio",
   "conductor",
+  "sub_gerente",
   "monitora",
-  "supervisor",
   "padre",
   "pasajero",
 ]);
 export type Role = z.infer<typeof RoleSchema>;
 
 export const ROLES: Role[] = [
+  "platform_master",
+  "org_admin",
   "presidencia",
-  "gerencia",
-  "finanzas",
-  "despacho",
-  "rrhh",
-  "atencion",
-  "sistemas",
-  "revisoria",
+  "gerente_general",
+  "sub_gerente",
+  "director_financiero",
+  "director_operativo",
+  "control_interno",
+  "revisor_fiscal",
+  "centro_control",
+  "coordinador_operativo",
+  "coordinador_comercial",
+  "coordinador_taller",
+  "coordinador_patio",
+  "gestor_operativo",
+  "gestor_comercial",
+  "gestor_contable",
+  "tesoreria",
+  "juridico",
+  "qhse",
+  "tecnologia",
+  "compras",
+  "vinculaciones",
+  "auxiliar_contable",
+  "auxiliar_contable_taller",
+  "auxiliar_patio",
+  "archivo",
+  "lider_ti",
+  "gestor_documental",
+  "recepcionista",
+  "mecanico",
   "conductor",
   "monitora",
-  "supervisor",
   "padre",
   "pasajero",
 ];
 
+/** Roles asignables en alta de usuarios de empresa (sin maestro) */
+export const ORG_ASSIGNABLE_ROLES: Role[] = ROLES.filter(
+  (r) => r !== "platform_master" && r !== "monitora" && r !== "padre" && r !== "pasajero",
+);
+
 export const ROLE_LABELS: Record<Role, string> = {
-  presidencia: "Gerencia general",
-  gerencia: "Operaciones",
-  finanzas: "Finanzas",
-  despacho: "Despacho",
-  rrhh: "Recursos humanos",
-  atencion: "Atención al cliente",
-  sistemas: "Tecnología",
-  revisoria: "Revisoría Fiscal",
+  platform_master: "Usuario Maestro (SUPERADMIN)",
+  org_admin: "Admin de empresa",
+  lider_ti: "Líder TI",
+  gestor_documental: "Gestor documental",
+  recepcionista: "Recepcionista",
+  recepcion: "Recepcionista (legado)",
+  tecnologia: "Tecnología",
+  archivo: "Archivo (legado)",
+  gestor_contable: "Gestor contable",
+  auxiliar_contable: "Auxiliar contable",
+  tesoreria: "Tesorería",
+  director_financiero: "Director financiero",
+  qhse: "QHSE",
+  compras: "Compras",
+  director_operativo: "Director operativo",
+  gestor_operativo: "Gestor operativo",
+  coordinador_operativo: "Coordinador operativo",
+  centro_control: "Centro de control",
+  control_interno: "Control interno",
+  presidencia: "Presidencia",
+  vinculaciones: "Vinculaciones",
+  coordinador_comercial: "Coordinador comercial",
+  gestor_comercial: "Gestor comercial",
+  gerente_general: "Gerente general",
+  juridico: "Jurídico",
+  revisor_fiscal: "Revisor fiscal",
+  coordinador_taller: "Coordinador taller",
+  auxiliar_contable_taller: "Auxiliar contable taller",
+  mecanico: "Mecánico",
+  coordinador_patio: "Coordinador patio",
+  auxiliar_patio: "Auxiliar patio",
   conductor: "Conductor",
+  sub_gerente: "Sub gerente",
   monitora: "Monitora escolar",
-  supervisor: "Supervisor de flota",
   padre: "Padre / acudiente",
   pasajero: "Pasajero",
 };
+
+/** Jerarquía: mayor = más mando. Alta de rol ≥ actor → PENDING */
+export const ROLE_RANK: Record<string, number> = {
+  platform_master: 100,
+  org_admin: 95,
+  presidencia: 90,
+  gerente_general: 88,
+  sub_gerente: 85,
+  director_financiero: 82,
+  director_operativo: 80,
+  control_interno: 75,
+  revisor_fiscal: 72,
+  centro_control: 70,
+  coordinador_operativo: 68,
+  coordinador_comercial: 68,
+  coordinador_taller: 68,
+  coordinador_patio: 68,
+  gestor_operativo: 65,
+  gestor_comercial: 65,
+  gestor_contable: 65,
+  tesoreria: 60,
+  juridico: 60,
+  qhse: 60,
+  lider_ti: 75,
+  tecnologia: 75,
+  compras: 60,
+  vinculaciones: 60,
+  auxiliar_contable: 50,
+  auxiliar_contable_taller: 50,
+  auxiliar_patio: 50,
+  gestor_documental: 55,
+  archivo: 55,
+  recepcionista: 50,
+  recepcion: 50,
+  mecanico: 40,
+  conductor: 20,
+  monitora: 18,
+  padre: 12,
+  pasajero: 10,
+  // legado
+  gerencia: 88,
+  finanzas: 60,
+  despacho: 65,
+  rrhh: 60,
+  atencion: 50,
+  sistemas: 75,
+  revisoria: 72,
+  supervisor: 70,
+  comercial: 65,
+  taller: 68,
+};
+
+/** Alias legado → rol canónico */
+const ROLE_ALIASES: Record<string, Role> = {
+  gerencia: "gerente_general",
+  finanzas: "tesoreria",
+  despacho: "gestor_operativo",
+  rrhh: "vinculaciones",
+  atencion: "recepcionista",
+  recepcion: "recepcionista",
+  sistemas: "lider_ti",
+  tecnologia: "lider_ti",
+  archivo: "gestor_documental",
+  taller: "coordinador_taller",
+  revisoria: "revisor_fiscal",
+  revisoria_fiscal: "revisor_fiscal",
+  supervisor: "centro_control",
+  comercial: "gestor_comercial",
+};
+
+export function normalizeRole(role: string): Role {
+  const r = String(role || "")
+    .toLowerCase()
+    .trim();
+  if (r === "superadmin" || r === "usuario_maestro") return "platform_master";
+  if (r === "recepcion" || r === "atencion") return "recepcionista";
+  if (r === "supervisor_logistica") return "gestor_operativo";
+  if (r === "supervisor") return "centro_control";
+  if (r === "finanzas" || r === "tesorero") return "tesoreria";
+  if (r === "tecnologia" || r === "sistemas" || r === "lider_ti") return "lider_ti";
+  if (r === "archivo" || r === "gestor_documental") return "gestor_documental";
+  if ((ROLES as string[]).includes(r)) return r as Role;
+  if (ROLE_ALIASES[r]) return ROLE_ALIASES[r];
+  return "gestor_operativo";
+}
+
+export function roleRank(role: string): number {
+  const key = String(role || "").toLowerCase();
+  return ROLE_RANK[key] ?? ROLE_RANK[normalizeRole(role)] ?? 0;
+}
 
 /**
  * 17 áreas corporativas (orden oficial dirección) + módulos secundarios
  * (usuarios / jurídico / dashboard / apps — fuera del menú principal).
  */
 export const MODULES = [
+  "plataforma",
   "presidencia",
   "gerencia",
   "rrhh",
@@ -109,11 +274,12 @@ export function resolveModuleId(raw: string): ModuleId | null {
 
 /** Path segment (URL) por módulo canónico */
 export const MODULE_PATHS: Record<ModuleId, string> = {
+  plataforma: "/plataforma",
   presidencia: "/presidencia",
   gerencia: "/gerencia",
   rrhh: "/rrhh",
   revisoria_fiscal: "/revisoria-fiscal",
-  contabilidad: "/contabilidad",
+  contabilidad: "/contabilidad/auxiliar/dashboard",
   tesoreria: "/tesoreria",
   logistica: "/logistica/servicios",
   comercial: "/comercial",
@@ -121,9 +287,9 @@ export const MODULE_PATHS: Record<ModuleId, string> = {
   qhse: "/qhse",
   sarlaft: "/sarlaft",
   tramites: "/tramites",
-  tecnologia_ti: "/tecnologia-ti",
-  archivo: "/archivo",
-  call_center: "/call-center",
+  tecnologia_ti: "/ti/dashboard",
+  archivo: "/archivo/dashboard",
+  call_center: "/recepcion/dashboard",
   taller: "/taller",
   parqueadero: "/parqueadero",
   usuarios: "/usuarios",
@@ -133,6 +299,7 @@ export const MODULE_PATHS: Record<ModuleId, string> = {
 };
 
 export const MODULE_LABELS: Record<ModuleId, string> = {
+  plataforma: "Plataforma · empresas",
   presidencia: "Presidencia",
   gerencia: "Gerencia General",
   rrhh: "Recursos Humanos",
@@ -158,6 +325,8 @@ export const MODULE_LABELS: Record<ModuleId, string> = {
 
 /** Texto corto para tooltips y PageIntro */
 export const MODULE_HELP: Record<ModuleId, string> = {
+  plataforma:
+    "Maestro INREDSOFT: registra empresas y crea el admin de cada organización.",
   presidencia:
     "Dirección estratégica, gobierno corporativo y tablero ejecutivo de flota.",
   gerencia:
@@ -212,8 +381,21 @@ export const CORPORATE_AREA_MODULES: ModuleId[] = [
 ];
 
 export const ROLE_VIEWS: Record<Role, ModuleId[]> = {
-  presidencia: [...MODULES],
-  gerencia: [
+  platform_master: [...MODULES],
+  org_admin: [...MODULES.filter((m) => m !== "plataforma")],
+  presidencia: [
+    "presidencia",
+    "gerencia",
+    "dashboard",
+    "comercial",
+    "logistica",
+    "tesoreria",
+    "contabilidad",
+    "rrhh",
+    "qhse",
+    "archivo",
+  ],
+  gerente_general: [
     "presidencia",
     "gerencia",
     "dashboard",
@@ -228,20 +410,84 @@ export const ROLE_VIEWS: Record<Role, ModuleId[]> = {
     "call_center",
     "qhse",
     "archivo",
+    "usuarios",
   ],
-  finanzas: [
+  sub_gerente: [
+    "gerencia",
+    "dashboard",
+    "comercial",
+    "logistica",
+    "parqueadero",
+    "tramites",
+    "taller",
+    "rrhh",
+    "qhse",
+    "apps",
+  ],
+  director_financiero: [
     "dashboard",
     "tesoreria",
     "contabilidad",
-    "revisoria_fiscal",
     "compras",
+    "revisoria_fiscal",
     "juridico",
     "sarlaft",
     "archivo",
-    "presidencia",
     "gerencia",
   ],
-  despacho: [
+  director_operativo: [
+    "dashboard",
+    "logistica",
+    "parqueadero",
+    "tramites",
+    "taller",
+    "comercial",
+    "rrhh",
+    "apps",
+    "gerencia",
+    "qhse",
+  ],
+  control_interno: [
+    "dashboard",
+    "revisoria_fiscal",
+    "contabilidad",
+    "tesoreria",
+    "compras",
+    "archivo",
+    "sarlaft",
+    "gerencia",
+  ],
+  revisor_fiscal: [
+    "dashboard",
+    "revisoria_fiscal",
+    "contabilidad",
+    "tesoreria",
+    "compras",
+    "presidencia",
+    "gerencia",
+    "archivo",
+    "sarlaft",
+  ],
+  centro_control: [
+    "dashboard",
+    "logistica",
+    "apps",
+    "parqueadero",
+    "tramites",
+    "gerencia",
+  ],
+  coordinador_operativo: [
+    "dashboard",
+    "logistica",
+    "parqueadero",
+    "tramites",
+    "apps",
+    "gerencia",
+  ],
+  coordinador_comercial: ["dashboard", "comercial", "logistica", "apps", "gerencia"],
+  coordinador_taller: ["dashboard", "taller", "compras", "logistica", "parqueadero"],
+  coordinador_patio: ["dashboard", "parqueadero", "logistica", "tramites"],
+  gestor_operativo: [
     "dashboard",
     "logistica",
     "parqueadero",
@@ -255,10 +501,22 @@ export const ROLE_VIEWS: Record<Role, ModuleId[]> = {
     "rrhh",
     "apps",
     "gerencia",
+    "usuarios",
   ],
-  rrhh: ["dashboard", "rrhh", "qhse", "archivo", "gerencia"],
-  atencion: ["dashboard", "call_center", "qhse", "apps", "gerencia"],
-  sistemas: [
+  gestor_comercial: ["dashboard", "comercial", "logistica", "apps", "archivo"],
+  gestor_contable: [
+    "dashboard",
+    "contabilidad",
+    "tesoreria",
+    "compras",
+    "archivo",
+    "rrhh",
+    "taller",
+  ],
+  tesoreria: ["dashboard", "tesoreria", "contabilidad", "compras", "archivo"],
+  juridico: ["dashboard", "juridico", "sarlaft", "archivo", "tramites"],
+  qhse: ["dashboard", "qhse", "logistica", "taller", "archivo"],
+  tecnologia: [
     "dashboard",
     "tecnologia_ti",
     "usuarios",
@@ -266,31 +524,27 @@ export const ROLE_VIEWS: Record<Role, ModuleId[]> = {
     "presidencia",
     "gerencia",
   ],
-  /** Ledger forense — solo lectura (RevisoriaReadOnlyGuard bloquea mutaciones). */
-  revisoria: [
+  lider_ti: [
     "dashboard",
-    "revisoria_fiscal",
-    "contabilidad",
-    "tesoreria",
-    "compras",
+    "tecnologia_ti",
+    "usuarios",
+    "archivo",
     "presidencia",
     "gerencia",
-    "archivo",
-    "sarlaft",
   ],
-  /** App móvil: mis viajes, preoperacional, GPS, novedades */
+  compras: ["dashboard", "compras", "taller", "tesoreria", "archivo"],
+  vinculaciones: ["dashboard", "rrhh", "qhse", "archivo", "gerencia", "usuarios"],
+  auxiliar_contable: ["dashboard", "contabilidad"],
+  auxiliar_contable_taller: ["dashboard", "taller", "contabilidad", "compras"],
+  auxiliar_patio: ["dashboard", "parqueadero"],
+  archivo: ["dashboard", "archivo", "tramites"],
+  gestor_documental: ["dashboard", "archivo", "tramites"],
+  /** Módulo 1 — Flor: visitas + omnicanal + radar lectura; sin finanzas/RRHH/contratos */
+  recepcionista: ["dashboard", "call_center", "logistica", "apps"],
+  recepcion: ["dashboard", "call_center", "logistica", "apps"],
+  mecanico: ["dashboard", "taller"],
   conductor: ["logistica", "apps"],
-  /** App monitora / escolar */
   monitora: ["apps", "logistica"],
-  /** Consola + app: aprueba desviaciones geofence/horario */
-  supervisor: [
-    "dashboard",
-    "logistica",
-    "apps",
-    "parqueadero",
-    "tramites",
-    "gerencia",
-  ],
   padre: ["apps"],
   pasajero: ["apps"],
 };
@@ -300,8 +554,8 @@ export function canAccessModule(
   role: string | Role,
   module: ModuleId | string,
 ): boolean {
-  const key = String(role).toLowerCase() as Role;
-  const views = ROLE_VIEWS[key];
+  const key = normalizeRole(String(role));
+  const views = ROLE_VIEWS[key] ?? ROLE_VIEWS[String(role).toLowerCase() as Role];
   if (!views) return false;
   const resolved = resolveModuleId(String(module));
   if (!resolved) return false;
@@ -309,10 +563,12 @@ export function canAccessModule(
 }
 
 export function modulesForRole(role: string | Role): ModuleId[] {
-  const key = String(role).toLowerCase() as Role;
-  return ROLE_VIEWS[key] ? [...ROLE_VIEWS[key]] : [];
+  const key = normalizeRole(String(role));
+  const views = ROLE_VIEWS[key] ?? ROLE_VIEWS[String(role).toLowerCase() as Role];
+  return views ? [...views] : [];
 }
 
+export * from "./rbac";
 export * from "./departments";
 export * from "./nav-departments";
 

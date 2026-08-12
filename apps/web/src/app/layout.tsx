@@ -60,6 +60,37 @@ const themeBootScript = `
     document.documentElement.classList.remove('light');
     document.documentElement.classList.add('dark');
   }
+  /* Bitdefender/Kaspersky inyectan bis_skin_checked → falso mismatch de hidratación */
+  var EXT_ATTRS = ['bis_skin_checked', 'bis_register'];
+  function stripExtAttrs(root) {
+    if (!root || root.nodeType !== 1) return;
+    for (var i = 0; i < EXT_ATTRS.length; i++) {
+      var attr = EXT_ATTRS[i];
+      if (root.hasAttribute && root.hasAttribute(attr)) root.removeAttribute(attr);
+      var nodes = root.querySelectorAll ? root.querySelectorAll('[' + attr + ']') : [];
+      for (var j = 0; j < nodes.length; j++) nodes[j].removeAttribute(attr);
+    }
+  }
+  stripExtAttrs(document.documentElement);
+  try {
+    var obs = new MutationObserver(function (muts) {
+      for (var i = 0; i < muts.length; i++) {
+        var mu = muts[i];
+        if (mu.type === 'attributes' && mu.target && mu.target.removeAttribute) {
+          mu.target.removeAttribute(mu.attributeName);
+        } else if (mu.addedNodes) {
+          for (var k = 0; k < mu.addedNodes.length; k++) stripExtAttrs(mu.addedNodes[k]);
+        }
+      }
+    });
+    obs.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: EXT_ATTRS,
+      childList: true,
+      subtree: true
+    });
+    setTimeout(function () { obs.disconnect(); }, 4000);
+  } catch (err) {}
 })();
 `;
 
@@ -71,7 +102,8 @@ export default function RootLayout({
   return (
     <html
       lang="es"
-      className={`${display.variable} ${body.variable} ${mono.variable}`}
+      className={`${display.variable} ${body.variable} ${mono.variable} dark`}
+      data-theme="dark"
       suppressHydrationWarning
     >
       <head>

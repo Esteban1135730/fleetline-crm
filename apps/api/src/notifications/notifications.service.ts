@@ -141,7 +141,7 @@ export class NotificationsService {
             title: input.title,
             body: input.body,
             href: input.href,
-            payload: input.payload ?? undefined,
+            payload: (input.payload ?? undefined) as object | undefined,
             channels,
           },
         }),

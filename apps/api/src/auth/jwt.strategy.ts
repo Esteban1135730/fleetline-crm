@@ -1,6 +1,8 @@
 import { Injectable, UnauthorizedException } from "@nestjs/common";
 import { PassportStrategy } from "@nestjs/passport";
 import { ExtractJwt, Strategy } from "passport-jwt";
+import { UserAccountStatus } from "@fsg/db";
+import { normalizeRole } from "@fsg/shared";
 import { PrismaService } from "../prisma/prisma.service";
 
 @Injectable()
@@ -29,18 +31,24 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         organizationId: true,
         directiveReadOnly: true,
         active: true,
+        status: true,
       },
     });
 
     if (!user || !user.active) {
       throw new UnauthorizedException("Sesión inválida");
     }
+    if (
+      user.status === UserAccountStatus.PENDING ||
+      user.status === UserAccountStatus.REJECTED
+    ) {
+      throw new UnauthorizedException("Cuenta no autorizada");
+    }
 
     return {
       userId: user.id,
       email: user.email,
-      // ROLE_VIEWS / canAccessModule esperan clave en minúsculas (despacho, no DESPACHO)
-      role: String(user.role).toLowerCase(),
+      role: normalizeRole(user.role),
       organizationId: user.organizationId,
       directiveReadOnly: user.directiveReadOnly,
     };

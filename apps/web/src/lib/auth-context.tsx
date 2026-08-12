@@ -9,7 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { ROLE_VIEWS, resolveModuleId, type Role } from "@fsg/shared";
+import { ROLE_VIEWS, normalizeRole, resolveModuleId, type Role } from "@fsg/shared";
 import {
   api,
   clearSession,
@@ -37,32 +37,59 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-export function homePathForRole(role: Role): string {
-  const views = ROLE_VIEWS[role] || [];
+export function homePathForRole(role: Role | string): string {
+  const key = normalizeRole(String(role));
+  /** Cockpit operativo por rol (módulos 1–5 + ops) */
+  const ROLE_HOME: Partial<Record<string, string>> = {
+    platform_master: "/plataforma",
+    org_admin: "/usuarios",
+    recepcionista: "/recepcion/dashboard",
+    lider_ti: "/ti/dashboard",
+    gestor_documental: "/archivo/dashboard",
+    auxiliar_contable: "/contabilidad/auxiliar/dashboard",
+    gestor_contable: "/contabilidad/gestor/dashboard",
+    tesoreria: "/tesoreria",
+    director_financiero: "/tesoreria",
+    gestor_operativo: "/logistica/servicios",
+    centro_control: "/logistica/servicios",
+    conductor: "/logistica/servicios",
+    presidencia: "/presidencia",
+    gerente_general: "/gerencia",
+  };
+  if (ROLE_HOME[key]) return ROLE_HOME[key]!;
+
+  const views = ROLE_VIEWS[key] || [];
   const map: Record<string, string> = {
+    plataforma: "/plataforma",
+    usuarios: "/usuarios",
     presidencia: "/presidencia",
     gerencia: "/gerencia",
     dashboard: "/dashboard",
     logistica: "/logistica/servicios",
     tesoreria: "/tesoreria",
     rrhh: "/rrhh",
-    call_center: "/call-center",
-    tecnologia_ti: "/tecnologia-ti",
-    usuarios: "/usuarios",
+    call_center: "/recepcion/dashboard",
+    tecnologia_ti: "/ti/dashboard",
+    archivo: "/archivo/dashboard",
+    contabilidad: "/contabilidad/gestor/dashboard",
     comercial: "/comercial",
     taller: "/taller",
   };
   for (const preferred of [
-    "presidencia",
-    "gerencia",
-    "dashboard",
-    "logistica",
-    "tesoreria",
-    "rrhh",
+    "plataforma",
     "call_center",
     "tecnologia_ti",
+    "archivo",
+    "contabilidad",
+    "tesoreria",
+    "logistica",
+    "usuarios",
+    "presidencia",
+    "gerencia",
     "comercial",
     "taller",
+    "rrhh",
+    "dashboard",
   ]) {
     if (views.includes(preferred as never)) return map[preferred];
   }
@@ -160,7 +187,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!user) return false;
       if (view === "cuenta") return true;
       const resolved = resolveModuleId(view) || view;
-      return (ROLE_VIEWS[user.role] || []).includes(resolved as never);
+      const key = normalizeRole(user.role);
+      return (ROLE_VIEWS[key] || []).includes(resolved as never);
     },
     [user],
   );

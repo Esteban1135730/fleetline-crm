@@ -1,12 +1,14 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   UnauthorizedException,
 } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import * as bcrypt from "bcryptjs";
-import { AccountType, Role } from "@fsg/db";
+import { AccountType, Role, UserAccountStatus } from "@fsg/db";
+import { normalizeRole } from "@fsg/shared";
 import { PrismaService } from "../prisma/prisma.service";
 
 @Injectable()
@@ -23,42 +25,57 @@ export class AuthService {
     role: Role;
     organizationId: string;
     directiveReadOnly?: boolean;
+    status?: UserAccountStatus;
   }) {
     return {
       id: user.id,
       email: user.email,
       name: user.name,
-      role: user.role.toLowerCase() as
-        | "presidencia"
-        | "gerencia"
-        | "finanzas"
-        | "despacho"
-        | "rrhh"
-        | "atencion"
-        | "sistemas"
-        | "revisoria"
-        | "conductor"
-        | "monitora",
+      role: normalizeRole(user.role),
+      /** Alias multi-tenant: organizationId === tenantId */
       organizationId: user.organizationId,
+      tenantId: user.organizationId,
+      companyId: user.organizationId,
       directiveReadOnly: Boolean(user.directiveReadOnly),
+      status: String(user.status ?? UserAccountStatus.ACTIVE).toLowerCase(),
     };
   }
 
   async login(email: string, password: string) {
     const user = await this.prisma.user.findUnique({
       where: { email: email.toLowerCase().trim() },
+      include: { organization: true },
     });
     if (!user || !user.active) {
       throw new UnauthorizedException("Credenciales inválidas");
     }
+    if (user.organization.status === "SUSPENDED") {
+      throw new ForbiddenException(
+        "Empresa suspendida — contacte al Usuario Maestro de plataforma",
+      );
+    }
+    if (user.status === UserAccountStatus.PENDING) {
+      throw new UnauthorizedException(
+        "Cuenta pendiente de autorización por mando superior",
+      );
+    }
+    if (user.status === UserAccountStatus.REJECTED) {
+      throw new UnauthorizedException("Cuenta rechazada — contacta al admin de empresa");
+    }
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) throw new UnauthorizedException("Credenciales inválidas");
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    });
 
     const payload = {
       sub: user.id,
       email: user.email,
       role: user.role,
       organizationId: user.organizationId,
+      tenantId: user.organizationId,
       directiveReadOnly: user.directiveReadOnly,
     };
     return {
@@ -70,6 +87,12 @@ export class AuthService {
   async me(userId: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user || !user.active) throw new UnauthorizedException();
+    if (
+      user.status === UserAccountStatus.PENDING ||
+      user.status === UserAccountStatus.REJECTED
+    ) {
+      throw new UnauthorizedException("Cuenta no activa");
+    }
     return this.toPublicUser(user);
   }
 
@@ -93,8 +116,24 @@ export class AuthService {
     return { ok: true };
   }
 
-  /** Alta de empresa + admin (onboarding real, sin seed demo) */
-  async registerOrganization(data: {
+  /**
+   * Alta pública deshabilitada — solo el maestro crea empresas en /plataforma.
+   * Se mantiene el método por si un proceso interno lo invoca.
+   */
+  async registerOrganization(_data: {
+    organizationName: string;
+    nit: string;
+    adminName: string;
+    adminEmail: string;
+    adminPassword: string;
+  }) {
+    throw new ForbiddenException(
+      "Registro público cerrado. El maestro de plataforma da de alta empresas.",
+    );
+  }
+
+  /** Uso interno (tests / migración) — no exponer por HTTP abierto */
+  async registerOrganizationInternal(data: {
     organizationName: string;
     nit: string;
     adminName: string;
@@ -130,7 +169,8 @@ export class AuthService {
           email,
           name: data.adminName.trim(),
           passwordHash,
-          role: Role.PRESIDENCIA,
+          role: Role.ORG_ADMIN,
+          status: UserAccountStatus.ACTIVE,
           organizationId: org.id,
         },
       });
@@ -178,11 +218,13 @@ export class AuthService {
         name: true,
         role: true,
         active: true,
+        status: true,
       },
     });
     return users.map((u) => ({
       ...u,
-      role: u.role.toLowerCase(),
+      role: normalizeRole(u.role),
+      status: String(u.status).toLowerCase(),
     }));
   }
 }

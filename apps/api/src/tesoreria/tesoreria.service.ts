@@ -22,6 +22,95 @@ export class TesoreriaService {
     private sarlaft: SarlaftComplianceGuard,
   ) {}
 
+  /**
+   * Bloqueo operativo: no dispersar anticipos/peajes si hay legalizaciones
+   * OPEN o IN_REVIEW (saldo pendiente de cierre).
+   */
+  async assertNoOpenLegalizationsBlocking(organizationId: string) {
+    const open = await this.prisma.expenseLegalization.count({
+      where: {
+        organizationId,
+        status: { in: ["OPEN", "IN_REVIEW", "REFUND_PENDING"] },
+      },
+    });
+    if (open > 0) {
+      throw new ForbiddenException({
+        error: "LEGALIZATIONS_PENDING",
+        message: `Dispersión bloqueada: ${open} legalización(es) de viáticos sin cerrar`,
+        openCount: open,
+      });
+    }
+  }
+
+  /**
+   * Cruce de recaudo de cartera: marca CxC ISSUED/PARTIAL como PAID
+   * cuando hay referencia bancaria de ingreso.
+   */
+  async cruzarCartera(
+    organizationId: string,
+    userId: string,
+    input: { invoiceIds: string[]; bankRef: string },
+  ) {
+    if (!input.invoiceIds?.length) {
+      throw new ForbiddenException({
+        error: "EMPTY_CARTERA",
+        message: "Indique facturas CxC a cruzar",
+      });
+    }
+    const invoices = await this.prisma.invoice.findMany({
+      where: {
+        organizationId,
+        id: { in: input.invoiceIds },
+        type: "RECEIVABLE",
+        status: { in: [InvoiceStatus.ISSUED, InvoiceStatus.OVERDUE] },
+      },
+    });
+    if (invoices.length !== input.invoiceIds.length) {
+      throw new NotFoundException(
+        "Una o más facturas CxC no están disponibles para cruce",
+      );
+    }
+    const paidAt = new Date();
+    const results = [];
+    for (const inv of invoices) {
+      const updated = await this.prisma.invoice.update({
+        where: { id: inv.id },
+        data: {
+          status: InvoiceStatus.PAID,
+          paidAt,
+          paymentApproved: true,
+          paymentApprovedAt: paidAt,
+          paymentApprovedById: userId,
+          prefacturaAnnex: {
+            ...(typeof inv.prefacturaAnnex === "object" &&
+            inv.prefacturaAnnex !== null
+              ? (inv.prefacturaAnnex as object)
+              : {}),
+            carteraCruce: { bankRef: input.bankRef, at: paidAt.toISOString() },
+          },
+        },
+      });
+      results.push(updated);
+    }
+    await this.kafka.emitPaymentDisbursed({
+      organizationId,
+      amount: results.reduce((s, i) => s + Number(i.amount), 0),
+      paymentScheduleIds: [],
+      invoiceIds: results.map((i) => i.id),
+      bankRef: input.bankRef,
+    });
+    return {
+      crossed: results.length,
+      bankRef: input.bankRef,
+      items: results.map((i) => ({
+        id: i.id,
+        number: i.number,
+        amount: i.amount,
+        status: i.status,
+      })),
+    };
+  }
+
   listSchedules(organizationId: string, status?: PaymentScheduleStatus) {
     return this.prisma.paymentSchedule.findMany({
       where: {
@@ -112,6 +201,23 @@ export class TesoreriaService {
     }
 
     const total = schedules.reduce((s, p) => s + Number(p.amount), 0);
+
+    const isAdvanceOrToll = schedules.some((s) => {
+      const meta =
+        s.meta && typeof s.meta === "object"
+          ? (s.meta as { kind?: string })
+          : {};
+      const kind = String(meta.kind || "").toUpperCase();
+      return (
+        kind === "ANTICIPO" ||
+        kind === "PEAJE" ||
+        kind === "ADVANCE" ||
+        kind === "RODAMIENTO"
+      );
+    });
+    if (isAdvanceOrToll) {
+      await this.assertNoOpenLegalizationsBlocking(organizationId);
+    }
 
     // Autorización 3-Way + SARLAFT por cada factura / beneficiario
     for (const sch of schedules) {

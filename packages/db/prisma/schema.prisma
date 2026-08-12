@@ -52,8 +52,65 @@ enum AccessLevel {
   ADMIN
 }
 
+/// Estado comercial del tenant (empresa de transporte)
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+  TRIAL
+}
+
 enum RoleCode {
+  /// Usuario Maestro / Propietario de plataforma (= SUPERADMIN)
+  PLATFORM_MASTER
+  /// Alias explícito Usuario Maestro (seed / JWT)
+  SUPERADMIN
+  /// Admin de empresa — gestiona usuarios de su organización
+  ORG_ADMIN
+
+  /// —— Roles por empresa ——
+  TECNOLOGIA
+  ARCHIVO
+  GESTOR_CONTABLE
+  AUXILIAR_CONTABLE
+  TESORERIA
+  DIRECTOR_FINANCIERO
+  QHSE
+  COMPRAS
+  DIRECTOR_OPERATIVO
+  GESTOR_OPERATIVO
+  /// Alias seed: supervisor de logística
+  SUPERVISOR_LOGISTICA
+  COORDINADOR_OPERATIVO
+  CENTRO_CONTROL
+  CONTROL_INTERNO
   PRESIDENCIA
+  VINCULACIONES
+  COORDINADOR_COMERCIAL
+  GESTOR_COMERCIAL
+  GERENTE_GENERAL
+  JURIDICO
+  REVISOR_FISCAL
+  COORDINADOR_TALLER
+  AUXILIAR_CONTABLE_TALLER
+  MECANICO
+  COORDINADOR_PATIO
+  AUXILIAR_PATIO
+  CONDUCTOR
+  SUB_GERENTE
+  /// Recepción / concierge omnicanal (Usuario tipo Flor)
+  RECEPCIONISTA
+  /// Líder TI / infraestructura (Usuario David)
+  LIDER_TI
+  /// Gestor documental / Archivo y Papelería (Usuario Roberto)
+  GESTOR_DOCUMENTAL
+
+  /// Apps / canal externo
+  MONITORA
+  PADRE
+  PASAJERO
+
+  /// Legado (mapear vía normalizeRole)
+  RECEPCION
   GERENCIA
   FINANZAS
   DESPACHO
@@ -61,15 +118,15 @@ enum RoleCode {
   ATENCION
   SISTEMAS
   REVISORIA
-  CONDUCTOR
-  MONITORA
   SUPERVISOR
-  PADRE
-  PASAJERO
-  // Alias legado UI
   COMERCIAL
   TALLER
-  COMPRAS
+}
+
+enum UserAccountStatus {
+  PENDING
+  ACTIVE
+  REJECTED
 }
 
 enum DocStatus {
@@ -240,6 +297,10 @@ enum InvoiceStatus {
   ISSUED
   PENDING_MATCH
   CLEARED_FOR_PAYMENT
+  /// Causada por auxiliar — lista para cola de tesorería
+  CAUSED
+  /// Devuelta al proveedor por discrepancia 3-Way
+  RETURNED_TO_VENDOR
   PAID
   OVERDUE
   CANCELLED
@@ -327,6 +388,20 @@ enum TicketPriority {
 enum VisitorKind {
   VISITOR
   CONTRACTOR
+}
+
+/// Clasificación operativa Smart Visitor Board (Módulo 1)
+enum VisitClass {
+  DRIVER_CANDIDATE
+  SUPPLIER
+  B2B_MEETING
+  OTHER
+}
+
+enum VisitBoardStatus {
+  WAITING
+  CHECKED_IN
+  CHECKED_OUT
 }
 
 enum EmployeeStatus {
@@ -558,10 +633,17 @@ enum B2bServiceRequestStatus {
 // 1. TENANT + RBAC + AUDITORÍA
 // =============================================================================
 
+/// Empresa de transporte = tenant. `id` es el `tenantId` multi-tenant.
 model Organization {
   id        String   @id @default(cuid())
   name      String
   nit       String   @unique
+  /// Estado licencia / operación del tenant
+  status    TenantStatus @default(ACTIVE)
+  /// Tope de usuarios contratados (licencias)
+  maxUsers  Int      @default(50)
+  suspendedAt       DateTime?
+  suspendedReason   String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -628,6 +710,18 @@ model Organization {
   userNotifications  UserNotification[]
   webPushSubscriptions WebPushSubscription[]
   devicePushTokens   DevicePushToken[]
+  systemTickets      SystemTicket[]
+  tiOnboardingLinks  TiOnboardingLink[]
+  tiMdmPairSessions  TiMdmPairSession[]
+  stationeryItems    StationeryItem[]
+  stationeryDispatches StationeryDispatch[]
+  documentLoans      DocumentLoan[]
+  expenseLegalizations ExpenseLegalization[]
+  bankStatements     BankStatement[]
+  bankReconciliations BankReconciliation[]
+  costCenters        CostCenter[]
+  routeExpenses      RouteExpense[]
+  dianEmissions      DianEmission[]
 
   @@index([nit])
 }
@@ -641,7 +735,15 @@ model User {
   role           RoleCode     @default(DESPACHO)
   /// Vista directiva: fuerza AccessLevel.READ_ONLY en dominios operativos.
   directiveReadOnly Boolean   @default(false)
+  /// PENDING = espera autorización de mando superior / org admin
+  status         UserAccountStatus @default(ACTIVE)
+  approvedById   String?
+  approvedBy     User?        @relation("UserApprovals", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvalsGiven User[]       @relation("UserApprovals")
+  approvedAt     DateTime?
   active         Boolean      @default(true)
+  lastLoginAt    DateTime?
+  lastIp         String?
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdAt      DateTime     @default(now())
@@ -668,6 +770,7 @@ model User {
 
   @@index([organizationId, role])
   @@index([organizationId, active])
+  @@index([organizationId, status])
   @@index([organizationId, directiveReadOnly])
 }
 
@@ -1219,19 +1322,51 @@ model GpsSnapshot {
   @@index([recordedAt])
 }
 
+enum RouteExpenseKind {
+  PEAJE
+  TANQUEO
+  COMBUSTIBLE
+  OTRO
+}
+
+enum RouteExpenseStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  POSTED
+}
+
+/// Smart Wallet / gastos de ruta — peajes, tanqueos (OCR + auditoría contable)
 model RouteExpense {
-  id          String   @id @default(cuid())
-  tripId      String
-  trip        Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  kind        String // PEAJE | COMBUSTIBLE | OTRO
-  amount      Decimal  @db.Decimal(14, 2)
-  gallons     Float?
-  station     String?
-  ocrPayload  Json?
-  fileRef     String?
-  createdAt   DateTime @default(now())
+  id             String             @id @default(cuid())
+  organizationId String?
+  organization   Organization?      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  tripId         String?
+  trip           Trip?              @relation(fields: [tripId], references: [id], onDelete: SetNull)
+  plate          String?
+  vehicleId      String?
+  driverId       String?
+  driverName     String?
+  kind           String // PEAJE | TANQUEO | COMBUSTIBLE | OTRO
+  amount         Decimal            @db.Decimal(14, 2)
+  gallons        Float?
+  station        String?
+  ocrPayload     Json?
+  fileRef        String?
+  photoRef       String?
+  aiExtracted    Json?
+  status         RouteExpenseStatus @default(PENDING)
+  approvedById   String?
+  approvedAt     DateTime?
+  journalEntryId String?
+  rejectReason   String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @default(now()) @updatedAt
 
   @@index([tripId, kind])
+  @@index([organizationId, status, createdAt])
+  @@index([organizationId, plate])
+  @@index([vehicleId])
   @@index([createdAt])
 }
 
@@ -1595,6 +1730,12 @@ model Invoice {
 
   threeWayMatches ThreeWayMatch[]
   paymentSchedules PaymentSchedule[]
+  /// Prefactura / anexo B2B
+  prefacturaAnnex  Json?
+  dianCufe         String?
+  dianStampedAt    DateTime?
+  dianXmlRef       String?
+  dianPdfRef       String?
 
   @@unique([organizationId, number])
   @@index([organizationId, type, status])
@@ -1603,6 +1744,129 @@ model Invoice {
   @@index([tripId])
   @@index([xmlHash])
   @@index([status, dueDate])
+  @@index([dianCufe])
+}
+
+enum ExpenseLegalizationStatus {
+  OPEN
+  IN_REVIEW
+  CLOSED
+  ADJUSTED_PAYROLL
+  REFUND_PENDING
+}
+
+/// Legalización de viáticos / caja menor (conductores) — Módulo 4.1
+model ExpenseLegalization {
+  id               String                     @id @default(cuid())
+  organizationId   String
+  organization     Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  code             String
+  driverId         String?
+  driverUserId     String?
+  driverName       String?
+  advanceAmount    Decimal                    @db.Decimal(14, 2) @default(0)
+  expensesTotal    Decimal                    @db.Decimal(14, 2) @default(0)
+  balance          Decimal                    @db.Decimal(14, 2) @default(0)
+  /// COMPANY_CREDIT | DRIVER_CREDIT | ZERO
+  settlementKind   String?
+  status           ExpenseLegalizationStatus  @default(OPEN)
+  supportFileRef   String?
+  notes            String?
+  reviewedById     String?
+  closedAt         DateTime?
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+  lines            ExpenseLegalizationLine[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, status])
+  @@index([driverId])
+}
+
+model ExpenseLegalizationLine {
+  id               String              @id @default(cuid())
+  legalizationId   String
+  legalization     ExpenseLegalization @relation(fields: [legalizationId], references: [id], onDelete: Cascade)
+  source           String              @default("SMART_WALLET") // SMART_WALLET | MANUAL
+  description      String
+  amount           Decimal             @db.Decimal(14, 2)
+  receiptRef       String?
+  spentAt          DateTime?
+  createdAt        DateTime            @default(now())
+
+  @@index([legalizationId])
+}
+
+enum BankReconciliationStatus {
+  OPEN
+  PARTIAL
+  CLOSED
+}
+
+/// Extracto bancario cargado (.CSV/Excel) — conciliación diaria
+model BankStatement {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  bankName       String?
+  accountMask    String?
+  periodDate     DateTime
+  fileName       String?
+  rawRows        Json?
+  uploadedById   String?
+  createdAt      DateTime @default(now())
+  lines          BankStatementLine[]
+  reconciliation BankReconciliation?
+
+  @@index([organizationId, periodDate])
+}
+
+model BankStatementLine {
+  id            String        @id @default(cuid())
+  statementId   String
+  statement     BankStatement @relation(fields: [statementId], references: [id], onDelete: Cascade)
+  externalRef   String?
+  description   String
+  amount        Decimal       @db.Decimal(14, 2)
+  bookedAt      DateTime?
+  matched       Boolean       @default(false)
+  invoiceId     String?
+  matchScore    Float?
+  createdAt     DateTime      @default(now())
+
+  @@index([statementId, matched])
+  @@index([invoiceId])
+}
+
+model BankReconciliation {
+  id             String                   @id @default(cuid())
+  organizationId String
+  organization   Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  statementId    String                   @unique
+  statement      BankStatement            @relation(fields: [statementId], references: [id], onDelete: Cascade)
+  status         BankReconciliationStatus @default(OPEN)
+  matchedCount   Int                      @default(0)
+  unmatchedCount Int                      @default(0)
+  closedAt       DateTime?
+  closedById     String?
+  notes          String?
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+
+  @@index([organizationId, status])
+}
+
+/// Contador de productividad del auxiliar (jornada)
+model AuxiliarProductivityLog {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  workDate       DateTime @db.Date
+  documentsCount Int      @default(0)
+  updatedAt      DateTime @updatedAt
+
+  @@unique([organizationId, userId, workDate])
+  @@index([userId, workDate])
 }
 
 // =============================================================================
@@ -1724,10 +1988,52 @@ model JournalLine {
   creditAccountId String
   creditAccount  Account      @relation("CreditAccount", fields: [creditAccountId], references: [id], onDelete: Restrict)
   amount         Decimal      @db.Decimal(14, 2)
+  /// Centro de costo por placa (ej. BOG-892)
+  costCenterPlate String?
 
   @@index([entryId])
   @@index([debitAccountId])
   @@index([creditAccountId])
+  @@index([costCenterPlate])
+}
+
+/// Centro de costo contable vinculado a placa / vehículo
+model CostCenter {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  code           String
+  /// Placa canónica (ABC-123)
+  plate          String
+  vehicleId      String?
+  name           String?
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([organizationId, plate])
+  @@unique([organizationId, code])
+  @@index([organizationId, active])
+  @@index([vehicleId])
+}
+
+/// Timbrado DIAN — traza de emisión FE
+model DianEmission {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoiceId      String
+  cufe           String
+  provider       String   @default("DIAN_MOCK")
+  xmlRef         String?
+  pdfRef         String?
+  stampedAt      DateTime @default(now())
+  payload        Json?
+  createdAt      DateTime @default(now())
+
+  @@unique([invoiceId])
+  @@index([organizationId, stampedAt])
+  @@index([cufe])
 }
 
 model ForensicFinding {
@@ -1900,31 +2206,39 @@ model Ticket {
 }
 
 model Visitor {
-  id             String       @id @default(cuid())
+  id             String           @id @default(cuid())
   name           String
   document       String
   company        String?
   reason         String
   hostName       String
-  kind           VisitorKind  @default(VISITOR)
+  kind           VisitorKind      @default(VISITOR)
+  /// Candidato / proveedor / B2B — dispara notificaciones de área
+  visitClass     VisitClass       @default(OTHER)
+  boardStatus    VisitBoardStatus @default(WAITING)
+  /// Gafete RFID entregado en portería
+  badgeRfid      String?
+  hostUserId     String?
   siteLabel      String?
   phone          String?
   /// ARL vigente requerida para contratistas
-  arlValid       Boolean      @default(false)
+  arlValid       Boolean          @default(false)
   arlExpiresAt   DateTime?
   passCode       String?
   qrPayload      String?
   badgeIssuedAt  DateTime?
-  checkedInAt    DateTime     @default(now())
+  checkedInAt    DateTime         @default(now())
   checkedOutAt   DateTime?
   organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   meta           Json?
 
   @@index([organizationId, checkedOutAt])
+  @@index([organizationId, boardStatus])
   @@index([organizationId, passCode])
   @@index([document])
   @@index([kind, checkedOutAt])
+  @@index([visitClass, boardStatus])
 }
 
 model QualityEvent {
@@ -2125,15 +2439,26 @@ model ArchiveDocument {
   uploadedById     String?
   uploadedBy       User?                   @relation("ArchiveUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
   deletedAt        DateTime?
+  /// Custodia física — Pasillo / Estante / Caja
+  aisle            String?
+  shelf            String?
+  box              String?
+  /// Pendiente de digitalizar (escaneo solicitado)
+  pendingDigitization Boolean              @default(false)
+  /// AVAILABLE | ON_LOAN
+  custodyStatus    String                  @default("AVAILABLE")
   organizationId   String
   organization     Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdAt        DateTime                @default(now())
   updatedAt        DateTime                @updatedAt
+  loans            DocumentLoan[]
 
   @@index([organizationId, category])
   @@index([organizationId, docType])
   @@index([organizationId, validationStatus])
   @@index([organizationId, entityType, entityId])
+  @@index([organizationId, pendingDigitization])
+  @@index([organizationId, custodyStatus])
   @@index([vehicleId])
   @@index([driverId])
   @@index([supplierId])
@@ -2141,7 +2466,71 @@ model ArchiveDocument {
   @@index([contentHash])
   @@index([title])
   @@index([plate])
+  @@index([taxIdOrDocument])
   @@index([deletedAt])
+}
+
+/// Inventario administrativo — papelería / dotación (Módulo 3)
+model StationeryItem {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sku            String
+  name           String
+  unit           String   @default("UND")
+  quantity       Int      @default(0)
+  /// Umbral de reorden (alerta Kafka si quantity <= minStock)
+  minStock       Int      @default(5)
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  dispatches     StationeryDispatch[]
+
+  @@unique([organizationId, sku])
+  @@index([organizationId, quantity])
+  @@index([organizationId, minStock])
+}
+
+model StationeryDispatch {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  itemId         String
+  item           StationeryItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  quantity       Int
+  ticketRef      String?
+  notes          String?
+  requestedById  String?
+  dispatchedById String?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([itemId, createdAt])
+}
+
+/// Préstamo de carpeta / documento físico
+model DocumentLoan {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  documentId     String
+  document       ArchiveDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  borrowerUserId String
+  borrowerName   String?
+  purpose        String?
+  status         String   @default("ON_LOAN") // ON_LOAN | RETURNED | OVERDUE
+  checkedOutAt   DateTime @default(now())
+  dueAt          DateTime?
+  returnedAt     DateTime?
+  reminderSentAt DateTime?
+  checkedOutById String?
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId, status, checkedOutAt])
+  @@index([documentId, status])
+  @@index([borrowerUserId])
 }
 
 enum YardAccessKind {
@@ -2387,16 +2776,60 @@ model SttsJob {
 }
 
 model SystemTicket {
-  id        String   @id @default(cuid())
-  title     String
-  detail    String?
-  status    String   @default("OPEN")
-  createdById String?
-  createdBy User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             String        @id @default(cuid())
+  title          String
+  detail         String?
+  status         String        @default("OPEN")
+  /// HIGH | MEDIUM | LOW
+  priority       String        @default("MEDIUM")
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  createdById    String?
+  createdBy      User?         @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   @@index([status, createdAt])
+  @@index([organizationId, priority, status])
+}
+
+/// Link de un solo uso — onboarding / reset seguro (Módulo 2 TI)
+model TiOnboardingLink {
+  id             String    @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  email          String
+  name           String?
+  targetRole     RoleCode  @default(CONDUCTOR)
+  tokenHash      String
+  expiresAt      DateTime
+  usedAt         DateTime?
+  createdById    String?
+  createdAt      DateTime  @default(now())
+
+  @@index([organizationId, email])
+  @@index([tokenHash])
+  @@index([expiresAt])
+}
+
+/// Emparejamiento MDM móvil — QR temporal (FSG Pilot App)
+model TiMdmPairSession {
+  id             String    @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  pairCode       String
+  driverUserId   String?
+  deviceId       String?
+  locked         Boolean   @default(true)
+  expiresAt      DateTime
+  pairedAt       DateTime?
+  createdById    String?
+  meta           Json?
+  createdAt      DateTime  @default(now())
+
+  @@unique([organizationId, pairCode])
+  @@index([organizationId, expiresAt])
+  @@index([driverUserId])
 }
 
 // =============================================================================

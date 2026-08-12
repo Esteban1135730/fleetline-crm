@@ -8,7 +8,7 @@ import {
   type AuditTrailQueryDto,
 } from "./dto/audit-trail-query.dto";
 
-@Controller("revisoria")
+@Controller(["revisoria", "api/v1/audit-forensic", "audit-forensic"])
 @UseGuards(JwtAuthGuard, ModulesGuard, RevisoriaReadOnlyGuard)
 @RequireModule("revisoria_fiscal")
 export class RevisoriaController {

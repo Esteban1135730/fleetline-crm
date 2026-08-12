@@ -138,7 +138,9 @@ export function homeTitleForRole(role: AppRole) {
       return "Pasajero";
     case "supervisor":
     case "despacho":
-      return "Supervisor de flota";
+    case "centro_control":
+    case "gestor_operativo":
+      return "Centro de control";
     default:
       return "INRETRANS OS";
   }

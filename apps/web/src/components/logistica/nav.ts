@@ -24,7 +24,7 @@ export const LOGISTICA_SUBMENUS = [
   {
     id: "reporte-nomina" as const,
     href: "/logistica/conductores/reporte-nomina",
-    label: "Reporte Mensual Nómina / Extras",
+    label: "Reporte Nómina / Tarifario de Recargos",
     apiBase: "/nomina",
   },
 ] as const;

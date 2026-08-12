@@ -15,6 +15,7 @@ export type DoubleEntryInput = {
   amount: number;
   sourceEvent: string;
   meta?: Record<string, unknown>;
+  costCenterPlate?: string | null;
 };
 
 const DEFAULT_ACCOUNTS: Array<{
@@ -29,6 +30,10 @@ const DEFAULT_ACCOUNTS: Array<{
   { code: "2505", name: "Salarios por pagar", type: AccountType.LIABILITY },
   { code: "4135", name: "Ingresos transporte", type: AccountType.INCOME },
   { code: "5105", name: "Mantenimiento flota", type: AccountType.EXPENSE },
+  { code: "5145", name: "Peajes y gastos de ruta", type: AccountType.EXPENSE },
+  { code: "5150", name: "Combustible / tanqueo", type: AccountType.EXPENSE },
+  { code: "5160", name: "Depreciación flota", type: AccountType.EXPENSE },
+  { code: "1592", name: "Depreciación acumulada vehículos", type: AccountType.ASSET },
   { code: "5205", name: "Gasto de nómina", type: AccountType.EXPENSE },
   { code: "6135", name: "Costo de ventas / consumo inventario", type: AccountType.EXPENSE },
 ];
@@ -92,6 +97,7 @@ export class AccountingLedgerService {
               debitAccountId: debit.id,
               creditAccountId: credit.id,
               amount,
+              costCenterPlate: input.costCenterPlate?.toUpperCase() || null,
             },
           ],
         },

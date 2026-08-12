@@ -11,6 +11,8 @@ import {
 } from "@nestjs/common";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { ModulesGuard, RequireModule } from "../auth/modules.guard";
+import { Roles, RolesGuard } from "../auth/roles.guard";
+import { Permissions, PermissionsGuard } from "../auth/permissions.guard";
 import { RrhhService } from "./rrhh.service";
 import { FatigueManagementService } from "./fatigue-management.service";
 import { PayrollService } from "./payroll.service";
@@ -25,9 +27,18 @@ import {
 
 type AuthReq = { user: { organizationId: string; userId: string } };
 
-@Controller("rrhh")
-@UseGuards(JwtAuthGuard, ModulesGuard)
+@Controller(["rrhh", "api/v1/rrhh"])
+@UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard, ModulesGuard)
 @RequireModule("rrhh")
+@Roles(
+  "vinculaciones",
+  "rrhh",
+  "org_admin",
+  "platform_master",
+  "gerente_general",
+  "sub_gerente",
+)
+@Permissions("rrhh", "READ")
 export class RrhhController {
   constructor(
     private rrhh: RrhhService,
@@ -46,12 +57,14 @@ export class RrhhController {
   }
 
   @Post("employees")
+  @Permissions("personal", "CREATE")
   upsertEmployee(@Req() req: AuthReq, @Body() body: unknown) {
     const dto = UpsertEmployeeSchema.parse(body ?? {});
     return this.rrhh.upsertEmployee(req.user.organizationId, dto);
   }
 
   @Patch("employees/:id")
+  @Permissions("personal", "UPDATE")
   patchEmployee(
     @Req() req: AuthReq,
     @Param("id") id: string,
@@ -89,12 +102,14 @@ export class RrhhController {
   }
 
   @Post("payroll/calculate")
+  @Permissions("nomina", "CREATE")
   calculatePayroll(@Req() req: AuthReq, @Body() body: unknown) {
     const dto = PayrollCalculateSchema.parse(body ?? {});
     return this.payroll.calculate(req.user.organizationId, dto);
   }
 
   @Get("payroll/runs")
+  @Permissions("nomina", "READ")
   listPayrollRuns(
     @Req() req: AuthReq,
     @Query("take") take?: string,

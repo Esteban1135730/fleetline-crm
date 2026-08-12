@@ -1,6 +1,10 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
-import { DEFAULT_OVERTIME_FACTORS } from "../logistica/overtime/overtime-engine";
+import {
+  buildTarifarioRows,
+  DEFAULT_OVERTIME_FACTORS,
+  hourlyRateFromBase,
+} from "../logistica/overtime/overtime-engine";
 
 export type PeriodYm = { year: number; month: number; label: string };
 
@@ -414,5 +418,148 @@ export class NominaReportService {
       },
       rows,
     };
+  }
+
+  /** Tarifario org + bases por conductor/empleado + tabla de valores */
+  async getTarifario(organizationId: string) {
+    const cfg = await this.ensureLaborConfig(organizationId);
+    const baseSalary = num(cfg.baseSalary);
+    const divisor = cfg.monthlyHoursDivisor || 230;
+    const hourlyRate = round2(hourlyRateFromBase(baseSalary, divisor));
+    const factors = {
+      rnFactor: cfg.rnFactor,
+      hedFactor: cfg.hedFactor,
+      henFactor: cfg.henFactor,
+      rodFestFactor: cfg.rodFestFactor,
+      hedfFactor: cfg.hedfFactor,
+      henfFactor: cfg.henfFactor,
+      rnfFactor: cfg.rnfFactor,
+    };
+    const conceptos = buildTarifarioRows(hourlyRate, factors);
+
+    const drivers = await this.prisma.driver.findMany({
+      where: { organizationId, active: true },
+      include: { employee: true },
+      orderBy: { name: "asc" },
+    });
+
+    const empleados = drivers.map((d) => {
+      const pay = this.baseForDriver(baseSalary, divisor, d.employee);
+      return {
+        driverId: d.id,
+        employeeId: d.employee?.id ?? null,
+        name: d.name,
+        document: d.document,
+        baseSalary: pay.baseSalary,
+        hourlyRate: pay.hourlyRate,
+        usesOrgDefault: !(d.employee && num(d.employee.baseSalary) > 0),
+        conceptos: buildTarifarioRows(pay.hourlyRate, factors),
+      };
+    });
+
+    return {
+      config: {
+        baseSalary,
+        monthlyHoursDivisor: divisor,
+        weeklyOrdinaryHours: cfg.weeklyOrdinaryHours,
+        ...factors,
+        hourlyRate,
+      },
+      conceptos,
+      empleados,
+    };
+  }
+
+  async updateLaborConfig(
+    organizationId: string,
+    input: {
+      baseSalary?: number;
+      monthlyHoursDivisor?: number;
+      weeklyOrdinaryHours?: number;
+      rnFactor?: number;
+      hedFactor?: number;
+      henFactor?: number;
+      rodFestFactor?: number;
+      hedfFactor?: number;
+      henfFactor?: number;
+      rnfFactor?: number;
+    },
+  ) {
+    await this.ensureLaborConfig(organizationId);
+    const data: Record<string, number> = {};
+    if (input.baseSalary != null) data.baseSalary = input.baseSalary;
+    if (input.monthlyHoursDivisor != null) {
+      data.monthlyHoursDivisor = input.monthlyHoursDivisor;
+    }
+    if (input.weeklyOrdinaryHours != null) {
+      data.weeklyOrdinaryHours = input.weeklyOrdinaryHours;
+    }
+    for (const k of [
+      "rnFactor",
+      "hedFactor",
+      "henFactor",
+      "rodFestFactor",
+      "hedfFactor",
+      "henfFactor",
+      "rnfFactor",
+    ] as const) {
+      if (input[k] != null) data[k] = input[k]!;
+    }
+    await this.prisma.payrollLaborConfig.update({
+      where: { organizationId },
+      data,
+    });
+    return this.getTarifario(organizationId);
+  }
+
+  /**
+   * Define base salarial / tarifa hora del conductor.
+   * Crea Employee vinculado si aún no existe.
+   */
+  async updateEmpleadoBase(
+    organizationId: string,
+    driverId: string,
+    input: { baseSalary?: number; hourlyRate?: number },
+  ) {
+    const driver = await this.prisma.driver.findFirst({
+      where: { id: driverId, organizationId },
+      include: { employee: true },
+    });
+    if (!driver) throw new NotFoundException("Conductor no encontrado");
+
+    const cfg = await this.ensureLaborConfig(organizationId);
+    const baseSalary =
+      input.baseSalary != null && input.baseSalary > 0
+        ? input.baseSalary
+        : driver.employee && num(driver.employee.baseSalary) > 0
+          ? num(driver.employee.baseSalary)
+          : num(cfg.baseSalary);
+    const hourlyRate =
+      input.hourlyRate != null && input.hourlyRate > 0
+        ? input.hourlyRate
+        : round2(baseSalary / (cfg.monthlyHoursDivisor || 230));
+
+    if (driver.employee) {
+      await this.prisma.employee.update({
+        where: { id: driver.employee.id },
+        data: { baseSalary, hourlyRate },
+      });
+    } else {
+      await this.prisma.employee.create({
+        data: {
+          organizationId,
+          name: driver.name,
+          document: driver.document,
+          title: "Conductor",
+          area: "Logística",
+          status: "ACTIVE",
+          baseSalary,
+          hourlyRate,
+          driverId: driver.id,
+        },
+      });
+    }
+
+    return this.getTarifario(organizationId);
   }
 }

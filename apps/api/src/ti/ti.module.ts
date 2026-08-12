@@ -5,11 +5,22 @@ import { TiController } from "./ti.controller";
 import { NocMonitoringService } from "./noc-monitoring.service";
 import { KafkaDlqMonitor } from "./kafka-dlq.monitor";
 import { SttsEngineService } from "./stts-engine.service";
+import { TiOpsService } from "./ti-ops.service";
 
 @Module({
   imports: [AuthModule, LogisticsModule],
   controllers: [TiController],
-  providers: [NocMonitoringService, KafkaDlqMonitor, SttsEngineService],
-  exports: [NocMonitoringService, KafkaDlqMonitor, SttsEngineService],
+  providers: [
+    NocMonitoringService,
+    KafkaDlqMonitor,
+    SttsEngineService,
+    TiOpsService,
+  ],
+  exports: [
+    NocMonitoringService,
+    KafkaDlqMonitor,
+    SttsEngineService,
+    TiOpsService,
+  ],
 })
 export class TiModule {}

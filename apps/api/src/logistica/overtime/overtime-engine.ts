@@ -44,6 +44,44 @@ export function hourlyRateFromBase(
   return baseSalary / divisor;
 }
 
+/** Filas del tarifario de recargos (tabla liquidación CO) */
+export type TarifarioConcepto = {
+  sigla: string;
+  concepto: string;
+  factor: number;
+  valor: number;
+};
+
+export function buildTarifarioRows(
+  hourlyRate: number,
+  factors: Pick<
+    OvertimeFactors,
+    | "rnFactor"
+    | "hedFactor"
+    | "henFactor"
+    | "rodFestFactor"
+    | "hedfFactor"
+    | "henfFactor"
+    | "rnfFactor"
+  > = DEFAULT_OVERTIME_FACTORS,
+): TarifarioConcepto[] {
+  const row = (sigla: string, concepto: string, factor: number) => ({
+    sigla,
+    concepto,
+    factor,
+    valor: Math.round(hourlyRate * factor),
+  });
+  return [
+    row("RN", "Recargo Nocturno", factors.rnFactor),
+    row("HED", "Hora Extra Diurna", factors.hedFactor),
+    row("HEN", "Hora Extra Nocturna", factors.henFactor),
+    row("ROD FEST", "Recargo Ordinario Dominical / Festivo", factors.rodFestFactor),
+    row("HEDF", "Hora Extra Diurna Dominical / Festiva", factors.hedfFactor),
+    row("HENF", "Hora Extra Nocturna Dominical / Festiva", factors.henfFactor),
+    row("RNF", "Recargo Nocturno Festivo", factors.rnfFactor),
+  ];
+}
+
 /** Festivos Colombia 2026 (fijos + puente típicos usados en liquidación demo) */
 const CO_HOLIDAYS_2026 = new Set([
   "2026-01-01",
