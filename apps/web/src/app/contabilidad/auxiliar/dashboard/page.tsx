@@ -160,7 +160,12 @@ export default function AuxiliarContableDashboardPage() {
         <span className="font-mono text-xs text-[var(--text-secondary)]">
           {dash?.productivity.workDate}
         </span>
-        <Button type="button" variant="ghost" size="sm" onClick={() => void load()}>
+        <Button
+          type="button"
+          variant="ghost"
+          className="text-xs"
+          onClick={() => void load()}
+        >
           Refrescar
         </Button>
       </div>
@@ -261,7 +266,7 @@ export default function AuxiliarContableDashboardPage() {
               </p>
             ) : null}
             <form onSubmit={onAutoMatch}>
-              <Button type="submit" size="sm">
+              <Button type="submit" className="text-xs">
                 Ejecutar Auto-Match demo
               </Button>
             </form>

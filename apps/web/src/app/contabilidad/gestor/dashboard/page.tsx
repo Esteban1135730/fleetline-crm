@@ -238,7 +238,12 @@ export default function GestorContableDashboardPage() {
               value={pucFilter}
               onChange={(e) => setPucFilter(e.target.value)}
             />
-            <Button type="button" variant="ghost" size="sm" onClick={() => void load()}>
+            <Button
+              type="button"
+              variant="ghost"
+              className="text-xs"
+              onClick={() => void load()}
+            >
               Refrescar
             </Button>
           </div>

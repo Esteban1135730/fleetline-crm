@@ -195,7 +195,12 @@ export default function TiDashboardPage() {
           <h2 className="font-display text-sm font-semibold tracking-tight text-[var(--text-primary)]">
             Salud de infraestructura
           </h2>
-          <Button type="button" variant="ghost" size="sm" onClick={() => void load()}>
+          <Button
+            type="button"
+            variant="ghost"
+            className="text-xs"
+            onClick={() => void load()}
+          >
             Refrescar uplink
           </Button>
         </div>
