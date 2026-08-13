@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
-import { ORG_ASSIGNABLE_ROLES, ROLE_LABELS, type Role } from "@fsg/shared";
+import { ORG_ASSIGNABLE_ROLE_GROUPS, ORG_ASSIGNABLE_ROLES, ROLE_LABELS, type Role } from "@fsg/shared";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { HowToBox, PageIntro } from "@/components/page-intro";
@@ -18,6 +18,31 @@ type UserRow = {
   pendingAuthorization?: boolean;
   message?: string;
 };
+
+function RoleOptions({
+  assignable,
+}: {
+  assignable: readonly Role[];
+}) {
+  const allowed = new Set(assignable);
+  return (
+    <>
+      {ORG_ASSIGNABLE_ROLE_GROUPS.map((group) => {
+        const roles = group.roles.filter((r) => allowed.has(r));
+        if (!roles.length) return null;
+        return (
+          <optgroup key={group.label} label={group.label}>
+            {roles.map((r) => (
+              <option key={r} value={r}>
+                {ROLE_LABELS[r] ?? r}
+              </option>
+            ))}
+          </optgroup>
+        );
+      })}
+    </>
+  );
+}
 
 export default function UsuariosPage() {
   const { user: me } = useAuth();
@@ -163,11 +188,7 @@ export default function UsuariosPage() {
           value={role}
           onChange={(e) => setRole(e.target.value as Role)}
         >
-          {assignable.map((r) => (
-            <option key={r} value={r}>
-              {ROLE_LABELS[r]}
-            </option>
-          ))}
+          <RoleOptions assignable={assignable} />
         </select>
         <Button type="submit" variant="primary">
           Dar de alta
@@ -242,11 +263,7 @@ export default function UsuariosPage() {
                       await load();
                     }}
                   >
-                    {assignable.map((r) => (
-                      <option key={r} value={r}>
-                        {ROLE_LABELS[r]}
-                      </option>
-                    ))}
+                    <RoleOptions assignable={assignable} />
                   </select>
                 </td>
                 <td className="px-4 py-2.5">
