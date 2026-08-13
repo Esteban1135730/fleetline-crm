@@ -203,7 +203,8 @@ export default function ComprasPage() {
                     </td>
                     <td className="px-4 py-2.5">{r.supplier}</td>
                     <td className="px-4 py-2.5 font-data tabular-nums">
-                      ${Number(r.amount).toLocaleString("es-CO")}
+                      $
+                      {Number(r.amount || 0).toLocaleString("es-CO")}
                     </td>
                     <td className="px-4 py-2.5">
                       <StatusPulseBadge
@@ -284,6 +285,7 @@ export default function ComprasPage() {
               form="compras-create-form"
               variant="primary"
               className="w-auto"
+              data-testid="compras-submit"
             >
               Crear solicitud
             </Button>
@@ -300,6 +302,7 @@ export default function ComprasPage() {
             <input
               className="field mt-1 w-full"
               placeholder="Ej. Filtros de aceite"
+              data-testid="compras-description"
               value={form.description}
               onChange={(e) =>
                 setForm({ ...form, description: e.target.value })
@@ -312,6 +315,7 @@ export default function ComprasPage() {
             <input
               className="field mt-1 w-full"
               placeholder="Razón social"
+              data-testid="compras-supplier"
               value={form.supplier}
               onChange={(e) => setForm({ ...form, supplier: e.target.value })}
               required
@@ -326,6 +330,7 @@ export default function ComprasPage() {
                 min={1}
                 step={1}
                 placeholder="1"
+                data-testid="compras-qty"
                 value={form.quantity}
                 onChange={(e) =>
                   setForm({ ...form, quantity: e.target.value })
@@ -340,6 +345,7 @@ export default function ComprasPage() {
                 type="number"
                 min={0}
                 placeholder="0"
+                data-testid="compras-amount"
                 value={form.amount}
                 onChange={(e) => setForm({ ...form, amount: e.target.value })}
                 required

@@ -1,10 +1,12 @@
 "use client";
 
 import type { ModuleId } from "@fsg/shared";
-import { MODULE_HELP, MODULE_LABELS } from "@fsg/shared";
-import { Button, StatCard, Tooltip } from "@fsg/ui";
+import { MODULE_LABELS } from "@fsg/shared";
+import { Button, Tooltip } from "@fsg/ui";
 import { useShell } from "@/lib/shell-context";
 import { PageIntro } from "@/components/page-intro";
+import { EmptyState, KpiCard } from "@/components/audit";
+import { LayoutDashboard } from "lucide-react";
 
 export type CockpitKpi = {
   label: string;
@@ -22,19 +24,28 @@ type AreaCockpitShellProps = {
 };
 
 /**
- * Clean Cockpit Phase 1 — áreas institucionales sin flujo operativo aún.
+ * Clean Cockpit — KPIs + ayuda [?]. Sin muro de protocolo estático.
  */
 export function AreaCockpitShell({
   module,
   title,
   statusLine = "System Status: Nominal — cockpit en fase de instrumentación",
   kpis,
-  protocol,
 }: AreaCockpitShellProps) {
   const { toggleHelp } = useShell();
 
+  const toneMap = {
+    emerald: "ok" as const,
+    amber: "warn" as const,
+    rose: "danger" as const,
+    primary: "neutral" as const,
+  };
+
   return (
-    <div className="fade-in mx-auto max-w-[1600px] space-y-6" data-testid="presidencia-cockpit">
+    <div
+      className="fade-in mx-auto max-w-[1600px] space-y-6"
+      data-testid="presidencia-cockpit"
+    >
       <PageIntro
         module={module}
         title={title || MODULE_LABELS[module]}
@@ -62,34 +73,24 @@ export function AreaCockpitShell({
 
       <div className="stagger grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {kpis.map((kpi) => (
-          <StatCard
+          <KpiCard
             key={kpi.label}
             label={kpi.label}
             value={kpi.value}
-            hint={kpi.hint}
-            accent={kpi.accent || "emerald"}
+            delta={kpi.hint}
+            tone={toneMap[kpi.accent || "emerald"]}
+            icon={<LayoutDashboard />}
           />
         ))}
       </div>
 
-      <div className="flt-panel space-y-3">
-        <p className="font-data text-[10px] uppercase tracking-[0.14em] text-[var(--text-secondary)]">
-          Clean Cockpit · Phase 1
-        </p>
-        <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
-          {MODULE_HELP[module]} Los flujos operativos de esta área se
-          instrumentarán en la siguiente fase. Use{" "}
-          <span className="font-data text-[var(--accent-primary)]">[ ? ]</span>{" "}
-          para la guía contextual de tres pasos.
-        </p>
-        {protocol ? (
-          <ol className="list-decimal space-y-1 pl-4 text-sm text-[var(--text-primary)]">
-            {protocol.map((step) => (
-              <li key={step}>{step}</li>
-            ))}
-          </ol>
-        ) : null}
-      </div>
+      <EmptyState
+        icon={<LayoutDashboard className="h-7 w-7" />}
+        title="Instrumentación operativa pendiente"
+        description="Use [ ? ] para el protocolo del área. Los flujos se activarán en la siguiente fase."
+        actionLabel="Abrir ayuda"
+        onAction={toggleHelp}
+      />
     </div>
   );
 }

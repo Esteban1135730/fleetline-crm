@@ -163,6 +163,7 @@ export default function UsuariosPage() {
         <input
           className="field"
           placeholder="Nombre"
+          data-testid="usuarios-name"
           value={name}
           onChange={(e) => setName(e.target.value)}
           required
@@ -171,6 +172,7 @@ export default function UsuariosPage() {
           className="field"
           placeholder="Email"
           type="email"
+          data-testid="usuarios-email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
@@ -179,18 +181,20 @@ export default function UsuariosPage() {
           className="field"
           placeholder="Password"
           type="password"
+          data-testid="usuarios-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
         />
         <select
           className="field"
+          data-testid="usuarios-role"
           value={role}
           onChange={(e) => setRole(e.target.value as Role)}
         >
           <RoleOptions assignable={assignable} />
         </select>
-        <Button type="submit" variant="primary">
+        <Button type="submit" variant="primary" data-testid="usuarios-submit">
           Dar de alta
         </Button>
       </form>

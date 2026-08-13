@@ -48,7 +48,7 @@ export class FinanceService {
 
   async listInvoices(organizationId: string, type?: "RECEIVABLE" | "PAYABLE") {
     await this.markOverdue(organizationId);
-    return this.prisma.invoice.findMany({
+    const rows = await this.prisma.invoice.findMany({
       where: {
         organizationId,
         ...(type ? { type: type as InvoiceType } : {}),
@@ -60,6 +60,26 @@ export class FinanceService {
       },
       orderBy: { dueDate: "asc" },
     });
+    return rows.map((inv) => this.mapInvoiceUi(inv));
+  }
+
+  private invoiceAnnexDescription(annex: unknown): string {
+    if (annex && typeof annex === "object" && !Array.isArray(annex) && "description" in annex) {
+      const d = (annex as { description?: unknown }).description;
+      return typeof d === "string" ? d : "";
+    }
+    return "";
+  }
+
+  private mapInvoiceUi<T extends { counterparty: string; prefacturaAnnex?: unknown }>(
+    inv: T,
+  ) {
+    const description = this.invoiceAnnexDescription(inv.prefacturaAnnex);
+    return {
+      ...inv,
+      supplierName: inv.counterparty,
+      description: description || inv.counterparty,
+    };
   }
 
   private async markOverdue(organizationId: string) {
@@ -133,17 +153,24 @@ export class FinanceService {
   ) {
     const count = await this.prisma.invoice.count({ where: { organizationId } });
     const prefix = data.type === "RECEIVABLE" ? "FV" : "FC";
+    const year = new Date().getFullYear();
+    const counterparty =
+      data.supplierName?.trim() ||
+      data.description?.trim() ||
+      "Contraparte";
     const inv = await this.prisma.invoice.create({
       data: {
-        number: `${prefix}-2026-${String(count + 1).padStart(3, "0")}`,
+        number: `${prefix}-${year}-${String(count + 1).padStart(3, "0")}`,
         type: data.type as InvoiceType,
         status: InvoiceStatus.ISSUED,
         amount: data.amount,
         dueDate: new Date(data.dueDate),
         customerId: data.customerId,
-        supplierName: data.supplierName,
-        description: data.description,
+        counterparty,
         organizationId,
+        prefacturaAnnex: data.description
+          ? { description: data.description }
+          : undefined,
       },
       include: { customer: true, trip: { select: { id: true, code: true } } },
     });
@@ -181,10 +208,12 @@ export class FinanceService {
       /* PUC incompleto: la factura igual queda creada */
     }
 
-    return this.prisma.invoice.findFirstOrThrow({
-      where: { id: inv.id },
-      include: { customer: true, trip: { select: { id: true, code: true } } },
-    });
+    return this.mapInvoiceUi(
+      await this.prisma.invoice.findFirstOrThrow({
+        where: { id: inv.id },
+        include: { customer: true, trip: { select: { id: true, code: true } } },
+      }),
+    );
   }
 
   async updateInvoice(

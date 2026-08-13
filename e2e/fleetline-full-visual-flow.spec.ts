@@ -12,8 +12,8 @@ import { attachPerfProbe } from "./helpers/perf";
  */
 
 const DEMO = {
-  presidencia: { email: "presidencia@fsg.co", password: "fsg2026" },
-  logistica: { email: "logistica@fsg.co", password: "fsg2026" },
+  presidencia: { email: "presidencia@inretrans.com", password: "Inretrans2026*" },
+  logistica: { email: "despacho@inretrans.com", password: "Inretrans2026*" },
 };
 
 const FIXTURE = path.join(__dirname, "fixtures", "sample-soat.txt");

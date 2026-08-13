@@ -22,7 +22,7 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   workers: 1,
-  timeout: 90_000,
+  timeout: 180_000,
   expect: { timeout: 15_000 },
   reporter: [
     ["list"],
@@ -32,13 +32,13 @@ export default defineConfig({
   use: {
     baseURL: WEB_URL,
     trace: "retain-on-failure",
-    screenshot: "only-on-failure",
-    video: "on",
+    screenshot: "on",
+    video: { mode: "on", size: { width: 1920, height: 1080 } },
     headless: process.env.CI ? true : !HEADED,
     actionTimeout: 20_000,
     navigationTimeout: 45_000,
     locale: "es-CO",
-    viewport: { width: 1440, height: 900 },
+    viewport: { width: 1920, height: 1080 },
   },
   projects: [
     {

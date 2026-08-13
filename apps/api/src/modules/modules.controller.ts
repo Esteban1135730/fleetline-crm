@@ -321,6 +321,7 @@ export class ModulesController {
       amount: number;
       category?: string;
       requestedBy?: string;
+      quantity?: number;
     },
   ) {
     return this.svc.createPurchase(req.user.organizationId, body);

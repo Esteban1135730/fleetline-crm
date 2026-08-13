@@ -465,6 +465,12 @@ export const MODULE_ALIASES: Record<string, ModuleId> = {
   "tecnologia-ti": "tecnologia_ti",
   "call-center": "call_center",
   gerencia_general: "gerencia",
+  operaciones: "logistica",
+  despacho: "logistica",
+  patio: "parqueadero",
+  yard: "parqueadero",
+  pilot: "apps",
+  conductor: "apps",
 };
 
 export function resolveModuleId(raw: string): ModuleId | null {

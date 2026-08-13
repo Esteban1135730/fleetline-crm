@@ -92,22 +92,22 @@ export default function SarlaftPage() {
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <KpiCard
-          label="Consultas del Mes"
+          label="Debidas Diligencias Realizadas"
           value={kpis.consultasMes}
-          delta="Chequeos indexados"
+          delta="Consultas del mes"
           tone="neutral"
         />
         <KpiCard
-          label="Riesgo Medio"
-          value={kpis.medio}
-          delta="Vigilancia"
-          tone={kpis.medio > 0 ? "warn" : "ok"}
+          label="Alertas en Listas Restrictivas"
+          value={kpis.medio + kpis.alto}
+          delta={`${kpis.medio} medio · ${kpis.alto} alto`}
+          tone={kpis.alto > 0 ? "danger" : kpis.medio > 0 ? "warn" : "ok"}
         />
         <div className={kpis.alto > 0 ? "animate-pulse rounded-xl" : undefined}>
           <KpiCard
             label="Riesgo Alto"
             value={kpis.alto}
-            delta="HIGH / BLOCKED"
+            delta="HIGH / BLOCKED · pulse"
             tone={kpis.alto > 0 ? "danger" : "ok"}
             icon={<ShieldAlert />}
           />
@@ -139,23 +139,21 @@ export default function SarlaftPage() {
                 const badge = riskBadge(r.risk);
                 return (
                   <tr key={r.id} className="border-t border-[var(--brand-line)]">
-                    <td className="px-4 py-2.5">
-                      {r.subjectName}
+                    <td className="px-4 py-4">
+                      <div className="font-bold text-white">{r.subjectName}</div>
                       {r.notes ? (
-                        <div className="text-[11px] text-[var(--brand-muted)]">
-                          {r.notes}
-                        </div>
+                        <div className="text-sm text-gray-400">{r.notes}</div>
                       ) : null}
                     </td>
-                    <td className="px-4 py-2.5 font-data text-xs">
+                    <td className="px-4 py-4 font-data text-xs text-gray-400">
                       {r.subjectDoc}
                     </td>
-                    <td className="px-4 py-2.5">
+                    <td className="px-4 py-4">
                       <StatusPulseBadge tone={badge.tone} pulse={badge.pulse}>
                         {badge.label}
                       </StatusPulseBadge>
                     </td>
-                    <td className="px-4 py-2.5 font-data text-xs">
+                    <td className="px-4 py-4 font-data text-xs text-gray-400">
                       {new Date(r.checkedAt).toLocaleString("es-CO")}
                     </td>
                     <td className="px-4 py-2.5">

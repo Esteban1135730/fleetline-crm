@@ -259,7 +259,10 @@ export default function FinanzasPage() {
                     </Badge>
                   </td>
                   <td className="px-4 py-2.5">
-                    {inv.customer?.name || inv.supplierName || "—"}
+                    {inv.customer?.name ||
+                      inv.supplierName ||
+                      (inv as { counterparty?: string }).counterparty ||
+                      "—"}
                     {inv.trip ? (
                       <div className="font-data text-[10px] text-[var(--brand-muted)]">
                         Viaje {inv.trip.code}

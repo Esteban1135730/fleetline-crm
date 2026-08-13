@@ -219,14 +219,34 @@ export class ModulesService {
   }
 
   // —— Calidad ——
-  listQuality(organizationId: string) {
-    return this.prisma.qualityEvent.findMany({
+  private mapQualityRow(e: {
+    id: string;
+    kind: string;
+    title: string;
+    status: string;
+    npsScore: number | null;
+    createdAt: Date;
+  }) {
+    return {
+      id: e.id,
+      type: e.kind,
+      title: e.title,
+      status: e.status,
+      score: e.npsScore,
+      description: null as string | null,
+      createdAt: e.createdAt,
+    };
+  }
+
+  async listQuality(organizationId: string) {
+    const rows = await this.prisma.qualityEvent.findMany({
       where: { organizationId },
       orderBy: { createdAt: "desc" },
     });
+    return rows.map((e) => this.mapQualityRow(e));
   }
 
-  createQuality(
+  async createQuality(
     organizationId: string,
     data: {
       type: string;
@@ -235,41 +255,58 @@ export class ModulesService {
       score?: number;
     },
   ) {
-    return this.prisma.qualityEvent.create({
-      data: { organizationId, ...data },
+    const created = await this.prisma.qualityEvent.create({
+      data: {
+        organizationId,
+        kind: data.type,
+        title: data.title,
+        npsScore: data.score ?? null,
+      },
     });
+    return this.mapQualityRow(created);
   }
 
   async updateQuality(
     organizationId: string,
     id: string,
-    data: { status?: string; title?: string; score?: number; description?: string },
+    data: {
+      status?: string;
+      title?: string;
+      score?: number;
+      description?: string;
+    },
   ) {
     const e = await this.prisma.qualityEvent.findFirst({
       where: { id, organizationId },
     });
     if (!e) throw new NotFoundException();
-    return this.prisma.qualityEvent.update({
+    const updated = await this.prisma.qualityEvent.update({
       where: { id },
-      data,
+      data: {
+        status: data.status,
+        title: data.title,
+        npsScore: data.score,
+      },
     });
+    return this.mapQualityRow(updated);
   }
 
   async qualitySummary(organizationId: string) {
     const events = await this.prisma.qualityEvent.findMany({
       where: { organizationId },
     });
-    const npsEvents = events.filter((e) => e.type === "NPS" && e.score != null);
+    const npsEvents = events.filter((e) => e.kind === "NPS" && e.npsScore != null);
     const npsAvg =
       npsEvents.length > 0
-        ? npsEvents.reduce((s, e) => s + Number(e.score), 0) / npsEvents.length
+        ? npsEvents.reduce((s, e) => s + Number(e.npsScore), 0) /
+          npsEvents.length
         : null;
     return {
       total: events.length,
-      open: events.filter((e) => e.status === "OPEN").length,
+      open: events.filter((ev) => ev.status === "OPEN").length,
       nps: npsAvg != null ? Number(npsAvg.toFixed(1)) : null,
       npsSamples: npsEvents.length,
-      incidents: events.filter((e) => e.type === "INCIDENT").length,
+      incidents: events.filter((ev) => ev.kind === "INCIDENT").length,
     };
   }
 
@@ -840,11 +877,52 @@ export class ModulesService {
   }
 
   // —— Compras ——
-  listPurchases(organizationId: string) {
-    return this.prisma.purchaseOrder.findMany({
+  private purchaseUiMeta(meta: unknown): {
+    supplierName?: string;
+    category?: string;
+    requestedBy?: string | null;
+  } {
+    if (meta && typeof meta === "object" && !Array.isArray(meta)) {
+      return meta as {
+        supplierName?: string;
+        category?: string;
+        requestedBy?: string | null;
+      };
+    }
+    return {};
+  }
+
+  private mapPurchaseRow(po: {
+    id: string;
+    code: string;
+    description: string | null;
+    status: PurchaseStatus;
+    totalEstimated: { toString(): string } | number;
+    meta: unknown;
+    createdAt: Date;
+    supplier?: { name: string } | null;
+  }) {
+    const meta = this.purchaseUiMeta(po.meta);
+    return {
+      id: po.id,
+      code: po.code,
+      description: po.description,
+      supplier: po.supplier?.name || meta.supplierName || "",
+      amount: Number(po.totalEstimated),
+      category: meta.category || "GENERAL",
+      requestedBy: meta.requestedBy ?? null,
+      status: po.status,
+      createdAt: po.createdAt,
+    };
+  }
+
+  async listPurchases(organizationId: string) {
+    const rows = await this.prisma.purchaseOrder.findMany({
       where: { organizationId },
+      include: { supplier: { select: { name: true } } },
       orderBy: { createdAt: "desc" },
     });
+    return rows.map((po) => this.mapPurchaseRow(po));
   }
 
   async createPurchase(
@@ -855,23 +933,50 @@ export class ModulesService {
       amount: number;
       category?: string;
       requestedBy?: string;
+      quantity?: number;
     },
   ) {
     const count = await this.prisma.purchaseOrder.count({
       where: { organizationId },
     });
-    return this.prisma.purchaseOrder.create({
+    const year = new Date().getFullYear();
+    let code = `OC-${year}-${String(count + 1).padStart(4, "0")}`;
+    const clash = await this.prisma.purchaseOrder.findFirst({
+      where: { organizationId, code },
+    });
+    if (clash) {
+      code = `OC-${year}-${String(Date.now()).slice(-6)}`;
+    }
+    const amount = Number(data.amount) || 0;
+    const qty = Math.max(1, Number(data.quantity) || 1);
+    const unitCost = Number((amount / qty).toFixed(2));
+    const created = await this.prisma.purchaseOrder.create({
       data: {
         organizationId,
-        code: `OC-${String(count + 1).padStart(4, "0")}`,
+        code,
         description: data.description,
-        supplier: data.supplier,
-        amount: data.amount,
-        category: data.category || "GENERAL",
-        requestedBy: data.requestedBy,
         status: PurchaseStatus.REQUESTED,
+        totalEstimated: amount,
+        currency: "COP",
+        meta: {
+          supplierName: data.supplier,
+          category: data.category || "GENERAL",
+          requestedBy: data.requestedBy ?? null,
+        },
+        lines: {
+          create: [
+            {
+              description: data.description,
+              quantity: qty,
+              unitCost,
+              lineTotal: amount,
+            },
+          ],
+        },
       },
+      include: { supplier: { select: { name: true } } },
     });
+    return this.mapPurchaseRow(created);
   }
 
   async updatePurchaseStatus(
@@ -881,20 +986,22 @@ export class ModulesService {
   ) {
     const po = await this.prisma.purchaseOrder.findFirst({
       where: { id, organizationId },
+      include: { supplier: { select: { name: true } } },
     });
     if (!po) throw new NotFoundException();
     const next = status.toUpperCase() as PurchaseStatus;
     const updated = await this.prisma.purchaseOrder.update({
       where: { id },
       data: { status: next },
+      include: { supplier: { select: { name: true } } },
     });
 
     if (next === PurchaseStatus.RECEIVED && po.status !== PurchaseStatus.RECEIVED) {
-      const existing = await this.prisma.invoice.findFirst({
+        const existing = await this.prisma.invoice.findFirst({
         where: {
           organizationId,
           type: InvoiceType.PAYABLE,
-          description: { contains: po.code },
+          number: { contains: po.code },
         },
       });
       if (!existing) {
@@ -903,22 +1010,26 @@ export class ModulesService {
         });
         const due = new Date();
         due.setDate(due.getDate() + 30);
+        const meta = this.purchaseUiMeta(po.meta);
+        const year = new Date().getFullYear();
         await this.prisma.invoice.create({
           data: {
-            number: `FC-2026-${String(count + 1).padStart(3, "0")}`,
+            number: `FC-${year}-${String(count + 1).padStart(3, "0")}`,
             type: InvoiceType.PAYABLE,
             status: InvoiceStatus.ISSUED,
-            amount: po.amount,
+            amount: Number(po.totalEstimated),
             dueDate: due,
-            supplierName: po.supplier,
+            counterparty: po.supplier?.name || meta.supplierName || "Proveedor",
             organizationId,
-            description: `Compra ${po.code}: ${po.description}`,
+            prefacturaAnnex: {
+              description: `Compra ${po.code}: ${po.description}`,
+            },
           },
         });
       }
     }
 
-    return updated;
+    return this.mapPurchaseRow(updated);
   }
 
   async updatePurchase(
@@ -935,17 +1046,24 @@ export class ModulesService {
       where: { id, organizationId },
     });
     if (!po) throw new NotFoundException();
-    return this.prisma.purchaseOrder.update({
+    const prevMeta = this.purchaseUiMeta(po.meta);
+    const updated = await this.prisma.purchaseOrder.update({
       where: { id },
       data: {
         description: data.description,
-        supplier: data.supplier,
-        amount: data.amount,
+        totalEstimated:
+          data.amount === undefined ? undefined : Number(data.amount),
         status: data.status
           ? (data.status.toUpperCase() as PurchaseStatus)
           : undefined,
+        meta: {
+          ...prevMeta,
+          supplierName: data.supplier ?? prevMeta.supplierName,
+        },
       },
+      include: { supplier: { select: { name: true } } },
     });
+    return this.mapPurchaseRow(updated);
   }
 
   // —— Trámites vehículo (ComplianceDocument) ——
