@@ -77,17 +77,22 @@ describe("Taller — OT crítica / antifraude / cierre", () => {
           update: jest.fn().mockResolvedValue({
             id: "wo-1",
             status: WorkOrderStatus.DONE,
+            qcStatus: "PASSED",
             vehicle: { id: "veh-1", plate: "BUS-001" },
           }),
           count: jest.fn().mockResolvedValue(0),
         },
         vehicle: { update: vehicleUpdate },
+        prekitReservation: {
+          updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+        },
       };
 
       const svc = new WorkOrderService(prisma as never, kafka as never);
       const out = await svc.close("org-1", "wo-1");
 
       expect(out.vehicleReleased).toBe(true);
+      expect(out.logisticsStatus).toBe("VERDE");
       expect(vehicleUpdate).toHaveBeenCalledWith({
         where: { id: "veh-1" },
         data: expect.objectContaining({
@@ -97,8 +102,59 @@ describe("Taller — OT crítica / antifraude / cierre", () => {
       });
       expect(kafka.emit).toHaveBeenCalledWith(
         "taller.vehiculo.reparado",
-        expect.any(Object),
+        expect.objectContaining({ logisticsStatus: "VERDE" }),
       );
+    });
+
+    it("liberar-qc pasa vehículo de ROJO (MAINTENANCE) a VERDE (AVAILABLE)", async () => {
+      const vehicleUpdate = jest.fn().mockResolvedValue({});
+      const kafka = { emit: jest.fn().mockResolvedValue(undefined) };
+
+      const prisma = {
+        workOrder: {
+          findFirst: jest.fn().mockResolvedValue({
+            id: "wo-qc",
+            code: "OT-0600",
+            description: "Preventivo 10k",
+            vehicleId: "veh-2",
+            status: WorkOrderStatus.IN_PROGRESS,
+            vehicle: {
+              id: "veh-2",
+              plate: "BUS-002",
+              status: VehicleStatus.MAINTENANCE,
+              complianceReason: null,
+            },
+          }),
+          update: jest.fn().mockResolvedValue({
+            id: "wo-qc",
+            status: WorkOrderStatus.DONE,
+            qcStatus: "PASSED",
+            vehicle: { id: "veh-2", plate: "BUS-002" },
+          }),
+          count: jest.fn().mockResolvedValue(0),
+        },
+        vehicle: { update: vehicleUpdate },
+        prekitReservation: {
+          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        },
+      };
+
+      const svc = new WorkOrderService(prisma as never, kafka as never);
+      const out = await svc.liberarQc(
+        "org-1",
+        "wo-qc",
+        { workOrderId: "wo-qc", pass: true, notes: "QC OK" },
+        "coord-1",
+      );
+
+      expect(out.vehicleReleased).toBe(true);
+      expect(out.logisticsStatus).toBe("VERDE");
+      expect(vehicleUpdate).toHaveBeenCalledWith({
+        where: { id: "veh-2" },
+        data: expect.objectContaining({
+          status: VehicleStatus.AVAILABLE,
+        }),
+      });
     });
   });
 

@@ -1,16 +1,39 @@
 /**
  * INRETRANS OS — Seed demo SSOT
  *
- * Empresa: Transportes FSG S.A.S. · Clave genérica: Inretrans2026*
- *  - superadmin@inretrans.com       → SUPERADMIN
- *  - recepcion@inretrans.com        → RECEPCIONISTA
- *  - ti@inretrans.com               → LIDER_TI
- *  - archivo@inretrans.com          → GESTOR_DOCUMENTAL
- *  - contabilidad@inretrans.com     → GESTOR_CONTABLE
- *  - auxiliarcontable@inretrans.com → AUXILIAR_CONTABLE
- *  - tesoreria@inretrans.com        → TESORERIA
- *  - conductor@inretrans.com        → CONDUCTOR
- *  - logistica@inretrans.com        → SUPERVISOR_LOGISTICA
+ * Empresa: Empresa de Transporte Demo S.A.S. · Clave: Inretrans2026*
+ * Usuarios genéricos (1 por rol) — ver docs/MANUAL_DE_USO_SISTEMA.md
+ *
+ *  1. superadmin@inretrans.com            → SUPERADMIN
+ *  2. recepcion@inretrans.com             → RECEPCIONISTA
+ *  3. ti@inretrans.com                    → LIDER_TI
+ *  4. archivo@inretrans.com               → GESTOR_DOCUMENTAL
+ *  5. auxiliarcontable@inretrans.com      → AUXILIAR_CONTABLE
+ *  6. contabilidad@inretrans.com          → GESTOR_CONTABLE
+ *  7. tesoreria@inretrans.com             → TESORERIA
+ *  8. cfo@inretrans.com                   → DIRECTOR_FINANCIERO
+ *  9. qhse@inretrans.com                  → LIDER_QHSE
+ * 10. compras@inretrans.com               → LIDER_COMPRAS
+ * 11. direccionoperativa@inretrans.com    → DIRECTOR_OPERATIVO
+ * 12. despacho@inretrans.com              → GESTOR_OPERATIVO
+ * 13. coordinacioncampo@inretrans.com     → COORDINADOR_CAMPO
+ * 14. centrocontrol@inretrans.com         → OPERADOR_CENTRO_CONTROL
+ * 15. controlinterno@inretrans.com        → AUDITOR_CONTROL_INTERNO
+ * 16. presidencia@inretrans.com           → PRESIDENTE
+ * 17. vinculaciones@inretrans.com         → GESTOR_VINCULACIONES
+ * 18. direccioncomercial@inretrans.com    → DIRECTOR_COMERCIAL
+ * 19. ventas@inretrans.com                → GESTOR_COMERCIAL
+ * 20. coordinacioncomercial@inretrans.com → COORDINADOR_COMERCIAL
+ * 21. gerenciageneral@inretrans.com       → GERENTE_GENERAL
+ * 22. juridico@inretrans.com              → DIRECTOR_JURIDICO
+ * 23. revisoriafiscal@inretrans.com       → REVISOR_FISCAL
+ * 24. coordinadortaller@inretrans.com     → COORDINADOR_TALLER
+ * 25. almacentaller@inretrans.com         → AUXILIAR_ALMACEN_TALLER
+ * 26. mecanico@inretrans.com              → MECANICO
+ * 27. coordinadorpatio@inretrans.com      → COORDINADOR_PATIO
+ * 28. auxiliarpatio@inretrans.com         → AUXILIAR_PATIO
+ * 29. conductor@inretrans.com             → CONDUCTOR
+ * 30. subgerencia@inretrans.com           → SUB_GERENTE
  */
 import {
   AccessLevel,
@@ -180,11 +203,18 @@ async function seedRoleMatrix(organizationId: string) {
       forceReadOnly: true,
     });
     const write = DESPACHO_WRITE.includes(module);
+    let gestorAccess = write ? AccessLevel.READ_WRITE : AccessLevel.READ_ONLY;
+    if (
+      module === FleetModule.CONTABILIDAD ||
+      module === FleetModule.TESORERIA
+    ) {
+      gestorAccess = AccessLevel.NONE;
+    }
     rows.push({
       organizationId,
       role: RoleCode.GESTOR_OPERATIVO,
       module,
-      access: write ? AccessLevel.READ_WRITE : AccessLevel.READ_ONLY,
+      access: gestorAccess,
       forceReadOnly: false,
     });
     rows.push({
@@ -204,6 +234,272 @@ async function seedRoleMatrix(organizationId: string) {
           : AccessLevel.READ_ONLY,
       forceReadOnly: false,
     });
+    let campoAccess = AccessLevel.NONE;
+    if (module === FleetModule.LOGISTICA || module === FleetModule.HQSE) {
+      campoAccess =
+        module === FleetModule.LOGISTICA
+          ? AccessLevel.READ_WRITE
+          : AccessLevel.READ_WRITE;
+    } else if (module === FleetModule.APP_MONITORA || module === FleetModule.APP_PASAJEROS) {
+      campoAccess = AccessLevel.READ_WRITE;
+    }
+    if (
+      module === FleetModule.CONTABILIDAD ||
+      module === FleetModule.TESORERIA ||
+      module === FleetModule.COMERCIAL ||
+      module === FleetModule.COMPRAS
+    ) {
+      campoAccess = AccessLevel.NONE;
+    }
+    rows.push({
+      organizationId,
+      role: RoleCode.COORDINADOR_CAMPO,
+      module,
+      access: campoAccess,
+      forceReadOnly: false,
+    });
+    let watchtowerAccess = AccessLevel.NONE;
+    if (
+      module === FleetModule.LOGISTICA ||
+      module === FleetModule.HQSE ||
+      module === FleetModule.APP_CONDUCTOR
+    ) {
+      watchtowerAccess = AccessLevel.READ_WRITE;
+    }
+    if (
+      module === FleetModule.CONTABILIDAD ||
+      module === FleetModule.TESORERIA ||
+      module === FleetModule.COMERCIAL
+    ) {
+      watchtowerAccess = AccessLevel.NONE;
+    }
+    rows.push({
+      organizationId,
+      role: RoleCode.OPERADOR_CENTRO_CONTROL,
+      module,
+      access: watchtowerAccess,
+      forceReadOnly: false,
+    });
+    let auditorCiAccess = AccessLevel.NONE;
+    if (
+      module === FleetModule.REVISORIA ||
+      module === FleetModule.CONTABILIDAD ||
+      module === FleetModule.TESORERIA ||
+      module === FleetModule.COMPRAS ||
+      module === FleetModule.LOGISTICA ||
+      module === FleetModule.TALLER ||
+      module === FleetModule.RRHH ||
+      module === FleetModule.ARCHIVO ||
+      module === FleetModule.SARLAFT
+    ) {
+      auditorCiAccess = AccessLevel.READ_ONLY;
+    }
+    if (module === FleetModule.REVISORIA) {
+      auditorCiAccess = AccessLevel.READ_WRITE;
+    }
+    rows.push({
+      organizationId,
+      role: RoleCode.AUDITOR_CONTROL_INTERNO,
+      module,
+      access: auditorCiAccess,
+      forceReadOnly: true,
+    });
+    rows.push({
+      organizationId,
+      role: RoleCode.PRESIDENTE,
+      module,
+      access:
+        module === FleetModule.PRESIDENCIA
+          ? AccessLevel.ADMIN
+          : AccessLevel.READ_ONLY,
+      forceReadOnly: true,
+    });
+    let vinAccess = AccessLevel.NONE;
+    if (
+      module === FleetModule.RRHH ||
+      module === FleetModule.ARCHIVO ||
+      module === FleetModule.TRAMITES ||
+      module === FleetModule.HQSE
+    ) {
+      vinAccess = AccessLevel.READ_WRITE;
+    }
+    if (module === FleetModule.TESORERIA || module === FleetModule.CONTABILIDAD) {
+      vinAccess = AccessLevel.READ_ONLY;
+    }
+    if (module === FleetModule.LOGISTICA) {
+      vinAccess = AccessLevel.NONE;
+    }
+    rows.push({
+      organizationId,
+      role: RoleCode.GESTOR_VINCULACIONES,
+      module,
+      access: vinAccess,
+      forceReadOnly: false,
+    });
+    let dirComAccess = AccessLevel.NONE;
+    if (module === FleetModule.COMERCIAL) {
+      dirComAccess = AccessLevel.ADMIN;
+    }
+    if (module === FleetModule.TESORERIA || module === FleetModule.LOGISTICA) {
+      dirComAccess = AccessLevel.READ_ONLY;
+    }
+    if (module === FleetModule.TALLER || module === FleetModule.CONTABILIDAD) {
+      dirComAccess = AccessLevel.NONE;
+    }
+    rows.push({
+      organizationId,
+      role: RoleCode.DIRECTOR_COMERCIAL,
+      module,
+      access: dirComAccess,
+      forceReadOnly: false,
+    });
+    let gestorComAccess = AccessLevel.NONE;
+    if (module === FleetModule.COMERCIAL) {
+      gestorComAccess = AccessLevel.READ_WRITE;
+    }
+    if (module === FleetModule.RECEPCION_CALLCENTER) {
+      gestorComAccess = AccessLevel.READ_WRITE;
+    }
+    if (
+      module === FleetModule.TESORERIA ||
+      module === FleetModule.CONTABILIDAD ||
+      module === FleetModule.LOGISTICA
+    ) {
+      gestorComAccess = AccessLevel.NONE;
+    }
+    rows.push({
+      organizationId,
+      role: RoleCode.GESTOR_COMERCIAL,
+      module,
+      access: gestorComAccess,
+      forceReadOnly: false,
+    });
+    let coordComAccess = AccessLevel.NONE;
+    if (module === FleetModule.COMERCIAL) {
+      coordComAccess = AccessLevel.ADMIN;
+    }
+    if (
+      module === FleetModule.LOGISTICA ||
+      module === FleetModule.RECEPCION_CALLCENTER ||
+      module === FleetModule.ARCHIVO
+    ) {
+      coordComAccess = AccessLevel.READ_ONLY;
+    }
+    if (module === FleetModule.TESORERIA || module === FleetModule.CONTABILIDAD) {
+      coordComAccess = AccessLevel.NONE;
+    }
+    rows.push({
+      organizationId,
+      role: RoleCode.COORDINADOR_COMERCIAL,
+      module,
+      access: coordComAccess,
+      forceReadOnly: false,
+    });
+    let dirJurAccess = AccessLevel.NONE;
+    if (
+      module === FleetModule.SARLAFT ||
+      module === FleetModule.TRAMITES
+    ) {
+      dirJurAccess = AccessLevel.ADMIN;
+    }
+    if (module === FleetModule.COMERCIAL || module === FleetModule.ARCHIVO) {
+      dirJurAccess = AccessLevel.READ_WRITE;
+    }
+    if (
+      module === FleetModule.LOGISTICA ||
+      module === FleetModule.TALLER ||
+      module === FleetModule.RRHH ||
+      module === FleetModule.HQSE
+    ) {
+      dirJurAccess = AccessLevel.READ_ONLY;
+    }
+    if (
+      module === FleetModule.TESORERIA ||
+      module === FleetModule.CONTABILIDAD
+    ) {
+      dirJurAccess = AccessLevel.NONE;
+    }
+    rows.push({
+      organizationId,
+      role: RoleCode.DIRECTOR_JURIDICO,
+      module,
+      access: dirJurAccess,
+      forceReadOnly: false,
+    });
+    let coordTallerAccess = AccessLevel.NONE;
+    if (module === FleetModule.TALLER) coordTallerAccess = AccessLevel.ADMIN;
+    if (
+      module === FleetModule.LOGISTICA ||
+      module === FleetModule.PARQUEADERO ||
+      module === FleetModule.COMPRAS
+    ) {
+      coordTallerAccess = AccessLevel.READ_ONLY;
+    }
+    rows.push({
+      organizationId,
+      role: RoleCode.COORDINADOR_TALLER,
+      module,
+      access: coordTallerAccess,
+      forceReadOnly: false,
+    });
+    let almTallerAccess = AccessLevel.NONE;
+    if (module === FleetModule.TALLER) almTallerAccess = AccessLevel.ADMIN;
+    if (module === FleetModule.COMPRAS) almTallerAccess = AccessLevel.READ_ONLY;
+    rows.push({
+      organizationId,
+      role: RoleCode.AUXILIAR_ALMACEN_TALLER,
+      module,
+      access: almTallerAccess,
+      forceReadOnly: false,
+    });
+    rows.push({
+      organizationId,
+      role: RoleCode.MECANICO,
+      module,
+      access: module === FleetModule.TALLER ? AccessLevel.READ_WRITE : AccessLevel.NONE,
+      forceReadOnly: false,
+    });
+    let coordPatioAccess = AccessLevel.NONE;
+    if (module === FleetModule.PARQUEADERO) coordPatioAccess = AccessLevel.ADMIN;
+    if (module === FleetModule.LOGISTICA) coordPatioAccess = AccessLevel.READ_ONLY;
+    rows.push({
+      organizationId,
+      role: RoleCode.COORDINADOR_PATIO,
+      module,
+      access: coordPatioAccess,
+      forceReadOnly: false,
+    });
+    rows.push({
+      organizationId,
+      role: RoleCode.AUXILIAR_PATIO,
+      module,
+      access:
+        module === FleetModule.PARQUEADERO
+          ? AccessLevel.READ_WRITE
+          : AccessLevel.NONE,
+      forceReadOnly: false,
+    });
+    let subGerenteAccess = AccessLevel.NONE;
+    if (module === FleetModule.GERENCIA) subGerenteAccess = AccessLevel.ADMIN;
+    if (
+      module === FleetModule.LOGISTICA ||
+      module === FleetModule.TALLER ||
+      module === FleetModule.PARQUEADERO ||
+      module === FleetModule.COMERCIAL ||
+      module === FleetModule.HQSE
+    ) {
+      subGerenteAccess = AccessLevel.READ_WRITE;
+    }
+    if (module === FleetModule.CONTABILIDAD || module === FleetModule.TESORERIA) {
+      subGerenteAccess = AccessLevel.READ_ONLY;
+    }
+    rows.push({
+      organizationId,
+      role: RoleCode.SUB_GERENTE,
+      module,
+      access: subGerenteAccess,
+      forceReadOnly: false,
+    });
     rows.push({
       organizationId,
       role: RoleCode.TESORERIA,
@@ -212,6 +508,110 @@ async function seedRoleMatrix(organizationId: string) {
         module === FleetModule.TESORERIA || module === FleetModule.CONTABILIDAD
           ? AccessLevel.READ_WRITE
           : AccessLevel.READ_ONLY,
+      forceReadOnly: false,
+    });
+    rows.push({
+      organizationId,
+      role: RoleCode.DIRECTOR_FINANCIERO,
+      module,
+      access:
+        module === FleetModule.TESORERIA ||
+        module === FleetModule.CONTABILIDAD ||
+        module === FleetModule.COMERCIAL ||
+        module === FleetModule.COMPRAS
+          ? AccessLevel.READ_WRITE
+          : AccessLevel.READ_ONLY,
+      forceReadOnly: false,
+    });
+    let qhseAccess = AccessLevel.NONE;
+    if (module === FleetModule.HQSE) qhseAccess = AccessLevel.ADMIN;
+    else if (
+      module === FleetModule.RRHH ||
+      module === FleetModule.LOGISTICA ||
+      module === FleetModule.TALLER ||
+      module === FleetModule.RECEPCION_CALLCENTER
+    ) {
+      qhseAccess =
+        module === FleetModule.RRHH
+          ? AccessLevel.READ_WRITE
+          : AccessLevel.READ_ONLY;
+    }
+    if (
+      module === FleetModule.TESORERIA ||
+      module === FleetModule.CONTABILIDAD ||
+      module === FleetModule.COMPRAS
+    ) {
+      qhseAccess = AccessLevel.NONE;
+    }
+    rows.push({
+      organizationId,
+      role: RoleCode.LIDER_QHSE,
+      module,
+      access: qhseAccess,
+      forceReadOnly: false,
+    });
+    rows.push({
+      organizationId,
+      role: RoleCode.QHSE,
+      module,
+      access: qhseAccess,
+      forceReadOnly: false,
+    });
+    let comprasAccess = AccessLevel.NONE;
+    if (module === FleetModule.COMPRAS) comprasAccess = AccessLevel.ADMIN;
+    else if (
+      module === FleetModule.TALLER ||
+      module === FleetModule.TRAMITES ||
+      module === FleetModule.TESORERIA ||
+      module === FleetModule.CONTABILIDAD
+    ) {
+      comprasAccess =
+        module === FleetModule.TALLER || module === FleetModule.TRAMITES
+          ? AccessLevel.READ_WRITE
+          : AccessLevel.READ_ONLY;
+    }
+    if (module === FleetModule.LOGISTICA) {
+      comprasAccess = AccessLevel.NONE;
+    }
+    rows.push({
+      organizationId,
+      role: RoleCode.LIDER_COMPRAS,
+      module,
+      access: comprasAccess,
+      forceReadOnly: false,
+    });
+    rows.push({
+      organizationId,
+      role: RoleCode.COMPRAS,
+      module,
+      access: comprasAccess,
+      forceReadOnly: false,
+    });
+    let directorOpsAccess = AccessLevel.NONE;
+    if (
+      module === FleetModule.LOGISTICA ||
+      module === FleetModule.PARQUEADERO ||
+      module === FleetModule.TALLER
+    ) {
+      directorOpsAccess = AccessLevel.ADMIN;
+    } else if (
+      module === FleetModule.RRHH ||
+      module === FleetModule.TRAMITES ||
+      module === FleetModule.HQSE
+    ) {
+      directorOpsAccess = AccessLevel.READ_ONLY;
+    }
+    if (
+      module === FleetModule.CONTABILIDAD ||
+      module === FleetModule.TESORERIA
+    ) {
+      directorOpsAccess = AccessLevel.NONE;
+    }
+    rows.push({
+      organizationId,
+      role: RoleCode.DIRECTOR_OPERATIVO,
+      module,
+      access: directorOpsAccess,
       forceReadOnly: false,
     });
     rows.push({
@@ -308,7 +708,7 @@ async function main() {
 
   const org = await prisma.organization.create({
     data: {
-      name: "Transportes FSG S.A.S.",
+      name: "Empresa de Transporte Demo S.A.S.",
       nit: "900123456-1",
       maxUsers: 80,
       status: "ACTIVE",
@@ -323,8 +723,8 @@ async function main() {
 
   const orgAdmin = await prisma.user.create({
     data: {
-      email: "admin@fsg.co",
-      name: "Admin FSG (Org Admin)",
+      email: "admin@inretrans.com",
+      name: "Administrador de Empresa Demo",
       role: RoleCode.ORG_ADMIN,
       status: UserAccountStatus.ACTIVE,
       directiveReadOnly: false,
@@ -336,9 +736,9 @@ async function main() {
 
   const presidenci = await prisma.user.create({
     data: {
-      email: "presidencia@fsg.co",
-      name: "Ana Presidencia",
-      role: RoleCode.PRESIDENCIA,
+      email: "presidencia@inretrans.com",
+      name: "Presidencia / CEO",
+      role: RoleCode.PRESIDENTE,
       status: UserAccountStatus.ACTIVE,
       directiveReadOnly: true,
       passwordHash,
@@ -348,18 +748,20 @@ async function main() {
 
   const logistica = await prisma.user.create({
     data: {
-      email: "logistica@inretrans.com",
-      name: "Luis Supervisor Logística",
-      role: RoleCode.SUPERVISOR_LOGISTICA,
+      email: "despacho@inretrans.com",
+      name: "Despacho / Micro-Despacho 4.0",
+      role: RoleCode.GESTOR_OPERATIVO,
+      status: UserAccountStatus.ACTIVE,
       passwordHash,
       organizationId: org.id,
     },
   });
   const auditor = await prisma.user.create({
     data: {
-      email: "revisoria@fsg.co",
-      name: "Elena Revisor Fiscal",
+      email: "revisoriafiscal@inretrans.com",
+      name: "Revisoría Fiscal / Tax",
       role: RoleCode.REVISOR_FISCAL,
+      status: UserAccountStatus.ACTIVE,
       directiveReadOnly: true,
       passwordHash,
       organizationId: org.id,
@@ -368,36 +770,28 @@ async function main() {
   const conductorUser = await prisma.user.create({
     data: {
       email: "conductor@inretrans.com",
-      name: "Carlos Conductor Prueba",
+      name: "Conductor / FSG Pilot",
       role: RoleCode.CONDUCTOR,
+      status: UserAccountStatus.ACTIVE,
       passwordHash,
       organizationId: org.id,
     },
   });
   const monitoraUser = await prisma.user.create({
     data: {
-      email: "monitora@fsg.co",
-      name: "María Monitora Escolar",
+      email: "monitora@inretrans.com",
+      name: "Monitora Escolar Demo",
       role: RoleCode.MONITORA,
+      status: UserAccountStatus.ACTIVE,
       passwordHash,
       organizationId: org.id,
     },
   });
-  const supervisorUser = await prisma.user.create({
-    data: {
-      email: "supervisor@fsg.co",
-      name: "Sofía Centro de Control",
-      role: RoleCode.CENTRO_CONTROL,
-      passwordHash,
-      organizationId: org.id,
-    },
-  });
-  void supervisorUser;
 
   const flor = await prisma.user.create({
     data: {
       email: "recepcion@inretrans.com",
-      name: "Flor Recepcionista",
+      name: "Recepción & Concierge",
       role: RoleCode.RECEPCIONISTA,
       status: UserAccountStatus.ACTIVE,
       passwordHash,
@@ -409,7 +803,7 @@ async function main() {
   const david = await prisma.user.create({
     data: {
       email: "ti@inretrans.com",
-      name: "David Líder TI",
+      name: "Tecnología e Infraestructura",
       role: RoleCode.LIDER_TI,
       status: UserAccountStatus.ACTIVE,
       passwordHash,
@@ -451,7 +845,7 @@ async function main() {
   const roberto = await prisma.user.create({
     data: {
       email: "archivo@inretrans.com",
-      name: "Roberto Gestor Documental",
+      name: "Archivo & Papelería",
       role: RoleCode.GESTOR_DOCUMENTAL,
       status: UserAccountStatus.ACTIVE,
       passwordHash,
@@ -508,7 +902,7 @@ async function main() {
   const mateo = await prisma.user.create({
     data: {
       email: "auxiliarcontable@inretrans.com",
-      name: "Mateo Auxiliar Contable",
+      name: "Operación Financiera / Auxiliar",
       role: RoleCode.AUXILIAR_CONTABLE,
       status: UserAccountStatus.ACTIVE,
       passwordHash,
@@ -520,7 +914,7 @@ async function main() {
     data: {
       organizationId: org.id,
       code: "LEG-2026-001",
-      driverName: "Carlos Conductor Prueba",
+      driverName: "Conductor / FSG Pilot",
       advanceAmount: 200000,
       expensesTotal: 85000,
       balance: 115000,
@@ -564,7 +958,7 @@ async function main() {
   const diana = await prisma.user.create({
     data: {
       email: "contabilidad@inretrans.com",
-      name: "Diana Gestora Contable",
+      name: "Contabilidad & Facturación DIAN",
       role: RoleCode.GESTOR_CONTABLE,
       status: UserAccountStatus.ACTIVE,
       passwordHash,
@@ -575,7 +969,7 @@ async function main() {
   const tesorero = await prisma.user.create({
     data: {
       email: "tesoreria@inretrans.com",
-      name: "Tomás Tesorero",
+      name: "Tesorería & Dispersión de Caja",
       role: RoleCode.TESORERIA,
       status: UserAccountStatus.ACTIVE,
       passwordHash,
@@ -583,6 +977,233 @@ async function main() {
     },
   });
   void tesorero;
+
+  const elenaCfo = await prisma.user.create({
+    data: {
+      email: "cfo@inretrans.com",
+      name: "Dirección Financiera & Estrategia",
+      role: RoleCode.DIRECTOR_FINANCIERO,
+      status: UserAccountStatus.ACTIVE,
+      passwordHash,
+      organizationId: org.id,
+    },
+  });
+  void elenaCfo;
+
+  const carolinaQhse = await prisma.user.create({
+    data: {
+      email: "qhse@inretrans.com",
+      name: "QHSE / Calidad & PESV",
+      role: RoleCode.LIDER_QHSE,
+      status: UserAccountStatus.ACTIVE,
+      passwordHash,
+      organizationId: org.id,
+    },
+  });
+  void carolinaQhse;
+
+  const javierCompras = await prisma.user.create({
+    data: {
+      email: "compras@inretrans.com",
+      name: "Compras & Abastecimiento",
+      role: RoleCode.LIDER_COMPRAS,
+      status: UserAccountStatus.ACTIVE,
+      passwordHash,
+      organizationId: org.id,
+    },
+  });
+  void javierCompras;
+
+  const hectorOps = await prisma.user.create({
+    data: {
+      email: "direccionoperativa@inretrans.com",
+      name: "Dirección Operativa / Flota",
+      role: RoleCode.DIRECTOR_OPERATIVO,
+      status: UserAccountStatus.ACTIVE,
+      passwordHash,
+      organizationId: org.id,
+    },
+  });
+  void hectorOps;
+
+  const carlosCampo = await prisma.user.create({
+    data: {
+      email: "coordinacioncampo@inretrans.com",
+      name: "Coordinación de Campo",
+      role: RoleCode.COORDINADOR_CAMPO,
+      status: UserAccountStatus.ACTIVE,
+      passwordHash,
+      organizationId: org.id,
+    },
+  });
+  void carlosCampo;
+
+  const valeriaWatchtower = await prisma.user.create({
+    data: {
+      email: "centrocontrol@inretrans.com",
+      name: "Centro de Control 24/7",
+      role: RoleCode.OPERADOR_CENTRO_CONTROL,
+      status: UserAccountStatus.ACTIVE,
+      passwordHash,
+      organizationId: org.id,
+    },
+  });
+  void valeriaWatchtower;
+
+  const martaAuditor = await prisma.user.create({
+    data: {
+      email: "controlinterno@inretrans.com",
+      name: "Auditoría Forense / Control Interno",
+      role: RoleCode.AUDITOR_CONTROL_INTERNO,
+      status: UserAccountStatus.ACTIVE,
+      directiveReadOnly: true,
+      passwordHash,
+      organizationId: org.id,
+    },
+  });
+  void martaAuditor;
+
+  const lauraVinculaciones = await prisma.user.create({
+    data: {
+      email: "vinculaciones@inretrans.com",
+      name: "Vinculaciones / Smart Onboarding",
+      role: RoleCode.GESTOR_VINCULACIONES,
+      status: UserAccountStatus.ACTIVE,
+      passwordHash,
+      organizationId: org.id,
+    },
+  });
+  void lauraVinculaciones;
+
+  const felipeComercial = await prisma.user.create({
+    data: {
+      email: "direccioncomercial@inretrans.com",
+      name: "Dirección Comercial B2B",
+      role: RoleCode.DIRECTOR_COMERCIAL,
+      status: UserAccountStatus.ACTIVE,
+      passwordHash,
+      organizationId: org.id,
+    },
+  });
+  void felipeComercial;
+
+  const valentinaGestor = await prisma.user.create({
+    data: {
+      email: "ventas@inretrans.com",
+      name: "Ejecutivo de Ventas",
+      role: RoleCode.GESTOR_COMERCIAL,
+      status: UserAccountStatus.ACTIVE,
+      passwordHash,
+      organizationId: org.id,
+    },
+  });
+
+  const sergioCoord = await prisma.user.create({
+    data: {
+      email: "coordinacioncomercial@inretrans.com",
+      name: "Coordinación Comercial / Licitaciones",
+      role: RoleCode.COORDINADOR_COMERCIAL,
+      status: UserAccountStatus.ACTIVE,
+      passwordHash,
+      organizationId: org.id,
+    },
+  });
+
+  const executivePinHash = await bcrypt.hash("258014", 10);
+  const mauricioGerente = await prisma.user.create({
+    data: {
+      email: "gerenciageneral@inretrans.com",
+      name: "Gerencia General / Executive Hub",
+      role: RoleCode.GERENTE_GENERAL,
+      status: UserAccountStatus.ACTIVE,
+      passwordHash,
+      executivePinHash,
+      organizationId: org.id,
+    },
+  });
+  void mauricioGerente;
+
+  const sofiaJuridico = await prisma.user.create({
+    data: {
+      email: "juridico@inretrans.com",
+      name: "Jurídico / Legal & Compliance",
+      role: RoleCode.DIRECTOR_JURIDICO,
+      status: UserAccountStatus.ACTIVE,
+      passwordHash,
+      organizationId: org.id,
+    },
+  });
+  void sofiaJuridico;
+
+  const miguelTaller = await prisma.user.create({
+    data: {
+      email: "coordinadortaller@inretrans.com",
+      name: "Coordinación Taller 4.0",
+      role: RoleCode.COORDINADOR_TALLER,
+      status: UserAccountStatus.ACTIVE,
+      passwordHash,
+      organizationId: org.id,
+    },
+  });
+
+  const camiloAlmacen = await prisma.user.create({
+    data: {
+      email: "almacentaller@inretrans.com",
+      name: "Almacén Taller / Smart Warehouse",
+      role: RoleCode.AUXILIAR_ALMACEN_TALLER,
+      status: UserAccountStatus.ACTIVE,
+      passwordHash,
+      organizationId: org.id,
+    },
+  });
+  void camiloAlmacen;
+
+  const pedroMecanico = await prisma.user.create({
+    data: {
+      email: "mecanico@inretrans.com",
+      name: "Técnico Mecánico / FSG Tech",
+      role: RoleCode.MECANICO,
+      status: UserAccountStatus.ACTIVE,
+      passwordHash,
+      organizationId: org.id,
+    },
+  });
+
+  const robertoPatio = await prisma.user.create({
+    data: {
+      email: "coordinadorpatio@inretrans.com",
+      name: "Coordinación Patio / Smart Yard",
+      role: RoleCode.COORDINADOR_PATIO,
+      status: UserAccountStatus.ACTIVE,
+      passwordHash,
+      organizationId: org.id,
+    },
+  });
+  void robertoPatio;
+
+  const juanPatio = await prisma.user.create({
+    data: {
+      email: "auxiliarpatio@inretrans.com",
+      name: "Auxiliar Patio / Lavado",
+      role: RoleCode.AUXILIAR_PATIO,
+      status: UserAccountStatus.ACTIVE,
+      passwordHash,
+      organizationId: org.id,
+    },
+  });
+  void juanPatio;
+
+  const martinSub = await prisma.user.create({
+    data: {
+      email: "subgerencia@inretrans.com",
+      name: "Subgerencia / Ejecución Táctica",
+      role: RoleCode.SUB_GERENTE,
+      status: UserAccountStatus.ACTIVE,
+      passwordHash,
+      organizationId: org.id,
+    },
+  });
+  void martinSub;
 
   await prisma.routeExpense.createMany({
     data: [
@@ -598,7 +1219,7 @@ async function main() {
           amount: 18500,
           confidence: 0.94,
         },
-        driverName: "Carlos Conductor Prueba",
+        driverName: "Conductor / FSG Pilot",
         status: "PENDING",
       },
       {
@@ -613,7 +1234,7 @@ async function main() {
           amount: 320000,
           confidence: 0.91,
         },
-        driverName: "Carlos Conductor Prueba",
+        driverName: "Conductor / FSG Pilot",
         status: "PENDING",
       },
     ],
@@ -632,7 +1253,7 @@ async function main() {
   const licenseOk = daysFromNow(730);
   const driverCarlos = await prisma.driver.create({
     data: {
-      name: "Carlos Conductor Prueba",
+      name: "Conductor / FSG Pilot",
       document: "1001001001",
       phone: "3001112233",
       licenseNumber: "LIC-DEMO-001",
@@ -646,7 +1267,7 @@ async function main() {
   });
   const driverPedro = await prisma.driver.create({
     data: {
-      name: "Pedro Rutas Norte",
+      name: "Conductor Demo Norte",
       document: "1002002002",
       phone: "3104445566",
       licenseNumber: "LIC-DEMO-002",
@@ -659,7 +1280,7 @@ async function main() {
   });
   const driverLucia = await prisma.driver.create({
     data: {
-      name: "Lucía Escolar Sur",
+      name: "Conductor Demo Sur",
       document: "1003003003",
       phone: "3207778899",
       licenseNumber: "LIC-DEMO-003",
@@ -672,7 +1293,6 @@ async function main() {
       organizationId: org.id,
     },
   });
-
   const monitor = await prisma.monitorProfile.create({
     data: { userId: monitoraUser.id, organizationId: org.id, active: true },
   });
@@ -945,8 +1565,10 @@ async function main() {
       rateType: ContractRateType.FIXED,
       fixedFare: 1850000,
       startsAt: daysFromNow(-90),
-      endsAt: daysFromNow(275),
+      endsAt: daysFromNow(60),
       status: ContractStatus.ACTIVE,
+      npsScore: 78,
+      portfolioCompliancePct: 92,
       customerId: custB2b.id,
       organizationId: org.id,
     },
@@ -967,8 +1589,10 @@ async function main() {
       rateType: ContractRateType.FIXED,
       fixedFare: 210000,
       startsAt: daysFromNow(-120),
-      endsAt: daysFromNow(240),
+      endsAt: daysFromNow(45),
       status: ContractStatus.ACTIVE,
+      npsScore: 81,
+      portfolioCompliancePct: 95,
       customerId: custEscolar.id,
       organizationId: org.id,
     },
@@ -1006,6 +1630,309 @@ async function main() {
       status: ContractStatus.DRAFT,
       customerId: custB2g.id,
       organizationId: org.id,
+    },
+  });
+
+  await prisma.commercialDeal.createMany({
+    data: [
+      {
+        organizationId: org.id,
+        code: "B2B-2026-0001",
+        accountName: "Colegio Andino Norte",
+        customerId: custEscolar.id,
+        stage: "REUNION_AGENDADA",
+        estimatedMonthlyValue: 38000000,
+        zone: "BOGOTA",
+        vehicleType: "BUS_ESCOLAR",
+        distanceKm: 42,
+        ownerUserId: felipeComercial.id,
+        npsScore: 74,
+        portfolioCompliancePct: 90,
+      },
+      {
+        organizationId: org.id,
+        code: "B2B-2026-0002",
+        accountName: "Ecopetrol Movilidad",
+        customerId: custB2b.id,
+        stage: "EN_NEGOCIACION",
+        estimatedMonthlyValue: 22000000,
+        zone: "BOGOTA",
+        vehicleType: "BUS_TURISMO",
+        distanceKm: 280,
+        ownerUserId: felipeComercial.id,
+        npsScore: 78,
+        portfolioCompliancePct: 92,
+        contractId: contractB2b.id,
+      },
+      {
+        organizationId: org.id,
+        code: "B2B-2026-0003",
+        accountName: "Turismo Andes Charter",
+        customerId: custTurismo.id,
+        stage: "NUEVO_LEAD",
+        estimatedMonthlyValue: 12000000,
+        zone: "MEDELLIN",
+        vehicleType: "VAN",
+        distanceKm: 60,
+        ownerUserId: felipeComercial.id,
+      },
+      {
+        organizationId: org.id,
+        code: "B2B-2026-0004",
+        accountName: "Lead Recepción — Clínica Norte",
+        customerId: custTurismo.id,
+        stage: "NUEVO_LEAD",
+        estimatedMonthlyValue: 4500000,
+        zone: "BOGOTA",
+        vehicleType: "VAN",
+        distanceKm: 28,
+        ownerUserId: valentinaGestor.id,
+      },
+      {
+        organizationId: org.id,
+        code: "B2B-2026-0005",
+        accountName: "Express Chía Corporativo",
+        stage: "COTIZACION_ENVIADA",
+        estimatedMonthlyValue: 2800000,
+        zone: "BOGOTA",
+        vehicleType: "VAN",
+        distanceKm: 35,
+        ownerUserId: valentinaGestor.id,
+      },
+    ],
+  });
+
+  const dueToday = new Date();
+  dueToday.setHours(11, 0, 0, 0);
+  await prisma.commercialTask.createMany({
+    data: [
+      {
+        organizationId: org.id,
+        ownerUserId: valentinaGestor.id,
+        kind: "CALL",
+        title: "Llamar Clínica Norte — seguimiento lead recepción",
+        dueAt: dueToday,
+        priority: 90,
+        customerId: custTurismo.id,
+      },
+      {
+        organizationId: org.id,
+        ownerUserId: valentinaGestor.id,
+        kind: "EMAIL",
+        title: "Enviar cotización Express Chía",
+        dueAt: hoursFromNow(2),
+        priority: 75,
+      },
+      {
+        organizationId: org.id,
+        ownerUserId: valentinaGestor.id,
+        kind: "MEETING",
+        title: "Reunión virtual — Express Chía",
+        dueAt: hoursFromNow(5),
+        priority: 60,
+      },
+    ],
+  });
+
+  await prisma.commercialTimelineEvent.createMany({
+    data: [
+      {
+        organizationId: org.id,
+        ownerUserId: valentinaGestor.id,
+        customerId: custTurismo.id,
+        kind: "LEAD_ASSIGNED",
+        title: "Lead asignado desde Recepción",
+        body: "Historial WhatsApp adjunto — van urgente",
+      },
+      {
+        organizationId: org.id,
+        ownerUserId: valentinaGestor.id,
+        customerId: custTurismo.id,
+        kind: "OMNICHANNEL",
+        title: "Omnicanal WHATSAPP",
+        body: "Cliente: necesitamos van hoy 16:00 Bogotá–Chía",
+      },
+    ],
+  });
+
+  // Lead con SLA vencido (demo reasignación Coordinador)
+  const slaAssignedAt = new Date(Date.now() - 3 * 3600_000);
+  await prisma.commercialDeal.create({
+    data: {
+      organizationId: org.id,
+      code: "B2B-2026-SLA01",
+      accountName: "Lead SLA vencido — Alcaldía Demo",
+      stage: "NUEVO_LEAD",
+      estimatedMonthlyValue: 8_500_000,
+      zone: "BOGOTA",
+      sector: "B2G",
+      vehicleType: "BUS_ESCOLAR",
+      ownerUserId: valentinaGestor.id,
+      assignedAt: slaAssignedAt,
+      slaDeadlineAt: new Date(slaAssignedAt.getTime() + 2 * 3600_000),
+      slaStatus: "RED",
+      slaBreached: true,
+    },
+  });
+
+  const escalatedDeal = await prisma.commercialDeal.findFirst({
+    where: { organizationId: org.id, code: "B2B-2026-0005" },
+  });
+  if (escalatedDeal) {
+    await prisma.commercialIntelligentQuote.create({
+      data: {
+        organizationId: org.id,
+        dealId: escalatedDeal.id,
+        costPerKmReal: 2800,
+        proposedRatePerKm: 3200,
+        marginPct: 12.5,
+        discountPct: 8,
+        fuelCostPerKm: 1200,
+        tireCostPerKm: 350,
+        salaryCostPerKm: 900,
+        workshopCostPerKm: 350,
+        discountEscalationPending: true,
+        ebitdaImpactPct: -1.2,
+        createdById: valentinaGestor.id,
+        status: "DRAFT",
+        calcJson: { escalateTo: "COORDINADOR_COMERCIAL" },
+      },
+    });
+  }
+
+  const bidClose = daysFromNow(18);
+  await prisma.biddingProject.create({
+    data: {
+      organizationId: org.id,
+      code: "BID-2026-0001",
+      title: "Transporte especial — Gobernación Cundinamarca",
+      processId: "SECOP-II-TE-2026-0088",
+      entityName: "Gobernación de Cundinamarca",
+      modality: "Selección abreviada",
+      category: "ESPECIAL",
+      estimatedValue: 920_000_000,
+      closeAt: bidClose,
+      status: "IN_PROGRESS",
+      progressPct: 25,
+      createdById: sergioCoord.id,
+      tasks: {
+        create: [
+          {
+            department: "JURIDICO",
+            title: "Revisión pliego y garantías",
+            dueAt: daysFromNow(8),
+            status: "IN_PROGRESS",
+            assigneeHint: "Jurídico",
+            immutableDue: true,
+          },
+          {
+            department: "ARCHIVO",
+            title: "Expediente documental completo",
+            dueAt: daysFromNow(11),
+            status: "PENDING",
+            assigneeHint: "Archivo",
+            immutableDue: true,
+          },
+          {
+            department: "FINANZAS",
+            title: "Propuesta económica",
+            dueAt: daysFromNow(13),
+            status: "PENDING",
+            assigneeHint: "Finanzas",
+            immutableDue: true,
+          },
+        ],
+      },
+    },
+  });
+
+  await prisma.executiveApproval.createMany({
+    data: [
+      {
+        organizationId: org.id,
+        code: "EA-2026-0001",
+        kind: "NOMINA",
+        title: "Nómina quincena — liberación masiva",
+        amountCop: 185_000_000,
+        cashflowImpactCop: -185_000_000,
+        status: "PENDING",
+        requestedById: mauricioGerente.id,
+        payload: { period: "2026-08-Q1", heads: 42 },
+      },
+      {
+        organizationId: org.id,
+        code: "EA-2026-0002",
+        kind: "COMPRA_PESADA",
+        title: "OC buses — CapEx flota escolar",
+        amountCop: 2_400_000_000,
+        cashflowImpactCop: -420_000_000,
+        status: "PENDING",
+        requestedById: mauricioGerente.id,
+        payload: { units: 4, supplier: "Karosol" },
+      },
+      {
+        organizationId: org.id,
+        code: "EA-2026-0003",
+        kind: "CONTRATO",
+        title: "Contrato marco VIP — aprobación final",
+        amountCop: 45_000_000,
+        cashflowImpactCop: 45_000_000,
+        status: "PENDING",
+        requestedById: mauricioGerente.id,
+      },
+    ],
+  });
+
+  await prisma.managerialOverride.create({
+    data: {
+      organizationId: org.id,
+      code: "OVR-2026-0001",
+      title: "Conflicto VIP vs. capacidad — Ruta Norte",
+      domain: "OPS_COMERCIAL",
+      status: "PENDING",
+      penaltyCostCop: 2_000_000,
+      vipNetGainCop: 8_500_000,
+      scenariosJson: [
+        {
+          id: "pay-penalty",
+          label: "Pagar penalidad y cumplir VIP",
+          penaltyCostCop: 2_000_000,
+          vipNetGainCop: 8_500_000,
+          itineraryPatch: { priority: "VIP" },
+        },
+        {
+          id: "cancel",
+          label: "Cancelar VIP",
+          penaltyCostCop: 0,
+          vipNetGainCop: 0,
+        },
+        {
+          id: "reroute",
+          label: "Reasignar itinerario",
+          penaltyCostCop: 800_000,
+          vipNetGainCop: 7_200_000,
+        },
+      ],
+      optimalScenarioId: "pay-penalty",
+      requestedById: mauricioGerente.id,
+    },
+  });
+
+  await prisma.gerenciaWarRoomSession.create({
+    data: {
+      organizationId: org.id,
+      code: "WR-2026-0001",
+      topic: "Cuello de botella OT vs. pipeline comercial",
+      status: "OPEN",
+      openedById: mauricioGerente.id,
+      directors: [
+        "DIRECTOR_OPERATIVO",
+        "DIRECTOR_COMERCIAL",
+        "DIRECTOR_FINANCIERO",
+      ],
+      bottleneck: "TALLER",
+      chatChannel: "chat:gerencia-war",
+      videoLink: "meet:gerencia-bridge",
     },
   });
 
@@ -1173,6 +2100,100 @@ async function main() {
     },
   });
 
+  await prisma.tripTrackPoint.createMany({
+    data: [
+      {
+        tripId: tripTransit.id,
+        vehicleId: bus001.id,
+        lat: 4.711,
+        lng: -74.0721,
+        speedKph: 42,
+        recordedAt: hoursFromNow(-2),
+      },
+      {
+        tripId: tripTransit.id,
+        vehicleId: bus001.id,
+        lat: 4.715,
+        lng: -74.068,
+        speedKph: 38,
+        recordedAt: hoursFromNow(-1.8),
+      },
+      {
+        tripId: tripTransit.id,
+        vehicleId: bus001.id,
+        lat: 4.72,
+        lng: -74.06,
+        speedKph: 55,
+        recordedAt: hoursFromNow(-1.5),
+      },
+    ],
+  });
+
+  await prisma.judicialCalendarEvent.createMany({
+    data: [
+      {
+        organizationId: org.id,
+        title: "Audiencia conciliación — Demanda laboral ruta escolar",
+        kind: "AUDIENCIA",
+        dueAt: hoursFromNow(48),
+        immutable: true,
+        alertRed: true,
+        caseRef: "RAD-2026-4412",
+        notes: "Comparecencia obligatoria Dirección Jurídica",
+        createdById: sofiaJuridico.id,
+      },
+      {
+        organizationId: org.id,
+        title: "Vencimiento derecho de petición Mintransporte",
+        kind: "DERECHO_PETICION",
+        dueAt: hoursFromNow(120),
+        immutable: true,
+        alertRed: true,
+        caseRef: "DP-MT-8891",
+        createdById: sofiaJuridico.id,
+      },
+      {
+        organizationId: org.id,
+        title: "Comparendo operativo — revisión documental",
+        kind: "COMPARENDO",
+        dueAt: hoursFromNow(336),
+        immutable: true,
+        alertRed: false,
+        caseRef: "CMP-BOG-102",
+        createdById: sofiaJuridico.id,
+      },
+    ],
+  });
+
+  await prisma.legalContractScan.create({
+    data: {
+      organizationId: org.id,
+      code: "LS-SEED-B2B-01",
+      contractTitle: "Contrato marco B2B — Cliente VIP Andes",
+      contractKind: "B2B",
+      fileRef: "uploads/contratos/vip-andes-demo.pdf",
+      status: "FLAGGED",
+      flaggedClauses: [
+        {
+          excerpt: "penalidad del 25% del valor mensual",
+          penaltyPct: 25,
+          severity: "OVER_POLICY",
+          policyMaxPct: 15,
+        },
+      ],
+      maxPenaltyPctFound: 25,
+      policyMaxPenaltyPct: 15,
+      commentsThread: [
+        {
+          author: "Jurídico / Legal & Compliance",
+          body: "Cláusula de penalidad excede tope FSG 15%. Solicitar renegociación.",
+          at: new Date().toISOString(),
+        },
+      ],
+      scannedById: sofiaJuridico.id,
+    },
+  });
+
   await prisma.fuecDocument.create({
     data: {
       number: "FUEC-2026-88421",
@@ -1253,7 +2274,10 @@ async function main() {
       status: WorkOrderStatus.IN_PROGRESS,
       odometerAtOpen: 88950,
       vehicleId: bus004.id,
-      assignedToId: logistica.id,
+      assignedToId: pedroMecanico.id,
+      bayCode: "BAY-A1",
+      severity: "ROUTINE",
+      qcStatus: "PENDING",
       organizationId: org.id,
     },
   });
@@ -1332,6 +2356,22 @@ async function main() {
       supplierId: supplierParts.id,
       purchaseOrderId: po.id,
       organizationId: org.id,
+      /// Retención omitida — Truth Hub la resalta
+      dianPayload: { retentionOmitida: true, ivaPct: 19 },
+    },
+  });
+  await prisma.invoice.create({
+    data: {
+      number: "FC-PROV-7782",
+      type: InvoiceType.PAYABLE,
+      status: InvoiceStatus.ISSUED,
+      counterparty: supplierParts.name,
+      amount: 500000,
+      dueDate: daysFromNow(20),
+      supplierId: supplierParts.id,
+      organizationId: org.id,
+      /// Retención mal calculada (1% vs 2.5% esperado)
+      dianPayload: { retefuentePct: 1, retefuenteAmount: 5000, ivaPct: 19 },
     },
   });
   await prisma.invoice.create({
@@ -1347,6 +2387,27 @@ async function main() {
       organizationId: org.id,
     },
   });
+
+  await prisma.purchaseOrder.update({
+    where: { id: po.id },
+    data: {
+      meta: {
+        budgetSignature: "PRESUPUESTO-FIRMADO:CFO-ELENA:2026-07",
+        presupuestoFirma: "PRESUPUESTO-FIRMADO:CFO-ELENA:2026-07",
+      },
+    },
+  });
+
+  const goodsRx = await prisma.goodsReceipt.create({
+    data: {
+      code: "GR-2026-0042",
+      purchaseOrderId: po.id,
+      receivedById: logistica.id,
+      quantityTotal: 4,
+      notes: "Entrada almacén — pastillas freno",
+    },
+  });
+  void goodsRx;
 
   await prisma.paymentSchedule.create({
     data: {
@@ -1419,7 +2480,7 @@ async function main() {
       status: EmployeeStatus.ACTIVE,
       baseSalary: 8500000,
       hourlyRate: 45000,
-      email: "logistica@inretrans.com",
+      email: "despacho@inretrans.com",
       organizationId: org.id,
     },
   });
@@ -1437,7 +2498,7 @@ async function main() {
   });
   await prisma.employee.create({
     data: {
-      name: "Carlos Conductor Prueba",
+      name: "Conductor / FSG Pilot",
       document: "1001001001",
       title: "Conductor C2",
       area: "Flota",
@@ -1451,7 +2512,7 @@ async function main() {
   });
   await prisma.employee.create({
     data: {
-      name: "Pedro Rutas Norte",
+      name: "Conductor Demo Norte",
       document: "1002002002",
       title: "Conductor C2",
       area: "Flota",
@@ -1465,7 +2526,7 @@ async function main() {
   });
   await prisma.employee.create({
     data: {
-      name: "Lucía Escolar Sur",
+      name: "Conductor Demo Sur",
       document: "1003003003",
       title: "Conductora C1",
       area: "Flota",
@@ -1787,7 +2848,7 @@ async function main() {
         organizationId: org.id,
         level: SystemLogLevel.INFO,
         source: "api.auth",
-        message: "Login node logistica@inretrans.com OK",
+        message: "Login node despacho@inretrans.com OK",
       },
       {
         organizationId: org.id,
@@ -2035,6 +3096,123 @@ async function main() {
     },
   });
 
+  await prisma.yardParkingSlot.createMany({
+    data: [
+      {
+        organizationId: org.id,
+        laneCode: "LIFO-A",
+        bayCode: "A01",
+        status: "FREE",
+      },
+      {
+        organizationId: org.id,
+        laneCode: "LIFO-A",
+        bayCode: "A02",
+        plate: "BOG-892",
+        scheduledDepartAt: hoursFromNow(18),
+        occupiedAt: new Date(),
+        status: "OCCUPIED",
+      },
+      {
+        organizationId: org.id,
+        laneCode: "LIFO-B",
+        bayCode: "B01",
+        status: "FREE",
+      },
+    ],
+  });
+
+  await prisma.yardWashJob.createMany({
+    data: [
+      {
+        organizationId: org.id,
+        plate: "BOG-892",
+        priority: 10,
+        status: "QUEUED",
+        bayCode: "WASH-1",
+        notes: "Prioridad salida AM",
+      },
+      {
+        organizationId: org.id,
+        plate: "MED-441",
+        priority: 30,
+        status: "QUEUED",
+        bayCode: "WASH-2",
+      },
+      {
+        organizationId: org.id,
+        plate: "CAL-110",
+        priority: 50,
+        status: "WASHING",
+        bayCode: "WASH-1",
+      },
+    ],
+  });
+
+  await prisma.alcoholCheck.create({
+    data: {
+      organizationId: org.id,
+      driverId: driverCarlos.id,
+      plate: "BOG-892",
+      passed: true,
+      readingMgL: 0,
+      checkedAt: new Date(),
+      expiresAt: hoursFromNow(8),
+    },
+  });
+
+  await prisma.subgerenciaConflict.createMany({
+    data: [
+      {
+        organizationId: org.id,
+        code: "CFG-TALLER-LOG-001",
+        title: "OT abierta vs. despacho VIP mañana",
+        parties: ["TALLER", "LOGISTICA"],
+        status: "OPEN",
+        level: 2,
+      },
+      {
+        organizationId: org.id,
+        code: "CFG-PATIO-LOG-001",
+        title: "Cola lavado retrasa talanquera",
+        parties: ["PATIO", "LOGISTICA"],
+        status: "OPEN",
+        level: 2,
+      },
+    ],
+  });
+
+  await prisma.subgerenciaProject.createMany({
+    data: [
+      {
+        organizationId: org.id,
+        code: "PRJ-DEADHEAD-01",
+        title: "Reducir kilómetros en vacío Norte",
+        status: "IN_PROGRESS",
+        kind: "DEADHEAD",
+        deadheadKmSaved: 120,
+        ownerId: martinSub.id,
+      },
+      {
+        organizationId: org.id,
+        code: "PRJ-SAT-NORTE",
+        title: "Parqueadero satélite Norte",
+        status: "BACKLOG",
+        kind: "SATELITE",
+        ownerId: martinSub.id,
+      },
+      {
+        organizationId: org.id,
+        code: "PRJ-LIFO-YARD",
+        title: "Optimización LIFO patio principal",
+        status: "DONE",
+        kind: "EFICIENCIA",
+        deadheadKmSaved: 40,
+        ownerId: martinSub.id,
+      },
+    ],
+  });
+
   await prisma.auditLog.create({
     data: {
       organizationId: org.id,
@@ -2070,13 +3248,40 @@ async function main() {
     hqseIncidents: await prisma.hqseIncident.count(),
   };
 
-  console.log("[seed] Usuarios (clave Inretrans2026*):");
-  console.log("  - superadmin@inretrans.com (SUPERADMIN)");
-  console.log("  - recepcion@inretrans.com | ti@inretrans.com | archivo@inretrans.com");
-  console.log("  - contabilidad@inretrans.com | auxiliarcontable@inretrans.com");
-  console.log("  - tesoreria@inretrans.com | logistica@inretrans.com | conductor@inretrans.com");
+  console.log("[seed] Usuarios genéricos (clave Inretrans2026*):");
+  console.log("  1.  superadmin@inretrans.com (SUPERADMIN / Plataforma)");
+  console.log("  2.  recepcion@inretrans.com (RECEPCIONISTA)");
+  console.log("  3.  ti@inretrans.com (LIDER_TI)");
+  console.log("  4.  archivo@inretrans.com (GESTOR_DOCUMENTAL)");
+  console.log("  5.  auxiliarcontable@inretrans.com (AUXILIAR_CONTABLE)");
+  console.log("  6.  contabilidad@inretrans.com (GESTOR_CONTABLE)");
+  console.log("  7.  tesoreria@inretrans.com (TESORERIA)");
+  console.log("  8.  cfo@inretrans.com (DIRECTOR_FINANCIERO)");
+  console.log("  9.  qhse@inretrans.com (LIDER_QHSE)");
+  console.log("  10. compras@inretrans.com (LIDER_COMPRAS)");
+  console.log("  11. direccionoperativa@inretrans.com (DIRECTOR_OPERATIVO)");
+  console.log("  12. despacho@inretrans.com (GESTOR_OPERATIVO)");
+  console.log("  13. coordinacioncampo@inretrans.com (COORDINADOR_CAMPO)");
+  console.log("  14. centrocontrol@inretrans.com (OPERADOR_CENTRO_CONTROL)");
+  console.log("  15. controlinterno@inretrans.com (AUDITOR_CONTROL_INTERNO)");
+  console.log("  16. presidencia@inretrans.com (PRESIDENTE)");
+  console.log("  17. vinculaciones@inretrans.com (GESTOR_VINCULACIONES)");
+  console.log("  18. direccioncomercial@inretrans.com (DIRECTOR_COMERCIAL)");
+  console.log("  19. ventas@inretrans.com (GESTOR_COMERCIAL)");
+  console.log("  20. coordinacioncomercial@inretrans.com (COORDINADOR_COMERCIAL)");
+  console.log("  21. gerenciageneral@inretrans.com (GERENTE_GENERAL / PIN 258014)");
+  console.log("  22. juridico@inretrans.com (DIRECTOR_JURIDICO)");
+  console.log("  23. revisoriafiscal@inretrans.com (REVISOR_FISCAL)");
+  console.log("  24. coordinadortaller@inretrans.com (COORDINADOR_TALLER)");
+  console.log("  25. almacentaller@inretrans.com (AUXILIAR_ALMACEN_TALLER)");
+  console.log("  26. mecanico@inretrans.com (MECANICO)");
+  console.log("  27. coordinadorpatio@inretrans.com (COORDINADOR_PATIO)");
+  console.log("  28. auxiliarpatio@inretrans.com (AUXILIAR_PATIO)");
+  console.log("  29. conductor@inretrans.com (CONDUCTOR)");
+  console.log("  30. subgerencia@inretrans.com (SUB_GERENTE)");
+  console.log("  + admin@inretrans.com (ORG_ADMIN tenant)");
   console.log("[seed] Conteos:", counts);
-  console.log("[seed] OK — refresca la web");
+  console.log("[seed] OK — ver docs/MANUAL_DE_USO_SISTEMA.md");
 }
 
 main()

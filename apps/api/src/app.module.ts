@@ -16,15 +16,25 @@ import { TesoreriaModule } from "./tesoreria/tesoreria.module";
 import { TallerModule } from "./taller/taller.module";
 import { FleetModule } from "./fleet/fleet.module";
 import { FinanceModule } from "./finance/finance.module";
+import { FinanzasModule } from "./finanzas/finanzas.module";
 import { ContabilidadModule } from "./contabilidad/contabilidad.module";
 import { RevisoriaModule } from "./revisoria/revisoria.module";
+import { RevisoriaFiscalModule } from "./revisoria-fiscal/revisoria-fiscal.module";
 import { PresidenciaModule } from "./presidencia/presidencia.module";
 import { GerenciaModule } from "./gerencia/gerencia.module";
+import { JuridicoModule } from "./juridico/juridico.module";
 import { RrhhModule } from "./rrhh/rrhh.module";
 import { SarlaftModule } from "./sarlaft/sarlaft.module";
 import { PatioModule } from "./patio/patio.module";
+import { PilotModule } from "./pilot/pilot.module";
+import { SubgerenciaModule } from "./subgerencia/subgerencia.module";
 import { ArchivoModule } from "./archivo/archivo.module";
 import { HqseModule } from "./hqse/hqse.module";
+import { QhseModule } from "./qhse/qhse.module";
+import { OperacionesModule } from "./operaciones/operaciones.module";
+import { CentroControlModule } from "./centro-control/centro-control.module";
+import { ControlInternoModule } from "./control-interno/control-interno.module";
+import { VinculacionesModule } from "./vinculaciones/vinculaciones.module";
 import { TiModule } from "./ti/ti.module";
 import { PqrsModule } from "./pqrs/pqrs.module";
 import { EscolarModule } from "./escolar/escolar.module";
@@ -57,15 +67,25 @@ import { PrismaModule } from "./prisma/prisma.module";
     TallerModule,
     FleetModule,
     FinanceModule,
+    FinanzasModule,
     ContabilidadModule,
     RevisoriaModule,
+    RevisoriaFiscalModule,
     PresidenciaModule,
     GerenciaModule,
+    JuridicoModule,
     RrhhModule,
     SarlaftModule,
     PatioModule,
+    PilotModule,
+    SubgerenciaModule,
     ArchivoModule,
     HqseModule,
+    QhseModule,
+    OperacionesModule,
+    CentroControlModule,
+    ControlInternoModule,
+    VinculacionesModule,
     TiModule,
     PqrsModule,
     EscolarModule,

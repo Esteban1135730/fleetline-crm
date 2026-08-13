@@ -71,7 +71,12 @@ export class TesoreriaService {
       );
     }
     const paidAt = new Date();
-    const results = [];
+    const results: Array<{
+      id: string;
+      number: string;
+      amount: unknown;
+      status: InvoiceStatus;
+    }> = [];
     for (const inv of invoices) {
       const updated = await this.prisma.invoice.update({
         where: { id: inv.id },

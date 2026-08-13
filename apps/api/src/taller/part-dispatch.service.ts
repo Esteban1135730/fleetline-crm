@@ -26,6 +26,7 @@ export class PartDispatchService {
   ) {
     const wo = await this.prisma.workOrder.findFirst({
       where: { id: workOrderId, organizationId },
+      include: { vehicle: { select: { plate: true } } },
     });
     if (!wo) throw new NotFoundException("OT no encontrada");
     if (wo.status === WorkOrderStatus.DONE) {
@@ -113,6 +114,9 @@ export class PartDispatchService {
       });
     }
 
+    const amount = Number(item.unitCost) * qty;
+    const plate = wo.vehicle.plate;
+
     const dispatch = await this.prisma.$transaction(async (tx) => {
       await tx.inventoryItem.update({
         where: { id: item.id },
@@ -138,10 +142,20 @@ export class PartDispatchService {
             Boolean(dto.photoOldRef) && Boolean(dto.photoNewRef)
               ? true
               : null,
+          costCenterPlate: plate,
+          costAmount: amount,
+          mechanicUserId: dto.mechanicUserId,
         },
         include: {
           inventoryItem: {
-            select: { id: true, sku: true, name: true, serial: true, qrCode: true },
+            select: {
+              id: true,
+              sku: true,
+              name: true,
+              serial: true,
+              qrCode: true,
+              unitCost: true,
+            },
           },
         },
       });
@@ -154,19 +168,23 @@ export class PartDispatchService {
       });
     }
 
-    const amount = Number(item.unitCost) * qty;
     await this.kafka.emitPartDispatched({
       organizationId,
       amount,
       workOrderId: wo.id,
       inventoryItemId: item.id,
       quantity: qty,
+      costCenterPlate: plate,
+      mechanicUserId: dto.mechanicUserId,
     });
 
     return {
       dispatch,
       stockRemaining: item.quantity - qty,
+      costCenterPlate: plate,
+      costAmount: amount,
       antifraud: "QR_SERIAL_VALIDATED",
+      message: `Despacho OK — costo ${amount} imputado a centro ${plate}`,
     };
   }
 }

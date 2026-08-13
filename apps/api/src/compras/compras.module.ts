@@ -4,6 +4,7 @@ import { LogisticsModule } from "../logistics/logistics.module";
 import { SarlaftModule } from "../sarlaft/sarlaft.module";
 import { ComprasController } from "./compras.controller";
 import { ComprasService } from "./compras.service";
+import { SmartProcurementService } from "./smart-procurement.service";
 import { ThreeWayMatchingService } from "./three-way-matching.service";
 import { InvoiceDocumentListener } from "./invoice-document.listener";
 
@@ -12,9 +13,10 @@ import { InvoiceDocumentListener } from "./invoice-document.listener";
   controllers: [ComprasController],
   providers: [
     ComprasService,
+    SmartProcurementService,
     ThreeWayMatchingService,
     InvoiceDocumentListener,
   ],
-  exports: [ComprasService, ThreeWayMatchingService],
+  exports: [ComprasService, SmartProcurementService, ThreeWayMatchingService],
 })
 export class ComprasModule {}

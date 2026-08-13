@@ -72,6 +72,10 @@ export class DispatchPartDto {
   @IsOptional()
   @IsString()
   photoNewRef?: string;
+
+  @IsOptional()
+  @IsString()
+  mechanicUserId?: string;
 }
 
 export class TelemetryIngestDto {

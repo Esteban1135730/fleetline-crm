@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { APP_GUARD, APP_INTERCEPTOR } from "@nestjs/core";
 import { AuthModule } from "../auth/auth.module";
+import { LogisticsModule } from "../logistics/logistics.module";
 import { DirectiveReadOnlyGuard } from "./directive-readonly.guard";
 import { DirectiveReadOnlyInterceptor } from "./directive-readonly.interceptor";
 import { ExecutiveKpiService } from "./executive-kpi.service";
@@ -9,7 +10,7 @@ import { PresidenciaService } from "./presidencia.service";
 import { TextToSqlAssistantService } from "./text-to-sql-assistant.service";
 
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, LogisticsModule],
   controllers: [PresidenciaController],
   providers: [
     PresidenciaService,

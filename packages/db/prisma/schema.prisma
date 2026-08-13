@@ -75,23 +75,44 @@ enum RoleCode {
   TESORERIA
   DIRECTOR_FINANCIERO
   QHSE
+  /// Líder QHSE / Prevención 4.0 (Usuario Carolina)
+  LIDER_QHSE
   COMPRAS
+  /// Líder Compras / Smart Procurement (Usuario Javier)
+  LIDER_COMPRAS
   DIRECTOR_OPERATIVO
   GESTOR_OPERATIVO
   /// Alias seed: supervisor de logística
   SUPERVISOR_LOGISTICA
   COORDINADOR_OPERATIVO
+  /// Coordinador de campo / Field Commander Hub (Usuario Carlos)
+  COORDINADOR_CAMPO
   CENTRO_CONTROL
+  /// Operador Centro de Control 24/7 / Watchtower (Usuario Valeria)
+  OPERADOR_CENTRO_CONTROL
   CONTROL_INTERNO
+  /// Auditor Control Interno / Forensic Compliance Hub (Usuario Marta)
+  AUDITOR_CONTROL_INTERNO
   PRESIDENCIA
+  /// Presidente / Founder's Canvas God Mode (Usuario Alejandro)
+  PRESIDENTE
   VINCULACIONES
+  /// Gestor Vinculaciones / Smart Onboarding (Usuario Laura)
+  GESTOR_VINCULACIONES
   COORDINADOR_COMERCIAL
   GESTOR_COMERCIAL
+  /// Director Comercial / B2B Sales Pipeline (Usuario Felipe)
+  DIRECTOR_COMERCIAL
+
   GERENTE_GENERAL
   JURIDICO
+  /// Director Jurídico / Legal Hub 4.0 (Usuario Sofía)
+  DIRECTOR_JURIDICO
   REVISOR_FISCAL
   COORDINADOR_TALLER
   AUXILIAR_CONTABLE_TALLER
+  /// Auxiliar de almacén / Smart Warehouse Taller 4.0 (Usuario Camilo)
+  AUXILIAR_ALMACEN_TALLER
   MECANICO
   COORDINADOR_PATIO
   AUXILIAR_PATIO
@@ -149,6 +170,11 @@ enum ComplianceDocType {
   REVISION_PREVENTIVA
   FUEC
   LICENCIA_CONDUCCION
+  EXTINTOR
+  /// Tarjeta de propiedad / peritaje (onboarding afiliados)
+  TARJETA_PROPIEDAD
+  POLIZA_CONTRACTUAL
+  PERITAJE
   OTHER
 }
 
@@ -158,6 +184,22 @@ enum VehicleStatus {
   MAINTENANCE
   OUT_OF_SERVICE
   COMPLIANCE_BLOCKED
+}
+
+/// Parada de flota sincronizada (aprobación Dirección Operativa)
+enum FleetStopStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  ACTIVE
+  CLOSED
+}
+
+enum FleetStopKind {
+  PREVENTIVE_MAINTENANCE
+  CORRECTIVE
+  YARD_IMMOBILIZATION
+  COMPLIANCE
 }
 
 enum TripStatus {
@@ -268,10 +310,31 @@ enum PurchaseStatus {
   PENDING_APPROVAL
   APPROVED
   ORDERED
+  /// En tránsito hacia almacén
+  IN_TRANSIT
   PARTIALLY_RECEIVED
   RECEIVED
   MATCHED
   MATCH_FAILED
+  CANCELLED
+}
+
+/// Urgencia de requisición (bandeja Vendor Hub)
+enum RequisitionUrgency {
+  /// Rojo — Bus Varado / crítico Taller
+  CRITICAL
+  /// Amarillo — Stock bajo
+  LOW_STOCK
+  /// Verde — Administrativo
+  ADMIN
+}
+
+enum RequisitionStatus {
+  OPEN
+  BIDDING
+  AWARDED
+  ORDERED
+  CLOSED
   CANCELLED
 }
 
@@ -338,6 +401,139 @@ enum ContractRateType {
   FIXED
   PER_KM
   MIXED
+}
+
+/// Pipeline B2B — Dirección Comercial (Módulo 14)
+enum SalesPipelineStage {
+  NUEVO_LEAD
+  REUNION_AGENDADA
+  COTIZACION_ENVIADA
+  EN_NEGOCIACION
+  CERRADO_GANADO
+  CERRADO_PERDIDO
+}
+
+enum DocuSignEnvelopeStatus {
+  CREATED
+  SENT
+  DELIVERED
+  SIGNED
+  DECLINED
+  VOIDED
+}
+
+enum AdvancePaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  EXPIRED
+  CANCELLED
+}
+
+enum AdvancePaymentMethod {
+  PSE
+  CARD
+}
+
+enum CommercialTaskKind {
+  CALL
+  EMAIL
+  MEETING
+  FOLLOW_UP
+  QUOTE
+}
+
+enum CommercialTimelineKind {
+  LEAD_ASSIGNED
+  OMNICHANNEL
+  CALL
+  EMAIL
+  QUOTE_SENT
+  QUOTE_OPENED
+  PAYMENT_LINK
+  NOTE
+}
+
+enum BiddingProjectStatus {
+  OPEN
+  IN_PROGRESS
+  SUBMITTED
+  WON
+  LOST
+  CANCELLED
+}
+
+enum BiddingTaskDept {
+  JURIDICO
+  ARCHIVO
+  FINANZAS
+  COMERCIAL
+  OPERACIONES
+}
+
+enum BiddingTaskStatus {
+  PENDING
+  IN_PROGRESS
+  DONE
+  BLOCKED
+}
+
+enum LeadSlaStatus {
+  OK
+  WARNING
+  RED
+  REASSIGNED
+}
+
+enum ManagerialOverrideStatus {
+  PENDING
+  RESOLVED
+  REJECTED
+  EXPIRED
+}
+
+enum ExecutiveApprovalKind {
+  NOMINA
+  COMPRA_PESADA
+  CONTRATO
+  PAGO
+  EXCEPCION
+  OVERRIDE
+}
+
+enum ExecutiveApprovalStatus {
+  PENDING
+  SIGNED
+  REJECTED
+  EXPIRED
+}
+
+enum LegalScanStatus {
+  PENDING
+  FLAGGED
+  CLEARED
+  ESCALATED
+}
+
+enum JudicialEventKind {
+  AUDIENCIA
+  DERECHO_PETICION
+  DEMANDA
+  COMPARENDO
+  PLAZO_PROCESAL
+  OTRO
+}
+
+enum EvidentiaryPackageStatus {
+  GENERATED
+  SEALED
+  DELIVERED
+}
+
+enum AccountingPeriodStatus {
+  OPEN
+  SOFT_CLOSED
+  HARD_LOCKED
 }
 
 enum AccountType {
@@ -669,9 +865,14 @@ model Organization {
   forensicFindings   ForensicFinding[]
   transportContracts TransportContract[]
   purchaseOrders     PurchaseOrder[]
+  purchaseRequisitions PurchaseRequisition[]
   suppliers          Supplier[]
   inventoryItems     InventoryItem[]
   workOrders         WorkOrder[]
+  mechanicTimeEntries MechanicTimeEntry[]
+  mechanicFindings   MechanicFinding[]
+  prekitReservations PrekitReservation[]
+  fleetStops         FleetStop[]
   complianceDocs     ComplianceDocument[]
   parkingLogs        ParkingLog[]
   yardEvents         YardEvent[]
@@ -722,6 +923,49 @@ model Organization {
   costCenters        CostCenter[]
   routeExpenses      RouteExpense[]
   dianEmissions      DianEmission[]
+  fieldGeofenceSessions FieldGeofenceSession[]
+  fieldSiteAudits    FieldSiteAudit[]
+  fieldBoardingOverrides FieldBoardingOverride[]
+  watchtowerDeviations WatchtowerDeviation[]
+  watchtowerSosSessions WatchtowerSosSession[]
+  watchtowerIotCommands WatchtowerIotCommand[]
+  watchtowerFatigueAlerts WatchtowerFatigueAlert[]
+  internalFindings     InternalFinding[]
+  paymentHardBlocks    PaymentHardBlock[]
+  supplierBankChanges  SupplierBankAccountChange[]
+  forensicFuelAudits   ForensicFuelAudit[]
+  capexSimulations     CapexSimulation[]
+  presidentialDefconSessions PresidentialDefconSession[]
+  affiliateOnboardings AffiliateOnboarding[]
+  affiliatePortalLinks AffiliatePortalLink[]
+  driverBackgroundChecks DriverBackgroundCheck[]
+  commercialDeals        CommercialDeal[]
+  commercialQuotes       CommercialIntelligentQuote[]
+  docuSignEnvelopes      DocuSignEnvelope[]
+  capacityPlanningRequests CapacityPlanningRequest[]
+  recurringBillingSchedules RecurringBillingSchedule[]
+  commercialAdvancePayments CommercialAdvancePaymentLink[]
+  commercialCallLogs     CommercialCallLog[]
+  commercialTasks        CommercialTask[]
+  commercialTimelineEvents CommercialTimelineEvent[]
+  biddingProjects        BiddingProject[]
+  managerialOverrides    ManagerialOverride[]
+  executiveApprovals     ExecutiveApproval[]
+  gerenciaWarRooms       GerenciaWarRoomSession[]
+  legalContractScans     LegalContractScan[]
+  evidentiaryPackages    EvidentiaryPackage[]
+  judicialCalendarEvents JudicialCalendarEvent[]
+  disciplinaryMemos      DisciplinaryMemo[]
+  accountingPeriods      AccountingPeriod[]
+  fiscalDictamenes       FiscalDictamen[]
+  fiscalAuditNotes       FiscalAuditNote[]
+  yardWashJobs           YardWashJob[]
+  yardParkingSlots       YardParkingSlot[]
+  alcoholChecks          AlcoholCheck[]
+  pilotSosAlerts         PilotSosAlert[]
+  fuelWalletTokens       FuelWalletToken[]
+  subgerenciaConflicts   SubgerenciaConflict[]
+  subgerenciaProjects    SubgerenciaProject[]
 
   @@index([nit])
 }
@@ -730,6 +974,8 @@ model User {
   id             String       @id @default(cuid())
   email          String       @unique
   passwordHash   String
+  /// PIN de 6 dígitos para firma ejecutiva (Gerencia / CFO)
+  executivePinHash String?
   name           String
   /// Rol primario (compat UI). Permisos finos viven en RolePermission.
   role           RoleCode     @default(DESPACHO)
@@ -758,6 +1004,7 @@ model User {
   archiveUploads     ArchiveDocument[]    @relation("ArchiveUploader")
   purchaseApprovals  PurchaseOrder[]      @relation("PurchaseApprover")
   goodsReceipts      GoodsReceipt[]       @relation("GoodsReceiptReceiver")
+  fleetStopApprovals FleetStop[]          @relation("FleetStopApprover")
   partDispatches     PartDispatch[]       @relation("PartDispatcher")
   executiveQueries   ExecutiveQueryLog[]
   systemTickets      SystemTicket[]
@@ -800,6 +1047,10 @@ model AuditLog {
   entityId       String?
   module         FleetModule?
   meta           Json?
+  /// IP de origen (trazabilidad forense)
+  ipAddress      String?
+  /// Caja negra: append-only — sin UPDATE/DELETE en API
+  immutable      Boolean  @default(true)
   userId         String?
   user           User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   createdAt      DateTime @default(now())
@@ -808,6 +1059,7 @@ model AuditLog {
   @@index([entity, entityId])
   @@index([module, createdAt])
   @@index([userId, createdAt])
+  @@index([action, createdAt])
 }
 
 /// Log de Text-to-SQL / RAG directivo (Presidencia / Gerencia)
@@ -827,6 +1079,300 @@ model ExecutiveQueryLog {
   @@index([userId, createdAt])
 }
 
+/// Simulación CapEx / inversión flota (Founder's Canvas)
+model CapexSimulation {
+  id               String       @id @default(cuid())
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  code             String
+  unitsToAcquire   Int
+  unitCostCop      Decimal      @db.Decimal(14, 2)
+  totalCapexCop    Decimal      @db.Decimal(16, 2)
+  currentUtilizationPct Float
+  projectedUtilizationPct Float
+  paybackMonths    Float?
+  recommendation   String
+  heatMap          Json?
+  createdById      String
+  meta             Json?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@unique([organizationId, code])
+  @@index([organizationId, createdAt])
+}
+
+/// DEFCON Presidencial — crisis extrema (War Room Presidencia)
+model PresidentialDefconSession {
+  id               String       @id @default(cuid())
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  code             String
+  defconLevel      Int          @default(2)
+  status           String       @default("ACTIVE")
+  activatedById    String
+  conflictZones    String[]
+  driversNotified  Int          @default(0)
+  customersNotified Int         @default(0)
+  parentsNotified  Int          @default(0)
+  sirenBroadcast   Boolean      @default(true)
+  warRoomOpen      Boolean      @default(true)
+  cascade          Json?
+  notes            String?
+  closedAt         DateTime?
+  meta             Json?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@unique([organizationId, code])
+  @@index([organizationId, status, createdAt])
+}
+
+/// Override gerencial — árbitro de conflictos Ops/Comercial (Módulo 16)
+model ManagerialOverride {
+  id                 String                   @id @default(cuid())
+  organizationId     String
+  organization       Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  code               String
+  title              String
+  domain             String                   @default("OPS_COMERCIAL")
+  status             ManagerialOverrideStatus @default(PENDING)
+  tripId             String?
+  dealId             String?
+  penaltyCostCop     Decimal                  @db.Decimal(14, 2) @default(0)
+  vipNetGainCop      Decimal                  @db.Decimal(14, 2) @default(0)
+  scenariosJson      Json
+  selectedScenarioId String?
+  optimalScenarioId  String?
+  itineraryPatch     Json?
+  penaltyBudgetAuthorized Decimal?            @db.Decimal(14, 2)
+  requestedById      String?
+  resolvedById       String?
+  resolvedAt         DateTime?
+  resolutionNotes    String?
+  meta               Json?
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+
+  @@unique([organizationId, code])
+  @@index([organizationId, status, createdAt])
+}
+
+/// Aprobación ejecutiva (nómina / compras / contratos) — firma con PIN
+model ExecutiveApproval {
+  id                 String                   @id @default(cuid())
+  organizationId     String
+  organization       Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  code               String
+  kind               ExecutiveApprovalKind
+  title              String
+  amountCop          Decimal                  @db.Decimal(14, 2) @default(0)
+  cashflowImpactCop  Decimal                  @db.Decimal(14, 2) @default(0)
+  status             ExecutiveApprovalStatus  @default(PENDING)
+  payload            Json?
+  requestedById      String?
+  signedById         String?
+  signedAt           DateTime?
+  pinVerified        Boolean                  @default(false)
+  rejectReason       String?
+  meta               Json?
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+
+  @@unique([organizationId, code])
+  @@index([organizationId, status, kind])
+  @@index([signedById, signedAt])
+}
+
+/// War Room Gerencia — canal directo con directores
+model GerenciaWarRoomSession {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  code           String
+  topic          String
+  status         String   @default("OPEN")
+  openedById     String
+  directors      String[]
+  bottleneck     String?
+  chatChannel    String?
+  videoLink      String?
+  closedAt       DateTime?
+  meta           Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([organizationId, code])
+  @@index([organizationId, status, createdAt])
+}
+
+/// Smart Legal Scan — revisión asistida de contratos vs políticas FSG
+model LegalContractScan {
+  id                 String          @id @default(cuid())
+  organizationId     String
+  organization       Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  code               String
+  contractTitle      String
+  contractKind       String          @default("B2B")
+  fileRef            String?
+  status             LegalScanStatus @default(PENDING)
+  /// Cláusulas de penalidad que exceden estándar FSG
+  flaggedClauses     Json
+  maxPenaltyPctFound Float?
+  policyMaxPenaltyPct Float
+  commentsThread     Json?
+  scannedById        String?
+  sealedAt           DateTime?
+  meta               Json?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  @@unique([organizationId, code])
+  @@index([organizationId, status, createdAt])
+}
+
+/// Expediente probatorio digital inmutable (placa → PDF sellado)
+model EvidentiaryPackage {
+  id             String                    @id @default(cuid())
+  organizationId String
+  organization   Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  code           String
+  plate          String
+  vehicleId      String?
+  tripId         String?
+  contentHash    String
+  pdfRef         String
+  status         EvidentiaryPackageStatus  @default(GENERATED)
+  sectionsJson   Json
+  preopCount     Int                       @default(0)
+  gpsPointCount  Int                       @default(0)
+  workOrderCount Int                       @default(0)
+  generatedById  String?
+  sealedAt       DateTime?
+  meta           Json?
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+
+  @@unique([organizationId, code])
+  @@index([organizationId, plate])
+  @@index([contentHash])
+}
+
+/// Calendario judicial — audiencias y plazos inamovibles
+model JudicialCalendarEvent {
+  id             String            @id @default(cuid())
+  organizationId String
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  title          String
+  kind           JudicialEventKind @default(AUDIENCIA)
+  dueAt          DateTime
+  immutable      Boolean           @default(true)
+  alertRed       Boolean           @default(true)
+  caseRef        String?
+  notes          String?
+  createdById    String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@index([organizationId, dueAt])
+  @@index([kind, dueAt])
+}
+
+/// Memorando de descargos disciplinarios + evidencias GPS
+model DisciplinaryMemo {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  code           String
+  subjectName    String
+  document       String?
+  plate          String?
+  charge         String
+  gpsEvidence    Json?
+  attachments    Json?
+  status         String   @default("ISSUED")
+  createdById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([organizationId, code])
+  @@index([organizationId, createdAt])
+  @@index([plate])
+}
+
+/// Pipeline onboarding afiliado / flota externa (Módulo 13)
+model AffiliateOnboarding {
+  id               String       @id @default(cuid())
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  code             String
+  /// RECEIVED | VALIDATING_DOCS | CONTRACT_SIGN | ACTIVE_FLEET | REJECTED
+  stage            String       @default("RECEIVED")
+  ownerName        String
+  ownerDocument    String
+  ownerEmail       String?
+  ownerPhone       String?
+  plate            String?
+  vehicleId        String?
+  contractPdfRef   String?
+  contractSignedAt DateTime?
+  assignedToId     String?
+  notes            String?
+  meta             Json?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  portalLinks      AffiliatePortalLink[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, stage, createdAt])
+  @@index([ownerDocument])
+  @@index([plate])
+}
+
+/// Link auto-servicio propietario (OCR + docs)
+model AffiliatePortalLink {
+  id               String       @id @default(cuid())
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  onboardingId     String?
+  onboarding       AffiliateOnboarding? @relation(fields: [onboardingId], references: [id], onDelete: SetNull)
+  token            String       @unique
+  ownerEmail       String?
+  ownerName        String?
+  expiresAt        DateTime
+  usedAt           DateTime?
+  createdById      String
+  meta             Json?
+  createdAt        DateTime     @default(now())
+
+  @@index([organizationId, expiresAt])
+  @@index([onboardingId])
+}
+
+/// Background check SIMIT + RUNT por cédula conductor
+model DriverBackgroundCheck {
+  id               String       @id @default(cuid())
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  document         String
+  driverId         String?
+  driverName       String?
+  /// GREEN | AMBER | RED
+  riskLight        String
+  simitFinesCount  Int          @default(0)
+  simitTotalCop    Float        @default(0)
+  runtLicenseValid Boolean      @default(false)
+  runtLicenseExpiresAt DateTime?
+  diagnosis        String
+  rawPayload       Json?
+  checkedById      String?
+  createdAt        DateTime     @default(now())
+
+  @@index([organizationId, document, createdAt])
+  @@index([riskLight, createdAt])
+  @@index([driverId])
+}
+
 // =============================================================================
 // 2. FLOTA — VEHÍCULOS, CONDUCTORES Y COMPLIANCE (SOAT / RUNT / LICENCIAS)
 //     Kill-Switch: complianceBlocked / nightRestricted bloquean despacho
@@ -843,6 +1389,8 @@ model Vehicle {
   status               VehicleStatus @default(AVAILABLE)
   lat                  Float         @default(4.711)
   lng                  Float         @default(-74.0721)
+  /// Rendimiento esperado km/galón (Smart Audit combustible)
+  expectedKmPerGallon Float?
   odometerKm           Int           @default(0)
   maintenanceEveryKm   Int           @default(10000)
   /// Hard-Stop operativo (SOAT/FUEC/licencias vencidas, Kafka tramites.vehiculo.suspendido)
@@ -860,6 +1408,7 @@ model Vehicle {
   trips            Trip[]
   planillas        Planilla[]
   workOrders       WorkOrder[]
+  fleetStops       FleetStop[]
   fuecDocuments    FuecDocument[]
   complianceDocs   ComplianceDocument[]
   parkingLogs      ParkingLog[]
@@ -879,6 +1428,36 @@ model Vehicle {
   @@index([status, complianceBlocked])
 }
 
+/// Parada de flota sincronizada — aprobación Director Operativo (Módulo 9)
+model FleetStop {
+  id               String          @id @default(cuid())
+  code             String
+  kind             FleetStopKind   @default(PREVENTIVE_MAINTENANCE)
+  status           FleetStopStatus @default(PENDING)
+  reason           String
+  windowStart      DateTime
+  windowEnd        DateTime
+  vehicleId        String
+  vehicle          Vehicle         @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  workOrderId      String?
+  requestedById    String?
+  approvedById     String?
+  approvedBy       User?           @relation("FleetStopApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt       DateTime?
+  /// Bloquea programación Gantt en la ventana
+  blocksGantt      Boolean         @default(true)
+  meta             Json?
+  organizationId   String
+  organization     Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@unique([organizationId, code])
+  @@index([organizationId, status, windowStart])
+  @@index([vehicleId, status, windowStart])
+  @@index([status, windowEnd])
+}
+
 model Driver {
   id               String       @id @default(cuid())
   name             String
@@ -889,6 +1468,8 @@ model Driver {
   licenseCategory  String?
   active           Boolean      @default(true)
   fatigueScore     Int          @default(0)
+  /// Driver Score seguridad vial (100 = nominal; baja con excesos/frenadas)
+  safetyScore      Int          @default(100)
   /// Bloqueo por licencia vencida / fatiga / RRHH
   dispatchBlocked  Boolean      @default(false)
   blockReason      String?
@@ -1017,6 +1598,8 @@ model Trip {
   route          Route?       @relation(fields: [routeId], references: [id], onDelete: SetNull)
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  /// Publicación App conductor (itinerario / ack lectura)
+  meta           Json?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -1032,6 +1615,9 @@ model Trip {
   deviationRequests TripDeviationRequest[]
   chatMessages   TripChatMessage[]
   fieldIncidents TripFieldIncident[]
+  /// Facturación anticipada — bloquea Despacho hasta PAID
+  advancePaymentRequired Boolean @default(false)
+  advancePaymentLink     CommercialAdvancePaymentLink?
 
   @@unique([code])
   @@index([organizationId, status])
@@ -1040,6 +1626,7 @@ model Trip {
   @@index([driverId, status])
   @@index([customerId])
   @@index([status, departAt])
+  @@index([advancePaymentRequired, status])
 }
 
 /// Auditoría inmutable vinculada al servicio
@@ -1322,6 +1909,293 @@ model GpsSnapshot {
   @@index([recordedAt])
 }
 
+/// Sesión radar geocerca dinámica — Field Commander (Módulo 9.2)
+model FieldGeofenceSession {
+  id               String       @id @default(cuid())
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  coordinatorId    String
+  customerId       String?
+  lat              Float
+  lng              Float
+  radiusKm         Float        @default(5)
+  active           Boolean      @default(true)
+  meta             Json?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@index([organizationId, coordinatorId, active])
+  @@index([organizationId, customerId])
+}
+
+/// Auditoría Express / Falla de calidad en sitio (Mini-QHSE)
+model FieldSiteAudit {
+  id               String       @id @default(cuid())
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  code             String
+  tripId           String?
+  vehicleId        String?
+  plate            String?
+  coordinatorId    String
+  kind             String       @default("QUALITY_FAIL_ONSITE")
+  notes            String?
+  photoRef         String?
+  requestReplacement Boolean    @default(false)
+  status           String       @default("OPEN")
+  meta             Json?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@unique([organizationId, code])
+  @@index([organizationId, status, createdAt])
+  @@index([tripId])
+  @@index([vehicleId])
+}
+
+/// Abordaje manual / override (offline-capable) — sync diferida
+model FieldBoardingOverride {
+  id               String       @id @default(cuid())
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  tripId           String
+  coordinatorId    String
+  passengerName    String?
+  passengerDocument String?
+  passengerId      String?
+  boardingPassId   String?
+  /// client-generated UUID for offline dedupe
+  clientEventId    String
+  capturedAt       DateTime
+  syncedAt         DateTime?
+  syncStatus       String       @default("PENDING") // PENDING | SYNCED | CONFLICT
+  offline          Boolean      @default(false)
+  lat              Float?
+  lng              Float?
+  meta             Json?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@unique([organizationId, clientEventId])
+  @@index([organizationId, syncStatus, capturedAt])
+  @@index([tripId, capturedAt])
+  @@index([coordinatorId, syncStatus])
+}
+
+/// Desvío de geocerca / tubo virtual — Monitoreo por Excepción (Módulo 10)
+model WatchtowerDeviation {
+  id               String       @id @default(cuid())
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  code             String
+  tripId           String?
+  vehicleId        String?
+  plate            String?
+  driverId         String?
+  /// Tipificación operativa del desvío
+  tipificacion     String
+  notes            String?
+  lat              Float?
+  lng              Float?
+  /// VoIP al conductor + SMS al cliente
+  voipInitiated    Boolean      @default(false)
+  smsToCustomer    Boolean      @default(false)
+  alarmTriggered   Boolean      @default(true)
+  status           String       @default("OPEN")
+  tipificadoById   String?
+  meta             Json?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@unique([organizationId, code])
+  @@index([organizationId, status, createdAt])
+  @@index([vehicleId, createdAt])
+  @@index([tripId])
+}
+
+/// War Room / SOS — DEFCON 1 (Módulo 10)
+model WatchtowerSosSession {
+  id               String       @id @default(cuid())
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  code             String
+  tripId           String?
+  vehicleId        String?
+  plate            String?
+  driverId         String?
+  activatedById    String
+  defconLevel      Int          @default(1)
+  status           String       @default("ACTIVE") // ACTIVE | CLOSED | CANCELLED
+  ambientListen    Boolean      @default(true)
+  cabinStream      Boolean      @default(true)
+  policeContacted  Boolean      @default(false)
+  directorNotified Boolean      @default(false)
+  engineShutdownAuthorized Boolean @default(false)
+  checklist        Json?
+  confirmedAt      DateTime?
+  closedAt         DateTime?
+  notes            String?
+  meta             Json?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  iotCommands      WatchtowerIotCommand[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, status, createdAt])
+  @@index([vehicleId, status])
+}
+
+/// Comando IoT (apagado remoto motor) — requiere SOS confirmado
+model WatchtowerIotCommand {
+  id               String       @id @default(cuid())
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sosSessionId     String
+  sosSession       WatchtowerSosSession @relation(fields: [sosSessionId], references: [id], onDelete: Cascade)
+  vehicleId        String?
+  plate            String?
+  command          String       @default("ENGINE_SHUTDOWN")
+  status           String       @default("PENDING") // PENDING | SENT | ACK | FAILED | REJECTED
+  requestedById    String
+  confirmedProtocol Boolean     @default(false)
+  payload          Json?
+  transmittedAt    DateTime?
+  ackAt            DateTime?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@index([organizationId, command, createdAt])
+  @@index([sosSessionId])
+  @@index([vehicleId, createdAt])
+}
+
+/// Intervención fatiga — zona amarilla + parada 15 km
+model WatchtowerFatigueAlert {
+  id               String       @id @default(cuid())
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  driverId         String
+  vehicleId        String?
+  plate            String?
+  tripId           String?
+  fatigueScore     Int
+  zone             String       @default("YELLOW")
+  stopInstructionKm Int         @default(15)
+  stopInstructedAt DateTime?
+  ignored          Boolean      @default(false)
+  qhseEscalated    Boolean      @default(false)
+  qhseTicketId     String?
+  status           String       @default("OPEN")
+  meta             Json?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@index([organizationId, status, createdAt])
+  @@index([driverId, createdAt])
+}
+
+/// Hallazgo Control Interno — ciclo Abierta → En Descargos → Cerrada con Plan de Mejora
+model InternalFinding {
+  id               String       @id @default(cuid())
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  code             String
+  title            String
+  description      String?
+  category         String       @default("OPERATIVA") // FINANCIERA | OPERATIVA | COMBUSTIBLE | OVERRIDE
+  /// OPEN | IN_DISCHARGE | CLOSED_IMPROVEMENT_PLAN
+  status           String       @default("OPEN")
+  severity         String       @default("MEDIUM")
+  areaResponsible  String?
+  evidenceRef      String?
+  dischargeNotes   String?
+  improvementPlan  String?
+  relatedEntity    String?
+  relatedEntityId  String?
+  createdById      String
+  closedAt         DateTime?
+  meta             Json?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@unique([organizationId, code])
+  @@index([organizationId, status, createdAt])
+  @@index([category, status])
+}
+
+/// Hard-Block preventivo de pagos (cambio cuenta bancaria proveedor)
+model PaymentHardBlock {
+  id               String       @id @default(cuid())
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  code             String
+  supplierId       String
+  reason           String
+  previousAccount  String?
+  newAccount       String?
+  auditLogId       String?
+  active           Boolean      @default(true)
+  createdById      String?
+  ipAddress        String?
+  releasedAt       DateTime?
+  releasedById     String?
+  meta             Json?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@unique([organizationId, code])
+  @@index([organizationId, active, createdAt])
+  @@index([supplierId, active])
+}
+
+/// Historial de cambio de cuenta bancaria proveedor
+model SupplierBankAccountChange {
+  id               String       @id @default(cuid())
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  supplierId       String
+  supplier         Supplier     @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  previousAccount  String?
+  newAccount       String
+  previousBank     String?
+  newBank          String?
+  changedById      String?
+  ipAddress        String?
+  hardBlockId      String?
+  createdAt        DateTime     @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([supplierId, createdAt])
+}
+
+/// Snapshot Smart Audit combustible (galones vs GPS vs rendimiento)
+model ForensicFuelAudit {
+  id               String       @id @default(cuid())
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  code             String
+  vehicleId        String?
+  plate            String
+  periodFrom       DateTime
+  periodTo         DateTime
+  gallonsPaid      Float
+  kmGps            Float
+  expectedKmPerGallon Float
+  actualKmPerGallon Float?
+  deviationPct     Float
+  anomalyScore     Float        @default(0)
+  heatLevel        String       @default("GREEN") // GREEN | AMBER | RED
+  findingId        String?
+  meta             Json?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@unique([organizationId, code])
+  @@index([organizationId, heatLevel, createdAt])
+  @@index([plate, createdAt])
+  @@index([vehicleId, createdAt])
+}
+
 enum RouteExpenseKind {
   PEAJE
   TANQUEO
@@ -1380,6 +2254,16 @@ model WorkOrder {
   description      String
   status           WorkOrderStatus @default(OPEN)
   odometerAtOpen   Int?
+  /// Bahía / floor plan (ej. BAY-A1)
+  bayCode          String?
+  /// ROUTINE | PREVENTIVE | CRITICAL
+  severity         String          @default("ROUTINE")
+  /// PENDING | PASSED | FAILED
+  qcStatus         String          @default("PENDING")
+  qcApprovedAt     DateTime?
+  qcApprovedById   String?
+  /// Alerta preventiva: km restantes al intervalo
+  predictiveKmLeft Int?
   vehicleId        String
   vehicle          Vehicle         @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
   assignedToId     String?
@@ -1388,17 +2272,23 @@ model WorkOrder {
   organization     Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   openedAt         DateTime        @default(now())
   closedAt         DateTime?
+  meta             Json?
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
 
   requiredParts WorkOrderPart[]
   dispatches    PartDispatch[]
+  timeEntries   MechanicTimeEntry[]
+  findings      MechanicFinding[]
+  prekits       PrekitReservation[]
 
   @@unique([organizationId, code])
   @@index([organizationId, status])
   @@index([vehicleId, status])
   @@index([assignedToId, status])
   @@index([status, openedAt])
+  @@index([bayCode])
+  @@index([qcStatus])
 }
 
 model InventoryItem {
@@ -1421,6 +2311,8 @@ model InventoryItem {
   workOrderParts WorkOrderPart[]
   dispatches     PartDispatch[]
   poLines        PurchaseOrderLine[]
+  requisitions   PurchaseRequisition[]
+  prekits        PrekitReservation[]
 
   @@unique([organizationId, sku])
   @@unique([organizationId, serial])
@@ -1456,11 +2348,84 @@ model PartDispatch {
   photoNewRef        String?
   cvValidationOk     Boolean?
   cvPayload          Json?
+  /// Costo imputado al centro de costo de la placa
+  costCenterPlate    String?
+  costAmount         Decimal?      @db.Decimal(14, 2)
+  mechanicUserId     String?
   dispatchedAt       DateTime      @default(now())
 
   @@index([workOrderId, dispatchedAt])
   @@index([inventoryItemId])
   @@index([dispatchedById, dispatchedAt])
+  @@index([costCenterPlate])
+}
+
+/// Time tracking FSG Tech App (mecánico)
+model MechanicTimeEntry {
+  id             String    @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workOrderId    String
+  workOrder      WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  mechanicId     String
+  taskLabel      String    @default("TAREA")
+  startedAt      DateTime  @default(now())
+  endedAt        DateTime?
+  durationSec    Int?
+  active         Boolean   @default(true)
+  meta           Json?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([organizationId, mechanicId, active])
+  @@index([workOrderId, startedAt])
+}
+
+/// Hallazgo foto/voz del mecánico → aprobación Coordinador
+model MechanicFinding {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workOrderId    String
+  workOrder      WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  mechanicId     String
+  photoRef       String?
+  voiceRef       String?
+  /// Transcripción IA voz→texto
+  transcript     String?
+  notes          String?
+  status         String   @default("PENDING") // PENDING | APPROVED | REJECTED
+  reviewedById   String?
+  reviewedAt     DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId, status, createdAt])
+  @@index([workOrderId])
+  @@index([mechanicId])
+}
+
+/// Pre-kitting — reserva de insumos 500 km antes del preventivo
+model PrekitReservation {
+  id              String   @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workOrderId     String?
+  workOrder       WorkOrder? @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
+  vehicleId       String
+  plate           String
+  inventoryItemId String
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
+  quantity        Int      @default(1)
+  status          String   @default("RESERVED") // RESERVED | CONSUMED | RELEASED
+  predictiveKmLeft Int?
+  logisticsWindow Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([organizationId, status])
+  @@index([vehicleId, status])
+  @@index([workOrderId])
 }
 
 // =============================================================================
@@ -1479,19 +2444,81 @@ model Supplier {
   sarlaftRiskScore Int        @default(0)
   /// SKUs / categorías que ofrece (smart bidding)
   productTags    String[]
+  /// Calificación Vendor Hub (1–5)
+  rating         Float        @default(4)
+  /// Ahorro acumulado vs precio de lista (COP)
+  totalSavings   Decimal      @db.Decimal(14, 2) @default(0)
+  /// Cuenta bancaria dispersión (cambio dispara Hard-Block)
+  bankAccountNumber String?
+  bankName          String?
+  paymentHardBlocked Boolean      @default(false)
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
   purchaseOrders PurchaseOrder[]
+  purchaseBids   PurchaseBid[]
   inventoryItems InventoryItem[]
   invoices       Invoice[]
   archiveDocuments ArchiveDocument[]
+  bankAccountChanges SupplierBankAccountChange[]
 
   @@unique([organizationId, nit])
   @@index([organizationId, active])
   @@index([organizationId, sarlaftBlocked])
+  @@index([organizationId, rating])
+  @@index([organizationId, paymentHardBlocked])
+}
+
+/// Requisición Taller / stock crítico → Smart Bidding
+model PurchaseRequisition {
+  id               String             @id @default(cuid())
+  code             String
+  title            String
+  urgency          RequisitionUrgency @default(LOW_STOCK)
+  status           RequisitionStatus  @default(OPEN)
+  quantity         Int                @default(1)
+  inventoryItemId  String?
+  inventoryItem    InventoryItem?     @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
+  sku              String?
+  notes            String?
+  selectedBidId    String?
+  purchaseOrderId  String?
+  meta             Json?
+  organizationId   String
+  organization     Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  bids PurchaseBid[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, urgency, status])
+  @@index([organizationId, status, createdAt])
+  @@index([inventoryItemId])
+}
+
+model PurchaseBid {
+  id               String              @id @default(cuid())
+  requisitionId    String
+  requisition      PurchaseRequisition @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
+  supplierId       String
+  supplier         Supplier            @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  unitPrice        Decimal             @db.Decimal(14, 2)
+  leadDays         Int                 @default(3)
+  selected         Boolean             @default(false)
+  /// Link seguro para cotización del proveedor
+  secureToken      String              @unique
+  expiresAt        DateTime
+  respondedAt      DateTime?
+  notes            String?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  @@index([requisitionId, selected])
+  @@index([supplierId])
+  @@index([secureToken])
 }
 
 model PurchaseOrder {
@@ -1503,6 +2530,8 @@ model PurchaseOrder {
   currency        String         @default("COP")
   matchStatus     ThreeWayMatchStatus @default(PENDING)
   matchNotes      String?
+  /// Meta: PDF OC, escalamiento CFO, bid, seguro/SOAT
+  meta            Json?
   supplierId      String?
   supplier        Supplier?      @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   approvedById    String?
@@ -1607,6 +2636,11 @@ model Customer {
   pqrsTickets   Ticket[]
   passengers    PassengerProfile[]
   b2bRequests   B2bServiceRequest[]
+  commercialDeals CommercialDeal[]
+  advancePayments CommercialAdvancePaymentLink[]
+  callLogs      CommercialCallLog[]
+  commercialTasks CommercialTask[]
+  timelineEvents CommercialTimelineEvent[]
 
   @@unique([organizationId, nit])
   @@index([organizationId, segment])
@@ -1655,6 +2689,13 @@ model TransportContract {
   startsAt           DateTime
   endsAt             DateTime?
   status             ContractStatus    @default(DRAFT)
+  /// Firma electrónica (DocuSign / AdobeSign)
+  signatureProvider  String?
+  signedAt           DateTime?
+  costCenterId       String?
+  costCenter         CostCenter?       @relation(fields: [costCenterId], references: [id], onDelete: SetNull)
+  npsScore           Float?
+  portfolioCompliancePct Float?
   customerId         String
   customer           Customer          @relation(fields: [customerId], references: [id], onDelete: Cascade)
   organizationId     String
@@ -1664,12 +2705,17 @@ model TransportContract {
 
   trips Trip[]
   b2bRequests B2bServiceRequest[]
+  commercialDeal CommercialDeal?
+  docuSignEnvelopes DocuSignEnvelope[]
+  capacityRequests CapacityPlanningRequest[]
+  recurringBillings RecurringBillingSchedule[]
 
   @@unique([organizationId, code])
   @@index([organizationId, status])
   @@index([customerId, status])
   @@index([secopProcessId])
   @@index([endsAt])
+  @@index([costCenterId])
 }
 
 /// Snapshot local de oportunidades SECOP II (B2G)
@@ -1694,6 +2740,323 @@ model SecopOpportunity {
   @@unique([organizationId, processId])
   @@index([organizationId, status, closeAt])
   @@index([category, status])
+}
+
+/// Oportunidad B2B — pipeline Dirección Comercial
+model CommercialDeal {
+  id                     String             @id @default(cuid())
+  organizationId         String
+  organization           Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  code                   String
+  accountName            String
+  customerId             String?
+  customer               Customer?          @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  stage                  SalesPipelineStage @default(NUEVO_LEAD)
+  estimatedMonthlyValue  Decimal            @db.Decimal(14, 2) @default(0)
+  zone                   String             @default("BOGOTA")
+  vehicleType            String?
+  distanceKm             Float?
+  ownerUserId            String?
+  /// Sector comercial (round-robin / conversión)
+  sector                 String             @default("GENERAL")
+  /// SLA de primer contacto (Módulo 15)
+  assignedAt             DateTime?
+  firstContactAt         DateTime?
+  slaDeadlineAt          DateTime?
+  slaStatus              LeadSlaStatus      @default(OK)
+  slaBreached            Boolean            @default(false)
+  reassignedFromUserId   String?
+  reassignedAt           DateTime?
+  npsScore               Float?
+  portfolioCompliancePct Float?
+  contractId             String?            @unique
+  contract               TransportContract? @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  costCenterId           String?            @unique
+  costCenter             CostCenter?        @relation(fields: [costCenterId], references: [id], onDelete: SetNull)
+  wonAt                  DateTime?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+
+  quotes            CommercialIntelligentQuote[]
+  envelopes         DocuSignEnvelope[]
+  capacityRequests  CapacityPlanningRequest[]
+  recurringBillings RecurringBillingSchedule[]
+  advancePayments   CommercialAdvancePaymentLink[]
+  callLogs          CommercialCallLog[]
+  tasks             CommercialTask[]
+  timelineEvents    CommercialTimelineEvent[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, stage])
+  @@index([customerId])
+  @@index([wonAt])
+  @@index([ownerUserId, stage])
+  @@index([slaStatus, assignedAt])
+  @@index([sector, ownerUserId])
+}
+
+/// Cotización inteligente B2B (costo real $/km + guardrails de margen)
+model CommercialIntelligentQuote {
+  id                 String      @id @default(cuid())
+  organizationId     String
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  dealId             String
+  deal               CommercialDeal @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  costPerKmReal      Decimal     @db.Decimal(14, 4)
+  proposedRatePerKm  Decimal     @db.Decimal(14, 4)
+  marginPct          Float
+  discountPct        Float       @default(0)
+  fuelCostPerKm      Decimal     @db.Decimal(14, 4)
+  tireCostPerKm      Decimal     @db.Decimal(14, 4)
+  salaryCostPerKm    Decimal     @db.Decimal(14, 4)
+  workshopCostPerKm  Decimal     @db.Decimal(14, 4)
+  requiresCfoApproval Boolean    @default(false)
+  cfoApproved        Boolean     @default(false)
+  cfoApprovedAt      DateTime?
+  /// Escalamiento descuento gestor (> 5%)
+  discountEscalationPending Boolean @default(false)
+  /// Aprobación Nivel 1 — Coordinador Comercial
+  coordinatorApproved Boolean @default(false)
+  coordinatorApprovedAt DateTime?
+  coordinatorApprovedById String?
+  /// Condiciones de aprobación (ej. firma a 2 años)
+  approvalConditions Json?
+  escalatedToCfo     Boolean @default(false)
+  ebitdaImpactPct    Float?
+  createdById        String?
+  sentAt             DateTime?
+  openedAt           DateTime?
+  pdfRef             String?
+  status             QuoteStatus @default(DRAFT)
+  calcJson           Json?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  @@index([organizationId, createdAt])
+  @@index([dealId, status])
+  @@index([createdById, createdAt])
+  @@index([discountEscalationPending, escalatedToCfo])
+}
+
+/// Sobre de firma electrónica (DocuSign / AdobeSign mock)
+model DocuSignEnvelope {
+  id                  String                 @id @default(cuid())
+  organizationId      String
+  organization        Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  dealId              String
+  deal                CommercialDeal         @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  contractId          String?
+  contract            TransportContract?     @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  provider            String                 @default("DOCUSIGN_MOCK")
+  externalEnvelopeId  String
+  status              DocuSignEnvelopeStatus @default(CREATED)
+  signerEmail         String
+  signedAt            DateTime?
+  meta                Json?
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+
+  @@unique([organizationId, externalEnvelopeId])
+  @@index([dealId, status])
+  @@index([contractId])
+}
+
+/// Requerimiento a Capacity Planning (Torre) al cerrar ganado
+model CapacityPlanningRequest {
+  id               String   @id @default(cuid())
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  dealId           String
+  deal             CommercialDeal @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  contractId       String?
+  contract         TransportContract? @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  vehiclesRequired Int      @default(1)
+  routeLabel       String
+  status           String   @default("PENDING")
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([organizationId, status])
+  @@index([dealId])
+}
+
+/// Facturación recurrente programada en Tesorería al cerrar ganado
+model RecurringBillingSchedule {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  dealId         String
+  deal           CommercialDeal @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  contractId     String?
+  contract       TransportContract? @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  customerId     String?
+  amountMonthly  Decimal  @db.Decimal(14, 2)
+  currency       String   @default("COP")
+  dayOfMonth     Int      @default(1)
+  nextInvoiceAt  DateTime
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId, active, nextInvoiceAt])
+  @@index([dealId])
+}
+
+/// Link de cobro anticipado (PSE/Tarjeta) — bloquea pase a Despacho hasta PAID
+model CommercialAdvancePaymentLink {
+  id                   String               @id @default(cuid())
+  organizationId       String
+  organization         Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  code                 String
+  token                String               @unique
+  amount               Decimal              @db.Decimal(14, 2)
+  currency             String               @default("COP")
+  method               AdvancePaymentMethod @default(PSE)
+  status               AdvancePaymentStatus @default(PENDING)
+  checkoutUrl          String
+  customerId           String?
+  customer             Customer?            @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  dealId               String?
+  deal                 CommercialDeal?      @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  tripId               String?              @unique
+  trip                 Trip?                @relation(fields: [tripId], references: [id], onDelete: SetNull)
+  createdById          String
+  paidAt               DateTime?
+  treasuryConfirmedAt  DateTime?
+  treasuryConfirmedById String?
+  /// false mientras PENDING — Despacho no puede tomar la tarjeta
+  dispatchUnlocked     Boolean              @default(false)
+  meta                 Json?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+
+  @@unique([organizationId, code])
+  @@index([organizationId, status])
+  @@index([createdById, status])
+  @@index([dealId])
+}
+
+/// Llamada del marcador integrado + notas de voz
+model CommercialCallLog {
+  id                   String    @id @default(cuid())
+  organizationId       String
+  organization         Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  ownerUserId          String
+  customerId           String?
+  customer             Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  dealId               String?
+  deal                 CommercialDeal? @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  phone                String
+  direction            String    @default("OUTBOUND")
+  durationSec          Int?
+  outcome              String?
+  voiceNoteRef         String?
+  voiceNoteTranscript  String?
+  startedAt            DateTime  @default(now())
+  endedAt              DateTime?
+  priorityScore        Int       @default(50)
+  createdAt            DateTime  @default(now())
+
+  tasks CommercialTask[]
+
+  @@index([organizationId, ownerUserId, startedAt])
+  @@index([customerId, startedAt])
+  @@index([dealId])
+}
+
+/// Tareas diarias del gestor (llamadas / correos / reuniones)
+model CommercialTask {
+  id             String             @id @default(cuid())
+  organizationId String
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  ownerUserId    String
+  kind           CommercialTaskKind @default(CALL)
+  title          String
+  dueAt          DateTime
+  completedAt    DateTime?
+  priority       Int                @default(50)
+  customerId     String?
+  customer       Customer?          @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  dealId         String?
+  deal           CommercialDeal?    @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  callLogId      String?
+  callLog        CommercialCallLog? @relation(fields: [callLogId], references: [id], onDelete: SetNull)
+  meta           Json?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@index([organizationId, ownerUserId, dueAt])
+  @@index([completedAt])
+}
+
+/// Timeline estilo muro — interacciones del cliente
+model CommercialTimelineEvent {
+  id             String                 @id @default(cuid())
+  organizationId String
+  organization   Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customerId     String?
+  customer       Customer?              @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  dealId         String?
+  deal           CommercialDeal?        @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  ownerUserId    String?
+  kind           CommercialTimelineKind
+  title          String
+  body           String?
+  meta           Json?
+  createdAt      DateTime               @default(now())
+
+  @@index([organizationId, customerId, createdAt])
+  @@index([dealId, createdAt])
+  @@index([ownerUserId, createdAt])
+}
+
+/// Proyecto de licitación B2G / SECOP — Bidding Tracker
+model BiddingProject {
+  id                 String               @id @default(cuid())
+  organizationId     String
+  organization       Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  code               String
+  title              String
+  processId          String?
+  entityName         String
+  modality           String               @default("Licitación pública")
+  category           String               @default("ESPECIAL")
+  estimatedValue     Decimal?             @db.Decimal(14, 2)
+  /// Fecha límite inamovible del proceso SECOP
+  closeAt            DateTime
+  status             BiddingProjectStatus @default(OPEN)
+  progressPct        Float                @default(0)
+  secopOpportunityId String?
+  createdById        String
+  notes              String?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  tasks BiddingProjectTask[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, status, closeAt])
+  @@index([processId])
+}
+
+model BiddingProjectTask {
+  id             String            @id @default(cuid())
+  projectId      String
+  project        BiddingProject    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  department     BiddingTaskDept
+  title          String
+  /// Deadline inamovible interdepartamental
+  dueAt          DateTime
+  status         BiddingTaskStatus @default(PENDING)
+  assigneeHint   String?
+  completedAt    DateTime?
+  immutableDue   Boolean           @default(true)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@index([projectId, department])
+  @@index([dueAt, status])
 }
 
 // =============================================================================
@@ -1997,19 +3360,22 @@ model JournalLine {
   @@index([costCenterPlate])
 }
 
-/// Centro de costo contable vinculado a placa / vehículo
+/// Centro de costo contable vinculado a placa / vehículo / contrato B2B
 model CostCenter {
   id             String   @id @default(cuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   code           String
-  /// Placa canónica (ABC-123)
+  /// Placa canónica (ABC-123) o identificador B2B (B2B-CTR-…)
   plate          String
   vehicleId      String?
   name           String?
   active         Boolean  @default(true)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+
+  commercialDeal CommercialDeal?
+  contracts      TransportContract[]
 
   @@unique([organizationId, plate])
   @@unique([organizationId, code])
@@ -2050,6 +3416,70 @@ model ForensicFinding {
 
   @@index([organizationId, status])
   @@index([organizationId, severity])
+}
+
+/// Periodo contable — Hard Lock de Revisoría Fiscal (Truth Hub)
+model AccountingPeriod {
+  id             String                  @id @default(cuid())
+  organizationId String
+  organization   Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  /// YYYY-MM
+  yearMonth      String
+  status         AccountingPeriodStatus  @default(OPEN)
+  hardLockedAt   DateTime?
+  hardLockedById String?
+  dictamenId     String?                 @unique
+  dictamen       FiscalDictamen?         @relation(fields: [dictamenId], references: [id], onDelete: SetNull)
+  meta           Json?
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+
+  @@unique([organizationId, yearMonth])
+  @@index([organizationId, status])
+  @@index([status, yearMonth])
+}
+
+/// Dictamen de Revisoría Fiscal (PDF + firma digital)
+model FiscalDictamen {
+  id              String       @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  yearMonth       String
+  pdfRef          String
+  signatureHash   String
+  signedAt        DateTime     @default(now())
+  signedById      String?
+  opinion         String       @default("SIN_SALVEDADES")
+  notes           String?
+  meta            Json?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  period          AccountingPeriod?
+
+  @@unique([organizationId, yearMonth])
+  @@index([organizationId, signedAt])
+  @@index([signatureHash])
+}
+
+/// Nota de auditoría fiscal — etiqueta Contabilidad / DIAN
+model FiscalAuditNote {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoiceId      String?
+  yearMonth      String?
+  taggedModule   String       @default("CONTABILIDAD")
+  title          String
+  body           String
+  severity       String       @default("MEDIUM")
+  status         String       @default("OPEN")
+  createdById    String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId, status, createdAt])
+  @@index([invoiceId])
+  @@index([yearMonth])
 }
 
 // =============================================================================
@@ -2638,6 +4068,155 @@ model YardEvent {
   @@index([organizationId, kind, createdAt])
   @@index([vehicleId, createdAt])
 }
+
+/// Cola de lavado priorizada — Smart Yard App
+model YardWashJob {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  plate          String
+  vehicleId      String?
+  priority       Int      @default(50)
+  status         String   @default("QUEUED") // QUEUED | WASHING | DONE | SKIPPED
+  bayCode        String?
+  notes          String?
+  assignedToId   String?
+  completedAt    DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId, status, priority])
+  @@index([plate])
+}
+
+/// Parqueo inteligente LIFO — carril/bahía por hora de salida
+model YardParkingSlot {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  laneCode       String
+  bayCode        String
+  plate          String?
+  vehicleId      String?
+  scheduledDepartAt DateTime?
+  occupiedAt     DateTime?
+  status         String   @default("FREE") // FREE | OCCUPIED | RESERVED
+  meta           Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([organizationId, laneCode, bayCode])
+  @@index([organizationId, status, scheduledDepartAt])
+  @@index([plate])
+}
+
+/// Alcoholimetría previa a salida de talanquera
+model AlcoholCheck {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  driverId       String?
+  plate          String?
+  passed         Boolean
+  readingMgL     Float?
+  checkedAt      DateTime @default(now())
+  expiresAt      DateTime?
+  meta           Json?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, driverId, checkedAt])
+  @@index([plate, checkedAt])
+  @@index([passed, expiresAt])
+}
+
+/// SOS Pilot App — multicanal
+model PilotSosAlert {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  code           String
+  category       String   // CHOQUE | FALLA_MECANICA | ORDEN_PUBLICO
+  tripId         String?
+  vehicleId      String?
+  plate          String?
+  driverId       String?
+  lat            Float?
+  lng            Float?
+  speedKph       Float?
+  voipChannel    String?
+  status         String   @default("ACTIVE")
+  meta           Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([organizationId, code])
+  @@index([organizationId, status, createdAt])
+  @@index([tripId])
+}
+
+/// Token QR tanqueo — billetera virtual sin efectivo
+model FuelWalletToken {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  tokenQr        String   @unique
+  driverId       String?
+  plate          String?
+  amountCop      Decimal  @db.Decimal(14, 2)
+  status         String   @default("ACTIVE") // ACTIVE | REDEEMED | EXPIRED
+  expiresAt      DateTime?
+  redeemedAt     DateTime?
+  meta           Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId, status])
+  @@index([driverId, status])
+}
+
+/// Conflicto interdepartamental — Subgerencia árbitro N2
+model SubgerenciaConflict {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  code           String
+  title          String
+  parties        String[] // TALLER | LOGISTICA | PATIO | COMERCIAL
+  status         String   @default("OPEN") // OPEN | RESOLVED | ESCALATED
+  resolution     String?
+  resolvedById   String?
+  resolvedAt     DateTime?
+  level          Int      @default(2)
+  meta           Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([organizationId, code])
+  @@index([organizationId, status])
+}
+
+/// Proyecto estratégico Subgerencia — mejora continua
+model SubgerenciaProject {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  code           String
+  title          String
+  status         String   @default("BACKLOG") // BACKLOG | IN_PROGRESS | DONE
+  kind           String   @default("EFICIENCIA") // EFICIENCIA | SATELITE | DEADHEAD
+  deadheadKmSaved Float?
+  ownerId        String?
+  meta           Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([organizationId, code])
+  @@index([organizationId, status])
+}
+
+// =============================================================================
+// 8b. CONTINUACIÓN RRHH / SARLAFT (modelos ya definidos arriba en sección 8)
+// =============================================================================
 
 model SystemAlert {
   id             String       @id @default(cuid())

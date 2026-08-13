@@ -32,8 +32,11 @@ function mockCtx(
 }
 
 describe("DirectiveReadOnlyGuard — Founder's Canvas", () => {
-  it("bloquea POST operativo de Presidencia con 403", () => {
-    const { guard, ctx } = mockCtx("POST", { role: "PRESIDENCIA" });
+  it("bloquea POST operativo de sesión directiva con 403", () => {
+    const { guard, ctx } = mockCtx("POST", {
+      role: "PRESIDENTE",
+      directiveReadOnly: true,
+    });
     try {
       guard.canActivate(ctx);
       throw new Error("expected 403");
@@ -117,12 +120,16 @@ describe("PresidenciaService — canvas KPIs + ExecutiveQueryLog", () => {
           { id: "v3", complianceBlocked: false },
           { id: "v4", complianceBlocked: true },
         ]),
+        count: jest.fn().mockResolvedValue(2),
       },
       paymentSchedule: {
         findMany: jest.fn().mockResolvedValue([
           { amount: 1_000_000, dueDate: new Date("2020-01-01") },
           { amount: 500_000, dueDate: new Date("2099-01-01") },
         ]),
+        aggregate: jest.fn().mockResolvedValue({
+          _sum: { amount: 1_500_000 },
+        }),
       },
       invoice: {
         aggregate: jest.fn().mockResolvedValue({
@@ -140,6 +147,12 @@ describe("PresidenciaService — canvas KPIs + ExecutiveQueryLog", () => {
           { status: ThreeWayMatchStatus.PENDING, _count: { _all: 1 } },
         ]),
       },
+      qualityEvent: {
+        aggregate: jest.fn().mockResolvedValue({
+          _avg: { npsScore: 74 },
+          _count: { _all: 10 },
+        }),
+      },
       executiveQueryLog: { create: executiveCreate },
     };
     return { prisma, executiveCreate };
@@ -148,7 +161,14 @@ describe("PresidenciaService — canvas KPIs + ExecutiveQueryLog", () => {
   it("consolida módulos 04, 06, 08, 09 y 10 y registra ExecutiveQueryLog", async () => {
     const { prisma, executiveCreate } = buildPrisma();
     const kpis = new ExecutiveKpiService(prisma as never);
-    const svc = new PresidenciaService(prisma as never, kpis);
+    const textToSql = { ask: jest.fn() } as unknown as TextToSqlAssistantService;
+    const kafka = { emit: jest.fn().mockResolvedValue(undefined) };
+    const svc = new PresidenciaService(
+      prisma as never,
+      kpis,
+      textToSql,
+      kafka as never,
+    );
 
     const out = await svc.canvasKpis("org-1", "user-presidencia");
 
@@ -170,6 +190,9 @@ describe("PresidenciaService — canvas KPIs + ExecutiveQueryLog", () => {
     expect(out.procurementDiscrepancies.module).toBe("08");
     expect(out.procurementDiscrepancies.rejectedMatches).toBe(2);
     expect(out.procurementDiscrepancies.approvedMatches).toBe(8);
+
+    expect(out.pillars.nps.value).toBe(74);
+    expect(out.pillars.liquidity.label).toBe("Caja Libre");
 
     expect(executiveCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({

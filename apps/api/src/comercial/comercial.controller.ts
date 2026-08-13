@@ -19,6 +19,7 @@ type AuthReq = { user: { organizationId: string; userId: string } };
 @Roles(
   "gestor_comercial",
   "coordinador_comercial",
+  "director_comercial",
   "gerente_general",
   "org_admin",
   "platform_master",

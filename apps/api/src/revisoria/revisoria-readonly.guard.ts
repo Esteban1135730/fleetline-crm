@@ -16,14 +16,28 @@ function isRevisoriaRole(roleRaw: string | undefined): boolean {
   );
 }
 
+/** CREATE permitidos al Revisor: Hard Lock, dictamen y notas de auditoría */
+const REVISOR_MUTATION_ALLOW = [
+  "/revisoria-fiscal/cierre/hard-lock",
+  "/api/v1/revisoria-fiscal/cierre/hard-lock",
+  "/revisoria-fiscal/notas",
+  "/api/v1/revisoria-fiscal/notas",
+  "/revisoria-fiscal/dictamen",
+  "/api/v1/revisoria-fiscal/dictamen",
+];
+
 /**
- * Módulo 11 — cualquier sesión de Revisoría Fiscal es estrictamente GET.
+ * Módulo 11/18 — Revisoría Fiscal es lectura forense.
+ * Excepción: Hard Lock / dictamen / notas (Truth Hub).
  */
 @Injectable()
 export class RevisoriaReadOnlyGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const req = context.switchToHttp().getRequest<{
       method?: string;
+      originalUrl?: string;
+      url?: string;
+      path?: string;
       user?: { role?: string };
     }>();
 
@@ -33,6 +47,16 @@ export class RevisoriaReadOnlyGuard implements CanActivate {
 
     const method = String(req.method || "GET").toUpperCase();
     if (method === "GET" || method === "HEAD" || method === "OPTIONS") {
+      return true;
+    }
+
+    const path = String(req.originalUrl || req.url || req.path || "")
+      .split("?")[0]
+      .toLowerCase();
+
+    if (
+      REVISOR_MUTATION_ALLOW.some((p) => path === p || path.startsWith(`${p}/`))
+    ) {
       return true;
     }
 

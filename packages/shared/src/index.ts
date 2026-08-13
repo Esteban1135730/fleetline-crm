@@ -15,21 +15,31 @@ export const RoleSchema = z.enum([
   "tesoreria",
   "director_financiero",
   "qhse",
+  "lider_qhse",
   "compras",
+  "lider_compras",
   "director_operativo",
   "gestor_operativo",
   "coordinador_operativo",
+  "coordinador_campo",
   "centro_control",
+  "operador_centro_control",
   "control_interno",
+  "auditor_control_interno",
   "presidencia",
+  "presidente",
   "vinculaciones",
+  "gestor_vinculaciones",
   "coordinador_comercial",
   "gestor_comercial",
+  "director_comercial",
   "gerente_general",
   "juridico",
+  "director_juridico",
   "revisor_fiscal",
   "coordinador_taller",
   "auxiliar_contable_taller",
+  "auxiliar_almacen_taller",
   "mecanico",
   "coordinador_patio",
   "auxiliar_patio",
@@ -45,15 +55,20 @@ export const ROLES: Role[] = [
   "platform_master",
   "org_admin",
   "presidencia",
+  "presidente",
   "gerente_general",
   "sub_gerente",
   "director_financiero",
   "director_operativo",
   "control_interno",
+  "auditor_control_interno",
   "revisor_fiscal",
   "centro_control",
+  "operador_centro_control",
   "coordinador_operativo",
+  "coordinador_campo",
   "coordinador_comercial",
+  "director_comercial",
   "coordinador_taller",
   "coordinador_patio",
   "gestor_operativo",
@@ -61,12 +76,17 @@ export const ROLES: Role[] = [
   "gestor_contable",
   "tesoreria",
   "juridico",
+  "director_juridico",
   "qhse",
-  "tecnologia",
+  "lider_qhse",
   "compras",
+  "lider_compras",
+  "tecnologia",
   "vinculaciones",
+  "gestor_vinculaciones",
   "auxiliar_contable",
   "auxiliar_contable_taller",
+  "auxiliar_almacen_taller",
   "auxiliar_patio",
   "archivo",
   "lider_ti",
@@ -98,21 +118,31 @@ export const ROLE_LABELS: Record<Role, string> = {
   tesoreria: "Tesorería",
   director_financiero: "Director financiero",
   qhse: "QHSE",
+  lider_qhse: "Líder QHSE",
   compras: "Compras",
+  lider_compras: "Líder Compras",
   director_operativo: "Director operativo",
   gestor_operativo: "Gestor operativo",
   coordinador_operativo: "Coordinador operativo",
+  coordinador_campo: "Coordinador de campo",
   centro_control: "Centro de control",
+  operador_centro_control: "Operador centro de control",
   control_interno: "Control interno",
+  auditor_control_interno: "Auditor control interno",
   presidencia: "Presidencia",
+  presidente: "Presidente",
   vinculaciones: "Vinculaciones",
+  gestor_vinculaciones: "Gestor vinculaciones",
   coordinador_comercial: "Coordinador comercial",
   gestor_comercial: "Gestor comercial",
+  director_comercial: "Director comercial",
   gerente_general: "Gerente general",
   juridico: "Jurídico",
+  director_juridico: "Director jurídico",
   revisor_fiscal: "Revisor fiscal",
   coordinador_taller: "Coordinador taller",
   auxiliar_contable_taller: "Auxiliar contable taller",
+  auxiliar_almacen_taller: "Auxiliar almacén taller",
   mecanico: "Mecánico",
   coordinador_patio: "Coordinador patio",
   auxiliar_patio: "Auxiliar patio",
@@ -128,15 +158,23 @@ export const ROLE_RANK: Record<string, number> = {
   platform_master: 100,
   org_admin: 95,
   presidencia: 90,
+  presidente: 95,
   gerente_general: 88,
   sub_gerente: 85,
   director_financiero: 82,
   director_operativo: 80,
+  lider_qhse: 72,
+  compras: 60,
+  lider_compras: 68,
   control_interno: 75,
+  auditor_control_interno: 74,
   revisor_fiscal: 72,
   centro_control: 70,
+  operador_centro_control: 71,
   coordinador_operativo: 68,
+  coordinador_campo: 62,
   coordinador_comercial: 68,
+  director_comercial: 78,
   coordinador_taller: 68,
   coordinador_patio: 68,
   gestor_operativo: 65,
@@ -144,13 +182,15 @@ export const ROLE_RANK: Record<string, number> = {
   gestor_contable: 65,
   tesoreria: 60,
   juridico: 60,
-  qhse: 60,
+  director_juridico: 78,
+  qhse: 70,
   lider_ti: 75,
   tecnologia: 75,
-  compras: 60,
   vinculaciones: 60,
+  gestor_vinculaciones: 62,
   auxiliar_contable: 50,
   auxiliar_contable_taller: 50,
+  auxiliar_almacen_taller: 52,
   auxiliar_patio: 50,
   gestor_documental: 55,
   archivo: 55,
@@ -197,6 +237,50 @@ export function normalizeRole(role: string): Role {
     .toLowerCase()
     .trim();
   if (r === "superadmin" || r === "usuario_maestro") return "platform_master";
+  if (r === "lider_qhse" || r === "qhse_lider") return "lider_qhse";
+  if (r === "lider_compras" || r === "compras_lider") return "lider_compras";
+  if (r === "coordinador_campo" || r === "campo" || r === "field_commander")
+    return "coordinador_campo";
+  if (
+    r === "operador_centro_control" ||
+    r === "watchtower" ||
+    r === "operador_cc"
+  )
+    return "operador_centro_control";
+  if (
+    r === "auditor_control_interno" ||
+    r === "auditor_ci" ||
+    r === "forensic" ||
+    r === "forense"
+  )
+    return "auditor_control_interno";
+  if (r === "presidente" || r === "president" || r === "founder" || r === "alejandro")
+    return "presidente";
+  if (
+    r === "gestor_vinculaciones" ||
+    r === "vinculaciones_gestor" ||
+    r === "smart_onboarding"
+  )
+    return "gestor_vinculaciones";
+  if (
+    r === "director_comercial" ||
+    r === "comercial_director" ||
+    r === "felipe"
+  )
+    return "director_comercial";
+  if (
+    r === "director_juridico" ||
+    r === "juridico_director" ||
+    r === "sofia_legal"
+  )
+    return "director_juridico";
+  if (r === "juridico") return "juridico";
+  if (
+    r === "auxiliar_almacen_taller" ||
+    r === "almacen_taller" ||
+    r === "camilo_almacen"
+  )
+    return "auxiliar_almacen_taller";
   if (r === "recepcion" || r === "atencion") return "recepcionista";
   if (r === "supervisor_logistica") return "gestor_operativo";
   if (r === "supervisor") return "centro_control";
@@ -283,8 +367,8 @@ export const MODULE_PATHS: Record<ModuleId, string> = {
   tesoreria: "/tesoreria",
   logistica: "/logistica/servicios",
   comercial: "/comercial",
-  compras: "/compras",
-  qhse: "/qhse",
+  compras: "/compras/dashboard",
+  qhse: "/qhse/dashboard",
   sarlaft: "/sarlaft",
   tramites: "/tramites",
   tecnologia_ti: "/ti/dashboard",
@@ -333,7 +417,7 @@ export const MODULE_HELP: Record<ModuleId, string> = {
     "Coordinación general de operaciones, metas y seguimiento inter-áreas.",
   rrhh: "Expedientes, fatiga PESV, nómina operativa y capacitaciones.",
   revisoria_fiscal:
-    "Hallazgos de revisoría fiscal registrados y seguidos en el CRM.",
+    "Truth Hub: impuestos DIAN, drill-down forense y Hard Lock de periodo.",
   contabilidad: "PUC, asientos de partida doble y balance de prueba.",
   tesoreria: "Facturas por cobrar y por pagar; marcar pago cuando ocurre.",
   logistica:
@@ -354,7 +438,7 @@ export const MODULE_HELP: Record<ModuleId, string> = {
   parqueadero:
     "Ingreso y salida de vehículos en patio con registro real en base de datos.",
   usuarios: "Cuentas de acceso y roles por persona.",
-  juridico: "Documentos FUEC vinculados a vehículos y contratos.",
+  juridico: "Legal Hub 4.0 — contratos, expedientes y SARLAFT.",
   dashboard: "Resumen del día con métricas calculadas desde la base de datos.",
   apps: "Indicadores del CRM por canal operativo. Las apps móviles aún no están integradas.",
 };
@@ -395,19 +479,34 @@ export const ROLE_VIEWS: Record<Role, ModuleId[]> = {
     "qhse",
     "archivo",
   ],
+  presidente: [
+    "presidencia",
+    "gerencia",
+    "dashboard",
+    "comercial",
+    "logistica",
+    "tesoreria",
+    "contabilidad",
+    "compras",
+    "rrhh",
+    "qhse",
+    "taller",
+    "archivo",
+    "revisoria_fiscal",
+    "sarlaft",
+  ],
   gerente_general: [
     "presidencia",
     "gerencia",
     "dashboard",
-    "apps",
     "comercial",
     "logistica",
-    "parqueadero",
-    "tramites",
+    "tesoreria",
+    "contabilidad",
     "taller",
     "compras",
     "rrhh",
-    "call_center",
+    "revisoria_fiscal",
     "qhse",
     "archivo",
     "usuarios",
@@ -425,15 +524,18 @@ export const ROLE_VIEWS: Record<Role, ModuleId[]> = {
     "apps",
   ],
   director_financiero: [
-    "dashboard",
     "tesoreria",
     "contabilidad",
+    "comercial",
+    "dashboard",
     "compras",
     "revisoria_fiscal",
     "juridico",
     "sarlaft",
     "archivo",
     "gerencia",
+    "taller",
+    "rrhh",
   ],
   director_operativo: [
     "dashboard",
@@ -441,10 +543,7 @@ export const ROLE_VIEWS: Record<Role, ModuleId[]> = {
     "parqueadero",
     "tramites",
     "taller",
-    "comercial",
     "rrhh",
-    "apps",
-    "gerencia",
     "qhse",
   ],
   control_interno: [
@@ -453,9 +552,24 @@ export const ROLE_VIEWS: Record<Role, ModuleId[]> = {
     "contabilidad",
     "tesoreria",
     "compras",
+    "logistica",
+    "taller",
+    "rrhh",
     "archivo",
     "sarlaft",
     "gerencia",
+  ],
+  auditor_control_interno: [
+    "dashboard",
+    "revisoria_fiscal",
+    "contabilidad",
+    "tesoreria",
+    "compras",
+    "logistica",
+    "taller",
+    "rrhh",
+    "archivo",
+    "sarlaft",
   ],
   revisor_fiscal: [
     "dashboard",
@@ -471,10 +585,19 @@ export const ROLE_VIEWS: Record<Role, ModuleId[]> = {
   centro_control: [
     "dashboard",
     "logistica",
+    "qhse",
     "apps",
     "parqueadero",
     "tramites",
     "gerencia",
+  ],
+  operador_centro_control: [
+    "dashboard",
+    "logistica",
+    "qhse",
+    "apps",
+    "parqueadero",
+    "tramites",
   ],
   coordinador_operativo: [
     "dashboard",
@@ -484,8 +607,30 @@ export const ROLE_VIEWS: Record<Role, ModuleId[]> = {
     "apps",
     "gerencia",
   ],
-  coordinador_comercial: ["dashboard", "comercial", "logistica", "apps", "gerencia"],
+  coordinador_campo: [
+    "dashboard",
+    "logistica",
+    "qhse",
+    "parqueadero",
+    "apps",
+  ],
+  coordinador_comercial: [
+    "dashboard",
+    "comercial",
+    "logistica",
+    "call_center",
+    "gerencia",
+    "archivo",
+  ],
+  director_comercial: [
+    "dashboard",
+    "comercial",
+    "logistica",
+    "tesoreria",
+    "gerencia",
+  ],
   coordinador_taller: ["dashboard", "taller", "compras", "logistica", "parqueadero"],
+  auxiliar_almacen_taller: ["dashboard", "taller", "compras"],
   coordinador_patio: ["dashboard", "parqueadero", "logistica", "tramites"],
   gestor_operativo: [
     "dashboard",
@@ -494,16 +639,10 @@ export const ROLE_VIEWS: Record<Role, ModuleId[]> = {
     "tramites",
     "taller",
     "comercial",
-    "contabilidad",
-    "tesoreria",
-    "compras",
-    "archivo",
     "rrhh",
-    "apps",
-    "gerencia",
-    "usuarios",
+    "archivo",
   ],
-  gestor_comercial: ["dashboard", "comercial", "logistica", "apps", "archivo"],
+  gestor_comercial: ["dashboard", "comercial", "call_center"],
   gestor_contable: [
     "dashboard",
     "contabilidad",
@@ -515,7 +654,27 @@ export const ROLE_VIEWS: Record<Role, ModuleId[]> = {
   ],
   tesoreria: ["dashboard", "tesoreria", "contabilidad", "compras", "archivo"],
   juridico: ["dashboard", "juridico", "sarlaft", "archivo", "tramites"],
-  qhse: ["dashboard", "qhse", "logistica", "taller", "archivo"],
+  director_juridico: [
+    "dashboard",
+    "juridico",
+    "sarlaft",
+    "archivo",
+    "tramites",
+    "comercial",
+    "rrhh",
+    "logistica",
+    "taller",
+  ],
+  qhse: ["dashboard", "qhse", "logistica", "taller", "archivo", "rrhh", "call_center"],
+  lider_qhse: [
+    "dashboard",
+    "qhse",
+    "logistica",
+    "taller",
+    "archivo",
+    "rrhh",
+    "call_center",
+  ],
   tecnologia: [
     "dashboard",
     "tecnologia_ti",
@@ -532,8 +691,32 @@ export const ROLE_VIEWS: Record<Role, ModuleId[]> = {
     "presidencia",
     "gerencia",
   ],
-  compras: ["dashboard", "compras", "taller", "tesoreria", "archivo"],
+  compras: [
+    "dashboard",
+    "compras",
+    "taller",
+    "tesoreria",
+    "contabilidad",
+    "tramites",
+    "archivo",
+  ],
+  lider_compras: [
+    "dashboard",
+    "compras",
+    "taller",
+    "tesoreria",
+    "contabilidad",
+    "tramites",
+    "archivo",
+  ],
   vinculaciones: ["dashboard", "rrhh", "qhse", "archivo", "gerencia", "usuarios"],
+  gestor_vinculaciones: [
+    "dashboard",
+    "rrhh",
+    "archivo",
+    "tramites",
+    "qhse",
+  ],
   auxiliar_contable: ["dashboard", "contabilidad"],
   auxiliar_contable_taller: ["dashboard", "taller", "contabilidad", "compras"],
   auxiliar_patio: ["dashboard", "parqueadero"],
@@ -637,15 +820,65 @@ export const HARD_RULES = {
   DOC_EXPIRING_DAYS: 15,
   /** Fatiga alta bloquea despacho (Driver.fatigueScore) */
   FATIGUE_BLOCK_SCORE: 80,
+  /** Micro-Dispatch 4.0 — fatiga máxima para asignación inteligente */
+  DISPATCH_FATIGUE_MAX: 30,
+  /** Watchtower — umbral inferior Zona Amarilla (fatiga) */
+  FATIGUE_YELLOW_MIN: 40,
+  /** Watchtower — umbral superior Zona Amarilla (antes de bloqueo) */
+  FATIGUE_YELLOW_MAX: 79,
+  /** Watchtower — distancia (km) para instrucción de parada activa */
+  FATIGUE_STOP_INSTRUCTION_KM: 15,
+  /** Horas mínimas de descanso legal entre turnos (PESV) */
+  MIN_LEGAL_REST_HOURS: 8,
   /** Horas continuas de conducción — umbral legal (bloquea despacho) */
   FATIGUE_CONTINUOUS_HOURS: 8,
   /** Horas acumuladas en ventana de 24h — umbral diario */
   FATIGUE_DAILY_HOURS: 12,
   /** Km entre OT preventivas */
   MAINTENANCE_INTERVAL_KM: 10000,
+  /** Smart Audit — desviación % galones vs GPS que marca anomalía */
+  FUEL_AUDIT_DEVIATION_PCT: 20,
   /** Distancia por defecto al cerrar viaje si no se envía distanceKm */
   DEFAULT_TRIP_DISTANCE_KM: 45,
+  /** Margen mínimo sano cotizador B2B (%). Inferior → escala CFO */
+  COMERCIAL_MIN_MARGIN_PCT: 12,
+  /** Radar renovaciones — días antes del vencimiento */
+  COMERCIAL_RENEWAL_RADAR_DAYS: 90,
+  /** Cuota mensual demo Director Comercial (COP) */
+  COMERCIAL_MONTHLY_QUOTA_COP: 450_000_000,
+  /** Tope descuento Gestor Comercial (%). Superior → escala Director */
+  GESTOR_COMERCIAL_MAX_DISCOUNT_PCT: 5,
+  /** Tope aprobación Nivel 1 Coordinador Comercial (%). Superior → escala CFO */
+  COORDINADOR_COMERCIAL_MAX_DISCOUNT_PCT: 15,
+  /** SLA primer contacto lead (horas) — rojo + reasignación */
+  COMERCIAL_LEAD_SLA_HOURS: 2,
+  /** PIN firma ejecutiva Gerente General (dígitos) */
+  GERENTE_EXECUTIVE_PIN_DIGITS: 6,
+  /** Tope % penalidad contractual permitido por política FSG */
+  LEGAL_MAX_PENALTY_CLAUSE_PCT: 15,
+  /** Muestreo aleatorio Revisoría Fiscal (% transacciones del mes) */
+  REVISORIA_SAMPLE_PCT: 5,
+  /** Tolerancia retenciones DIAN (puntos porcentuales) */
+  REVISORIA_RETENTION_TOLERANCE_PP: 0.5,
+  /** ReteFuente estándar demo proveedores (%) */
+  REVISORIA_DEFAULT_RETEFUENTE_PCT: 2.5,
+  /** Alerta predictiva mantenimiento (km antes del intervalo) */
+  TALLER_PREVENTIVE_ALERT_KM: 500,
+  /** Bloqueo UI Pilot App si velocidad > umbral (km/h) */
+  PILOT_SPEED_LOCK_KPH: 15,
 } as const;
+
+/** PIN demo Gerencia (solo seed / tests — hash en User.executivePinHash) */
+export const GERENTE_DEMO_EXECUTIVE_PIN = "258014";
+
+/** Costo salarial zona → COP/km (historial nómina / zona) */
+export const COMERCIAL_ZONE_SALARY_PER_KM: Record<string, number> = {
+  BOGOTA: 980,
+  MEDELLIN: 920,
+  CALI: 890,
+  BARRANQUILLA: 860,
+  DEFAULT: 900,
+};
 
 /** Riesgos SARLAFT que bloquean alta de cliente / pago CxP */
 export const SARLAFT_BLOCK_RISKS = ["HIGH", "BLOCKED"] as const;

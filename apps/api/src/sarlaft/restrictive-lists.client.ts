@@ -1,10 +1,18 @@
 /**
- * Cliente mock de listas restrictivas (OFAC, ONU, PEPs, Nacionales).
+ * Cliente mock de listas restrictivas (OFAC, ONU, PEPs, Nacionales, Clinton, Interpol).
  * En producción se sustituye por uplink a proveedores AML reales.
  */
 
+export type RestrictiveListName =
+  | "OFAC"
+  | "ONU"
+  | "PEPS"
+  | "NACIONAL"
+  | "CLINTON"
+  | "INTERPOL";
+
 export type RestrictiveListHit = {
-  list: "OFAC" | "ONU" | "PEPS" | "NACIONAL";
+  list: RestrictiveListName;
   matchType: "EXACT" | "FUZZY";
   reference: string;
   description: string;
@@ -28,6 +36,8 @@ const BLOCKED_DOCS = new Set([
 ]);
 
 const PEP_DOCS = new Set(["PEPNIT01", "111222333"]);
+const CLINTON_DOCS = new Set(["CLINTON001", "800555666"]);
+const INTERPOL_DOCS = new Set(["INTERPOL99", "799888777"]);
 
 export function normalizeSarlaftDoc(raw: string): string {
   return String(raw || "")
@@ -67,6 +77,24 @@ export class RestrictiveListsClient {
       });
     }
 
+    if (CLINTON_DOCS.has(document)) {
+      hits.push({
+        list: "CLINTON",
+        matchType: "EXACT",
+        reference: `CLINTON-${document}`,
+        description: "Lista Clinton / SDN extendida (mock)",
+      });
+    }
+
+    if (INTERPOL_DOCS.has(document)) {
+      hits.push({
+        list: "INTERPOL",
+        matchType: "EXACT",
+        reference: `INTERPOL-${document}`,
+        description: "Notificación roja Interpol (mock)",
+      });
+    }
+
     const name = (subjectName || "").toLowerCase();
     if (name.includes("lavado") || name.includes("ofac blocked")) {
       hits.push({
@@ -76,9 +104,33 @@ export class RestrictiveListsClient {
         description: `Coincidencia fuzzy por nombre: ${subjectName}`,
       });
     }
+    if (name.includes("clinton") || name.includes("sancionado")) {
+      hits.push({
+        list: "CLINTON",
+        matchType: "FUZZY",
+        reference: "CLINTON-NAME-HIT",
+        description: `Coincidencia fuzzy Clinton: ${subjectName}`,
+      });
+    }
+    if (name.includes("interpol") || name.includes("fugitivo")) {
+      hits.push({
+        list: "INTERPOL",
+        matchType: "FUZZY",
+        reference: "INTERPOL-NAME-HIT",
+        description: `Coincidencia fuzzy Interpol: ${subjectName}`,
+      });
+    }
 
     let riskScore = 0;
-    if (hits.some((h) => h.list === "OFAC" || h.list === "ONU")) {
+    if (
+      hits.some(
+        (h) =>
+          h.list === "OFAC" ||
+          h.list === "ONU" ||
+          h.list === "CLINTON" ||
+          h.list === "INTERPOL",
+      )
+    ) {
       riskScore = Math.max(riskScore, 95);
     }
     if (hits.some((h) => h.list === "NACIONAL")) {

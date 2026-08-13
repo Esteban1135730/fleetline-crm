@@ -129,6 +129,8 @@ export class KafkaEventsService {
     workOrderId: string;
     inventoryItemId: string;
     quantity: number;
+    costCenterPlate?: string;
+    mechanicUserId?: string;
   }) {
     return this.emit("part.dispatched", payload);
   }
@@ -201,5 +203,29 @@ export class KafkaEventsService {
     fileRef?: string | null;
   }) {
     return this.emit("document.processed", payload);
+  }
+
+  emitTelemetrySpeedExceeded(payload: {
+    organizationId: string;
+    driverId: string;
+    vehicleId?: string;
+    plate?: string;
+    speedKmh?: number;
+    limitKmh?: number;
+    latitude?: number;
+    longitude?: number;
+  }) {
+    return this.emit("telemetry.speed.exceeded", payload);
+  }
+
+  emitTelemetryHardBrake(payload: {
+    organizationId: string;
+    driverId: string;
+    vehicleId?: string;
+    plate?: string;
+    latitude?: number;
+    longitude?: number;
+  }) {
+    return this.emit("telemetry.hard.brake", payload);
   }
 }
