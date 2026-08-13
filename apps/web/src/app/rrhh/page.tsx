@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@fsg/ui";
-import { EMPLOYEE_AREAS } from "@fsg/shared";
+import { EMPLOYEE_AREA_GROUPS, EMPLOYEE_AREAS, EMPLOYEE_TITLES } from "@fsg/shared";
 import { api } from "@/lib/api";
 import { HowToBox, PageIntro } from "@/components/page-intro";
 
@@ -153,7 +153,7 @@ export default function RrhhPage() {
     name: "",
     document: "",
     title: "Conductor",
-    area: "Operaciones",
+    area: "Conductores / Flota",
     driverId: "",
   });
   const [shiftDriverId, setShiftDriverId] = useState("");
@@ -213,7 +213,7 @@ export default function RrhhPage() {
         name: "",
         document: "",
         title: "Conductor",
-        area: "Operaciones",
+        area: "Conductores / Flota",
         driverId: "",
       });
       setStatusMsg("Expediente indexado");
@@ -424,54 +424,80 @@ export default function RrhhPage() {
         <section className="space-y-4" data-testid="rrhh-panel-personal">
           <form
             onSubmit={onCreate}
-            className="fsg-panel grid grid-cols-1 gap-3 p-4 md:grid-cols-6"
+            className="fsg-panel grid grid-cols-1 gap-3 p-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
           >
-            <input
-              className="field"
-              placeholder="Nombre"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              required
-            />
-            <input
-              className="field font-data"
-              placeholder="Documento"
-              value={form.document}
-              onChange={(e) => setForm({ ...form, document: e.target.value })}
-              required
-            />
-            <input
-              className="field"
-              placeholder="Cargo"
-              value={form.title}
-              onChange={(e) => setForm({ ...form, title: e.target.value })}
-            />
-            <select
-              className="field"
-              value={form.area}
-              onChange={(e) => setForm({ ...form, area: e.target.value })}
-            >
-              {EMPLOYEE_AREAS.map((a) => (
-                <option key={a} value={a}>
-                  {a}
-                </option>
-              ))}
-            </select>
-            <select
-              className="field"
-              value={form.driverId}
-              onChange={(e) => setForm({ ...form, driverId: e.target.value })}
-            >
-              <option value="">Sin vínculo conductor</option>
-              {drivers.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name} · {d.document}
-                </option>
-              ))}
-            </select>
-            <Button type="submit" variant="primary">
-              Alta expediente
-            </Button>
+            <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--brand-muted)]">
+              Nombre
+              <input
+                className="field"
+                placeholder="Nombre completo"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                required
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--brand-muted)]">
+              Documento
+              <input
+                className="field font-data"
+                placeholder="Cédula / ID"
+                value={form.document}
+                onChange={(e) => setForm({ ...form, document: e.target.value })}
+                required
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--brand-muted)]">
+              Cargo
+              <select
+                className="field"
+                value={form.title}
+                onChange={(e) => setForm({ ...form, title: e.target.value })}
+              >
+                {EMPLOYEE_TITLES.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--brand-muted)]">
+              Área / departamento
+              <select
+                className="field"
+                value={form.area}
+                onChange={(e) => setForm({ ...form, area: e.target.value })}
+              >
+                {EMPLOYEE_AREA_GROUPS.map((g) => (
+                  <optgroup key={g.label} label={g.label}>
+                    {g.areas.map((a) => (
+                      <option key={a} value={a}>
+                        {a}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--brand-muted)]">
+              Vínculo flota
+              <select
+                className="field"
+                value={form.driverId}
+                onChange={(e) => setForm({ ...form, driverId: e.target.value })}
+              >
+                <option value="">Sin vínculo conductor</option>
+                {drivers.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name} · {d.document}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="flex items-end">
+              <Button type="submit" variant="primary" className="w-full">
+                Alta expediente
+              </Button>
+            </div>
           </form>
 
           <div className="fsg-panel data-shell overflow-x-auto">
@@ -512,7 +538,7 @@ export default function RrhhPage() {
                       <td className="px-4 py-2.5">
                         {editingId === r.id ? (
                           <div className="space-y-1">
-                            <input
+                            <select
                               className="field py-1 text-xs"
                               value={editForm.title}
                               onChange={(e) =>
@@ -521,7 +547,20 @@ export default function RrhhPage() {
                                   title: e.target.value,
                                 })
                               }
-                            />
+                            >
+                              {!EMPLOYEE_TITLES.includes(
+                                editForm.title as (typeof EMPLOYEE_TITLES)[number],
+                              ) && editForm.title ? (
+                                <option value={editForm.title}>
+                                  {editForm.title}
+                                </option>
+                              ) : null}
+                              {EMPLOYEE_TITLES.map((t) => (
+                                <option key={t} value={t}>
+                                  {t}
+                                </option>
+                              ))}
+                            </select>
                             <select
                               className="field py-1 text-xs"
                               value={editForm.area}
@@ -532,10 +571,21 @@ export default function RrhhPage() {
                                 })
                               }
                             >
-                              {EMPLOYEE_AREAS.map((a) => (
-                                <option key={a} value={a}>
-                                  {a}
+                              {!EMPLOYEE_AREAS.includes(
+                                editForm.area as (typeof EMPLOYEE_AREAS)[number],
+                              ) && editForm.area ? (
+                                <option value={editForm.area}>
+                                  {editForm.area}
                                 </option>
+                              ) : null}
+                              {EMPLOYEE_AREA_GROUPS.map((g) => (
+                                <optgroup key={g.label} label={g.label}>
+                                  {g.areas.map((a) => (
+                                    <option key={a} value={a}>
+                                      {a}
+                                    </option>
+                                  ))}
+                                </optgroup>
                               ))}
                             </select>
                           </div>

@@ -125,25 +125,139 @@ export const DEPARTMENTS: Department[] = [
   },
 ];
 
-/** Áreas de empleado alineadas al Excel */
+/** Áreas de empleado — alineadas a módulos Fleetline / organigrama operativo */
 export const EMPLOYEE_AREAS = [
+  "Presidencia",
+  "Gerencia",
+  "Subgerencia",
+  "Recepción / Call Center",
+  "Tecnología / TI",
+  "Archivo",
+  "Contabilidad",
+  "Tesorería",
+  "Dirección Financiera",
+  "QHSE / PESV",
+  "Compras",
+  "Dirección Operativa",
+  "Despacho / Logística",
+  "Coordinación de Campo",
+  "Centro de Control",
+  "Control Interno",
+  "Vinculaciones / RRHH",
+  "Comercial",
+  "Jurídico",
+  "Revisoría Fiscal",
+  "Taller",
+  "Almacén Taller",
+  "Parqueadero / Patio",
+  "Conductores / Flota",
+  "Trámites",
+  // Legado (expedientes históricos)
   "Operaciones",
   "Call Center",
-  "Archivo",
-  "Tesorería",
-  "Contabilidad",
   "HSQE / Calidad",
-  "Jurídico",
-  "Compras",
   "Recursos Humanos",
-  "Comercial",
-  "Trámites",
   "Parqueadero",
-  "Taller",
-  "Gerencia",
 ] as const;
 
 export type EmployeeArea = (typeof EMPLOYEE_AREAS)[number];
+
+/** Cargos tipificados para alta de expediente (campo Cargo) */
+export const EMPLOYEE_TITLES = [
+  "Recepcionista / Concierge",
+  "Líder TI",
+  "Gestor documental",
+  "Auxiliar contable",
+  "Gestor contable",
+  "Tesorero",
+  "Director financiero (CFO)",
+  "Líder QHSE",
+  "Líder Compras",
+  "Director operativo",
+  "Gestor operativo / Despacho",
+  "Coordinador de campo",
+  "Operador centro de control",
+  "Auditor control interno",
+  "Presidente / CEO",
+  "Gestor vinculaciones",
+  "Director comercial",
+  "Ejecutivo de ventas",
+  "Coordinador comercial",
+  "Gerente general",
+  "Subgerente",
+  "Director jurídico",
+  "Revisor fiscal",
+  "Coordinador taller",
+  "Auxiliar almacén taller",
+  "Mecánico",
+  "Coordinador patio",
+  "Auxiliar patio",
+  "Conductor",
+  "Monitora escolar",
+  "Analista",
+  "Auxiliar administrativo",
+  "Otro",
+] as const;
+
+export type EmployeeTitle = (typeof EMPLOYEE_TITLES)[number];
+
+/** Grupos UI del desplegable de área */
+export const EMPLOYEE_AREA_GROUPS: ReadonlyArray<{
+  label: string;
+  areas: readonly EmployeeArea[];
+}> = [
+  {
+    label: "Gobierno",
+    areas: ["Presidencia", "Gerencia", "Subgerencia"],
+  },
+  {
+    label: "Soporte corporativo",
+    areas: [
+      "Recepción / Call Center",
+      "Tecnología / TI",
+      "Archivo",
+      "Vinculaciones / RRHH",
+      "Trámites",
+    ],
+  },
+  {
+    label: "Finanzas",
+    areas: ["Contabilidad", "Tesorería", "Dirección Financiera"],
+  },
+  {
+    label: "Calidad & Abastecimiento",
+    areas: ["QHSE / PESV", "Compras"],
+  },
+  {
+    label: "Operaciones",
+    areas: [
+      "Dirección Operativa",
+      "Despacho / Logística",
+      "Coordinación de Campo",
+      "Centro de Control",
+      "Control Interno",
+      "Conductores / Flota",
+    ],
+  },
+  {
+    label: "Comercial & Legal",
+    areas: ["Comercial", "Jurídico", "Revisoría Fiscal"],
+  },
+  {
+    label: "Mantenimiento & Patio",
+    areas: ["Taller", "Almacén Taller", "Parqueadero / Patio"],
+  },
+  {
+    label: "Legado (expedientes previos)",
+    areas: [
+      "Operaciones",
+      "Call Center",
+      "HSQE / Calidad",
+      "Recursos Humanos",
+      "Parqueadero",
+    ],
+  },
+];
 
 export function departmentForModule(module: ModuleId): Department | undefined {
   return DEPARTMENTS.find((d) => d.modules.includes(module));
