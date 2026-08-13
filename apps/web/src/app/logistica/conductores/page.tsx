@@ -1,9 +1,11 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@fsg/ui";
+import { Calendar, Users } from "lucide-react";
 import { api } from "@/lib/api";
-import { HowToBox, PageIntro } from "@/components/page-intro";
+import { PageIntro } from "@/components/page-intro";
+import { EmptyState, KpiCard, Modal } from "@/components/audit";
 import { DriverMonthCalendar } from "@/components/logistica/driver-month-calendar";
 import { ServicioDetailDrawer } from "@/components/logistica/servicio-detail-drawer";
 import {
@@ -31,6 +33,7 @@ export default function LogisticaConductoresPage() {
     daily: unknown[];
     driver: { name: string };
   } | null>(null);
+  const [totalExtrasHours, setTotalExtrasHours] = useState(0);
   const [novelty, setNovelty] = useState({
     driverId: "",
     kind: "INCAPACITY",
@@ -73,6 +76,31 @@ export default function LogisticaConductoresPage() {
       setError(e instanceof Error ? e.message : "Calendario fallido"),
     );
   }, [loadCalendar]);
+
+  useEffect(() => {
+    const mes = `${calMonth.year}-${String(calMonth.month).padStart(2, "0")}`;
+    void api<{ metrics: { totalExtrasHours: number } }>(
+      `/nomina/reporte-general?mes=${encodeURIComponent(mes)}`,
+    )
+      .then((r) => setTotalExtrasHours(Number(r.metrics?.totalExtrasHours) || 0))
+      .catch(() => setTotalExtrasHours(0));
+  }, [calMonth]);
+
+  const incapacityCount = useMemo(() => {
+    if (!calendar) return 0;
+    const now = new Date();
+    const ids = new Set(
+      calendar.novelties
+        .filter(
+          (n) =>
+            n.kind === "INCAPACITY" &&
+            new Date(n.dateFrom) <= now &&
+            new Date(n.dateTo) >= now,
+        )
+        .map((n) => n.driverId),
+    );
+    return ids.size;
+  }, [calendar]);
 
   async function onNovelty(e: FormEvent) {
     e.preventDefault();
@@ -123,9 +151,17 @@ export default function LogisticaConductoresPage() {
     setLiquidacion(liq);
   }
 
+  function closeCalendar() {
+    setSelectedDriverId(null);
+    setLiquidacion(null);
+    setDetailTripId(null);
+  }
+
   const selectedDriver =
     (calendar?.drivers ?? drivers).find((d) => d.id === selectedDriverId) ??
     null;
+
+  const driverRows = calendar?.drivers ?? drivers;
 
   function shiftMonth(delta: number) {
     setCalMonth((m) => {
@@ -139,15 +175,24 @@ export default function LogisticaConductoresPage() {
       <PageIntro
         module="logistica"
         title="Gestión de Conductores y Nómina de Extras"
+        subtitle="Gestión de novedades de nómina, control de fatiga y liquidación de horas extras operativas"
         action={<ServerClockBadge clock={clock} />}
       />
-      <HowToBox
-        steps={[
-          "Pulsa Ver en un conductor para abrir su calendario mensual.",
-          "Haz clic en un servicio del día para ver el detalle completo, mapa y audit log.",
-          "Casillas amarillas = Festivo (domingos y festivos CO).",
-        ]}
-      />
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <KpiCard
+          label="Total Horas Extras Mes"
+          value={totalExtrasHours.toFixed(1)}
+          tone="warn"
+          delta="HED+HEN+RN…"
+        />
+        <KpiCard
+          label="Conductores en Incapacidad"
+          value={incapacityCount}
+          tone="danger"
+          delta="Novedades activas"
+        />
+      </div>
 
       {statusMsg ? (
         <p className="font-data text-xs text-[var(--brand-primary)]">
@@ -207,9 +252,11 @@ export default function LogisticaConductoresPage() {
             onChange={(e) => setNovelty({ ...novelty, dateTo: e.target.value })}
             required
           />
-          <Button type="submit" variant="primary">
-            Registrar novedad
-          </Button>
+          <div className="flex justify-end">
+            <Button type="submit" variant="primary" className="w-auto px-4 py-2">
+              Registrar novedad
+            </Button>
+          </div>
         </form>
 
         {substitutes.length ? (
@@ -240,6 +287,7 @@ export default function LogisticaConductoresPage() {
                   {impacted[0] ? (
                     <Button
                       variant="primary"
+                      className="w-auto"
                       onClick={() => void reasignar(impacted[0].id, s.id)}
                     >
                       Reasignar 1 clic
@@ -252,115 +300,139 @@ export default function LogisticaConductoresPage() {
         ) : null}
 
         <div className="fsg-panel data-shell overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr>
-                <th className="px-3 py-2">Conductor</th>
-                <th className="px-3 py-2">Documento</th>
-                <th className="px-3 py-2">Fatiga</th>
-                <th className="px-3 py-2">Estado</th>
-                <th className="px-3 py-2">Calendario / extras</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(calendar?.drivers ?? drivers).map((dr) => {
-                const activeNov = calendar?.novelties.find(
-                  (n) =>
-                    n.driverId === dr.id &&
-                    new Date(n.dateFrom) <= new Date() &&
-                    new Date(n.dateTo) >= new Date(),
-                );
-                return (
-                  <tr
-                    key={dr.id}
-                    className={`border-t border-[var(--brand-line)] ${
-                      selectedDriverId === dr.id
-                        ? "bg-[var(--brand-primary)]/10"
-                        : ""
-                    }`}
-                  >
-                    <td className="px-3 py-2">{dr.name}</td>
-                    <td className="px-3 py-2 font-data text-xs">
-                      {dr.document}
-                    </td>
-                    <td className="px-3 py-2 font-data text-xs">
-                      {dr.fatigueScore}
-                    </td>
-                    <td className="px-3 py-2">
-                      {activeNov ? (
-                        <span
-                          className={`rounded px-2 py-0.5 text-[10px] ${noveltyColor(activeNov.kind)}`}
+          {driverRows.length === 0 ? (
+            <div className="p-4">
+              <EmptyState
+                icon={<Users className="h-7 w-7" aria-hidden />}
+                title="Sin conductores"
+                description="No hay conductores cargados en el uplink de flota."
+              />
+            </div>
+          ) : (
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr>
+                  <th className="px-3 py-2">Conductor</th>
+                  <th className="px-3 py-2">Documento</th>
+                  <th className="px-3 py-2">Fatiga</th>
+                  <th className="px-3 py-2">Estado</th>
+                  <th className="px-3 py-2">Calendario / extras</th>
+                </tr>
+              </thead>
+              <tbody>
+                {driverRows.map((dr) => {
+                  const activeNov = calendar?.novelties.find(
+                    (n) =>
+                      n.driverId === dr.id &&
+                      new Date(n.dateFrom) <= new Date() &&
+                      new Date(n.dateTo) >= new Date(),
+                  );
+                  return (
+                    <tr
+                      key={dr.id}
+                      className={`border-t border-[var(--brand-line)] ${
+                        selectedDriverId === dr.id
+                          ? "bg-[var(--brand-primary)]/10"
+                          : ""
+                      }`}
+                    >
+                      <td className="px-3 py-2">{dr.name}</td>
+                      <td className="px-3 py-2 font-data text-xs">
+                        {dr.document}
+                      </td>
+                      <td className="px-3 py-2 font-data text-xs">
+                        {dr.fatigueScore}
+                      </td>
+                      <td className="px-3 py-2">
+                        {activeNov ? (
+                          <span
+                            className={`rounded px-2 py-0.5 text-[10px] ${noveltyColor(activeNov.kind)}`}
+                          >
+                            {NOVELTY_KINDS.find(
+                              (k) => k.value === activeNov.kind,
+                            )?.label ?? activeNov.kind}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-[var(--brand-muted)]">
+                            Disponible
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2">
+                        <button
+                          type="button"
+                          onClick={() => void openDriverCalendar(dr.id)}
+                          className="inline-flex items-center gap-1.5 rounded-md border border-slate-600 bg-transparent px-2.5 py-1 text-xs font-medium text-slate-200 transition-colors duration-150 hover:border-emerald-500/50 hover:bg-emerald-500/10"
                         >
-                          {NOVELTY_KINDS.find((k) => k.value === activeNov.kind)
-                            ?.label ?? activeNov.kind}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-[var(--brand-muted)]">
-                          Disponible
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2">
-                      <Button
-                        variant="primary"
-                        onClick={() => void openDriverCalendar(dr.id)}
-                      >
-                        Ver
-                      </Button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                          <Calendar className="h-3.5 w-3.5" aria-hidden />
+                          Calendario
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
         </div>
 
-        {selectedDriver && calendar ? (
-          <DriverMonthCalendar
-            calendar={calendar}
-            driverId={selectedDriver.id}
-            driverName={selectedDriver.name}
-            year={calMonth.year}
-            month={calMonth.month}
-            onPrev={() => shiftMonth(-1)}
-            onNext={() => shiftMonth(1)}
-            onToday={() => {
-              const n = new Date();
-              setCalMonth({
-                year: n.getFullYear(),
-                month: n.getMonth() + 1,
-              });
-            }}
-            onClose={() => {
-              setSelectedDriverId(null);
-              setLiquidacion(null);
-              setDetailTripId(null);
-            }}
-            onTripClick={(tripId) => setDetailTripId(tripId)}
-          />
-        ) : null}
+        <Modal
+          open={Boolean(selectedDriver && calendar)}
+          onClose={closeCalendar}
+          title={
+            selectedDriver
+              ? `Calendario · ${selectedDriver.name}`
+              : "Calendario"
+          }
+          description="Servicios, novedades y liquidación de extras del mes."
+          size="xl"
+        >
+          {selectedDriver && calendar ? (
+            <div className="space-y-4">
+              <DriverMonthCalendar
+                calendar={calendar}
+                driverId={selectedDriver.id}
+                driverName={selectedDriver.name}
+                year={calMonth.year}
+                month={calMonth.month}
+                onPrev={() => shiftMonth(-1)}
+                onNext={() => shiftMonth(1)}
+                onToday={() => {
+                  const n = new Date();
+                  setCalMonth({
+                    year: n.getFullYear(),
+                    month: n.getMonth() + 1,
+                  });
+                }}
+                onClose={closeCalendar}
+                onTripClick={(tripId) => setDetailTripId(tripId)}
+              />
+              {liquidacion ? (
+                <div className="rounded-lg border border-slate-800 p-4 font-data text-xs">
+                  <p className="mb-2 text-sm font-semibold text-slate-100">
+                    Liquidación extras · {liquidacion.driver.name}
+                  </p>
+                  <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+                    {Object.entries(liquidacion.totals).map(([k, v]) => (
+                      <div key={k}>
+                        <div className="text-slate-500">{k}</div>
+                        <div className="text-slate-200">
+                          {typeof v === "number" ? v.toFixed(2) : v}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </Modal>
 
         {detailTripId ? (
           <ServicioDetailDrawer
             tripId={detailTripId}
             onClose={() => setDetailTripId(null)}
           />
-        ) : null}
-
-        {liquidacion ? (
-          <div className="fsg-panel p-4 font-data text-xs">
-            <p className="mb-2 text-sm font-semibold text-[var(--brand-fg)]">
-              Liquidación extras · {liquidacion.driver.name}
-            </p>
-            <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-              {Object.entries(liquidacion.totals).map(([k, v]) => (
-                <div key={k}>
-                  <div className="text-[var(--brand-muted)]">{k}</div>
-                  <div>{typeof v === "number" ? v.toFixed(2) : v}</div>
-                </div>
-              ))}
-            </div>
-          </div>
         ) : null}
       </section>
     </div>

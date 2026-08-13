@@ -2,8 +2,15 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
+import { FolderOpen, Plus, RefreshCw, Scan, Search } from "lucide-react";
 import { api, API_URL } from "@/lib/api";
-import { HowToBox, PageIntro } from "@/components/page-intro";
+import { PageIntro } from "@/components/page-intro";
+import {
+  EmptyState,
+  EvidenceDropzone,
+  Modal,
+  StatusPulseBadge,
+} from "@/components/audit";
 
 type Doc = {
   id: string;
@@ -31,7 +38,7 @@ type AuditRow = {
 };
 
 function shortHash(h?: string | null) {
-  if (!h) return "—";
+  if (!h) return "N/A";
   return `${h.slice(0, 12)}…${h.slice(-8)}`;
 }
 
@@ -46,6 +53,8 @@ export default function ArchivoPage() {
   const [statusMsg, setStatusMsg] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [q, setQ] = useState("");
+  const [searchDraft, setSearchDraft] = useState("");
+  const [uploadOpen, setUploadOpen] = useState(false);
 
   const load = useCallback(async () => {
     const params = new URLSearchParams();
@@ -94,88 +103,53 @@ export default function ArchivoPage() {
       setTitle("");
       setTags("");
       setFile(null);
+      setUploadOpen(false);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Fallo de uplink — archivo");
     }
   }
 
+  function runSearch() {
+    setQ(searchDraft);
+  }
+
   return (
     <div className="fade-in mx-auto max-w-[1600px] space-y-6">
-      <PageIntro module="archivo" title="Archivo / Data Room" />
-      <HowToBox
-        steps={[
-          "Sube un documento: el sistema sella SHA-256 en bóveda local.",
-          "Filtra por categoría o busca título, tag o hash.",
-          "El log de auditoría registra sellado, índice y borrado.",
-        ]}
+      <PageIntro
+        module="archivo"
+        title="Archivo / Data Room"
+        action={
+          <Button
+            type="button"
+            variant="primary"
+            className="w-auto px-4 py-2"
+            data-testid="archivo-open-upload"
+            onClick={() => setUploadOpen(true)}
+          >
+            <Plus className="mr-1.5 inline h-4 w-4" aria-hidden />
+            Indexar documento
+          </Button>
+        }
       />
 
-      <form
-        onSubmit={onCreate}
-        data-testid="archivo-upload-form"
-        className="fsg-panel grid grid-cols-1 gap-3 p-4 md:grid-cols-2"
-      >
-        <input
-          className="field"
-          data-testid="archivo-title"
-          placeholder="Título"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          required={!file}
-        />
-        <select
-          className="field"
-          data-testid="archivo-category"
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
+      {statusMsg ? (
+        <p
+          className="font-data text-xs text-[var(--brand-primary)]"
+          data-testid="archivo-status"
         >
-          <option value="CONTRACT">Contrato</option>
-          <option value="INVOICE">Factura</option>
-          <option value="LEGAL">Legal</option>
-          <option value="HR">RRHH</option>
-          <option value="OPS">Operaciones</option>
-          <option value="OTHER">Otro</option>
-        </select>
-        <input
-          className="field"
-          data-testid="archivo-file"
-          type="file"
-          onChange={(e) => setFile(e.target.files?.[0] || null)}
-        />
-        <input
-          className="field"
-          data-testid="archivo-tags"
-          placeholder="Tags"
-          value={tags}
-          onChange={(e) => setTags(e.target.value)}
-        />
-        <Button
-          type="submit"
-          variant="primary"
-          className="md:col-span-2"
-          data-testid="archivo-submit"
+          {statusMsg}
+        </p>
+      ) : null}
+      {error ? (
+        <p
+          role="alert"
+          data-testid="archivo-error"
+          className="text-sm text-[var(--brand-signal)]"
         >
-          {file ? "Sellar e indexar" : "Indexar sin archivo"}
-        </Button>
-        {statusMsg ? (
-          <p
-            className="font-data text-xs text-[var(--brand-primary)] md:col-span-2"
-            data-testid="archivo-status"
-          >
-            {statusMsg}
-          </p>
-        ) : null}
-        {error ? (
-          <p
-            role="alert"
-            data-testid="archivo-error"
-            className="text-sm text-[var(--brand-signal)] md:col-span-2"
-          >
-            {error}
-          </p>
-        ) : null}
-      </form>
+          {error}
+        </p>
+      ) : null}
 
       <div className="fsg-panel data-shell overflow-hidden">
         <div className="flex flex-wrap items-center gap-3 border-b border-[var(--brand-line)] px-4 py-3">
@@ -183,9 +157,30 @@ export default function ArchivoPage() {
           <input
             className="field max-w-[280px] text-sm"
             placeholder="Buscar título, tag o hash…"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
+            value={searchDraft}
+            onChange={(e) => setSearchDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") runSearch();
+            }}
           />
+          <Button
+            type="button"
+            variant="primary"
+            className="w-auto px-4 py-2"
+            onClick={runSearch}
+          >
+            <Search className="mr-1.5 inline h-4 w-4" aria-hidden />
+            Buscar
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            className="w-auto border border-slate-600 px-4 py-2"
+            onClick={() => void load()}
+          >
+            <RefreshCw className="mr-1.5 inline h-4 w-4" aria-hidden />
+            Refrescar
+          </Button>
           <select
             className="field ml-auto max-w-[200px] text-sm"
             value={categoryFilter}
@@ -200,113 +195,117 @@ export default function ArchivoPage() {
             <option value="OTHER">Otro</option>
           </select>
         </div>
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr>
-              <th className="px-4 py-2">Título</th>
-              <th className="px-4 py-2">Categoría</th>
-              <th className="px-4 py-2">Hash SHA-256</th>
-              <th className="px-4 py-2">Archivo</th>
-              <th className="px-4 py-2">Fecha</th>
-              <th className="px-4 py-2">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id} className="border-t border-[var(--brand-line)]">
-                <td className="px-4 py-2.5">
-                  <div>{r.title}</div>
-                  {r.tags ? (
-                    <div className="text-xs text-[var(--brand-muted)]">
-                      {r.tags}
-                    </div>
-                  ) : null}
-                </td>
-                <td className="px-4 py-2.5">
-                  <Badge>{r.category}</Badge>
-                </td>
-                <td
-                  className="px-4 py-2.5 font-data text-xs text-[var(--brand-muted)]"
-                  title={r.contentHash || undefined}
-                >
-                  {r.contentHash ? (
-                    <span className="text-[var(--brand-primary)]">
-                      {shortHash(r.contentHash)}
-                    </span>
-                  ) : (
-                    "sin sello"
-                  )}
-                </td>
-                <td className="px-4 py-2.5 font-data text-xs">
-                  {r.fileRef ? (
-                    <a
-                      className="text-[var(--brand-primary)] underline"
-                      href={
-                        r.fileRef.startsWith("http")
-                          ? r.fileRef
-                          : `${API_URL}${r.fileRef}`
-                      }
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Abrir
-                    </a>
-                  ) : (
-                    "—"
-                  )}
-                </td>
-                <td className="px-4 py-2.5 font-data text-xs">
-                  {new Date(r.createdAt).toLocaleDateString("es-CO")}
-                </td>
-                <td className="px-4 py-2.5">
-                  <div className="flex flex-wrap gap-1">
-                    <Button
-                      variant="ghost"
-                      onClick={async () => {
-                        const nextTitle = window.prompt("Título", r.title);
-                        if (nextTitle === null) return;
-                        const nextTags = window.prompt("Tags", r.tags || "");
-                        if (nextTags === null) return;
-                        await api(`/archivo/documents/${r.id}`, {
-                          method: "PATCH",
-                          body: JSON.stringify({
-                            title: nextTitle.trim() || r.title,
-                            tags: nextTags.trim() || undefined,
-                          }),
-                        });
-                        await load();
-                      }}
-                    >
-                      Editar
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      onClick={async () => {
-                        if (!confirm(`¿Eliminar "${r.title}"?`)) return;
-                        await api(`/archivo/documents/${r.id}/delete`, {
-                          method: "POST",
-                        });
-                        await load();
-                      }}
-                    >
-                      Eliminar
-                    </Button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {rows.length === 0 ? (
+        {!rows.length ? (
+          <div className="p-4">
+            <EmptyState
+              icon={<FolderOpen className="h-7 w-7" />}
+              title="Sin documentos en expediente"
+              description="Selle e indexe el primer archivo en la bóveda."
+              actionLabel="+ Indexar documento"
+              onAction={() => setUploadOpen(true)}
+            />
+          </div>
+        ) : (
+          <table className="w-full text-left text-sm">
+            <thead>
               <tr>
-                <td
-                  colSpan={6}
-                  className="px-4 py-8 text-center text-sm text-[var(--brand-muted)]"
-                >
-                  Sin documentos en expediente — uplink vacío
-                </td>
+                <th className="px-4 py-2">Título</th>
+                <th className="px-4 py-2">Categoría</th>
+                <th className="px-4 py-2">Hash SHA-256</th>
+                <th className="px-4 py-2">Archivo</th>
+                <th className="px-4 py-2">Fecha</th>
+                <th className="px-4 py-2">Acciones</th>
               </tr>
-            ) : null}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.id} className="border-t border-[var(--brand-line)]">
+                  <td className="px-4 py-2.5">
+                    <div>{r.title}</div>
+                    {r.tags ? (
+                      <div className="text-xs text-[var(--brand-muted)]">
+                        {r.tags}
+                      </div>
+                    ) : null}
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <Badge>{r.category}</Badge>
+                  </td>
+                  <td
+                    className="px-4 py-2.5 font-data text-xs text-[var(--brand-muted)]"
+                    title={r.contentHash || undefined}
+                  >
+                    {r.contentHash ? (
+                      <span className="text-[var(--brand-primary)]">
+                        {shortHash(r.contentHash)}
+                      </span>
+                    ) : (
+                      "sin sello"
+                    )}
+                  </td>
+                  <td className="px-4 py-2.5 font-data text-xs">
+                    {r.fileRef ? (
+                      <a
+                        className="text-[var(--brand-primary)] underline"
+                        href={
+                          r.fileRef.startsWith("http")
+                            ? r.fileRef
+                            : `${API_URL}${r.fileRef}`
+                        }
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Abrir
+                      </a>
+                    ) : (
+                      "N/A"
+                    )}
+                  </td>
+                  <td className="px-4 py-2.5 font-data text-xs">
+                    {new Date(r.createdAt).toLocaleDateString("es-CO")}
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <div className="flex flex-wrap gap-1">
+                      <Button
+                        variant="ghost"
+                        className="w-auto px-2 py-1"
+                        onClick={async () => {
+                          const nextTitle = window.prompt("Título", r.title);
+                          if (nextTitle === null) return;
+                          const nextTags = window.prompt("Tags", r.tags || "");
+                          if (nextTags === null) return;
+                          await api(`/archivo/documents/${r.id}`, {
+                            method: "PATCH",
+                            body: JSON.stringify({
+                              title: nextTitle.trim() || r.title,
+                              tags: nextTags.trim() || undefined,
+                            }),
+                          });
+                          await load();
+                        }}
+                      >
+                        Editar
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        className="w-auto px-2 py-1"
+                        onClick={async () => {
+                          if (!confirm(`¿Eliminar "${r.title}"?`)) return;
+                          await api(`/archivo/documents/${r.id}/delete`, {
+                            method: "POST",
+                          });
+                          await load();
+                        }}
+                      >
+                        Eliminar
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
 
       <div className="fsg-panel data-shell overflow-hidden">
@@ -316,57 +315,154 @@ export default function ArchivoPage() {
             Eventos inmutables · ARCHIVE_VAULT / INDEX / DELETE
           </p>
         </div>
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr>
-              <th className="px-4 py-2">Acción</th>
-              <th className="px-4 py-2">Documento</th>
-              <th className="px-4 py-2">Hash</th>
-              <th className="px-4 py-2">Operador</th>
-              <th className="px-4 py-2">Timestamp</th>
-            </tr>
-          </thead>
-          <tbody>
-            {audit.map((a) => (
-              <tr key={a.id} className="border-t border-[var(--brand-line)]">
-                <td className="px-4 py-2.5">
-                  <Badge
-                    tone={
-                      a.action === "ARCHIVE_VAULT"
-                        ? "success"
-                        : a.action === "ARCHIVE_DELETE"
-                          ? "danger"
-                          : "info"
-                    }
-                  >
-                    {a.action}
-                  </Badge>
-                </td>
-                <td className="px-4 py-2.5">{a.meta?.title || a.entityId || "—"}</td>
-                <td className="px-4 py-2.5 font-data text-xs">
-                  {shortHash(a.meta?.contentHash)}
-                </td>
-                <td className="px-4 py-2.5 text-xs">
-                  {a.user?.name || "sistema"}
-                </td>
-                <td className="px-4 py-2.5 font-data text-xs">
-                  {new Date(a.createdAt).toLocaleString("es-CO")}
-                </td>
-              </tr>
-            ))}
-            {audit.length === 0 ? (
+        {!audit.length ? (
+          <div className="p-4">
+            <EmptyState
+              icon={<Scan className="h-7 w-7" />}
+              title="Sin eventos de auditoría"
+              description="Los sellados, índices y borrados aparecen aquí."
+            />
+          </div>
+        ) : (
+          <table className="w-full text-left text-sm">
+            <thead>
               <tr>
-                <td
-                  colSpan={5}
-                  className="px-4 py-6 text-center text-sm text-[var(--brand-muted)]"
-                >
-                  Sin eventos de auditoría
-                </td>
+                <th className="px-4 py-2">Acción</th>
+                <th className="px-4 py-2">Documento</th>
+                <th className="px-4 py-2">Hash</th>
+                <th className="px-4 py-2">Operador</th>
+                <th className="px-4 py-2">Timestamp</th>
               </tr>
-            ) : null}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {audit.map((a) => (
+                <tr key={a.id} className="border-t border-[var(--brand-line)]">
+                  <td className="px-4 py-2.5">
+                    <StatusPulseBadge
+                      tone={
+                        a.action === "ARCHIVE_VAULT"
+                          ? "active"
+                          : a.action === "ARCHIVE_DELETE"
+                            ? "danger"
+                            : "neutral"
+                      }
+                      pulse={a.action === "ARCHIVE_DELETE"}
+                    >
+                      {a.action}
+                    </StatusPulseBadge>
+                  </td>
+                  <td className="px-4 py-2.5">
+                    {a.meta?.title || a.entityId || "N/A"}
+                  </td>
+                  <td className="px-4 py-2.5 font-data text-xs">
+                    {shortHash(a.meta?.contentHash)}
+                  </td>
+                  <td className="px-4 py-2.5 text-xs">
+                    {a.user?.name || "sistema"}
+                  </td>
+                  <td className="px-4 py-2.5 font-data text-xs">
+                    {new Date(a.createdAt).toLocaleString("es-CO")}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
+
+      <Modal
+        open={uploadOpen}
+        onClose={() => setUploadOpen(false)}
+        title="Indexar documento"
+        description="Sello SHA-256 en bóveda local."
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-auto px-4 py-2"
+              onClick={() => setUploadOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              form="archivo-upload-form"
+              variant="primary"
+              className="w-auto px-4 py-2"
+              data-testid="archivo-submit"
+            >
+              {file ? "Sellar e indexar" : "Indexar sin archivo"}
+            </Button>
+          </>
+        }
+      >
+        <form
+          id="archivo-upload-form"
+          onSubmit={onCreate}
+          data-testid="archivo-upload-form"
+          className="space-y-4"
+        >
+          <label className="block space-y-1.5">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Título
+            </span>
+            <input
+              className="field w-full"
+              data-testid="archivo-title"
+              placeholder="Título"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              required={!file}
+            />
+          </label>
+          <label className="block space-y-1.5">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Categoría
+            </span>
+            <select
+              className="field w-full"
+              data-testid="archivo-category"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+            >
+              <option value="CONTRACT">Contrato</option>
+              <option value="INVOICE">Factura</option>
+              <option value="LEGAL">Legal</option>
+              <option value="HR">RRHH</option>
+              <option value="OPS">Operaciones</option>
+              <option value="OTHER">Otro</option>
+            </select>
+          </label>
+          <label className="block space-y-1.5">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Tags
+            </span>
+            <input
+              className="field w-full"
+              data-testid="archivo-tags"
+              placeholder="Tags"
+              value={tags}
+              onChange={(e) => setTags(e.target.value)}
+            />
+          </label>
+          <div className="space-y-1.5">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Archivo
+            </span>
+            <EvidenceDropzone
+              onFiles={(files) => setFile(files[0] || null)}
+              acceptLabel="PDF o imágenes"
+            />
+            <input
+              className="field w-full text-sm"
+              data-testid="archivo-file"
+              type="file"
+              onChange={(e) => setFile(e.target.files?.[0] || null)}
+            />
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

@@ -1,0 +1,27 @@
+# FSG MEGA OS - System Guidelines & Refactoring Rules
+
+## Stack Tecnológico
+- Frontend: React + Vite, Tailwind CSS, Lucide Icons, Recharts/Tremor, Radix UI.
+- Arquitectura: Componentes modulares, patrones Presentational/Container, Custom Hooks.
+
+## Reglas Indiscutibles de UI/UX (Basadas en Auditoría)
+
+1. **Protocolos Operativos y Ayuda:**
+   - NUNCA colocar bloques de texto estático o instrucciones descriptivas en el 20%-30% superior de las pantallas principales.
+   - Las guías, protocolos e instrucciones DEBEN ir obligatoriamente dentro del componente `<SlideOverHelp />` (Panel lateral desplegable con la tecla `?` o botón de ayuda).
+
+2. **Proporción de Botones Accionables:**
+   - Evitar botones primarios de ancho completo (`w-full`) en la vista principal salvo en la pantalla de Login.
+   - Usar tamaños compactos/automáticos (`w-auto` o `px-4 py-2`), alineados a la derecha de la interfaz.
+
+3. **Manejo de Formularios:**
+   - Las vistas principales se reservan exclusivamente para KPIs, filtros y tablas/módulos de datos.
+   - Todo formulario de creación o edición extensa DEBE abrirse en un `<Modal />` o un `<SlideOver />` flotante.
+
+4. **Componentes de Estado Vacío (Empty States):**
+   - Queda prohibido mostrar tablas vacías o contenedores negros/oscuros sin contenido.
+   - Si no hay datos, renderizar un componente `<EmptyState />` con un ícono descriptivo en tonos grises, un título claro y una acción primaria de creación.
+
+5. **Diseño Visual & Temática:**
+   - Paleta Oscura/Sci-Fi/Aeroespacial: Colores oscuros, bordes finos de alto contraste (`border-slate-800`), acentos semafóricos en badgets (`ACTIVE`, `FATIGA`, `DANGER`).
+   - Jerarquía: Fuentes numéricas grandes para KPIs, tablas limpias con bordes suaves y buscador de comandos global `Ctrl + K`.

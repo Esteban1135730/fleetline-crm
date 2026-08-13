@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@fsg/ui";
+import { ClipboardList } from "lucide-react";
 import { api, apiDownload } from "@/lib/api";
-import { HowToBox, PageIntro } from "@/components/page-intro";
+import { PageIntro } from "@/components/page-intro";
+import { EmptyState, KpiCard, Modal, StatusPulseBadge } from "@/components/audit";
 import { TarifarioRecargosPanel } from "@/components/logistica/tarifario-recargos-panel";
 
 type DriverOpt = { id: string; name: string; document: string };
@@ -76,6 +78,20 @@ function hrs(n: number) {
 function currentMes() {
   const n = new Date();
   return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function SiglaBadge({
+  code,
+  tone = "neutral",
+}: {
+  code: string;
+  tone?: "neutral" | "active" | "fatiga" | "danger";
+}) {
+  return (
+    <StatusPulseBadge tone={tone} pulse={false}>
+      {code}
+    </StatusPulseBadge>
+  );
 }
 
 export default function ReporteNominaPage() {
@@ -187,20 +203,42 @@ export default function ReporteNominaPage() {
         module="logistica"
         title="Reporte mensual · Nómina de horas extras"
       />
-      <HowToBox
-        steps={[
-          "Ajusta la base organizacional o la base por empleado en el tarifario de recargos.",
-          "Selecciona el período YYYY-MM y el empleado (o Todos).",
-          "Exporta Excel (resumen + día a día) o PDF desprendible listo para firmar.",
-        ]}
-      />
-
-      <TarifarioRecargosPanel />
 
       {error ? (
         <p role="alert" className="text-sm text-[var(--brand-signal)]">
           {error}
         </p>
+      ) : null}
+
+      {metrics ? (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <KpiCard
+            label="Total horas extras"
+            value={hrs(metrics.totalExtrasHours)}
+            delta="HED+HEN+RN+HEDF+HENF"
+          />
+          <KpiCard
+            label="Mayor acumulado extras"
+            value={metrics.topEmployee?.name ?? "—"}
+            delta={
+              metrics.topEmployee
+                ? money(metrics.topEmployee.totalExtrasAmount)
+                : "Sin datos"
+            }
+          />
+          <KpiCard
+            label="Novedades registradas"
+            value={String(metrics.totalNovelties)}
+            delta={`${metrics.employeeCount} empleados`}
+            tone="warn"
+          />
+          <KpiCard
+            label="Presupuesto extras"
+            value={money(metrics.totalExtrasAmount)}
+            delta="Total a liquidar"
+            tone="ok"
+          />
+        </div>
       ) : null}
 
       <div className="fsg-panel flex flex-wrap items-end gap-3 p-4">
@@ -231,6 +269,7 @@ export default function ReporteNominaPage() {
         <Button
           type="button"
           variant="secondary"
+          className="w-auto"
           onClick={() => void loadReport()}
           loading={loading}
         >
@@ -240,6 +279,7 @@ export default function ReporteNominaPage() {
           <Button
             type="button"
             variant="primary"
+            className="w-auto"
             loading={exporting}
             onClick={() => setExportOpen((v) => !v)}
           >
@@ -266,134 +306,130 @@ export default function ReporteNominaPage() {
         </div>
       </div>
 
-      {metrics ? (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <MetricCard
-            label="Total horas extras"
-            value={hrs(metrics.totalExtrasHours)}
-            hint="HED+HEN+RN+HEDF+HENF+…"
-          />
-          <MetricCard
-            label="Mayor acumulado extras"
-            value={metrics.topEmployee?.name ?? "—"}
-            hint={
-              metrics.topEmployee
-                ? money(metrics.topEmployee.totalExtrasAmount)
-                : "Sin datos"
-            }
-          />
-          <MetricCard
-            label="Novedades registradas"
-            value={String(metrics.totalNovelties)}
-            hint={`${metrics.employeeCount} empleados`}
-          />
-          <MetricCard
-            label="Presupuesto extras"
-            value={money(metrics.totalExtrasAmount)}
-            hint="Total a liquidar"
-            accent
-          />
+      <details className="fsg-panel overflow-hidden">
+        <summary className="cursor-pointer list-none px-4 py-3 font-display text-sm font-semibold marker:content-none [&::-webkit-details-marker]:hidden">
+          <span className="inline-flex items-center gap-2">
+            Tarifario de recargos
+            <span className="inline-flex gap-1">
+              <SiglaBadge code="RN" tone="fatiga" />
+              <SiglaBadge code="HED" tone="active" />
+              <SiglaBadge code="HEN" tone="danger" />
+            </span>
+            <span className="ml-2 text-xs font-normal text-[var(--brand-muted)]">
+              (colapsado — expandir)
+            </span>
+          </span>
+        </summary>
+        <div className="border-t border-[var(--brand-line)] p-4">
+          <TarifarioRecargosPanel />
         </div>
-      ) : null}
+      </details>
 
       <div className="fsg-panel data-shell overflow-auto">
-        <table className="w-full min-w-[1100px] text-left text-sm">
-          <thead>
-            <tr className="text-[11px] uppercase tracking-[0.08em] text-[var(--brand-muted)]">
-              <th className="px-3 py-2">Documento</th>
-              <th className="px-3 py-2">Empleado</th>
-              <th className="px-3 py-2">Días</th>
-              <th className="px-3 py-2">HED</th>
-              <th className="px-3 py-2">HEN</th>
-              <th className="px-3 py-2">RN</th>
-              <th className="px-3 py-2">HEDF</th>
-              <th className="px-3 py-2">HENF</th>
-              <th className="px-3 py-2">Novedades</th>
-              <th className="px-3 py-2">Total $ extras</th>
-              <th className="px-3 py-2">Total a pagar</th>
-              <th className="px-3 py-2">Acción</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr
-                key={r.empleadoId}
-                className="border-t border-[var(--brand-line)]"
-              >
-                <td className="px-3 py-2 font-data text-xs">{r.document}</td>
-                <td className="px-3 py-2">{r.name}</td>
-                <td className="px-3 py-2 font-data text-xs">{r.daysWorked}</td>
-                <td className="px-3 py-2 font-data text-xs">
-                  {hrs(r.hedHours)}
-                </td>
-                <td className="px-3 py-2 font-data text-xs">
-                  {hrs(r.henHours)}
-                </td>
-                <td className="px-3 py-2 font-data text-xs">{hrs(r.rnHours)}</td>
-                <td className="px-3 py-2 font-data text-xs">
-                  {hrs(r.hedfHours)}
-                </td>
-                <td className="px-3 py-2 font-data text-xs">
-                  {hrs(r.henfHours)}
-                </td>
-                <td className="px-3 py-2 font-data text-xs">{r.noveltyCount}</td>
-                <td className="px-3 py-2 font-data text-xs text-[var(--brand-amber)]">
-                  {money(r.totalExtrasAmount)}
-                </td>
-                <td className="px-3 py-2 font-data text-xs text-[var(--brand-primary)]">
-                  {money(r.totalPay)}
-                </td>
-                <td className="px-3 py-2">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => void openDetail(r.empleadoId)}
-                  >
-                    Ver detalle día a día
-                  </Button>
-                </td>
+        {!loading && rows.length === 0 ? (
+          <div className="p-4">
+            <EmptyState
+              icon={<ClipboardList className="h-7 w-7" aria-hidden />}
+              title="Sin liquidaciones en el período"
+              description="Ajusta el mes o registra servicios con extras para generar el reporte."
+            />
+          </div>
+        ) : (
+          <table className="w-full min-w-[1100px] text-left text-sm">
+            <thead>
+              <tr className="text-[11px] uppercase tracking-[0.08em] text-[var(--brand-muted)]">
+                <th className="px-3 py-2">Documento</th>
+                <th className="px-3 py-2">Empleado</th>
+                <th className="px-3 py-2">Días</th>
+                <th className="px-3 py-2">
+                  <SiglaBadge code="HED" tone="active" />
+                </th>
+                <th className="px-3 py-2">
+                  <SiglaBadge code="HEN" tone="danger" />
+                </th>
+                <th className="px-3 py-2">
+                  <SiglaBadge code="RN" tone="fatiga" />
+                </th>
+                <th className="px-3 py-2">HEDF</th>
+                <th className="px-3 py-2">HENF</th>
+                <th className="px-3 py-2">Novedades</th>
+                <th className="px-3 py-2">Total $ extras</th>
+                <th className="px-3 py-2">Total a pagar</th>
+                <th className="px-3 py-2">Acción</th>
               </tr>
-            ))}
-            {!loading && rows.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={12}
-                  className="px-3 py-8 text-center text-sm text-[var(--brand-muted)]"
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr
+                  key={r.empleadoId}
+                  className="border-t border-[var(--brand-line)]"
                 >
-                  Sin liquidaciones en el período.
-                </td>
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
+                  <td className="px-3 py-2 font-data text-xs">{r.document}</td>
+                  <td className="px-3 py-2">{r.name}</td>
+                  <td className="px-3 py-2 font-data text-xs">{r.daysWorked}</td>
+                  <td className="px-3 py-2 font-data text-xs">
+                    {hrs(r.hedHours)}
+                  </td>
+                  <td className="px-3 py-2 font-data text-xs">
+                    {hrs(r.henHours)}
+                  </td>
+                  <td className="px-3 py-2 font-data text-xs">{hrs(r.rnHours)}</td>
+                  <td className="px-3 py-2 font-data text-xs">
+                    {hrs(r.hedfHours)}
+                  </td>
+                  <td className="px-3 py-2 font-data text-xs">
+                    {hrs(r.henfHours)}
+                  </td>
+                  <td className="px-3 py-2 font-data text-xs">{r.noveltyCount}</td>
+                  <td className="px-3 py-2 font-data text-xs text-[var(--brand-amber)]">
+                    {money(r.totalExtrasAmount)}
+                  </td>
+                  <td className="px-3 py-2 font-data text-xs text-[var(--brand-primary)]">
+                    {money(r.totalPay)}
+                  </td>
+                  <td className="px-3 py-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="w-auto"
+                      onClick={() => void openDetail(r.empleadoId)}
+                    >
+                      Ver detalle día a día
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
 
-      {detail ? (
-        <div
-          className="fixed inset-0 z-40 flex items-center justify-center bg-black/55 p-4"
-          role="dialog"
-          aria-modal="true"
-          onClick={() => setDetail(null)}
-        >
-          <div
-            className="fsg-panel max-h-[85vh] w-full max-w-3xl overflow-auto p-5"
-            onClick={(e) => e.stopPropagation()}
+      <Modal
+        open={Boolean(detail)}
+        onClose={() => setDetail(null)}
+        title={detail?.name ?? "Detalle"}
+        description={
+          detail
+            ? `${detail.document} · ${mes} · Base ${money(detail.baseSalary)}`
+            : undefined
+        }
+        size="lg"
+        footer={
+          <Button
+            type="button"
+            variant="ghost"
+            className="w-auto"
+            onClick={() => setDetail(null)}
           >
-            <div className="mb-4 flex items-start justify-between gap-3">
-              <div>
-                <h2 className="text-lg text-[var(--brand-fg)]">{detail.name}</h2>
-                <p className="font-data text-xs text-[var(--brand-muted)]">
-                  {detail.document} · {mes} · Base {money(detail.baseSalary)}
-                </p>
-              </div>
-              <Button type="button" variant="ghost" onClick={() => setDetail(null)}>
-                Cerrar
-              </Button>
-            </div>
-
+            Cerrar
+          </Button>
+        }
+      >
+        {detail ? (
+          <div className="space-y-4">
             {detail.novelties.length ? (
-              <div className="mb-4 rounded-md border border-[var(--brand-line)] p-3">
-                <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--brand-muted)]">
+              <div className="rounded-md border border-slate-800 p-3">
+                <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">
                   Novedades del mes
                 </p>
                 <ul className="space-y-1 text-xs">
@@ -413,12 +449,18 @@ export default function ReporteNominaPage() {
 
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="text-[10px] uppercase tracking-[0.08em] text-[var(--brand-muted)]">
+                <tr className="text-[10px] uppercase tracking-[0.08em] text-slate-500">
                   <th className="py-1">Fecha</th>
                   <th>Ord</th>
-                  <th>HED</th>
-                  <th>HEN</th>
-                  <th>RN</th>
+                  <th>
+                    <SiglaBadge code="HED" tone="active" />
+                  </th>
+                  <th>
+                    <SiglaBadge code="HEN" tone="danger" />
+                  </th>
+                  <th>
+                    <SiglaBadge code="RN" tone="fatiga" />
+                  </th>
                   <th>HEDF</th>
                   <th>HENF</th>
                   <th>$ Extras</th>
@@ -427,10 +469,7 @@ export default function ReporteNominaPage() {
               </thead>
               <tbody>
                 {detail.daily.map((d) => (
-                  <tr
-                    key={d.date}
-                    className="border-t border-[var(--brand-line)]"
-                  >
+                  <tr key={d.date} className="border-t border-slate-800">
                     <td className="py-1.5 font-data">{d.date}</td>
                     <td className="font-data">{hrs(d.ordinaryHours)}</td>
                     <td className="font-data">{hrs(d.hedHours)}</td>
@@ -441,7 +480,7 @@ export default function ReporteNominaPage() {
                     <td className="font-data text-[var(--brand-amber)]">
                       {money(d.extrasAmount)}
                     </td>
-                    <td className="text-[var(--brand-muted)]">
+                    <td className="text-slate-500">
                       {d.services.map((s) => s.code).join(", ") || "—"}
                       {d.novelties.length
                         ? ` · ${d.novelties.map((n) => n.kind).join(",")}`
@@ -452,7 +491,7 @@ export default function ReporteNominaPage() {
               </tbody>
             </table>
 
-            <div className="mt-4 flex flex-wrap gap-4 font-data text-sm">
+            <div className="flex flex-wrap gap-4 font-data text-sm">
               <span>
                 Extras{" "}
                 <strong className="text-[var(--brand-amber)]">
@@ -467,36 +506,8 @@ export default function ReporteNominaPage() {
               </span>
             </div>
           </div>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function MetricCard({
-  label,
-  value,
-  hint,
-  accent,
-}: {
-  label: string;
-  value: string;
-  hint: string;
-  accent?: boolean;
-}) {
-  return (
-    <div className="fsg-panel p-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--brand-muted)]">
-        {label}
-      </p>
-      <p
-        className={`mt-2 font-data text-xl ${
-          accent ? "text-[var(--brand-primary)]" : "text-[var(--brand-fg)]"
-        }`}
-      >
-        {value}
-      </p>
-      <p className="mt-1 text-[11px] text-[var(--brand-muted)]">{hint}</p>
+        ) : null}
+      </Modal>
     </div>
   );
 }

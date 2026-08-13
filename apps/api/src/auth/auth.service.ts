@@ -96,6 +96,38 @@ export class AuthService {
     return this.toPublicUser(user);
   }
 
+  /** Renovación silenciosa de JWT (apps móviles Offline-first). */
+  async refresh(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { organization: true },
+    });
+    if (!user || !user.active) throw new UnauthorizedException();
+    if (user.organization.status === "SUSPENDED") {
+      throw new ForbiddenException("Empresa suspendida");
+    }
+    if (
+      user.status === UserAccountStatus.PENDING ||
+      user.status === UserAccountStatus.REJECTED
+    ) {
+      throw new UnauthorizedException("Cuenta no activa");
+    }
+    const payload = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      organizationId: user.organizationId,
+      tenantId: user.organizationId,
+      directiveReadOnly: user.directiveReadOnly,
+    };
+    const accessToken = await this.jwt.signAsync(payload);
+    return {
+      accessToken,
+      refreshToken: accessToken,
+      user: this.toPublicUser(user),
+    };
+  }
+
   async changePassword(
     userId: string,
     currentPassword: string,

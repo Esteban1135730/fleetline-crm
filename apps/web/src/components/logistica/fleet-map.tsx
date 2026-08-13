@@ -14,6 +14,8 @@ type Props = {
   live: MapPoint | null;
   className?: string;
   height?: number;
+  /** Ocupa el contenedor padre (split-screen). */
+  fillHeight?: boolean;
 };
 
 const MODE_ES: Record<string, string> = {
@@ -36,8 +38,11 @@ function makeDot(color: string, pulse = false) {
   });
 }
 
+const DARK_TILES =
+  "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
+
 /**
- * Mapa operativo Leaflet + teselas OpenStreetMap.
+ * Mapa operativo Leaflet + teselas CartoDB dark.
  * Ruta sugerida / histórico GPS / punto en vivo.
  */
 export function FleetMap({
@@ -48,6 +53,7 @@ export function FleetMap({
   live,
   className = "",
   height = 320,
+  fillHeight = false,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -72,10 +78,9 @@ export function FleetMap({
       attributionControl: true,
     }).setView([4.65, -74.1], 12);
 
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    L.tileLayer(DARK_TILES, {
       maxZoom: 19,
-      attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      attribution: '&copy; <a href="https://carto.com/">CARTO</a> · OSM',
     }).addTo(map);
 
     const layers = L.layerGroup().addTo(map);
@@ -151,12 +156,23 @@ export function FleetMap({
     requestAnimationFrame(() => map.invalidateSize());
   }, [track, live, mode]);
 
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !fillHeight) return;
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => map.invalidateSize());
+    ro.observe(el);
+    requestAnimationFrame(() => map.invalidateSize());
+    return () => ro.disconnect();
+  }, [fillHeight]);
+
   return (
     <div
-      className={`fsg-panel overflow-hidden p-0 ${className}`}
+      className={`overflow-hidden p-0 ${fillHeight ? "flex h-full min-h-0 flex-col" : "fsg-panel"} ${className}`}
       data-testid="route-map"
     >
-      <div className="flex items-center justify-between border-b border-[var(--brand-line)] px-3 py-2">
+      <div className="flex shrink-0 items-center justify-between border-b border-[var(--brand-line)] px-3 py-2">
         <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--brand-muted)]">
           Mapa · {label}
         </span>
@@ -167,10 +183,10 @@ export function FleetMap({
       </div>
       <div
         ref={containerRef}
-        className="w-full bg-[var(--brand-canvas,#0A0D14)]"
-        style={{ height }}
+        className={`w-full bg-[#0A0D14] ${fillHeight ? "min-h-0 flex-1" : ""}`}
+        style={fillHeight ? undefined : { height }}
       />
-      <div className="flex flex-wrap gap-3 border-t border-[var(--brand-line)] px-3 py-1.5 text-[10px] text-[var(--brand-muted)]">
+      <div className="flex shrink-0 flex-wrap gap-3 border-t border-[var(--brand-line)] px-3 py-1.5 text-[10px] text-[var(--brand-muted)]">
         <span>
           <span className="mr-1 inline-block h-2 w-2 rounded-full bg-[var(--brand-amber)]" />
           Origen
@@ -183,7 +199,7 @@ export function FleetMap({
           <span className="mr-1 inline-block h-2 w-2 rounded-full bg-[var(--brand-primary)]" />
           Unidad / ruta
         </span>
-        <span className="ml-auto opacity-70">OpenStreetMap + OSRM</span>
+        <span className="ml-auto opacity-70">CartoDB · OSRM</span>
       </div>
     </div>
   );

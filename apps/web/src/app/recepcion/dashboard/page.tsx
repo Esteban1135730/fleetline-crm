@@ -1,9 +1,22 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { Badge, Button } from "@fsg/ui";
+import { Button } from "@fsg/ui";
+import {
+  MessageSquare,
+  UserPlus,
+  AlertTriangle,
+  Radar,
+  Users,
+} from "lucide-react";
 import { api } from "@/lib/api";
-import { HowToBox, PageIntro } from "@/components/page-intro";
+import { PageIntro } from "@/components/page-intro";
+import {
+  EmptyState,
+  KpiCard,
+  Modal,
+  StatusPulseBadge,
+} from "@/components/audit";
 
 type InboxItem = {
   id: string;
@@ -48,6 +61,26 @@ const VISIT_CLASS_LABEL: Record<string, string> = {
   B2B_MEETING: "Cliente B2B / reunión",
   OTHER: "Otro",
 };
+
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+}
+
+function formatTs(iso: string) {
+  try {
+    return new Date(iso).toLocaleString("es-CO", {
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return iso;
+  }
+}
 
 export default function RecepcionDashboardPage() {
   const [inbox, setInbox] = useState<InboxItem[]>([]);
@@ -243,21 +276,40 @@ export default function RecepcionDashboardPage() {
         module="call_center"
         title="Recepción · Concierge omnicanal"
         action={
-          metrics ? (
-            <div className="flex flex-wrap gap-2 font-data text-xs">
-              <Badge tone="emerald">Visitas {metrics.visitors}</Badge>
-              <Badge tone="amber">Leads {metrics.leadsConverted}</Badge>
-              <Badge tone="rose">PQRS {metrics.pqrsQuick}</Badge>
-            </div>
-          ) : null
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="primary"
+              className="inline-flex w-auto items-center px-4 py-2"
+              onClick={() => setPanel("visit")}
+            >
+              <UserPlus className="mr-1.5 h-4 w-4" aria-hidden />
+              Nuevo visitante
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-auto border border-amber-500/50 px-4 py-2 text-amber-300 hover:bg-amber-500/10"
+              onClick={() => {
+                if (!selectedChat) {
+                  setError("Selecciona un chat para convertir a Lead");
+                  return;
+                }
+                setPanel("lead");
+              }}
+            >
+              + Nuevo Lead
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-auto border border-rose-500/35 px-4 py-2 text-rose-300/90 hover:bg-rose-500/10"
+              onClick={() => setPanel("pqrs")}
+            >
+              + Nueva PQRS
+            </Button>
+          </div>
         }
-      />
-      <HowToBox
-        steps={[
-          "Registra visitas con cédula, clasificación y gafete RFID.",
-          "Tipifica chats y convierte a Lead (pase de balón comercial).",
-          "Consulta radar solo lectura y radica PQRS de retraso.",
-        ]}
       />
 
       {error ? (
@@ -267,22 +319,48 @@ export default function RecepcionDashboardPage() {
         <p className="text-sm text-[var(--brand-amber,#FFB800)]">{info}</p>
       ) : null}
 
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <KpiCard
+          label="Visitas hoy"
+          value={metrics?.visitors ?? "—"}
+          tone="ok"
+          icon={<Users />}
+          delta={waiting > 0 ? `${waiting} en espera` : undefined}
+        />
+        <KpiCard
+          label="Leads convertidos"
+          value={metrics?.leadsConverted ?? "—"}
+          tone="warn"
+          icon={<UserPlus />}
+        />
+        <KpiCard
+          label="PQRS rápidas"
+          value={metrics?.pqrsQuick ?? "—"}
+          tone="danger"
+          icon={<AlertTriangle />}
+        />
+      </section>
+
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
-        {/* Columna izquierda — Omnicanal */}
         <section
           id="omnicanal"
           className="fsg-panel xl:col-span-4 flex max-h-[78vh] flex-col overflow-hidden"
         >
-          <div className="border-b border-[var(--brand-line)] px-4 py-3 font-display text-sm font-semibold">
+          <div className="flex items-center gap-2 border-b border-[var(--brand-line)] px-4 py-3 font-display text-sm font-semibold">
+            <MessageSquare className="h-4 w-4 text-slate-500" aria-hidden />
             Bandeja omnicanal
           </div>
-          <ul className="flex-1 space-y-2 overflow-y-auto p-3">
-            {inbox.length === 0 ? (
-              <li className="text-sm text-[var(--text-secondary)]">
-                Sin chats entrantes
-              </li>
-            ) : (
-              inbox.map((c) => (
+          {inbox.length === 0 ? (
+            <div className="p-4">
+              <EmptyState
+                icon={<MessageSquare className="h-7 w-7" />}
+                title="Sin chats entrantes"
+                description="La cola omnicanal está vacía. Los mensajes aparecerán aquí."
+              />
+            </div>
+          ) : (
+            <ul className="flex-1 space-y-2 overflow-y-auto p-3">
+              {inbox.map((c) => (
                 <li key={c.id}>
                   <button
                     type="button"
@@ -293,46 +371,61 @@ export default function RecepcionDashboardPage() {
                         companyName: f.companyName || c.requester,
                       }));
                     }}
-                    className={`w-full rounded-lg border px-3 py-2 text-left transition ${
+                    className={`flex w-full items-start gap-3 rounded-lg border px-3 py-2.5 text-left transition duration-150 ease-in-out ${
                       selectedChat?.id === c.id
                         ? "border-[var(--accent-primary)] bg-[color-mix(in_srgb,var(--accent-primary)_12%,transparent)]"
                         : "border-[var(--brand-line)] hover:border-[var(--accent-primary)]/40"
                     }`}
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-data text-[10px] uppercase tracking-wide text-[var(--text-secondary)]">
-                        {c.channel}
+                    <span
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-700 bg-slate-800 font-mono text-xs font-semibold text-slate-200"
+                      aria-hidden
+                    >
+                      {initials(c.requester)}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center justify-between gap-2">
+                        <span className="font-data text-[10px] uppercase tracking-wide text-[var(--text-secondary)]">
+                          {c.channel}
+                        </span>
+                        <StatusPulseBadge tone="fatiga">{c.tagLabel}</StatusPulseBadge>
                       </span>
-                      <Badge tone="amber">{c.tagLabel}</Badge>
-                    </div>
-                    <div className="mt-1 text-sm font-medium">{c.subject}</div>
-                    <div className="font-data text-xs text-[var(--text-secondary)]">
-                      {c.requester} · {c.code}
-                    </div>
+                      <span className="mt-1 block text-sm font-medium text-slate-100">
+                        {c.subject}
+                      </span>
+                      <span className="mt-0.5 block font-data text-xs text-[var(--text-secondary)]">
+                        {c.requester} · {c.code}
+                      </span>
+                      <span className="mt-1 block font-mono text-[11px] tabular-nums text-slate-500">
+                        {formatTs(c.createdAt)}
+                      </span>
+                    </span>
                   </button>
                 </li>
-              ))
-            )}
-          </ul>
+              ))}
+            </ul>
+          )}
           {selectedChat ? (
             <div className="border-t border-[var(--brand-line)] p-3">
               <p className="mb-2 line-clamp-3 text-xs text-[var(--text-secondary)]">
                 {selectedChat.message}
               </p>
-              <Button
-                variant="primary"
-                onClick={() => setPanel("lead")}
-              >
-                Convertir a Lead
-              </Button>
+              <div className="flex justify-end">
+                <Button
+                  variant="ghost"
+                  className="w-auto border border-amber-500/50 px-4 py-2 text-amber-300 hover:bg-amber-500/10"
+                  onClick={() => setPanel("lead")}
+                >
+                  Convertir a Lead
+                </Button>
+              </div>
             </div>
           ) : null}
         </section>
 
-        {/* Centro — Smart Visitor Board */}
         <section
           id="visitantes"
-          className="fsg-panel xl:col-span-5 flex max-h-[78vh] flex-col overflow-hidden"
+          className="fsg-panel xl:col-span-8 flex max-h-[78vh] flex-col overflow-hidden"
         >
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--brand-line)] px-4 py-3">
             <div className="font-display text-sm font-semibold">
@@ -361,262 +454,328 @@ export default function RecepcionDashboardPage() {
             </div>
           </div>
           <div className="flex-1 overflow-y-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="text-xs text-[var(--text-secondary)]">
-                  <th className="px-3 py-2">Visitante</th>
-                  <th className="px-3 py-2">Clase</th>
-                  <th className="px-3 py-2">Estado</th>
-                  <th className="px-3 py-2">RFID</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visitors.map((v) => (
-                  <tr key={v.id} className="border-t border-[var(--brand-line)]">
-                    <td className="px-3 py-2">
-                      <div className="font-medium">{v.name}</div>
-                      <div className="font-data text-[11px] text-[var(--text-secondary)]">
-                        {v.document} · {v.hostName}
-                      </div>
-                    </td>
-                    <td className="px-3 py-2 text-xs">
-                      {VISIT_CLASS_LABEL[v.visitClass] || v.visitClass}
-                    </td>
-                    <td className="px-3 py-2">
-                      <Badge
-                        tone={
-                          v.boardStatus === "CHECKED_OUT"
-                            ? "rose"
-                            : v.boardStatus === "WAITING"
-                              ? "amber"
-                              : "emerald"
-                        }
-                      >
-                        {v.boardStatus}
-                      </Badge>
-                    </td>
-                    <td className="px-3 py-2 font-data text-xs">
-                      {v.badgeRfid || "—"}
-                    </td>
+            {visitors.length === 0 ? (
+              <div className="p-4">
+                <EmptyState
+                  icon={<Users className="h-7 w-7" />}
+                  title="Sin visitas registradas"
+                  description="Registra el primer visitante del día."
+                  actionLabel="+ Nuevo visitante"
+                  onAction={() => setPanel("visit")}
+                />
+              </div>
+            ) : (
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="text-xs text-[var(--text-secondary)]">
+                    <th className="px-3 py-2">Visitante</th>
+                    <th className="px-3 py-2">Clase</th>
+                    <th className="px-3 py-2">Estado</th>
+                    <th className="px-3 py-2">RFID</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {visitors.map((v) => (
+                    <tr key={v.id} className="border-t border-[var(--brand-line)]">
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-700 bg-slate-800 font-mono text-[10px] font-semibold text-slate-200"
+                            aria-hidden
+                          >
+                            {initials(v.name)}
+                          </span>
+                          <div>
+                            <div className="font-medium">{v.name}</div>
+                            <div className="font-data text-[11px] text-[var(--text-secondary)]">
+                              {v.document} · {v.hostName}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 text-xs">
+                        {VISIT_CLASS_LABEL[v.visitClass] || v.visitClass}
+                      </td>
+                      <td className="px-3 py-2">
+                        <StatusPulseBadge
+                          tone={
+                            v.boardStatus === "CHECKED_OUT"
+                              ? "danger"
+                              : v.boardStatus === "WAITING"
+                                ? "fatiga"
+                                : "active"
+                          }
+                        >
+                          {v.boardStatus}
+                        </StatusPulseBadge>
+                      </td>
+                      <td className="px-3 py-2 font-data text-xs">
+                        {v.badgeRfid || "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
 
           <div id="radar" className="border-t border-[var(--brand-line)] p-3">
-            <div className="mb-2 font-display text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+            <div className="mb-2 flex items-center gap-1.5 font-display text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+              <Radar className="h-3.5 w-3.5" aria-hidden />
               Radar de rutas (solo lectura)
             </div>
-            <div className="mb-2 flex gap-2">
+            <div className="mb-2 flex flex-wrap gap-2">
               <input
-                className="field flex-1"
+                className="field h-11 min-h-[44px] flex-1"
                 placeholder="Colegio / ruta / placa"
                 value={radarQ}
                 onChange={(e) => setRadarQ(e.target.value)}
               />
-              <Button variant="ghost" onClick={() => void searchRadar()}>
+              <Button
+                variant="ghost"
+                className="w-auto px-4 py-2"
+                onClick={() => void searchRadar()}
+              >
                 Buscar
               </Button>
             </div>
-            <ul className="max-h-36 space-y-1 overflow-y-auto text-xs">
-              {radar.map((r) => (
-                <li
-                  key={r.tripId}
-                  className="rounded border border-[var(--brand-line)] px-2 py-1.5"
-                >
-                  <span className="font-data">{r.vehicle?.plate || "s/p"}</span>
-                  {" · "}
-                  {r.schoolOrRoute} · {r.status}
-                  {r.vehicle ? (
-                    <span className="font-data text-[var(--text-secondary)]">
-                      {" "}
-                      ({r.vehicle.lat.toFixed(4)}, {r.vehicle.lng.toFixed(4)})
-                    </span>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
+            {radar.length === 0 ? (
+              <p className="text-xs text-slate-500">Sin resultados de radar</p>
+            ) : (
+              <ul className="max-h-36 space-y-1 overflow-y-auto text-xs">
+                {radar.map((r) => (
+                  <li
+                    key={r.tripId}
+                    className="rounded border border-[var(--brand-line)] px-2 py-1.5"
+                  >
+                    <span className="font-data">{r.vehicle?.plate || "s/p"}</span>
+                    {" · "}
+                    {r.schoolOrRoute} · {r.status}
+                    {r.vehicle ? (
+                      <span className="font-data text-[var(--text-secondary)]">
+                        {" "}
+                        ({r.vehicle.lat.toFixed(4)}, {r.vehicle.lng.toFixed(4)})
+                      </span>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </section>
-
-        {/* Derecha — acciones rápidas */}
-        <section className="fsg-panel xl:col-span-3 space-y-3 p-4">
-          <div className="font-display text-sm font-semibold">Acción rápida</div>
-          <button
-            type="button"
-            className="login-submit flex w-full items-center justify-center py-5 text-base font-semibold"
-            onClick={() => setPanel("visit")}
-          >
-            + Nuevo visitante
-          </button>
-          <button
-            type="button"
-            className="flex w-full items-center justify-center rounded-lg border border-[var(--brand-line)] bg-[var(--surface-1,#121722)] py-5 text-base font-semibold transition hover:border-[var(--accent-primary)]"
-            onClick={() => {
-              if (!selectedChat) {
-                setError("Selecciona un chat para convertir a Lead");
-                return;
-              }
-              setPanel("lead");
-            }}
-          >
-            + Nuevo Lead
-          </button>
-          <button
-            type="button"
-            className="flex w-full items-center justify-center rounded-lg border border-[var(--brand-signal,#FF2A5F)]/50 py-5 text-base font-semibold text-[var(--brand-signal,#FF2A5F)] transition hover:bg-[color-mix(in_srgb,var(--brand-signal)_10%,transparent)]"
-            onClick={() => setPanel("pqrs")}
-            id="pqrs"
-          >
-            + Reportar PQRS
-          </button>
-
-          {panel === "visit" ? (
-            <form onSubmit={submitVisit} className="space-y-2 border-t border-[var(--brand-line)] pt-3">
-              <input
-                className="field font-data"
-                placeholder="Cédula"
-                value={visitForm.document}
-                onChange={(e) =>
-                  setVisitForm((f) => ({ ...f, document: e.target.value }))
-                }
-                onBlur={() => void onDocumentBlur()}
-                required
-              />
-              <input
-                className="field"
-                placeholder="Nombre"
-                value={visitForm.name}
-                onChange={(e) =>
-                  setVisitForm((f) => ({ ...f, name: e.target.value }))
-                }
-                required
-              />
-              <input
-                className="field"
-                placeholder="Empresa"
-                value={visitForm.company}
-                onChange={(e) =>
-                  setVisitForm((f) => ({ ...f, company: e.target.value }))
-                }
-              />
-              <input
-                className="field"
-                placeholder="Anfitrión"
-                value={visitForm.hostName}
-                onChange={(e) =>
-                  setVisitForm((f) => ({ ...f, hostName: e.target.value }))
-                }
-                required
-              />
-              <select
-                className="field"
-                value={visitForm.visitClass}
-                onChange={(e) =>
-                  setVisitForm((f) => ({ ...f, visitClass: e.target.value }))
-                }
-              >
-                {Object.entries(VISIT_CLASS_LABEL).map(([k, label]) => (
-                  <option key={k} value={k}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-              <input
-                className="field font-data"
-                placeholder="Gafete RFID"
-                value={visitForm.badgeRfid}
-                onChange={(e) =>
-                  setVisitForm((f) => ({ ...f, badgeRfid: e.target.value }))
-                }
-              />
-              <Button type="submit" variant="primary">
-                Registrar visita
-              </Button>
-            </form>
-          ) : null}
-
-          {panel === "lead" ? (
-            <form onSubmit={submitLead} className="space-y-2 border-t border-[var(--brand-line)] pt-3">
-              <p className="text-xs text-[var(--text-secondary)]">
-                Chat: {selectedChat?.code || "—"}
-              </p>
-              <input
-                className="field"
-                placeholder="Empresa"
-                value={leadForm.companyName}
-                onChange={(e) =>
-                  setLeadForm((f) => ({ ...f, companyName: e.target.value }))
-                }
-                required
-              />
-              <input
-                className="field font-data"
-                type="email"
-                placeholder="Email"
-                value={leadForm.email}
-                onChange={(e) =>
-                  setLeadForm((f) => ({ ...f, email: e.target.value }))
-                }
-                required
-              />
-              <input
-                className="field font-data"
-                type="date"
-                value={leadForm.serviceDate}
-                onChange={(e) =>
-                  setLeadForm((f) => ({ ...f, serviceDate: e.target.value }))
-                }
-              />
-              <Button type="submit" variant="primary">
-                Asignar a gestor comercial
-              </Button>
-            </form>
-          ) : null}
-
-          {panel === "pqrs" ? (
-            <form onSubmit={submitPqrs} className="space-y-2 border-t border-[var(--brand-line)] pt-3">
-              <input
-                className="field"
-                placeholder="Solicitante"
-                value={pqrsForm.requester}
-                onChange={(e) =>
-                  setPqrsForm((f) => ({ ...f, requester: e.target.value }))
-                }
-                required
-              />
-              <input
-                className="field"
-                placeholder="Colegio"
-                value={pqrsForm.schoolName}
-                onChange={(e) =>
-                  setPqrsForm((f) => ({ ...f, schoolName: e.target.value }))
-                }
-              />
-              <input
-                className="field"
-                placeholder="Ruta"
-                value={pqrsForm.routeLabel}
-                onChange={(e) =>
-                  setPqrsForm((f) => ({ ...f, routeLabel: e.target.value }))
-                }
-              />
-              <textarea
-                className="field min-h-[80px]"
-                value={pqrsForm.message}
-                onChange={(e) =>
-                  setPqrsForm((f) => ({ ...f, message: e.target.value }))
-                }
-                required
-              />
-              <Button type="submit" variant="primary">
-                Reportar novedad
-              </Button>
-            </form>
-          ) : null}
-        </section>
       </div>
+
+      <Modal
+        open={panel === "visit"}
+        onClose={() => setPanel("none")}
+        title="Nuevo visitante"
+        description="Check-in con cédula, clasificación y gafete RFID."
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-auto px-4 py-2"
+              onClick={() => setPanel("none")}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              form="visit-form"
+              variant="primary"
+              className="w-auto px-4 py-2"
+            >
+              Registrar visita
+            </Button>
+          </>
+        }
+      >
+        <form id="visit-form" onSubmit={submitVisit} className="space-y-3">
+          <input
+            className="field h-11 min-h-[44px] font-data"
+            placeholder="Cédula"
+            value={visitForm.document}
+            onChange={(e) =>
+              setVisitForm((f) => ({ ...f, document: e.target.value }))
+            }
+            onBlur={() => void onDocumentBlur()}
+            required
+          />
+          <input
+            className="field h-11 min-h-[44px]"
+            placeholder="Nombre"
+            value={visitForm.name}
+            onChange={(e) =>
+              setVisitForm((f) => ({ ...f, name: e.target.value }))
+            }
+            required
+          />
+          <input
+            className="field h-11 min-h-[44px]"
+            placeholder="Empresa"
+            value={visitForm.company}
+            onChange={(e) =>
+              setVisitForm((f) => ({ ...f, company: e.target.value }))
+            }
+          />
+          <input
+            className="field h-11 min-h-[44px]"
+            placeholder="Anfitrión"
+            value={visitForm.hostName}
+            onChange={(e) =>
+              setVisitForm((f) => ({ ...f, hostName: e.target.value }))
+            }
+            required
+          />
+          <select
+            className="field h-11 min-h-[44px]"
+            value={visitForm.visitClass}
+            onChange={(e) =>
+              setVisitForm((f) => ({ ...f, visitClass: e.target.value }))
+            }
+          >
+            {Object.entries(VISIT_CLASS_LABEL).map(([k, label]) => (
+              <option key={k} value={k}>
+                {label}
+              </option>
+            ))}
+          </select>
+          <input
+            className="field h-11 min-h-[44px] font-data"
+            placeholder="Gafete RFID"
+            value={visitForm.badgeRfid}
+            onChange={(e) =>
+              setVisitForm((f) => ({ ...f, badgeRfid: e.target.value }))
+            }
+          />
+        </form>
+      </Modal>
+
+      <Modal
+        open={panel === "lead"}
+        onClose={() => setPanel("none")}
+        title="Nuevo Lead"
+        description={
+          selectedChat
+            ? `Chat ${selectedChat.code} · pase a comercial`
+            : "Selecciona un chat de la bandeja"
+        }
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-auto px-4 py-2"
+              onClick={() => setPanel("none")}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              form="lead-form"
+              variant="primary"
+              className="w-auto px-4 py-2"
+              disabled={!selectedChat}
+            >
+              Asignar a gestor comercial
+            </Button>
+          </>
+        }
+      >
+        <form id="lead-form" onSubmit={submitLead} className="space-y-3">
+          <input
+            className="field h-11 min-h-[44px]"
+            placeholder="Empresa"
+            value={leadForm.companyName}
+            onChange={(e) =>
+              setLeadForm((f) => ({ ...f, companyName: e.target.value }))
+            }
+            required
+          />
+          <input
+            className="field h-11 min-h-[44px] font-data"
+            type="email"
+            placeholder="Email"
+            value={leadForm.email}
+            onChange={(e) =>
+              setLeadForm((f) => ({ ...f, email: e.target.value }))
+            }
+            required
+          />
+          <input
+            className="field h-11 min-h-[44px] font-data"
+            type="date"
+            value={leadForm.serviceDate}
+            onChange={(e) =>
+              setLeadForm((f) => ({ ...f, serviceDate: e.target.value }))
+            }
+          />
+        </form>
+      </Modal>
+
+      <Modal
+        open={panel === "pqrs"}
+        onClose={() => setPanel("none")}
+        title="Nueva PQRS"
+        description="Radicación rápida hacia Torre de Control / QHSE."
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-auto px-4 py-2"
+              onClick={() => setPanel("none")}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              form="pqrs-form"
+              variant="primary"
+              className="w-auto px-4 py-2"
+            >
+              Reportar novedad
+            </Button>
+          </>
+        }
+      >
+        <form id="pqrs-form" onSubmit={submitPqrs} className="space-y-3">
+          <input
+            className="field h-11 min-h-[44px]"
+            placeholder="Solicitante"
+            value={pqrsForm.requester}
+            onChange={(e) =>
+              setPqrsForm((f) => ({ ...f, requester: e.target.value }))
+            }
+            required
+          />
+          <input
+            className="field h-11 min-h-[44px]"
+            placeholder="Colegio"
+            value={pqrsForm.schoolName}
+            onChange={(e) =>
+              setPqrsForm((f) => ({ ...f, schoolName: e.target.value }))
+            }
+          />
+          <input
+            className="field h-11 min-h-[44px]"
+            placeholder="Ruta"
+            value={pqrsForm.routeLabel}
+            onChange={(e) =>
+              setPqrsForm((f) => ({ ...f, routeLabel: e.target.value }))
+            }
+          />
+          <textarea
+            className="field min-h-[80px]"
+            value={pqrsForm.message}
+            onChange={(e) =>
+              setPqrsForm((f) => ({ ...f, message: e.target.value }))
+            }
+            required
+          />
+        </form>
+      </Modal>
     </div>
   );
 }

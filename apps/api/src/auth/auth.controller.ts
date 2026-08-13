@@ -31,6 +31,13 @@ export class AuthController {
     return this.auth.me(req.user.userId);
   }
 
+  /** Renovación de sesión móvil — requiere Bearer vigente. */
+  @UseGuards(JwtAuthGuard)
+  @Post("refresh")
+  refresh(@Req() req: { user: { userId: string } }) {
+    return this.auth.refresh(req.user.userId);
+  }
+
   @UseGuards(JwtAuthGuard)
   @Patch("password")
   changePassword(

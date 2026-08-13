@@ -3,8 +3,14 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { Button } from "@fsg/ui";
+import { Bell, MapPin, Plus, Radio } from "lucide-react";
 import { api } from "@/lib/api";
-import { HowToBox, PageIntro } from "@/components/page-intro";
+import { PageIntro } from "@/components/page-intro";
+import {
+  EmptyState,
+  SlideOver,
+  StatusPulseBadge,
+} from "@/components/audit";
 import {
   RouteMap,
   ServerClockBadge,
@@ -23,8 +29,8 @@ const ServicioMapPlanner = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="fsg-panel flex h-[420px] items-center justify-center text-sm text-[var(--brand-muted)]">
-        Cargando planificador de ruta…
+      <div className="flex h-full items-center justify-center bg-[#0A0D14] text-sm text-[var(--brand-muted)]">
+        Cargando uplink cartográfico…
       </div>
     ),
   },
@@ -68,6 +74,9 @@ export default function LogisticaServiciosPage() {
   const [destPin, setDestPin] = useState<PlacePin | null>(null);
   const [assignDriverId, setAssignDriverId] = useState("");
   const [assignVehicleId, setAssignVehicleId] = useState("");
+  const [createOpen, setCreateOpen] = useState(true);
+  const [deviationsOpen, setDeviationsOpen] = useState(false);
+  const [deviationCount, setDeviationCount] = useState(0);
   const [form, setForm] = useState({
     departAt: "",
     arriveAt: "",
@@ -110,6 +119,26 @@ export default function LogisticaServiciosPage() {
     const t = setInterval(() => void loadClock(), 1000);
     return () => clearInterval(t);
   }, [loadServicios, loadPool, loadClock]);
+
+  useEffect(() => {
+    let alive = true;
+    const pullCount = async () => {
+      try {
+        const data = await api<unknown[]>(
+          "/api/v1/servicios/desviaciones/pendientes",
+        );
+        if (alive) setDeviationCount(data.length);
+      } catch {
+        /* silent — campana sin badge */
+      }
+    };
+    void pullCount();
+    const iv = setInterval(pullCount, 12_000);
+    return () => {
+      alive = false;
+      clearInterval(iv);
+    };
+  }, []);
 
   useEffect(() => {
     if (!selectedId) {
@@ -167,10 +196,7 @@ export default function LogisticaServiciosPage() {
           officerDocument: form.officerDocument || undefined,
         }),
       });
-      setStatusMsg(
-        created.message ||
-          `Servicio ${created.code} indexado`,
-      );
+      setStatusMsg(created.message || `Servicio ${created.code} indexado`);
       setOriginPin(null);
       setDestPin(null);
       setForm({
@@ -183,6 +209,7 @@ export default function LogisticaServiciosPage() {
       });
       await loadServicios();
       setSelectedId(created.id);
+      setCreateOpen(false);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "No se pudo crear servicio",
@@ -247,43 +274,42 @@ export default function LogisticaServiciosPage() {
     Boolean(selectedDriver?.ready && selectedVehicle?.ready);
 
   return (
-    <div className="fade-in mx-auto max-w-[1600px] space-y-6">
+    <div
+      className="fade-in flex h-[calc(100vh-5.5rem)] min-h-[560px] flex-col gap-3"
+      data-testid="panel-servicios"
+    >
       <PageIntro
         module="logistica"
         title="Programación de Servicios y Tracking GPS"
-        action={<ServerClockBadge clock={clock} />}
+        action={
+          <div className="flex items-center gap-2">
+            <ServerClockBadge clock={clock} />
+            <Button
+              type="button"
+              variant="ghost"
+              className="relative w-auto px-3"
+              aria-label="Desviaciones pendientes"
+              onClick={() => setDeviationsOpen(true)}
+            >
+              <Bell className="h-4 w-4" />
+              {deviationCount > 0 ? (
+                <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--brand-signal,#FF2A5F)] px-1 font-mono text-[10px] font-bold text-white tabular-nums">
+                  {deviationCount}
+                </span>
+              ) : null}
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              className="w-auto"
+              onClick={() => setCreateOpen(true)}
+            >
+              <Plus className="mr-1 h-4 w-4" />
+              Nueva ruta
+            </Button>
+          </div>
+        }
       />
-      <HowToBox
-        steps={[
-          "Paso 1 — Ruta: origen (A) y destino (B) en el mapa.",
-          "Paso 2 — Horario: salida (obligatoria). Conductor/placa son opcionales.",
-          "Paso 3 — Si hay bloqueo normativo, el servicio se crea igual SIN asignar; luego asignas cuando docs estén OK. Chat app↔CRM abajo.",
-        ]}
-      />
-
-      <ol className="grid gap-2 md:grid-cols-3">
-        {[
-          { ok: step1, label: "1 · Ruta A→B", hint: "Mapa" },
-          { ok: step2, label: "2 · Salida", hint: "Fecha/hora" },
-          {
-            ok: step3Ready,
-            label: "3 · Asignación",
-            hint: step3Ready ? "Checklist OK" : "Opcional / soft",
-          },
-        ].map((s) => (
-          <li
-            key={s.label}
-            className={`rounded-md border px-3 py-2 text-sm ${
-              s.ok
-                ? "border-[var(--brand-primary)]/40 bg-[var(--brand-primary)]/10"
-                : "border-[var(--brand-line)]"
-            }`}
-          >
-            <span className="font-semibold">{s.label}</span>
-            <span className="ml-2 text-[var(--brand-muted)]">{s.hint}</span>
-          </li>
-        ))}
-      </ol>
 
       {statusMsg ? (
         <p className="rounded border border-[var(--brand-primary)]/30 bg-[var(--brand-primary)]/10 px-3 py-2 text-sm text-[var(--brand-primary)]">
@@ -299,279 +325,386 @@ export default function LogisticaServiciosPage() {
         </p>
       ) : null}
 
-      <SupervisorDeviationsPanel />
-
-      <section className="space-y-4" data-testid="panel-servicios">
-        <ServicioMapPlanner
-          origin={originPin}
-          dest={destPin}
-          onOriginChange={setOriginPin}
-          onDestChange={setDestPin}
-        />
-
-        <form
-          onSubmit={onCreateServicio}
-          className="fsg-panel grid grid-cols-1 gap-3 p-4 md:grid-cols-4"
-          data-testid="servicio-form"
-        >
-          <label className="text-xs text-[var(--brand-muted)] md:col-span-2">
-            Salida *
-            <input
-              className="field mt-1 w-full font-data"
-              type="datetime-local"
-              value={form.departAt}
-              onChange={(e) => setForm({ ...form, departAt: e.target.value })}
-              required
-              aria-label="Salida"
-            />
-          </label>
-          <label className="text-xs text-[var(--brand-muted)] md:col-span-2">
-            Llegada estimada
-            <input
-              className="field mt-1 w-full font-data"
-              type="datetime-local"
-              value={form.arriveAt}
-              onChange={(e) => setForm({ ...form, arriveAt: e.target.value })}
-              aria-label="Llegada estimada"
-            />
-          </label>
-
-          <label className="text-xs text-[var(--brand-muted)] md:col-span-2">
-            Conductor (opcional)
-            <select
-              className="field mt-1 w-full"
-              data-testid="dispatch-driver"
-              value={form.driverId}
-              onChange={(e) => setForm({ ...form, driverId: e.target.value })}
-            >
-              <option value="">Sin asignar ahora…</option>
-              {drivers.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.ready ? "✓ " : "⚠ "}
-                  {d.name}
-                  {!d.ready ? ` · ${d.blockers[0] ?? "revisar"}` : ""}
-                </option>
-              ))}
-            </select>
-            {selectedDriver && !selectedDriver.ready ? (
-              <p className="mt-1 text-[11px] text-[var(--brand-amber,#FFB800)]">
-                No se asignará aún: {selectedDriver.blockers.join(" · ")}. El
-                servicio sí se crea.
-              </p>
-            ) : null}
-          </label>
-
-          <label className="text-xs text-[var(--brand-muted)] md:col-span-2">
-            Vehículo / placa (opcional)
-            <select
-              className="field mt-1 w-full"
-              data-testid="dispatch-vehicle"
-              value={form.vehicleId}
-              onChange={(e) => setForm({ ...form, vehicleId: e.target.value })}
-            >
-              <option value="">Sin asignar ahora…</option>
-              {vehicles.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.ready ? "✓ " : "⚠ "}
-                  {v.plate}
-                  {!v.ready ? ` · ${v.blockers[0] ?? "revisar"}` : ""}
-                </option>
-              ))}
-            </select>
-            {selectedVehicle && !selectedVehicle.ready ? (
-              <p className="mt-1 text-[11px] text-[var(--brand-amber,#FFB800)]">
-                No se asignará aún: {selectedVehicle.blockers.join(" · ")}.
-                Revisa SOAT / tecnomecánica en Trámites.
-              </p>
-            ) : null}
-          </label>
-
-          <input
-            className="field"
-            placeholder="Funcionario / cliente"
-            value={form.officerName}
-            onChange={(e) => setForm({ ...form, officerName: e.target.value })}
-          />
-          <input
-            className="field font-data"
-            placeholder="Cédula funcionario"
-            value={form.officerDocument}
-            onChange={(e) =>
-              setForm({ ...form, officerDocument: e.target.value })
-            }
-          />
-          <Button
-            type="submit"
-            variant="primary"
-            className="md:col-span-4"
-            disabled={!canConfirm}
-          >
-            {form.driverId || form.vehicleId
-              ? "Crear servicio (asigna solo si checklist OK)"
-              : "Crear servicio sin asignación"}
-          </Button>
-        </form>
-
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          <div className="fsg-panel data-shell max-h-[520px] overflow-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr>
-                  <th className="px-3 py-2">Código</th>
-                  <th className="px-3 py-2">Ruta</th>
-                  <th className="px-3 py-2">Estado</th>
-                  <th className="px-3 py-2">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {servicios.map((s) => (
-                  <tr
-                    key={s.id}
-                    className={`cursor-pointer border-t border-[var(--brand-line)] ${
-                      selectedId === s.id
-                        ? "bg-[var(--brand-primary)]/10"
-                        : ""
-                    }`}
-                    onClick={() => setSelectedId(s.id)}
-                  >
-                    <td className="px-3 py-2 font-data text-xs">{s.code}</td>
-                    <td className="px-3 py-2">
-                      {s.origin} → {s.destination}
-                      <div className="text-[10px] text-[var(--brand-muted)]">
-                        {s.driver?.name ?? "Sin conductor"} ·{" "}
-                        {s.vehicle?.plate ?? "Sin placa"}
-                      </div>
-                    </td>
-                    <td className="px-3 py-2 font-data text-xs">{s.status}</td>
-                    <td className="px-3 py-2">
-                      <div className="flex flex-wrap gap-1">
-                        {s.status !== "IN_TRANSIT" &&
-                        s.status !== "COMPLETED" ? (
-                          <Button
-                            variant="ghost"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              void iniciar(s.id);
-                            }}
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[minmax(280px,30%)_minmax(0,70%)]">
+        {/* —— Izquierda: lista + chat —— */}
+        <aside className="flex min-h-0 flex-col gap-3 overflow-hidden">
+          <div className="fsg-panel flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="flex items-center justify-between border-b border-[var(--brand-line)] px-3 py-2">
+              <h2 className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--brand-muted)]">
+                Servicios ({servicios.length})
+              </h2>
+              <StatusPulseBadge
+                tone={servicios.some((s) => s.status === "IN_TRANSIT") ? "active" : "neutral"}
+                pulse={servicios.some((s) => s.status === "IN_TRANSIT")}
+              >
+                {servicios.some((s) => s.status === "IN_TRANSIT")
+                  ? "En tránsito"
+                  : "Nominal"}
+              </StatusPulseBadge>
+            </div>
+            <div className="min-h-0 flex-1 overflow-auto">
+              {!servicios.length ? (
+                <div className="p-4">
+                  <EmptyState
+                    icon={<MapPin className="h-7 w-7" />}
+                    title="Sin servicios indexados"
+                    description="Crea una ruta en el mapa para despachar la flota."
+                    actionLabel="Nueva ruta"
+                    onAction={() => setCreateOpen(true)}
+                  />
+                </div>
+              ) : (
+                <ul className="divide-y divide-[var(--brand-line)]">
+                  {servicios.map((s) => (
+                    <li key={s.id}>
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        className={`w-full cursor-pointer px-3 py-2.5 text-left transition-colors duration-150 ${
+                          selectedId === s.id
+                            ? "bg-[var(--brand-primary)]/10"
+                            : "hover:bg-white/[0.03]"
+                        }`}
+                        onClick={() => setSelectedId(s.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            setSelectedId(s.id);
+                          }
+                        }}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="font-data text-xs text-[var(--brand-primary)]">
+                            {s.code}
+                          </span>
+                          <StatusPulseBadge
+                            tone={
+                              s.status === "IN_TRANSIT"
+                                ? "active"
+                                : s.status === "COMPLETED"
+                                  ? "neutral"
+                                  : "fatiga"
+                            }
+                            pulse={s.status === "IN_TRANSIT"}
                           >
-                            Iniciar
-                          </Button>
-                        ) : null}
-                        {s.status === "IN_TRANSIT" ? (
-                          <Button
-                            variant="primary"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              void cerrar(s.id);
-                            }}
-                          >
-                            Cerrar
-                          </Button>
-                        ) : null}
+                            {s.status}
+                          </StatusPulseBadge>
+                        </div>
+                        <p className="mt-1 text-sm">
+                          {s.origin} → {s.destination}
+                        </p>
+                        <p className="mt-0.5 text-[10px] text-[var(--brand-muted)]">
+                          {s.driver?.name ?? "Sin conductor"} ·{" "}
+                          {s.vehicle?.plate ?? "Sin placa"}
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {s.status !== "IN_TRANSIT" &&
+                          s.status !== "COMPLETED" ? (
+                            <Button
+                              variant="ghost"
+                              className="w-auto px-2 py-1 text-xs"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void iniciar(s.id);
+                              }}
+                            >
+                              Iniciar
+                            </Button>
+                          ) : null}
+                          {s.status === "IN_TRANSIT" ? (
+                            <Button
+                              variant="primary"
+                              className="w-auto px-2 py-1 text-xs"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void cerrar(s.id);
+                              }}
+                            >
+                              Cerrar
+                            </Button>
+                          ) : null}
+                        </div>
                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
 
-          <div className="space-y-3">
-            {tracking ? (
-              <>
-                <RouteMap
-                  mode={tracking.mode}
-                  suggested={tracking.suggestedRoute}
-                  history={tracking.history}
-                  live={tracking.live}
-                />
-                <div className="fsg-panel max-h-[160px] overflow-auto p-3">
-                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--brand-muted)]">
-                    Audit log · inmutable
-                  </p>
-                  <ul className="space-y-1 font-data text-[11px]">
-                    {tracking.audit.map((a) => (
-                      <li key={a.id}>
-                        <span className="text-[var(--brand-muted)]">
-                          {new Date(a.serverTime).toLocaleTimeString("es-CO")}
-                        </span>{" "}
-                        {a.message}
-                      </li>
+          {selected &&
+          (!selected.driver || !selected.vehicle) &&
+          selected.status !== "COMPLETED" ? (
+            <div className="fsg-panel shrink-0 space-y-2 p-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--brand-amber,#FFB800)]">
+                Asignar · {selected.code}
+              </p>
+              <div className="grid gap-2">
+                <select
+                  className="field"
+                  value={assignDriverId}
+                  onChange={(e) => setAssignDriverId(e.target.value)}
+                >
+                  <option value="">Conductor apto…</option>
+                  {drivers
+                    .filter((d) => d.ready)
+                    .map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name}
+                      </option>
                     ))}
-                  </ul>
-                </div>
-              </>
-            ) : (
-              <div className="fsg-panel p-6 text-sm text-[var(--brand-muted)]">
-                Selecciona un servicio para ver ruta / GPS y abrir chats.
+                </select>
+                <select
+                  className="field"
+                  value={assignVehicleId}
+                  onChange={(e) => setAssignVehicleId(e.target.value)}
+                >
+                  <option value="">Placa apta…</option>
+                  {vehicles
+                    .filter((v) => v.ready)
+                    .map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.plate}
+                      </option>
+                    ))}
+                </select>
               </div>
-            )}
-
-            {selected &&
-            (!selected.driver || !selected.vehicle) &&
-            selected.status !== "COMPLETED" ? (
-              <div className="fsg-panel space-y-2 p-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--brand-amber,#FFB800)]">
-                  Asignar después · {selected.code}
-                </p>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <select
-                    className="field"
-                    value={assignDriverId}
-                    onChange={(e) => setAssignDriverId(e.target.value)}
-                  >
-                    <option value="">Conductor apto…</option>
-                    {drivers
-                      .filter((d) => d.ready)
-                      .map((d) => (
-                        <option key={d.id} value={d.id}>
-                          {d.name}
-                        </option>
-                      ))}
-                  </select>
-                  <select
-                    className="field"
-                    value={assignVehicleId}
-                    onChange={(e) => setAssignVehicleId(e.target.value)}
-                  >
-                    <option value="">Placa apta…</option>
-                    {vehicles
-                      .filter((v) => v.ready)
-                      .map((v) => (
-                        <option key={v.id} value={v.id}>
-                          {v.plate}
-                        </option>
-                      ))}
-                  </select>
-                </div>
+              <div className="flex justify-end">
                 <Button
                   type="button"
                   variant="primary"
+                  className="w-auto"
                   onClick={() => void asignarPendiente()}
                 >
                   Asignar ahora
                 </Button>
-                {drivers.filter((d) => d.ready).length === 0 ||
-                vehicles.filter((v) => v.ready).length === 0 ? (
-                  <p className="text-[11px] text-[var(--brand-muted)]">
-                    No hay recursos aptos. Carga SOAT / tecnomecánica / licencia
-                    en Trámites o baja fatiga en RRHH.
-                  </p>
-                ) : null}
               </div>
-            ) : null}
-          </div>
-        </div>
+            </div>
+          ) : null}
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <OpsChatPanel
-            mode="trip"
-            tripId={selectedId}
-            tripCode={selected?.code}
-          />
-          <OpsChatPanel mode="support" />
-        </div>
-      </section>
+          {tracking ? (
+            <div className="fsg-panel max-h-[120px] shrink-0 overflow-auto p-3">
+              <p className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--brand-muted)]">
+                <Radio className="h-3 w-3" />
+                Audit log
+              </p>
+              <ul className="space-y-1 font-data text-[11px]">
+                {tracking.audit.map((a) => (
+                  <li key={a.id}>
+                    <span className="text-[var(--brand-muted)]">
+                      {new Date(a.serverTime).toLocaleTimeString("es-CO")}
+                    </span>{" "}
+                    {a.message}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
+          <div className="grid shrink-0 gap-2">
+            <OpsChatPanel
+              mode="trip"
+              tripId={selectedId}
+              tripCode={selected?.code}
+            />
+            <OpsChatPanel mode="support" />
+          </div>
+        </aside>
+
+        {/* —— Derecha: mapa full-height + panel flotante —— */}
+        <section className="relative min-h-[420px] overflow-hidden rounded-xl border border-[var(--brand-line)] bg-[#0A0D14]">
+          {tracking && selectedId && !createOpen ? (
+            <div className="absolute inset-0 z-[1]">
+              <RouteMap
+                mode={tracking.mode}
+                suggested={tracking.suggestedRoute}
+                history={tracking.history}
+                live={tracking.live}
+                fillHeight
+              />
+            </div>
+          ) : (
+            <ServicioMapPlanner
+              origin={originPin}
+              dest={destPin}
+              onOriginChange={setOriginPin}
+              onDestChange={setDestPin}
+              fillHeight
+            />
+          )}
+
+          {createOpen ? (
+            <div className="pointer-events-none absolute inset-x-3 bottom-3 z-[20] sm:inset-x-auto sm:bottom-4 sm:left-4 sm:right-auto sm:max-w-md">
+              <form
+                onSubmit={onCreateServicio}
+                className="pointer-events-auto space-y-3 rounded-xl border border-white/10 bg-[rgba(18,23,34,0.88)] p-4 shadow-2xl backdrop-blur-md"
+                data-testid="servicio-form"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold text-slate-100">
+                    Crear servicio
+                  </h3>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="w-auto px-2 py-1 text-xs"
+                    onClick={() => setCreateOpen(false)}
+                  >
+                    Cerrar
+                  </Button>
+                </div>
+
+                <ol className="flex flex-wrap gap-1.5 text-[10px]">
+                  {[
+                    { ok: step1, label: "1 · Ruta A→B" },
+                    { ok: step2, label: "2 · Salida" },
+                    {
+                      ok: step3Ready,
+                      label: "3 · Asignación",
+                    },
+                  ].map((s) => (
+                    <li
+                      key={s.label}
+                      className={`rounded border px-2 py-0.5 ${
+                        s.ok
+                          ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+                          : "border-white/10 text-slate-400"
+                      }`}
+                    >
+                      {s.label}
+                    </li>
+                  ))}
+                </ol>
+
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <label className="text-xs text-slate-400">
+                    Salida *
+                    <input
+                      className="field mt-1 w-full font-data"
+                      type="datetime-local"
+                      value={form.departAt}
+                      onChange={(e) =>
+                        setForm({ ...form, departAt: e.target.value })
+                      }
+                      required
+                      aria-label="Salida"
+                    />
+                  </label>
+                  <label className="text-xs text-slate-400">
+                    Llegada estimada
+                    <input
+                      className="field mt-1 w-full font-data"
+                      type="datetime-local"
+                      value={form.arriveAt}
+                      onChange={(e) =>
+                        setForm({ ...form, arriveAt: e.target.value })
+                      }
+                      aria-label="Llegada estimada"
+                    />
+                  </label>
+                </div>
+
+                <label className="block text-xs text-slate-400">
+                  Conductor (opcional)
+                  <select
+                    className="field mt-1 w-full"
+                    data-testid="dispatch-driver"
+                    value={form.driverId}
+                    onChange={(e) =>
+                      setForm({ ...form, driverId: e.target.value })
+                    }
+                  >
+                    <option value="">Sin asignar ahora…</option>
+                    {drivers.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.ready ? "✓ " : "⚠ "}
+                        {d.name}
+                        {!d.ready ? ` · ${d.blockers[0] ?? "revisar"}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedDriver && !selectedDriver.ready ? (
+                    <p className="mt-1 text-[11px] text-amber-400">
+                      No se asignará aún: {selectedDriver.blockers.join(" · ")}.
+                    </p>
+                  ) : null}
+                </label>
+
+                <label className="block text-xs text-slate-400">
+                  Vehículo / placa (opcional)
+                  <select
+                    className="field mt-1 w-full"
+                    data-testid="dispatch-vehicle"
+                    value={form.vehicleId}
+                    onChange={(e) =>
+                      setForm({ ...form, vehicleId: e.target.value })
+                    }
+                  >
+                    <option value="">Sin asignar ahora…</option>
+                    {vehicles.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.ready ? "✓ " : "⚠ "}
+                        {v.plate}
+                        {!v.ready ? ` · ${v.blockers[0] ?? "revisar"}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedVehicle && !selectedVehicle.ready ? (
+                    <p className="mt-1 text-[11px] text-amber-400">
+                      No se asignará aún: {selectedVehicle.blockers.join(" · ")}.
+                    </p>
+                  ) : null}
+                </label>
+
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <input
+                    className="field"
+                    placeholder="Funcionario / cliente"
+                    value={form.officerName}
+                    onChange={(e) =>
+                      setForm({ ...form, officerName: e.target.value })
+                    }
+                  />
+                  <input
+                    className="field font-data"
+                    placeholder="Cédula funcionario"
+                    value={form.officerDocument}
+                    onChange={(e) =>
+                      setForm({ ...form, officerDocument: e.target.value })
+                    }
+                  />
+                </div>
+
+                <div className="flex justify-end">
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    className="w-auto"
+                    disabled={!canConfirm}
+                  >
+                    {form.driverId || form.vehicleId
+                      ? "Crear (asigna si checklist OK)"
+                      : "Crear sin asignación"}
+                  </Button>
+                </div>
+              </form>
+            </div>
+          ) : null}
+        </section>
+      </div>
+
+      <SlideOver
+        open={deviationsOpen}
+        onClose={() => setDeviationsOpen(false)}
+        title="Desviaciones pendientes"
+        description="ACEPTAR autoriza tracking / extras; CANCELAR restaura estado previo."
+        widthClass="max-w-lg"
+      >
+        <SupervisorDeviationsPanel
+          embedded
+          onCountChange={setDeviationCount}
+        />
+      </SlideOver>
     </div>
   );
 }

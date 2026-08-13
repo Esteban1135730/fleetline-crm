@@ -20,6 +20,9 @@ type Preview = {
 
 type PickMode = "origin" | "dest";
 
+const DARK_TILES =
+  "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
+
 function makePin(color: string, letter: string) {
   return L.divIcon({
     className: "",
@@ -38,11 +41,17 @@ export function ServicioMapPlanner({
   dest,
   onOriginChange,
   onDestChange,
+  fillHeight = false,
+  showChrome = true,
 }: {
   origin: PlacePin | null;
   dest: PlacePin | null;
   onOriginChange: (p: PlacePin | null) => void;
   onDestChange: (p: PlacePin | null) => void;
+  /** Mapa a altura completa del contenedor (split-screen). */
+  fillHeight?: boolean;
+  /** Controles A/B + búsqueda; false si el padre los mueve al panel flotante. */
+  showChrome?: boolean;
 }) {
   const mapEl = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -52,7 +61,9 @@ export function ServicioMapPlanner({
   const [hits, setHits] = useState<PlacePin[]>([]);
   const [searching, setSearching] = useState(false);
   const [preview, setPreview] = useState<Preview | null>(null);
-  const [hint, setHint] = useState("Toca el mapa o busca una dirección para el origen");
+  const [hint, setHint] = useState(
+    "Toca el mapa o busca una dirección para el origen",
+  );
 
   const pickModeRef = useRef(pickMode);
   pickModeRef.current = pickMode;
@@ -67,9 +78,9 @@ export function ServicioMapPlanner({
       [4.65, -74.1],
       12,
     );
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    L.tileLayer(DARK_TILES, {
       maxZoom: 19,
-      attribution: "&copy; OpenStreetMap",
+      attribution: '&copy; <a href="https://carto.com/">CARTO</a> · OSM',
     }).addTo(map);
     const layers = L.layerGroup().addTo(map);
     mapRef.current = map;
@@ -78,17 +89,20 @@ export function ServicioMapPlanner({
     map.on("click", async (e: L.LeafletMouseEvent) => {
       const { lat, lng } = e.latlng;
       try {
-        const place = await api<PlacePin>("/logistica/servicios/reverse-geocode", {
-          method: "POST",
-          body: JSON.stringify({ lat, lng }),
-        });
+        const place = await api<PlacePin>(
+          "/logistica/servicios/reverse-geocode",
+          {
+            method: "POST",
+            body: JSON.stringify({ lat, lng }),
+          },
+        );
         if (pickModeRef.current === "origin") {
           onOriginRef.current(place);
           setPickMode("dest");
           setHint("Ahora elige el destino en el mapa o búscalo");
         } else {
           onDestRef.current(place);
-          setHint("Revisa la ruta y confirma el servicio abajo");
+          setHint("Revisa la ruta y confirma el servicio");
         }
       } catch {
         const fallback: PlacePin = {
@@ -111,6 +125,17 @@ export function ServicioMapPlanner({
       layersRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !fillHeight) return;
+    const ro = new ResizeObserver(() => {
+      map.invalidateSize();
+    });
+    if (mapEl.current) ro.observe(mapEl.current);
+    requestAnimationFrame(() => map.invalidateSize());
+    return () => ro.disconnect();
+  }, [fillHeight]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -208,119 +233,138 @@ export function ServicioMapPlanner({
     setQuery("");
   }
 
-  return (
-    <div className="fsg-panel overflow-hidden p-0" data-testid="servicio-map-planner">
-      <div className="space-y-3 border-b border-[var(--brand-line)] p-3">
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            className={`rounded-md px-3 py-1.5 text-xs font-semibold ${
-              pickMode === "origin"
-                ? "bg-[var(--brand-amber)] text-[#1a1200]"
-                : "bg-[var(--brand-surface-2,#1A2230)] text-[var(--brand-muted)]"
-            }`}
-            onClick={() => {
-              setPickMode("origin");
-              setHint("Toca el mapa o busca el punto de origen (A)");
-            }}
-          >
-            A · Origen
-          </button>
-          <button
-            type="button"
-            className={`rounded-md px-3 py-1.5 text-xs font-semibold ${
-              pickMode === "dest"
-                ? "bg-[var(--brand-signal)] text-white"
-                : "bg-[var(--brand-surface-2,#1A2230)] text-[var(--brand-muted)]"
-            }`}
-            onClick={() => {
-              setPickMode("dest");
-              setHint("Toca el mapa o busca el punto de destino (B)");
-            }}
-          >
-            B · Destino
-          </button>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => {
-              onOriginChange(null);
-              onDestChange(null);
-              setPreview(null);
-              setPickMode("origin");
-              setHint("Toca el mapa o busca una dirección para el origen");
-            }}
-          >
-            Limpiar puntos
-          </Button>
-        </div>
-
-        <div className="flex gap-2">
-          <input
-            className="field flex-1"
-            placeholder={
-              pickMode === "origin"
-                ? "Buscar origen (ej. Aeropuerto El Dorado)"
-                : "Buscar destino (ej. Calle 100 Bogotá)"
-            }
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                void runSearch();
-              }
-            }}
-          />
-          <Button type="button" variant="primary" onClick={() => void runSearch()}>
-            {searching ? "…" : "Buscar"}
-          </Button>
-        </div>
-
-        {hits.length ? (
-          <ul className="max-h-36 overflow-auto rounded-md border border-[var(--brand-line)]">
-            {hits.map((h, i) => (
-              <li key={`${h.lat}-${h.lng}-${i}`}>
-                <button
-                  type="button"
-                  className="w-full border-b border-[var(--brand-line)] px-3 py-2 text-left text-xs hover:bg-[var(--brand-primary)]/10"
-                  onClick={() => applyHit(h)}
-                >
-                  {h.label}
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-
-        <div className="grid gap-2 text-xs md:grid-cols-2">
-          <div className="rounded-md border border-[var(--brand-line)] p-2">
-            <div className="font-data text-[10px] uppercase tracking-[0.1em] text-[var(--brand-amber)]">
-              Origen (A)
-            </div>
-            <div className="mt-1 text-[var(--brand-fg)]">
-              {origin?.label ?? "Sin seleccionar"}
-            </div>
-          </div>
-          <div className="rounded-md border border-[var(--brand-line)] p-2">
-            <div className="font-data text-[10px] uppercase tracking-[0.1em] text-[var(--brand-signal)]">
-              Destino (B)
-            </div>
-            <div className="mt-1 text-[var(--brand-fg)]">
-              {dest?.label ?? "Sin seleccionar"}
-            </div>
-          </div>
-        </div>
-
-        <p className="text-[11px] text-[var(--brand-muted)]">{hint}</p>
-        {preview ? (
-          <p className="font-data text-xs text-[var(--brand-primary)]">
-            Ruta estimada · {preview.distanceKm} km · ~{preview.durationMin} min
-          </p>
-        ) : null}
+  const chrome = showChrome ? (
+    <div className="space-y-3 border-b border-[var(--brand-line)] p-3">
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          className={`rounded-md px-3 py-1.5 text-xs font-semibold ${
+            pickMode === "origin"
+              ? "bg-[var(--brand-amber)] text-[#1a1200]"
+              : "bg-[var(--brand-surface-2,#1A2230)] text-[var(--brand-muted)]"
+          }`}
+          onClick={() => {
+            setPickMode("origin");
+            setHint("Toca el mapa o busca el punto de origen (A)");
+          }}
+        >
+          A · Origen
+        </button>
+        <button
+          type="button"
+          className={`rounded-md px-3 py-1.5 text-xs font-semibold ${
+            pickMode === "dest"
+              ? "bg-[var(--brand-signal)] text-white"
+              : "bg-[var(--brand-surface-2,#1A2230)] text-[var(--brand-muted)]"
+          }`}
+          onClick={() => {
+            setPickMode("dest");
+            setHint("Toca el mapa o busca el punto de destino (B)");
+          }}
+        >
+          B · Destino
+        </button>
+        <Button
+          type="button"
+          variant="ghost"
+          className="w-auto"
+          onClick={() => {
+            onOriginChange(null);
+            onDestChange(null);
+            setPreview(null);
+            setPickMode("origin");
+            setHint("Toca el mapa o busca una dirección para el origen");
+          }}
+        >
+          Limpiar puntos
+        </Button>
       </div>
 
-      <div ref={mapEl} className="h-[380px] w-full bg-[var(--brand-canvas)]" />
+      <div className="flex gap-2">
+        <input
+          className="field flex-1"
+          placeholder={
+            pickMode === "origin"
+              ? "Buscar origen (ej. Aeropuerto El Dorado)"
+              : "Buscar destino (ej. Calle 100 Bogotá)"
+          }
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              void runSearch();
+            }
+          }}
+        />
+        <Button
+          type="button"
+          variant="primary"
+          className="w-auto"
+          onClick={() => void runSearch()}
+        >
+          {searching ? "…" : "Buscar"}
+        </Button>
+      </div>
+
+      {hits.length ? (
+        <ul className="max-h-36 overflow-auto rounded-md border border-[var(--brand-line)]">
+          {hits.map((h, i) => (
+            <li key={`${h.lat}-${h.lng}-${i}`}>
+              <button
+                type="button"
+                className="w-full border-b border-[var(--brand-line)] px-3 py-2 text-left text-xs hover:bg-[var(--brand-primary)]/10"
+                onClick={() => applyHit(h)}
+              >
+                {h.label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      <div className="grid gap-2 text-xs md:grid-cols-2">
+        <div className="rounded-md border border-[var(--brand-line)] p-2">
+          <div className="font-data text-[10px] uppercase tracking-[0.1em] text-[var(--brand-amber)]">
+            Origen (A)
+          </div>
+          <div className="mt-1 text-[var(--brand-fg)]">
+            {origin?.label ?? "Sin seleccionar"}
+          </div>
+        </div>
+        <div className="rounded-md border border-[var(--brand-line)] p-2">
+          <div className="font-data text-[10px] uppercase tracking-[0.1em] text-[var(--brand-signal)]">
+            Destino (B)
+          </div>
+          <div className="mt-1 text-[var(--brand-fg)]">
+            {dest?.label ?? "Sin seleccionar"}
+          </div>
+        </div>
+      </div>
+
+      <p className="text-[11px] text-[var(--brand-muted)]">{hint}</p>
+      {preview ? (
+        <p className="font-data text-xs text-[var(--brand-primary)]">
+          Ruta estimada · {preview.distanceKm} km · ~{preview.durationMin} min
+        </p>
+      ) : null}
+    </div>
+  ) : null;
+
+  return (
+    <div
+      className={`overflow-hidden ${fillHeight ? "flex h-full min-h-0 flex-col" : "fsg-panel"}`}
+      data-testid="servicio-map-planner"
+    >
+      {chrome}
+      <div
+        ref={mapEl}
+        className={
+          fillHeight
+            ? "min-h-0 w-full flex-1 bg-[#0A0D14]"
+            : "h-[380px] w-full bg-[#0A0D14]"
+        }
+      />
     </div>
   );
 }

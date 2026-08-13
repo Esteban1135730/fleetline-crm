@@ -1,5 +1,6 @@
 "use client";
 
+import { Eye, EyeOff } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { homePathForRole, useAuth } from "@/lib/auth-context";
@@ -32,6 +33,7 @@ export function LoginScreen() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [phase, setPhase] = useState<FormPhase>("idle");
@@ -63,7 +65,10 @@ export function LoginScreen() {
       setPhase("error");
       if (err instanceof AuthNodeError) {
         setErrorMessage(err.message);
-      } else if (err instanceof Error && /fetch|network|ECONNREFUSED/i.test(err.message)) {
+      } else if (
+        err instanceof Error &&
+        /fetch|network|ECONNREFUSED/i.test(err.message)
+      ) {
         setErrorMessage(AUTH_COPY.errors.NETWORK_SYNC_FAILURE);
       } else if (err instanceof Error && err.message) {
         setErrorMessage(err.message);
@@ -124,7 +129,7 @@ export function LoginScreen() {
             </label>
             <input
               id="nodeEmail"
-              className="login-field"
+              className="login-field border border-gray-700 bg-[color-mix(in_srgb,var(--surface)_105%,white)]"
               type="email"
               placeholder={AUTH_COPY.nodeEmailPlaceholder}
               value={email}
@@ -143,22 +148,45 @@ export function LoginScreen() {
             <label className="field-label" htmlFor="nodePassword">
               {AUTH_COPY.passwordLabel}
             </label>
-            <input
-              id="nodePassword"
-              className="login-field font-data"
-              type="password"
-              placeholder={AUTH_COPY.passwordPlaceholder}
-              value={password}
-              onChange={(e) => {
-                setPassword(e.target.value);
-                if (errorMessage) setErrorMessage("");
-                if (phase === "error") setPhase("idle");
-              }}
-              required
-              disabled={isLoading}
-              autoComplete="current-password"
-              minLength={6}
-            />
+            <div className="relative">
+              <input
+                id="nodePassword"
+                className="login-field w-full border border-gray-700 bg-[color-mix(in_srgb,var(--surface)_105%,white)] pr-11 font-data"
+                type={showPassword ? "text" : "password"}
+                placeholder={AUTH_COPY.passwordPlaceholder}
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (errorMessage) setErrorMessage("");
+                  if (phase === "error") setPhase("idle");
+                }}
+                required
+                disabled={isLoading}
+                autoComplete="current-password"
+                minLength={6}
+              />
+              <button
+                type="button"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-emerald-400"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? "Ocultar clave" : "Ver clave"}
+                tabIndex={-1}
+              >
+                {showPassword ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+              </button>
+            </div>
+            <div className="mt-2 flex justify-end">
+              <a
+                href="mailto:ti@inretrans.com?subject=Recuperaci%C3%B3n%20de%20clave%20Fleetline"
+                className="text-xs text-slate-400 transition hover:text-emerald-400 hover:underline"
+              >
+                ¿Olvidaste tu clave de acceso?
+              </a>
+            </div>
           </div>
 
           {errorMessage ? (
@@ -187,7 +215,10 @@ export function LoginScreen() {
           >
             {isLoading ? (
               <>
-                <span className="uplink-spinner" aria-hidden />
+                <span
+                  className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"
+                  aria-hidden
+                />
                 <span>{AUTH_COPY.submitLoading}</span>
               </>
             ) : phase === "success" ? (

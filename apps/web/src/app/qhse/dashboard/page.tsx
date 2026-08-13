@@ -2,8 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
+import { Inbox, ShieldAlert, Star } from "lucide-react";
 import { api } from "@/lib/api";
-import { HowToBox, PageIntro } from "@/components/page-intro";
+import { PageIntro } from "@/components/page-intro";
+import {
+  EmptyState,
+  KpiCard,
+  StatusPulseBadge,
+} from "@/components/audit";
 
 type Signal = "NOMINAL" | "WATCH" | "ALERT";
 
@@ -64,16 +70,21 @@ type CarbonResult = {
   export: { contentBase64: string; filename: string } | null;
 };
 
-function signalTone(s: Signal): "emerald" | "amber" | "rose" {
-  if (s === "NOMINAL") return "emerald";
-  if (s === "WATCH") return "amber";
-  return "rose";
+function signalTone(s: Signal): "ok" | "warn" | "danger" {
+  if (s === "NOMINAL") return "ok";
+  if (s === "WATCH") return "warn";
+  return "danger";
 }
 
 function signalLabel(s: Signal) {
   if (s === "NOMINAL") return "Nominal";
   if (s === "WATCH") return "Vigilancia";
   return "Alerta";
+}
+
+function npsDisplay(nps: number | null | undefined) {
+  if (nps == null) return "N/A";
+  return String(nps);
 }
 
 export default function QhsePreventionDashboardPage() {
@@ -116,10 +127,9 @@ export default function QhsePreventionDashboardPage() {
       );
       setCarbon(res);
       if (res.export?.contentBase64) {
-        const blob = new Blob(
-          [atob(res.export.contentBase64)],
-          { type: "application/pdf" },
-        );
+        const blob = new Blob([atob(res.export.contentBase64)], {
+          type: "application/pdf",
+        });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
@@ -139,13 +149,6 @@ export default function QhsePreventionDashboardPage() {
   return (
     <div className="fade-in mx-auto max-w-[1600px] space-y-8">
       <PageIntro module="qhse" title="Radar de Prevención" />
-      <HowToBox
-        steps={[
-          "Semáforos: preoperacionales, licencias/cursos y Driver Score global.",
-          "Bandeja en vivo: excesos GPS, frenadas y PQRS.",
-          "Kanban: En Investigación → Cerrado con Plan de Acción.",
-        ]}
-      />
 
       {error ? (
         <p className="rounded-lg border border-[rgba(255,42,95,0.35)] bg-[rgba(255,42,95,0.08)] px-4 py-3 text-sm text-[var(--text-primary)]">
@@ -153,45 +156,54 @@ export default function QhsePreventionDashboardPage() {
         </p>
       ) : null}
 
-      {/* Matriz de Riesgo Superior */}
       <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <RiskCard
+        <KpiCard
           label="Preoperacionales incompletos"
-          value={rm ? String(rm.preopsIncomplete.count) : "—"}
-          signal={rm?.preopsIncomplete.signal ?? "WATCH"}
+          value={rm ? rm.preopsIncomplete.count : 0}
+          delta={
+            rm ? signalLabel(rm.preopsIncomplete.signal) : "Sincronizando…"
+          }
+          tone={rm ? signalTone(rm.preopsIncomplete.signal) : "neutral"}
+          icon={<ShieldAlert />}
         />
-        <RiskCard
+        <KpiCard
           label="Licencias / cursos vencidos"
-          value={rm ? String(rm.licensesCoursesExpiring.count) : "—"}
-          detail={
+          value={rm ? rm.licensesCoursesExpiring.count : 0}
+          delta={
             rm
               ? `${rm.licensesCoursesExpiring.licenses} lic. · ${rm.licensesCoursesExpiring.courses} cursos`
               : undefined
           }
-          signal={rm?.licensesCoursesExpiring.signal ?? "WATCH"}
+          tone={rm ? signalTone(rm.licensesCoursesExpiring.signal) : "neutral"}
         />
-        <RiskCard
+        <KpiCard
           label="Driver Score global"
-          value={rm ? String(rm.globalDriverScore.value) : "—"}
-          detail="Promedio flota activa"
-          signal={rm?.globalDriverScore.signal ?? "WATCH"}
-          mono
+          value={rm ? rm.globalDriverScore.value : 0}
+          delta="Promedio flota activa"
+          tone={rm ? signalTone(rm.globalDriverScore.signal) : "neutral"}
         />
       </section>
 
-      {/* ESG strip */}
       <section
         id="esg"
         className="fsg-panel flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between"
       >
-        <div>
+        <div className="relative min-w-0 flex-1">
+          <Star
+            className="pointer-events-none absolute -right-1 -top-1 h-12 w-12 text-slate-500/25"
+            aria-hidden
+          />
           <p className="text-xs uppercase tracking-wider text-[var(--text-secondary)]">
             ESG · NPS & Huella CO₂
           </p>
           <p className="mt-1 font-display text-2xl text-[var(--text-primary)]">
-            NPS {nps?.nps != null ? nps.nps : "—"}
+            NPS{" "}
+            <span className="font-mono tabular-nums">
+              {npsDisplay(nps?.nps)}
+            </span>
             <span className="ml-3 font-mono text-base text-[var(--text-secondary)]">
-              avg {nps?.average ?? "—"} · n={nps?.sampleSize ?? 0}
+              avg {nps?.average != null ? nps.average : "N/A"} · n=
+              {nps?.sampleSize ?? 0}
             </span>
           </p>
           {carbon ? (
@@ -204,15 +216,19 @@ export default function QhsePreventionDashboardPage() {
             </p>
           ) : null}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center justify-end gap-3">
           {nps ? (
-            <Badge tone={nps.riskTicketsOpen > 0 ? "amber" : "emerald"}>
-              {nps.riskTicketsOpen} tickets riesgo abiertos
-            </Badge>
+            <StatusPulseBadge
+              tone={nps.riskTicketsOpen > 0 ? "fatiga" : "active"}
+              pulse={nps.riskTicketsOpen > 0}
+            >
+              {nps.riskTicketsOpen} tickets riesgo
+            </StatusPulseBadge>
           ) : null}
           <Button
             type="button"
             variant="primary"
+            className="w-auto px-4 py-2"
             disabled={busy}
             onClick={() => void exportCarbon()}
           >
@@ -222,7 +238,6 @@ export default function QhsePreventionDashboardPage() {
       </section>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-        {/* Bandeja de Novedades */}
         <section id="novedades" className="fsg-panel overflow-hidden">
           <header className="border-b border-[var(--border-subtle)] px-5 py-4">
             <h3 className="font-display text-lg text-[var(--text-primary)]">
@@ -232,13 +247,17 @@ export default function QhsePreventionDashboardPage() {
               Feed en vivo · GPS / PQRS
             </p>
           </header>
-          <ul className="max-h-[420px] divide-y divide-[var(--border-subtle)] overflow-y-auto">
-            {(dash?.liveFeed ?? []).length === 0 ? (
-              <li className="px-5 py-8 text-sm text-[var(--text-secondary)]">
-                Sin novedades en uplink
-              </li>
-            ) : (
-              dash!.liveFeed.map((item) => (
+          {(dash?.liveFeed ?? []).length === 0 ? (
+            <div className="p-4">
+              <EmptyState
+                icon={<Inbox className="h-7 w-7" />}
+                title="Sin novedades en uplink"
+                description="El feed GPS / PQRS aparece aquí en tiempo real."
+              />
+            </div>
+          ) : (
+            <ul className="max-h-[420px] divide-y divide-[var(--border-subtle)] overflow-y-auto">
+              {dash!.liveFeed.map((item) => (
                 <li
                   key={`${item.source}-${item.id}`}
                   className="flex items-start justify-between gap-3 px-5 py-3"
@@ -248,7 +267,8 @@ export default function QhsePreventionDashboardPage() {
                       {item.title}
                     </p>
                     <p className="mt-0.5 font-mono text-xs text-[var(--text-secondary)]">
-                      {item.source} · {new Date(item.at).toLocaleString("es-CO")}
+                      {item.source} ·{" "}
+                      {new Date(item.at).toLocaleString("es-CO")}
                     </p>
                   </div>
                   <Badge
@@ -263,12 +283,11 @@ export default function QhsePreventionDashboardPage() {
                     {item.status}
                   </Badge>
                 </li>
-              ))
-            )}
-          </ul>
+              ))}
+            </ul>
+          )}
         </section>
 
-        {/* Kanban */}
         <section id="siniestros" className="space-y-3">
           <header className="px-1">
             <h3 className="font-display text-lg text-[var(--text-primary)]">
@@ -295,37 +314,6 @@ export default function QhsePreventionDashboardPage() {
   );
 }
 
-function RiskCard(props: {
-  label: string;
-  value: string;
-  detail?: string;
-  signal: Signal;
-  mono?: boolean;
-}) {
-  return (
-    <div className="fsg-panel p-5">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-xs uppercase tracking-wider text-[var(--text-secondary)]">
-          {props.label}
-        </p>
-        <Badge tone={signalTone(props.signal)}>
-          {signalLabel(props.signal)}
-        </Badge>
-      </div>
-      <p
-        className={`mt-3 text-3xl text-[var(--text-primary)] ${
-          props.mono ? "font-mono" : "font-display"
-        }`}
-      >
-        {props.value}
-      </p>
-      {props.detail ? (
-        <p className="mt-1 text-sm text-[var(--text-secondary)]">{props.detail}</p>
-      ) : null}
-    </div>
-  );
-}
-
 function KanbanColumn(props: {
   title: string;
   closed?: boolean;
@@ -345,9 +333,11 @@ function KanbanColumn(props: {
       </p>
       <div className="space-y-2">
         {props.items.length === 0 ? (
-          <p className="px-2 py-6 text-center text-sm text-[var(--text-secondary)]">
-            Columna vacía
-          </p>
+          <EmptyState
+            icon={<ShieldAlert className="h-7 w-7" />}
+            title="Columna vacía"
+            description="Sin tarjetas en este estado."
+          />
         ) : (
           props.items.map((card) => (
             <article
@@ -358,15 +348,18 @@ function KanbanColumn(props: {
                 <span className="font-mono text-xs text-[var(--accent-primary)]">
                   {card.code}
                 </span>
-                <Badge tone={props.closed ? "emerald" : "amber"}>
+                <StatusPulseBadge
+                  tone={props.closed ? "active" : "fatiga"}
+                  pulse={!props.closed}
+                >
                   {card.severity}
-                </Badge>
+                </StatusPulseBadge>
               </div>
               <p className="mt-1 text-sm text-[var(--text-primary)]">
                 {card.title}
               </p>
               <p className="mt-1 font-mono text-xs text-[var(--text-secondary)]">
-                {card.vehicle?.plate ?? "—"} · {card.driver?.name ?? "—"}
+                {card.vehicle?.plate ?? "N/A"} · {card.driver?.name ?? "N/A"}
               </p>
             </article>
           ))

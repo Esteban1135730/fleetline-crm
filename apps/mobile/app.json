@@ -1,0 +1,51 @@
+{
+  "expo": {
+    "name": "Fleetline OS",
+    "slug": "fleetline-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "fleetline",
+    "platforms": ["ios", "android"],
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "backgroundColor": "#0A0D14"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "co.fleetline.mobile",
+      "infoPlist": {
+        "UIBackgroundModes": ["location"]
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0A0D14"
+      },
+      "package": "co.fleetline.mobile",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Fleetline necesita GPS en ruta para telemetría y trazabilidad de viajes.",
+          "isAndroidBackgroundLocationEnabled": true
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Adjuntar evidencia fotográfica de inspecciones, OTs y novedades."
+        }
+      ],
+      "expo-secure-store"
+    ]
+  }
+}

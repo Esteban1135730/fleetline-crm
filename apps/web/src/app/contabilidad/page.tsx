@@ -2,8 +2,10 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
+import { BookOpen, FileSpreadsheet, Plus } from "lucide-react";
 import { api } from "@/lib/api";
-import { HowToBox, PageIntro } from "@/components/page-intro";
+import { PageIntro } from "@/components/page-intro";
+import { EmptyState, Modal } from "@/components/audit";
 
 type Account = { id: string; code: string; name: string };
 
@@ -36,6 +38,7 @@ export default function ContabilidadPage() {
   const [creditAccountId, setCreditAccountId] = useState("");
   const [amount, setAmount] = useState("");
   const [error, setError] = useState("");
+  const [accountModalOpen, setAccountModalOpen] = useState(false);
   const [accountForm, setAccountForm] = useState({
     code: "",
     name: "",
@@ -92,6 +95,7 @@ export default function ContabilidadPage() {
         body: JSON.stringify(accountForm),
       });
       setAccountForm({ code: "", name: "", type: "ASSET" });
+      setAccountModalOpen(false);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al crear cuenta");
@@ -103,13 +107,20 @@ export default function ContabilidadPage() {
 
   return (
     <div className="fade-in mx-auto max-w-[1600px] space-y-6">
-      <PageIntro module="contabilidad" title="Libro mayor" />
-      <HowToBox
-        steps={[
-          "Crea un asiento con cuenta débito, crédito y el mismo valor (partida doble).",
-          "El balance de prueba se calcula solo con asientos publicados.",
-          "Si débitos ≠ créditos, la API rechaza el asiento.",
-        ]}
+      <PageIntro
+        module="contabilidad"
+        title="Libro mayor"
+        action={
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-auto px-4 py-2"
+            onClick={() => setAccountModalOpen(true)}
+          >
+            <Plus className="mr-1.5 inline h-4 w-4" aria-hidden />
+            Crear cuenta
+          </Button>
+        }
       />
 
       <form
@@ -155,9 +166,11 @@ export default function ContabilidadPage() {
           onChange={(e) => setAmount(e.target.value)}
           required
         />
-        <Button type="submit" variant="primary" className="md:col-span-5">
-          Publicar asiento
-        </Button>
+        <div className="flex justify-end md:col-span-5">
+          <Button type="submit" variant="primary" className="w-auto px-4 py-2">
+            Publicar asiento
+          </Button>
+        </div>
         {error ? (
           <p className="text-sm text-[var(--brand-signal)] md:col-span-5">
             {error}
@@ -165,45 +178,70 @@ export default function ContabilidadPage() {
         ) : null}
       </form>
 
-      <form
-        onSubmit={onCreateAccount}
-        className="fsg-panel grid grid-cols-1 gap-3 p-4 md:grid-cols-4"
+      <Modal
+        open={accountModalOpen}
+        onClose={() => setAccountModalOpen(false)}
+        title="Crear cuenta contable"
+        description="Alta de cuenta en el plan contable operativo."
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-auto"
+              onClick={() => setAccountModalOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              form="create-account-form"
+              variant="primary"
+              className="w-auto"
+            >
+              Guardar cuenta
+            </Button>
+          </>
+        }
       >
-        <input
-          className="field"
-          placeholder="Código cuenta"
-          value={accountForm.code}
-          onChange={(e) =>
-            setAccountForm({ ...accountForm, code: e.target.value })
-          }
-          required
-        />
-        <input
-          className="field"
-          placeholder="Nombre cuenta"
-          value={accountForm.name}
-          onChange={(e) =>
-            setAccountForm({ ...accountForm, name: e.target.value })
-          }
-          required
-        />
-        <select
-          className="field"
-          value={accountForm.type}
-          onChange={(e) =>
-            setAccountForm({ ...accountForm, type: e.target.value })
-          }
+        <form
+          id="create-account-form"
+          onSubmit={onCreateAccount}
+          className="grid grid-cols-1 gap-3"
         >
-          <option value="ASSET">Activo</option>
-          <option value="LIABILITY">Pasivo</option>
-          <option value="EQUITY">Patrimonio</option>
-          <option value="INCOME">Ingreso</option>
-          <option value="EXPENSE">Gasto</option>
-        </select>
-        <Button type="submit" variant="primary">
-          Crear cuenta
-        </Button>
-      </form>
+          <input
+            className="field"
+            placeholder="Código cuenta"
+            value={accountForm.code}
+            onChange={(e) =>
+              setAccountForm({ ...accountForm, code: e.target.value })
+            }
+            required
+          />
+          <input
+            className="field"
+            placeholder="Nombre cuenta"
+            value={accountForm.name}
+            onChange={(e) =>
+              setAccountForm({ ...accountForm, name: e.target.value })
+            }
+            required
+          />
+          <select
+            className="field"
+            value={accountForm.type}
+            onChange={(e) =>
+              setAccountForm({ ...accountForm, type: e.target.value })
+            }
+          >
+            <option value="ASSET">Activo</option>
+            <option value="LIABILITY">Pasivo</option>
+            <option value="EQUITY">Patrimonio</option>
+            <option value="INCOME">Ingreso</option>
+            <option value="EXPENSE">Gasto</option>
+          </select>
+        </form>
+      </Modal>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="fsg-panel data-shell overflow-hidden">
@@ -217,87 +255,108 @@ export default function ContabilidadPage() {
               Δ {(totalDebit - totalCredit).toLocaleString("es-CO")}
             </Badge>
           </div>
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr>
-                <th className="px-4 py-2">Cuenta</th>
-                <th className="px-4 py-2">Débito</th>
-                <th className="px-4 py-2">Crédito</th>
-              </tr>
-            </thead>
-            <tbody>
-              {balance.map((r) => (
-                <tr key={r.id} className="border-t border-[var(--brand-line)]">
-                  <td className="px-4 py-2.5">
-                    <span className="font-data text-xs text-[var(--brand-primary)]">
-                      {r.code}
-                    </span>{" "}
-                    {r.name}
-                  </td>
-                  <td className="px-4 py-2.5 font-data text-xs">
-                    {r.debit ? r.debit.toLocaleString("es-CO") : "—"}
-                  </td>
-                  <td className="px-4 py-2.5 font-data text-xs">
-                    {r.credit ? r.credit.toLocaleString("es-CO") : "—"}
-                  </td>
+          {balance.length === 0 ? (
+            <div className="p-4">
+              <EmptyState
+                icon={<BookOpen className="h-7 w-7" aria-hidden />}
+                title="Sin movimientos en balance"
+                description="Publica asientos para construir el balance de prueba."
+              />
+            </div>
+          ) : (
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr>
+                  <th className="px-4 py-2">Cuenta</th>
+                  <th className="px-4 py-2">Débito</th>
+                  <th className="px-4 py-2">Crédito</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {balance.map((r) => (
+                  <tr key={r.id} className="border-t border-[var(--brand-line)]">
+                    <td className="px-4 py-2.5">
+                      <span className="font-data text-xs text-[var(--brand-primary)]">
+                        {r.code}
+                      </span>{" "}
+                      {r.name}
+                    </td>
+                    <td className="px-4 py-2.5 font-data text-xs">
+                      {r.debit ? r.debit.toLocaleString("es-CO") : "—"}
+                    </td>
+                    <td className="px-4 py-2.5 font-data text-xs">
+                      {r.credit ? r.credit.toLocaleString("es-CO") : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
 
         <div className="fsg-panel overflow-hidden">
           <div className="border-b border-[var(--brand-line)] px-4 py-3 font-display text-sm font-semibold">
             Asientos contables ({entries.length})
           </div>
-          <div className="divide-y divide-[var(--brand-line)]">
-            {entries.map((e) => (
-              <div key={e.id} className="px-4 py-3">
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <div>
-                    <span className="font-data text-xs text-[var(--brand-primary)]">
-                      {e.number}
-                    </span>
-                    <p className="text-sm font-medium text-[var(--brand-ink)]">
-                      {e.description}
-                    </p>
+          {entries.length === 0 ? (
+            <div className="p-4">
+              <EmptyState
+                icon={<FileSpreadsheet className="h-7 w-7" aria-hidden />}
+                title="Sin asientos publicados"
+                description="Crea el primer asiento de partida doble en el formulario superior."
+              />
+            </div>
+          ) : (
+            <div className="divide-y divide-[var(--brand-line)]">
+              {entries.map((e) => (
+                <div key={e.id} className="px-4 py-3">
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <div>
+                      <span className="font-data text-xs text-[var(--brand-primary)]">
+                        {e.number}
+                      </span>
+                      <p className="text-sm font-medium text-[var(--brand-ink)]">
+                        {e.description}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge tone={e.status === "VOID" ? "rose" : "emerald"}>
+                        {e.status}
+                      </Badge>
+                      {e.status !== "VOID" ? (
+                        <Button
+                          variant="ghost"
+                          className="w-auto"
+                          onClick={async () => {
+                            if (!confirm(`¿Anular asiento ${e.number}?`)) return;
+                            await api(`/accounting/journal/${e.id}/void`, {
+                              method: "PATCH",
+                            });
+                            await load();
+                          }}
+                        >
+                          Anular
+                        </Button>
+                      ) : null}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Badge tone={e.status === "VOID" ? "rose" : "emerald"}>
-                      {e.status}
-                    </Badge>
-                    {e.status !== "VOID" ? (
-                      <Button
-                        variant="ghost"
-                        onClick={async () => {
-                          if (!confirm(`¿Anular asiento ${e.number}?`)) return;
-                          await api(`/accounting/journal/${e.id}/void`, {
-                            method: "PATCH",
-                          });
-                          await load();
-                        }}
-                      >
-                        Anular
-                      </Button>
-                    ) : null}
-                  </div>
+                  <ul className="space-y-1 text-xs text-[var(--brand-muted)]">
+                    {e.lines.map((l, idx) => (
+                      <li key={idx} className="flex justify-between font-data">
+                        <span>
+                          {l.account.code} {l.account.name}
+                        </span>
+                        <span>
+                          D {Number(l.debit).toLocaleString("es-CO")} / C{" "}
+                          {Number(l.credit).toLocaleString("es-CO")}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-                <ul className="space-y-1 text-xs text-[var(--brand-muted)]">
-                  {e.lines.map((l, idx) => (
-                    <li key={idx} className="flex justify-between font-data">
-                      <span>
-                        {l.account.code} {l.account.name}
-                      </span>
-                      <span>
-                        D {Number(l.debit).toLocaleString("es-CO")} / C{" "}
-                        {Number(l.credit).toLocaleString("es-CO")}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

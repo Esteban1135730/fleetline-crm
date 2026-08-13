@@ -519,6 +519,26 @@ function SideNav({
   );
 }
 
+function HelpStepText({ text }: { text: string }) {
+  const parts = text.split(/(Cmd\/Ctrl\+[K/]|Ctrl\+K|Esc|⌘K)/g);
+  return (
+    <p className="text-sm leading-relaxed text-[var(--text-primary)]">
+      {parts.map((part, i) =>
+        /^(Cmd\/Ctrl\+[K/]|Ctrl\+K|Esc|⌘K)$/.test(part) ? (
+          <kbd
+            key={`${part}-${i}`}
+            className="mx-0.5 rounded-md border border-gray-700 bg-gray-800 px-2 py-0.5 font-mono text-xs text-slate-200"
+          >
+            {part}
+          </kbd>
+        ) : (
+          <span key={`${i}-${part.slice(0, 8)}`}>{part}</span>
+        ),
+      )}
+    </p>
+  );
+}
+
 function HelpSheet() {
   const pathname = usePathname();
   const { helpOpen, setHelpOpen } = useShell();
@@ -539,7 +559,7 @@ function HelpSheet() {
         <div className="flex h-[60px] items-center justify-between border-b border-[var(--border-subtle)] px-4">
           <div className="min-w-0">
             <p className="font-data text-[9px] uppercase tracking-[0.16em] text-[var(--text-secondary)]">
-              Asistencia
+              Asistencia contextual
             </p>
             <h2 className="truncate text-sm font-semibold text-[var(--text-primary)]">
               {guide.title}
@@ -565,14 +585,20 @@ function HelpSheet() {
             {guide.steps.map((step, i) => (
               <li key={step} className="flt-help-step" title={`Paso ${i + 1}`}>
                 <span className="flt-help-step-num font-data">{i + 1}</span>
-                <p className="text-sm leading-relaxed text-[var(--text-primary)]">
-                  {step}
-                </p>
+                <HelpStepText text={step} />
               </li>
             ))}
           </ol>
           <p className="font-data text-[10px] uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-            Atajo: Cmd/Ctrl + / · Esc cierra
+            Atajo:{" "}
+            <kbd className="rounded-md border border-gray-700 bg-gray-800 px-2 py-0.5 font-mono text-xs normal-case tracking-normal">
+              Cmd/Ctrl+/
+            </kbd>{" "}
+            ·{" "}
+            <kbd className="rounded-md border border-gray-700 bg-gray-800 px-2 py-0.5 font-mono text-xs normal-case tracking-normal">
+              Esc
+            </kbd>{" "}
+            cierra
           </p>
         </div>
       </aside>

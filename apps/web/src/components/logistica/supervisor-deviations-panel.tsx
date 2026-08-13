@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@fsg/ui";
 import { api } from "@/lib/api";
+import { EmptyState } from "@/components/audit";
+import { Route as RouteIcon } from "lucide-react";
 
 type Deviation = {
   id: string;
@@ -21,7 +23,14 @@ type Deviation = {
   };
 };
 
-export function SupervisorDeviationsPanel() {
+export function SupervisorDeviationsPanel({
+  embedded = false,
+  onCountChange,
+}: {
+  /** Sin chrome de sección — para SlideOver. */
+  embedded?: boolean;
+  onCountChange?: (count: number) => void;
+}) {
   const [rows, setRows] = useState<Deviation[]>([]);
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -32,11 +41,12 @@ export function SupervisorDeviationsPanel() {
         "/api/v1/servicios/desviaciones/pendientes",
       );
       setRows(data);
+      onCountChange?.(data.length);
       setError("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Uplink desviaciones fallido");
     }
-  }, []);
+  }, [onCountChange]);
 
   useEffect(() => {
     void load();
@@ -59,34 +69,18 @@ export function SupervisorDeviationsPanel() {
     }
   }
 
-  return (
-    <section
-      className="fsg-panel space-y-3 p-4"
-      data-testid="supervisor-deviations"
-    >
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-[var(--brand-muted)]">
-            Desviaciones · aprobación supervisor
-          </h2>
-          <p className="text-xs text-[var(--brand-muted)]">
-            Inicio/fin fuera de geofence u horario — ACEPTAR autoriza tracking /
-            extras; CANCELAR restaura estado previo.
-          </p>
-        </div>
-        <Button type="button" variant="ghost" onClick={() => void load()}>
-          Actualizar
-        </Button>
-      </div>
-
+  const body = (
+    <>
       {error ? (
         <p className="text-sm text-[var(--brand-signal)]">{error}</p>
       ) : null}
 
       {!rows.length ? (
-        <p className="text-sm text-[var(--brand-muted)]">
-          Sin solicitudes pendientes.
-        </p>
+        <EmptyState
+          icon={<RouteIcon className="h-7 w-7" />}
+          title="Sin desviaciones pendientes"
+          description="Inicio/fin fuera de geofence u horario aparecerán aquí."
+        />
       ) : (
         <ul className="space-y-3">
           {rows.map((d) => (
@@ -115,6 +109,7 @@ export function SupervisorDeviationsPanel() {
                   <Button
                     type="button"
                     variant="primary"
+                    className="w-auto"
                     loading={busyId === d.tripId}
                     onClick={() => void decide(d.tripId, "ACEPTAR")}
                   >
@@ -123,6 +118,7 @@ export function SupervisorDeviationsPanel() {
                   <Button
                     type="button"
                     variant="danger"
+                    className="w-auto"
                     disabled={busyId === d.tripId}
                     onClick={() => void decide(d.tripId, "CANCELAR")}
                   >
@@ -134,6 +130,52 @@ export function SupervisorDeviationsPanel() {
           ))}
         </ul>
       )}
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <div className="space-y-3" data-testid="supervisor-deviations">
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            variant="ghost"
+            className="w-auto"
+            onClick={() => void load()}
+          >
+            Actualizar
+          </Button>
+        </div>
+        {body}
+      </div>
+    );
+  }
+
+  return (
+    <section
+      className="fsg-panel space-y-3 p-4"
+      data-testid="supervisor-deviations"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-[var(--brand-muted)]">
+            Desviaciones · aprobación supervisor
+          </h2>
+          <p className="text-xs text-[var(--brand-muted)]">
+            Inicio/fin fuera de geofence u horario — ACEPTAR autoriza tracking /
+            extras; CANCELAR restaura estado previo.
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          className="w-auto"
+          onClick={() => void load()}
+        >
+          Actualizar
+        </Button>
+      </div>
+      {body}
     </section>
   );
 }

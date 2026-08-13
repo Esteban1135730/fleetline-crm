@@ -283,8 +283,20 @@ export function TarifarioRecargosPanel() {
                   key={row.sigla}
                   className="border-b border-[var(--brand-line)] last:border-0"
                 >
-                  <td className="px-3 py-2 font-data font-semibold text-[var(--brand-primary)]">
-                    {row.sigla}
+                  <td className="px-3 py-2">
+                    <span
+                      className={`inline-flex rounded border px-1.5 py-0.5 font-data text-[10px] font-bold uppercase tracking-wide ${
+                        row.sigla === "HEN" || row.sigla === "HENF"
+                          ? "border-rose-500/40 bg-rose-500/15 text-rose-300"
+                          : row.sigla === "HED" || row.sigla === "HEDF"
+                            ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300"
+                            : row.sigla === "RN" || row.sigla === "RNF"
+                              ? "border-amber-500/40 bg-amber-500/15 text-amber-300"
+                              : "border-slate-600 bg-slate-800/80 text-slate-300"
+                      }`}
+                    >
+                      {row.sigla}
+                    </span>
                   </td>
                   <td className="px-3 py-2">{row.concepto}</td>
                   <td className="px-3 py-2 font-data">{factorLabel(row.factor)}</td>

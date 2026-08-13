@@ -3,8 +3,9 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@fsg/ui";
 import { EMPLOYEE_AREA_GROUPS, EMPLOYEE_AREAS, EMPLOYEE_TITLES } from "@fsg/shared";
+import { Users } from "lucide-react";
 import { api } from "@/lib/api";
-import { HowToBox, PageIntro } from "@/components/page-intro";
+import { EmptyState, KpiCard, SlideOver } from "@/components/audit";
 
 type Semaphore = "GREEN" | "AMBER" | "RED" | "N_A";
 
@@ -99,6 +100,14 @@ const TABS: Array<{ id: TabId; label: string; testId: string }> = [
   },
 ];
 
+const EMPTY_FORM = {
+  name: "",
+  document: "",
+  title: "Conductor",
+  area: "Conductores / Flota",
+  driverId: "",
+};
+
 function semClass(s: Semaphore) {
   if (s === "GREEN") return "text-[var(--brand-primary)]";
   if (s === "AMBER") return "text-[var(--brand-amber)]";
@@ -141,6 +150,7 @@ export default function RrhhPage() {
   const [trainings, setTrainings] = useState<Training[]>([]);
   const [error, setError] = useState("");
   const [statusMsg, setStatusMsg] = useState("");
+  const [altaOpen, setAltaOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({
     name: "",
@@ -149,13 +159,7 @@ export default function RrhhPage() {
     phone: "",
     email: "",
   });
-  const [form, setForm] = useState({
-    name: "",
-    document: "",
-    title: "Conductor",
-    area: "Conductores / Flota",
-    driverId: "",
-  });
+  const [form, setForm] = useState(EMPTY_FORM);
   const [shiftDriverId, setShiftDriverId] = useState("");
   const [payrollForm, setPayrollForm] = useState(() => {
     const end = new Date();
@@ -209,13 +213,8 @@ export default function RrhhPage() {
           driverId: form.driverId || undefined,
         }),
       });
-      setForm({
-        name: "",
-        document: "",
-        title: "Conductor",
-        area: "Conductores / Flota",
-        driverId: "",
-      });
+      setForm(EMPTY_FORM);
+      setAltaOpen(false);
       setStatusMsg("Expediente indexado");
       await loadAll();
     } catch (err) {
@@ -347,48 +346,61 @@ export default function RrhhPage() {
 
   return (
     <div className="fade-in mx-auto max-w-[1600px] space-y-6">
-      <PageIntro module="rrhh" title="Recursos Humanos / Expedientes" />
-      <HowToBox
-        steps={[
-          "Expediente 360°: licencia C1/C2/C3 y semáforo de vencimiento.",
-          "Monitor de fatiga: check-in/out; score ≥80 = Hard-Stop de despacho.",
-          "Nómina: liquidar periodo desde turnos y viajes COMPLETED.",
-          "Capacitaciones PESV quedan indexadas al conductor.",
-        ]}
-      />
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="page-title text-3xl font-bold text-white md:text-4xl">
+            Recursos Humanos
+          </h1>
+          <p className="mt-1 text-sm text-gray-400">
+            Expedientes · fatiga · nómina · capacitaciones PESV
+          </p>
+        </div>
+        {tab === "personal" ? (
+          <Button
+            type="button"
+            variant="primary"
+            className="w-auto px-4 py-2"
+            data-testid="rrhh-alta-open"
+            onClick={() => setAltaOpen(true)}
+          >
+            + Alta expediente
+          </Button>
+        ) : null}
+      </header>
 
       {overview ? (
         <div
           className="grid grid-cols-2 gap-3 md:grid-cols-5"
           data-testid="rrhh-kpis"
         >
-          <Kpi
+          <KpiCard
             label="Personal activo"
-            value={String(overview.personalActivo)}
-            hint="Expedientes ACTIVE"
+            value={overview.personalActivo}
+            delta="Expedientes ACTIVE"
+            tone="ok"
           />
-          <Kpi
+          <KpiCard
             label="Fatiga alta"
-            value={String(overview.fatigaAlta)}
-            hint="Hard-Stop / score ≥80"
-            alert={overview.fatigaAlta > 0}
+            value={overview.fatigaAlta}
+            delta="Hard-Stop / score ≥80"
+            tone={overview.fatigaAlta > 0 ? "danger" : "ok"}
           />
-          <Kpi
+          <KpiCard
             label="Licencias ≤30d"
-            value={String(overview.licenciasPorVencer)}
-            hint="Alerta de trámites"
-            alert={overview.licenciasPorVencer > 0}
+            value={overview.licenciasPorVencer}
+            delta="Alerta de trámites"
+            tone={overview.licenciasPorVencer > 0 ? "warn" : "ok"}
           />
-          <Kpi
+          <KpiCard
             label="Nómina (mes)"
-            value={String(overview.novedadesNominaMes)}
-            hint="Corridas indexadas"
+            value={overview.novedadesNominaMes}
+            delta="Corridas indexadas"
           />
-          <Kpi
+          <KpiCard
             label="System Status"
             value={overview.systemStatus}
-            hint="Nominal | Alert"
-            alert={overview.systemStatus === "ALERT"}
+            delta="Nominal | Alert"
+            tone={overview.systemStatus === "ALERT" ? "danger" : "ok"}
           />
         </div>
       ) : null}
@@ -422,255 +434,199 @@ export default function RrhhPage() {
 
       {tab === "personal" ? (
         <section className="space-y-4" data-testid="rrhh-panel-personal">
-          <form
-            onSubmit={onCreate}
-            className="fsg-panel grid grid-cols-1 gap-3 p-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
-          >
-            <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--brand-muted)]">
-              Nombre
-              <input
-                className="field"
-                placeholder="Nombre completo"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                required
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--brand-muted)]">
-              Documento
-              <input
-                className="field font-data"
-                placeholder="Cédula / ID"
-                value={form.document}
-                onChange={(e) => setForm({ ...form, document: e.target.value })}
-                required
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--brand-muted)]">
-              Cargo
-              <select
-                className="field"
-                value={form.title}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
-              >
-                {EMPLOYEE_TITLES.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--brand-muted)]">
-              Área / departamento
-              <select
-                className="field"
-                value={form.area}
-                onChange={(e) => setForm({ ...form, area: e.target.value })}
-              >
-                {EMPLOYEE_AREA_GROUPS.map((g) => (
-                  <optgroup key={g.label} label={g.label}>
-                    {g.areas.map((a) => (
-                      <option key={a} value={a}>
-                        {a}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-            </label>
-            <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--brand-muted)]">
-              Vínculo flota
-              <select
-                className="field"
-                value={form.driverId}
-                onChange={(e) => setForm({ ...form, driverId: e.target.value })}
-              >
-                <option value="">Sin vínculo conductor</option>
-                {drivers.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name} · {d.document}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="flex items-end">
-              <Button type="submit" variant="primary" className="w-full">
-                Alta expediente
-              </Button>
-            </div>
-          </form>
-
-          <div className="fsg-panel data-shell overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr>
-                  <th className="px-4 py-2">Nombre</th>
-                  <th className="px-4 py-2">Cargo</th>
-                  <th className="px-4 py-2">Licencia</th>
-                  <th className="px-4 py-2">Fatiga</th>
-                  <th className="px-4 py-2">Estado</th>
-                  <th className="px-4 py-2">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r) => {
-                  const licExp = r.driver?.licenseExpiresAt;
-                  return (
-                    <tr key={r.id} className="border-t border-[var(--brand-line)]">
-                      <td className="px-4 py-2.5">
-                        {editingId === r.id ? (
-                          <input
-                            className="field py-1 text-xs"
-                            value={editForm.name}
-                            onChange={(e) =>
-                              setEditForm({ ...editForm, name: e.target.value })
-                            }
-                          />
-                        ) : (
-                          <>
-                            {r.name}
-                            <div className="font-data text-[10px] text-[var(--brand-muted)]">
-                              {r.document}
+          {!rows.length ? (
+            <EmptyState
+              icon={<Users className="h-7 w-7" />}
+              title="Sin expedientes"
+              description="Indexa el primer expediente de capital humano."
+              actionLabel="+ Alta expediente"
+              onAction={() => setAltaOpen(true)}
+            />
+          ) : (
+            <div className="fsg-panel data-shell overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr>
+                    <th className="px-4 py-2">Nombre</th>
+                    <th className="px-4 py-2">Cargo</th>
+                    <th className="px-4 py-2">Licencia</th>
+                    <th className="px-4 py-2">Fatiga</th>
+                    <th className="px-4 py-2">Estado</th>
+                    <th className="px-4 py-2">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r) => {
+                    const licExp = r.driver?.licenseExpiresAt;
+                    return (
+                      <tr
+                        key={r.id}
+                        className="border-t border-[var(--brand-line)]"
+                      >
+                        <td className="px-4 py-2.5">
+                          {editingId === r.id ? (
+                            <input
+                              className="field py-1 text-xs"
+                              value={editForm.name}
+                              onChange={(e) =>
+                                setEditForm({
+                                  ...editForm,
+                                  name: e.target.value,
+                                })
+                              }
+                            />
+                          ) : (
+                            <>
+                              <div className="font-bold text-white">{r.name}</div>
+                              <div className="text-sm text-gray-400">
+                                {r.document}
+                              </div>
+                            </>
+                          )}
+                        </td>
+                        <td className="px-4 py-2.5">
+                          {editingId === r.id ? (
+                            <div className="space-y-1">
+                              <select
+                                className="field py-1 text-xs"
+                                value={editForm.title}
+                                onChange={(e) =>
+                                  setEditForm({
+                                    ...editForm,
+                                    title: e.target.value,
+                                  })
+                                }
+                              >
+                                {!EMPLOYEE_TITLES.includes(
+                                  editForm.title as (typeof EMPLOYEE_TITLES)[number],
+                                ) && editForm.title ? (
+                                  <option value={editForm.title}>
+                                    {editForm.title}
+                                  </option>
+                                ) : null}
+                                {EMPLOYEE_TITLES.map((t) => (
+                                  <option key={t} value={t}>
+                                    {t}
+                                  </option>
+                                ))}
+                              </select>
+                              <select
+                                className="field py-1 text-xs"
+                                value={editForm.area}
+                                onChange={(e) =>
+                                  setEditForm({
+                                    ...editForm,
+                                    area: e.target.value,
+                                  })
+                                }
+                              >
+                                {!EMPLOYEE_AREAS.includes(
+                                  editForm.area as (typeof EMPLOYEE_AREAS)[number],
+                                ) && editForm.area ? (
+                                  <option value={editForm.area}>
+                                    {editForm.area}
+                                  </option>
+                                ) : null}
+                                {EMPLOYEE_AREA_GROUPS.map((g) => (
+                                  <optgroup key={g.label} label={g.label}>
+                                    {g.areas.map((a) => (
+                                      <option key={a} value={a}>
+                                        {a}
+                                      </option>
+                                    ))}
+                                  </optgroup>
+                                ))}
+                              </select>
                             </div>
-                          </>
-                        )}
-                      </td>
-                      <td className="px-4 py-2.5">
-                        {editingId === r.id ? (
-                          <div className="space-y-1">
-                            <select
-                              className="field py-1 text-xs"
-                              value={editForm.title}
-                              onChange={(e) =>
-                                setEditForm({
-                                  ...editForm,
-                                  title: e.target.value,
-                                })
-                              }
-                            >
-                              {!EMPLOYEE_TITLES.includes(
-                                editForm.title as (typeof EMPLOYEE_TITLES)[number],
-                              ) && editForm.title ? (
-                                <option value={editForm.title}>
-                                  {editForm.title}
-                                </option>
-                              ) : null}
-                              {EMPLOYEE_TITLES.map((t) => (
-                                <option key={t} value={t}>
-                                  {t}
-                                </option>
-                              ))}
-                            </select>
-                            <select
-                              className="field py-1 text-xs"
-                              value={editForm.area}
-                              onChange={(e) =>
-                                setEditForm({
-                                  ...editForm,
-                                  area: e.target.value,
-                                })
-                              }
-                            >
-                              {!EMPLOYEE_AREAS.includes(
-                                editForm.area as (typeof EMPLOYEE_AREAS)[number],
-                              ) && editForm.area ? (
-                                <option value={editForm.area}>
-                                  {editForm.area}
-                                </option>
-                              ) : null}
-                              {EMPLOYEE_AREA_GROUPS.map((g) => (
-                                <optgroup key={g.label} label={g.label}>
-                                  {g.areas.map((a) => (
-                                    <option key={a} value={a}>
-                                      {a}
-                                    </option>
-                                  ))}
-                                </optgroup>
-                              ))}
-                            </select>
-                          </div>
-                        ) : (
-                          `${r.title || r.position} · ${r.area}`
-                        )}
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <span
-                          data-testid="rrhh-license-badge"
-                          className={`font-data text-xs font-semibold ${semClass(r.licenseSemaphore)}`}
-                        >
-                          {semLabel(r.licenseSemaphore)}
-                        </span>
-                        {r.driver ? (
-                          <div className="font-data text-[10px] text-[var(--brand-muted)]">
-                            {r.driver.licenseCategory || "—"} ·{" "}
-                            {licExp
-                              ? new Date(licExp).toLocaleDateString("es-CO")
-                              : "sin fecha"}
-                          </div>
-                        ) : null}
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <span
-                          data-testid="rrhh-fatigue-badge"
-                          className={`font-data text-xs font-semibold ${semClass(r.fatigueSemaphore)}`}
-                        >
-                          {fatLabel(r.fatigueSemaphore)} {r.fatigueScore}
-                        </span>
-                        {r.dispatchBlocked ? (
-                          <div className="text-[10px] text-[var(--brand-signal)]">
-                            {r.blockReason || "DISPATCH_BLOCKED"}
-                          </div>
-                        ) : null}
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <select
-                          className="field py-1 text-xs"
-                          value={r.status}
-                          onChange={(e) =>
-                            void patchStatus(r.id, e.target.value)
-                          }
-                        >
-                          {STATUSES.map((s) => (
-                            <option key={s} value={s}>
-                              {s}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="px-4 py-2.5">
-                        {editingId === r.id ? (
-                          <div className="flex flex-wrap gap-1">
-                            <Button
-                              variant="primary"
-                              onClick={() => void saveEdit(r.id)}
-                            >
-                              Guardar
-                            </Button>
+                          ) : (
+                            `${r.title || r.position} · ${r.area}`
+                          )}
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <span
+                            data-testid="rrhh-license-badge"
+                            className={`font-data text-xs font-semibold ${semClass(r.licenseSemaphore)}`}
+                          >
+                            {semLabel(r.licenseSemaphore)}
+                          </span>
+                          {r.driver ? (
+                            <div className="font-data text-[10px] text-[var(--brand-muted)]">
+                              {r.driver.licenseCategory || "—"} ·{" "}
+                              {licExp
+                                ? new Date(licExp).toLocaleDateString("es-CO")
+                                : "sin fecha"}
+                            </div>
+                          ) : null}
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <span
+                            data-testid="rrhh-fatigue-badge"
+                            className={`font-data text-xs font-semibold ${semClass(r.fatigueSemaphore)}`}
+                          >
+                            {fatLabel(r.fatigueSemaphore)} {r.fatigueScore}
+                          </span>
+                          {r.dispatchBlocked ? (
+                            <div className="text-[10px] text-[var(--brand-signal)]">
+                              {r.blockReason || "DISPATCH_BLOCKED"}
+                            </div>
+                          ) : null}
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <select
+                            className="field py-1 text-xs"
+                            value={r.status}
+                            onChange={(e) =>
+                              void patchStatus(r.id, e.target.value)
+                            }
+                          >
+                            {STATUSES.map((s) => (
+                              <option key={s} value={s}>
+                                {s}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="px-4 py-2.5">
+                          {editingId === r.id ? (
+                            <div className="flex flex-wrap gap-1">
+                              <Button
+                                variant="primary"
+                                className="w-auto"
+                                onClick={() => void saveEdit(r.id)}
+                              >
+                                Guardar
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                className="w-auto"
+                                onClick={() => setEditingId(null)}
+                              >
+                                Cancelar
+                              </Button>
+                            </div>
+                          ) : (
                             <Button
                               variant="ghost"
-                              onClick={() => setEditingId(null)}
+                              className="w-auto"
+                              onClick={() => startEdit(r)}
                             >
-                              Cancelar
+                              Editar ficha
                             </Button>
-                          </div>
-                        ) : (
-                          <Button variant="ghost" onClick={() => startEdit(r)}>
-                            Editar ficha
-                          </Button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
       ) : null}
 
       {tab === "fatiga" ? (
         <section className="space-y-4" data-testid="rrhh-panel-fatiga">
-          <div className="fsg-panel flex flex-wrap items-end gap-3 p-4">
+          <div className="fsg-panel flex flex-wrap items-end justify-end gap-3 p-4">
             <div className="min-w-[220px] flex-1">
               <label className="mb-1 block text-xs text-[var(--brand-muted)]">
                 Conductor
@@ -689,64 +645,86 @@ export default function RrhhPage() {
                 ))}
               </select>
             </div>
-            <Button variant="primary" onClick={() => void shiftAction("check-in")}>
+            <Button
+              variant="primary"
+              className="w-auto px-4 py-2"
+              onClick={() => void shiftAction("check-in")}
+            >
               Check-in turno
             </Button>
-            <Button variant="ghost" onClick={() => void shiftAction("check-out")}>
+            <Button
+              variant="ghost"
+              className="w-auto px-4 py-2"
+              onClick={() => void shiftAction("check-out")}
+            >
               Check-out
             </Button>
-            <Button variant="ghost" onClick={() => void auditLicenses()}>
+            <Button
+              variant="ghost"
+              className="w-auto px-4 py-2"
+              onClick={() => void auditLicenses()}
+            >
               Auditar licencias
             </Button>
           </div>
 
-          <div className="fsg-panel data-shell overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr>
-                  <th className="px-4 py-2">Conductor</th>
-                  <th className="px-4 py-2">Score</th>
-                  <th className="px-4 py-2">Aptitud</th>
-                  <th className="px-4 py-2">Licencia</th>
-                  <th className="px-4 py-2">Despacho</th>
-                </tr>
-              </thead>
-              <tbody>
-                {linkedDrivers.map((r) => (
-                  <tr key={r.id} className="border-t border-[var(--brand-line)]">
-                    <td className="px-4 py-2.5">
-                      {r.name}
-                      <div className="font-data text-[10px] text-[var(--brand-muted)]">
-                        {r.driver?.document || r.document}
-                      </div>
-                    </td>
-                    <td className="px-4 py-2.5 font-data">{r.fatigueScore}</td>
-                    <td
-                      className={`px-4 py-2.5 font-data text-xs ${semClass(r.fatigueSemaphore)}`}
-                    >
-                      {fatLabel(r.fatigueSemaphore)}
-                    </td>
-                    <td
-                      className={`px-4 py-2.5 font-data text-xs ${semClass(r.licenseSemaphore)}`}
-                    >
-                      {semLabel(r.licenseSemaphore)}
-                    </td>
-                    <td className="px-4 py-2.5 font-data text-xs">
-                      {r.dispatchBlocked ? (
-                        <span className="text-[var(--brand-signal)]">
-                          HARD-STOP · {r.blockReason || "BLOCKED"}
-                        </span>
-                      ) : (
-                        <span className="text-[var(--brand-primary)]">
-                          CLEARED
-                        </span>
-                      )}
-                    </td>
+          {!linkedDrivers.length ? (
+            <EmptyState
+              title="Sin conductores vinculados"
+              description="Vincula expedientes a flota para monitorear fatiga."
+            />
+          ) : (
+            <div className="fsg-panel data-shell overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr>
+                    <th className="px-4 py-2">Conductor</th>
+                    <th className="px-4 py-2">Score</th>
+                    <th className="px-4 py-2">Aptitud</th>
+                    <th className="px-4 py-2">Licencia</th>
+                    <th className="px-4 py-2">Despacho</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {linkedDrivers.map((r) => (
+                    <tr
+                      key={r.id}
+                      className="border-t border-[var(--brand-line)]"
+                    >
+                      <td className="px-4 py-2.5">
+                        <div className="font-bold text-white">{r.name}</div>
+                        <div className="text-sm text-gray-400">
+                          {r.driver?.document || r.document}
+                        </div>
+                      </td>
+                      <td className="px-4 py-2.5 font-data">{r.fatigueScore}</td>
+                      <td
+                        className={`px-4 py-2.5 font-data text-xs ${semClass(r.fatigueSemaphore)}`}
+                      >
+                        {fatLabel(r.fatigueSemaphore)}
+                      </td>
+                      <td
+                        className={`px-4 py-2.5 font-data text-xs ${semClass(r.licenseSemaphore)}`}
+                      >
+                        {semLabel(r.licenseSemaphore)}
+                      </td>
+                      <td className="px-4 py-2.5 font-data text-xs">
+                        {r.dispatchBlocked ? (
+                          <span className="text-[var(--brand-signal)]">
+                            HARD-STOP · {r.blockReason || "BLOCKED"}
+                          </span>
+                        ) : (
+                          <span className="text-[var(--brand-primary)]">
+                            CLEARED
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
       ) : null}
 
@@ -754,9 +732,9 @@ export default function RrhhPage() {
         <section className="space-y-4" data-testid="rrhh-panel-nomina">
           <form
             onSubmit={runPayroll}
-            className="fsg-panel grid grid-cols-1 gap-3 p-4 md:grid-cols-4"
+            className="fsg-panel flex flex-wrap items-end justify-end gap-3 p-4"
           >
-            <div>
+            <div className="min-w-[160px]">
               <label className="mb-1 block text-xs text-[var(--brand-muted)]">
                 Periodo desde
               </label>
@@ -773,7 +751,7 @@ export default function RrhhPage() {
                 required
               />
             </div>
-            <div>
+            <div className="min-w-[160px]">
               <label className="mb-1 block text-xs text-[var(--brand-muted)]">
                 Periodo hasta
               </label>
@@ -787,56 +765,60 @@ export default function RrhhPage() {
                 required
               />
             </div>
-            <div className="md:col-span-2 flex items-end">
-              <Button type="submit" variant="primary">
-                Calcular liquidación
-              </Button>
-            </div>
+            <Button type="submit" variant="primary" className="w-auto px-4 py-2">
+              Calcular liquidación
+            </Button>
           </form>
 
-          <div className="fsg-panel data-shell overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr>
-                  <th className="px-4 py-2">Periodo</th>
-                  <th className="px-4 py-2">Estado</th>
-                  <th className="px-4 py-2">Bruto</th>
-                  <th className="px-4 py-2">Nocturno</th>
-                  <th className="px-4 py-2">Extras</th>
-                  <th className="px-4 py-2">Líneas</th>
-                </tr>
-              </thead>
-              <tbody>
-                {runs.map((run) => (
-                  <tr key={run.id} className="border-t border-[var(--brand-line)]">
-                    <td className="px-4 py-2.5 font-data text-xs">
-                      {new Date(run.periodStart).toLocaleDateString("es-CO")} →{" "}
-                      {new Date(run.periodEnd).toLocaleDateString("es-CO")}
-                    </td>
-                    <td className="px-4 py-2.5 font-data text-xs">{run.status}</td>
-                    <td className="px-4 py-2.5 font-data">{money(run.totalGross)}</td>
-                    <td className="px-4 py-2.5 font-data">{money(run.totalNight)}</td>
-                    <td className="px-4 py-2.5 font-data">
-                      {money(run.totalOvertime)}
-                    </td>
-                    <td className="px-4 py-2.5 font-data text-xs">
-                      {run.lines?.length ?? 0}
-                    </td>
-                  </tr>
-                ))}
-                {!runs.length ? (
+          {!runs.length ? (
+            <EmptyState
+              title="Sin corridas de nómina"
+              description="Calcula un periodo para indexar liquidación."
+            />
+          ) : (
+            <div className="fsg-panel data-shell overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead>
                   <tr>
-                    <td
-                      colSpan={6}
-                      className="px-4 py-6 text-sm text-[var(--brand-muted)]"
-                    >
-                      Sin corridas. Calcula un periodo para indexar liquidación.
-                    </td>
+                    <th className="px-4 py-2">Periodo</th>
+                    <th className="px-4 py-2">Estado</th>
+                    <th className="px-4 py-2">Bruto</th>
+                    <th className="px-4 py-2">Nocturno</th>
+                    <th className="px-4 py-2">Extras</th>
+                    <th className="px-4 py-2">Líneas</th>
                   </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {runs.map((run) => (
+                    <tr
+                      key={run.id}
+                      className="border-t border-[var(--brand-line)]"
+                    >
+                      <td className="px-4 py-2.5 font-data text-xs">
+                        {new Date(run.periodStart).toLocaleDateString("es-CO")} →{" "}
+                        {new Date(run.periodEnd).toLocaleDateString("es-CO")}
+                      </td>
+                      <td className="px-4 py-2.5 font-data text-xs">
+                        {run.status}
+                      </td>
+                      <td className="px-4 py-2.5 font-data">
+                        {money(run.totalGross)}
+                      </td>
+                      <td className="px-4 py-2.5 font-data">
+                        {money(run.totalNight)}
+                      </td>
+                      <td className="px-4 py-2.5 font-data">
+                        {money(run.totalOvertime)}
+                      </td>
+                      <td className="px-4 py-2.5 font-data text-xs">
+                        {run.lines?.length ?? 0}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
       ) : null}
 
@@ -844,10 +826,10 @@ export default function RrhhPage() {
         <section className="space-y-4" data-testid="rrhh-panel-capacitaciones">
           <form
             onSubmit={createTraining}
-            className="fsg-panel grid grid-cols-1 gap-3 p-4 md:grid-cols-4"
+            className="fsg-panel flex flex-wrap items-end justify-end gap-3 p-4"
           >
             <select
-              className="field"
+              className="field min-w-[180px]"
               value={trainingForm.driverId}
               onChange={(e) =>
                 setTrainingForm({ ...trainingForm, driverId: e.target.value })
@@ -862,7 +844,7 @@ export default function RrhhPage() {
               ))}
             </select>
             <input
-              className="field"
+              className="field min-w-[180px]"
               placeholder="Tema (PESV, defensivo…)"
               value={trainingForm.topic}
               onChange={(e) =>
@@ -871,90 +853,163 @@ export default function RrhhPage() {
               required
             />
             <input
-              className="field"
+              className="field min-w-[140px]"
               placeholder="Proveedor"
               value={trainingForm.provider}
               onChange={(e) =>
                 setTrainingForm({ ...trainingForm, provider: e.target.value })
               }
             />
-            <Button type="submit" variant="primary">
+            <Button type="submit" variant="primary" className="w-auto px-4 py-2">
               Registrar capacitación
             </Button>
           </form>
 
-          <div className="fsg-panel data-shell overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr>
-                  <th className="px-4 py-2">Conductor</th>
-                  <th className="px-4 py-2">Tema</th>
-                  <th className="px-4 py-2">Completada</th>
-                  <th className="px-4 py-2">Vence</th>
-                  <th className="px-4 py-2">Proveedor</th>
-                </tr>
-              </thead>
-              <tbody>
-                {trainings.map((t) => (
-                  <tr key={t.id} className="border-t border-[var(--brand-line)]">
-                    <td className="px-4 py-2.5">{t.driver?.name ?? "—"}</td>
-                    <td className="px-4 py-2.5">{t.topic}</td>
-                    <td className="px-4 py-2.5 font-data text-xs">
-                      {new Date(t.completedAt).toLocaleDateString("es-CO")}
-                    </td>
-                    <td className="px-4 py-2.5 font-data text-xs">
-                      {t.expiresAt
-                        ? new Date(t.expiresAt).toLocaleDateString("es-CO")
-                        : "—"}
-                    </td>
-                    <td className="px-4 py-2.5 text-[var(--brand-muted)]">
-                      {t.provider || "—"}
-                    </td>
-                  </tr>
-                ))}
-                {!trainings.length ? (
+          {!trainings.length ? (
+            <EmptyState
+              title="Sin registros PESV"
+              description="Registra la primera capacitación."
+            />
+          ) : (
+            <div className="fsg-panel data-shell overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead>
                   <tr>
-                    <td
-                      colSpan={5}
-                      className="px-4 py-6 text-sm text-[var(--brand-muted)]"
-                    >
-                      Sin registros PESV. Registra la primera capacitación.
-                    </td>
+                    <th className="px-4 py-2">Conductor</th>
+                    <th className="px-4 py-2">Tema</th>
+                    <th className="px-4 py-2">Completada</th>
+                    <th className="px-4 py-2">Vence</th>
+                    <th className="px-4 py-2">Proveedor</th>
                   </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {trainings.map((t) => (
+                    <tr
+                      key={t.id}
+                      className="border-t border-[var(--brand-line)]"
+                    >
+                      <td className="px-4 py-2.5">
+                        <div className="font-bold text-white">
+                          {t.driver?.name ?? "—"}
+                        </div>
+                        {t.driver?.document ? (
+                          <div className="text-sm text-gray-400">
+                            {t.driver.document}
+                          </div>
+                        ) : null}
+                      </td>
+                      <td className="px-4 py-2.5">{t.topic}</td>
+                      <td className="px-4 py-2.5 font-data text-xs">
+                        {new Date(t.completedAt).toLocaleDateString("es-CO")}
+                      </td>
+                      <td className="px-4 py-2.5 font-data text-xs">
+                        {t.expiresAt
+                          ? new Date(t.expiresAt).toLocaleDateString("es-CO")
+                          : "—"}
+                      </td>
+                      <td className="px-4 py-2.5 text-[var(--brand-muted)]">
+                        {t.provider || "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
       ) : null}
-    </div>
-  );
-}
 
-function Kpi({
-  label,
-  value,
-  hint,
-  alert,
-}: {
-  label: string;
-  value: string;
-  hint: string;
-  alert?: boolean;
-}) {
-  return (
-    <div className="fsg-panel p-3">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--brand-muted)]">
-        {label}
-      </p>
-      <p
-        className={`mt-1 font-data text-xl font-semibold ${
-          alert ? "text-[var(--brand-signal)]" : "text-[var(--brand-fg)]"
-        }`}
+      <SlideOver
+        open={altaOpen}
+        onClose={() => setAltaOpen(false)}
+        title="Alta expediente"
+        description="Capital humano · vínculo flota opcional"
+        widthClass="max-w-lg"
+        footer={
+          <Button
+            type="submit"
+            form="rrhh-alta-form"
+            variant="primary"
+            className="w-auto px-4 py-2"
+          >
+            Indexar expediente
+          </Button>
+        }
       >
-        {value}
-      </p>
-      <p className="mt-0.5 text-[11px] text-[var(--brand-muted)]">{hint}</p>
+        <form
+          id="rrhh-alta-form"
+          onSubmit={onCreate}
+          className="grid grid-cols-1 gap-3"
+        >
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-slate-400">
+            Nombre
+            <input
+              className="field"
+              placeholder="Nombre completo"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              required
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-slate-400">
+            Documento
+            <input
+              className="field font-data"
+              placeholder="Cédula / ID"
+              value={form.document}
+              onChange={(e) => setForm({ ...form, document: e.target.value })}
+              required
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-slate-400">
+            Cargo
+            <select
+              className="field"
+              value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
+            >
+              {EMPLOYEE_TITLES.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-slate-400">
+            Área / departamento
+            <select
+              className="field"
+              value={form.area}
+              onChange={(e) => setForm({ ...form, area: e.target.value })}
+            >
+              {EMPLOYEE_AREA_GROUPS.map((g) => (
+                <optgroup key={g.label} label={g.label}>
+                  {g.areas.map((a) => (
+                    <option key={a} value={a}>
+                      {a}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-slate-400">
+            Vínculo flota
+            <select
+              className="field"
+              value={form.driverId}
+              onChange={(e) => setForm({ ...form, driverId: e.target.value })}
+            >
+              <option value="">Sin vínculo conductor</option>
+              {drivers.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name} · {d.document}
+                </option>
+              ))}
+            </select>
+          </label>
+        </form>
+      </SlideOver>
     </div>
   );
 }

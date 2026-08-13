@@ -7,11 +7,13 @@ import { WorkbenchHeader } from "@fsg/ui";
 export function PageIntro({
   module,
   title,
+  subtitle,
   children,
   action,
 }: {
   module: ModuleId;
   title?: string;
+  subtitle?: string;
   children?: React.ReactNode;
   action?: React.ReactNode;
 }) {
@@ -20,7 +22,7 @@ export function PageIntro({
       <WorkbenchHeader
         eyebrow={MODULE_LABELS[module]}
         title={title || MODULE_LABELS[module]}
-        subtitle={MODULE_HELP[module]}
+        subtitle={subtitle ?? MODULE_HELP[module]}
         action={action}
       />
       {children}
@@ -29,16 +31,11 @@ export function PageIntro({
 }
 
 export function HowToBox({ steps }: { steps: string[] }) {
-  return (
-    <div className="flt-panel mb-6 !border-l-[3px] !border-l-[var(--accent-primary)]">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-        Protocolo operativo
-      </p>
-      <ol className="mt-2 list-decimal space-y-1 pl-4 text-sm text-[var(--text-primary)]">
-        {steps.map((s) => (
-          <li key={s}>{s}</li>
-        ))}
-      </ol>
-    </div>
-  );
+  /**
+   * @deprecated Auditoría UI/UX — los protocolos NO van en el top 30%.
+   * Usar `<SlideOverHelp />` desde `@/components/audit`.
+   * Este stub no renderiza bloque estático para no violar `.cursorrules`.
+   */
+  void steps;
+  return null;
 }

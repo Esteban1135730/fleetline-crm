@@ -143,6 +143,8 @@ export function RouteMap(props: {
   suggested: Array<{ lat: number; lng: number }>;
   history: Array<{ lat: number; lng: number }>;
   live: { lat: number; lng: number } | null;
+  fillHeight?: boolean;
+  height?: number;
 }) {
   return (
     <FleetMap
@@ -151,7 +153,8 @@ export function RouteMap(props: {
       suggested={props.suggested}
       history={props.history}
       live={props.live}
-      height={320}
+      height={props.height ?? 320}
+      fillHeight={props.fillHeight}
     />
   );
 }
