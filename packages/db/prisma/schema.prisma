@@ -3416,7 +3416,7 @@ model DianEmission {
 
 model ForensicFinding {
   id             String       @id @default(cuid())
-  code           String
+  code           String       @default(cuid())
   title          String
   severity       String
   detail         String

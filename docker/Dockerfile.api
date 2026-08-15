@@ -32,4 +32,4 @@ COPY --from=build /app /app
 RUN mkdir -p /app/uploads
 EXPOSE 4000
 # Schema SSOT avanza más rápido que migrate deploy histórico → db push en volumen fresco.
-CMD ["sh", "-c", "pnpm --filter @fsg/db exec prisma db push && exec node apps/api/dist/main.js"]
+CMD ["sh", "-c", "pnpm --filter @fsg/db exec prisma db push --skip-generate && exec node apps/api/dist/main.js"]
