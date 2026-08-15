@@ -55,15 +55,15 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className={`relative z-[1] w-full ${sizeClass[size]} max-h-[90vh] overflow-y-auto rounded-xl border border-slate-800 bg-zinc-950 p-5 shadow-2xl`}
+        className={`relative z-[1] w-full ${sizeClass[size]} max-h-[90vh] overflow-y-auto rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-5 shadow-2xl`}
       >
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
-            <h2 id={titleId} className="text-lg font-semibold text-slate-100">
+            <h2 id={titleId} className="text-lg font-semibold text-[var(--text-primary)]">
               {title}
             </h2>
             {description ? (
-              <p className="mt-1 text-sm text-slate-400">{description}</p>
+              <p className="mt-1 text-sm text-[var(--text-secondary)]">{description}</p>
             ) : null}
           </div>
           <Button type="button" variant="ghost" className="w-auto px-2 py-1" onClick={onClose}>
@@ -72,7 +72,7 @@ export function Modal({
         </div>
         <div>{children}</div>
         {footer ? (
-          <div className="mt-5 flex justify-end gap-2 border-t border-slate-800 pt-4">
+          <div className="mt-5 flex justify-end gap-2 border-t border-[var(--border-subtle)] pt-4">
             {footer}
           </div>
         ) : null}

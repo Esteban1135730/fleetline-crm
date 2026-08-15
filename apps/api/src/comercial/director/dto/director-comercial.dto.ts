@@ -1,13 +1,12 @@
 import { z } from "zod";
+import { QuoteVehicleTypeSchema } from "@fsg/shared";
 
 export const CotizarSchema = z.object({
   dealId: z.string().min(1).optional(),
   accountName: z.string().min(2).optional(),
   customerId: z.string().min(1).optional(),
   zone: z.string().min(2).default("BOGOTA"),
-  vehicleType: z
-    .enum(["BUS_ESCOLAR", "BUS_TURISMO", "CAMION_CARGA", "VAN"])
-    .default("BUS_ESCOLAR"),
+  vehicleType: QuoteVehicleTypeSchema.default("BUS"),
   distanceKm: z.number().positive().default(45),
   /** Tarifa propuesta $/km (COP). Si omitida, se calcula con margen objetivo. */
   proposedRatePerKm: z.number().positive().optional(),

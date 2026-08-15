@@ -13,10 +13,10 @@ type KpiCardProps = {
 };
 
 const toneValue: Record<NonNullable<KpiCardProps["tone"]>, string> = {
-  neutral: "text-slate-100",
-  ok: "text-emerald-400",
-  warn: "text-amber-400",
-  danger: "text-[var(--fl-critical,#FF2A5F)]",
+  neutral: "text-[var(--text-primary)]",
+  ok: "text-[var(--accent-primary)]",
+  warn: "text-[var(--accent-metric)]",
+  danger: "text-[var(--accent-alert)]",
 };
 
 /** KPI ejecutivo — tipografía grande + micro-tendencia. */
@@ -30,16 +30,16 @@ export function KpiCard({
 }: KpiCardProps) {
   const max = spark?.length ? Math.max(...spark, 1) : 1;
   return (
-    <article className="relative overflow-hidden rounded-xl border border-slate-800 bg-zinc-900/80 p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
+    <article className="fsg-panel relative overflow-hidden p-4">
       {icon ? (
         <div
-          className="pointer-events-none absolute right-3 top-3 text-slate-500/25 [&_svg]:h-10 [&_svg]:w-10"
+          className="pointer-events-none absolute right-3 top-3 text-[var(--text-secondary)]/30 [&_svg]:h-10 [&_svg]:w-10"
           aria-hidden
         >
           {icon}
         </div>
       ) : null}
-      <p className="relative text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+      <p className="relative text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
         {label}
       </p>
       <p
@@ -49,12 +49,18 @@ export function KpiCard({
       </p>
       <div className="relative mt-3 flex items-end justify-between gap-3">
         {delta ? (
-          <span className="text-xs font-medium text-slate-400">{delta}</span>
+          <span className="text-xs font-medium text-[var(--text-secondary)]">
+            {delta}
+          </span>
         ) : (
           <span />
         )}
         {spark && spark.length > 1 ? (
-          <svg viewBox="0 0 64 20" className="h-5 w-16 text-emerald-500" aria-hidden>
+          <svg
+            viewBox="0 0 64 20"
+            className="h-5 w-16 text-[var(--accent-primary)]"
+            aria-hidden
+          >
             <polyline
               fill="none"
               stroke="currentColor"
@@ -81,10 +87,14 @@ type PulseBadgeProps = {
 };
 
 const badgeTone: Record<NonNullable<PulseBadgeProps["tone"]>, string> = {
-  active: "border-emerald-500/40 bg-emerald-500/15 text-emerald-300",
-  fatiga: "border-amber-500/40 bg-amber-500/15 text-amber-300",
-  danger: "border-rose-500/40 bg-rose-500/15 text-rose-300",
-  neutral: "border-slate-600 bg-slate-800/80 text-slate-300",
+  active:
+    "border-[color-mix(in_srgb,var(--accent-primary)_40%,transparent)] bg-[color-mix(in_srgb,var(--accent-primary)_14%,transparent)] text-[var(--accent-primary)]",
+  fatiga:
+    "border-[color-mix(in_srgb,var(--accent-metric)_40%,transparent)] bg-[color-mix(in_srgb,var(--accent-metric)_14%,transparent)] text-[var(--accent-metric)]",
+  danger:
+    "border-[color-mix(in_srgb,var(--accent-alert)_40%,transparent)] bg-[color-mix(in_srgb,var(--accent-alert)_14%,transparent)] text-[var(--accent-alert)]",
+  neutral:
+    "border-[var(--border-subtle)] bg-[var(--bg-surface-2)] text-[var(--text-secondary)]",
 };
 
 export function StatusPulseBadge({

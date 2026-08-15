@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { Button } from "@fsg/ui";
 import {
   MessageSquare,
@@ -90,6 +91,7 @@ export default function RecepcionDashboardPage() {
   const [boardFilter, setBoardFilter] = useState<string>("");
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
+  const [infoHref, setInfoHref] = useState("");
   const [selectedChat, setSelectedChat] = useState<InboxItem | null>(null);
   const [radarQ, setRadarQ] = useState("");
   const [panel, setPanel] = useState<"none" | "visit" | "lead" | "pqrs">("none");
@@ -172,15 +174,24 @@ export default function RecepcionDashboardPage() {
     e.preventDefault();
     setError("");
     setInfo("");
+    setInfoHref("");
     try {
-      await api("/api/v1/recepcion/visitas/check-in", {
+      const res = await api<{
+        destination?: { board: string; notifiedArea: string; href: string };
+      }>("/api/v1/recepcion/visitas/check-in", {
         method: "POST",
         body: JSON.stringify({
           ...visitForm,
           badgeRfid: visitForm.badgeRfid || undefined,
         }),
       });
-      setInfo("Visita registrada · evento visitor.checked_in emitido");
+      const dest = res.destination;
+      setInfo(
+        dest
+          ? `Visitante en ${dest.board}. Aviso enviado a ${dest.notifiedArea}.`
+          : "Visita registrada en el Smart Visitor Board.",
+      );
+      setInfoHref(dest?.href || "#visitantes");
       setPanel("none");
       setVisitForm({
         document: "",
@@ -194,6 +205,10 @@ export default function RecepcionDashboardPage() {
         boardStatus: "CHECKED_IN",
       });
       await load();
+      document.getElementById("visitantes")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error");
     }
@@ -201,19 +216,16 @@ export default function RecepcionDashboardPage() {
 
   async function submitLead(e: FormEvent) {
     e.preventDefault();
-    if (!selectedChat) {
-      setError("Selecciona un chat de la bandeja");
-      return;
-    }
     setError("");
     try {
       const res = await api<{
         dailyLeadMetrics: number;
         message: string;
+        destination?: { href: string; label?: string };
       }>("/api/v1/recepcion/omnicanal/convert-lead", {
         method: "POST",
         body: JSON.stringify({
-          ticketId: selectedChat.id,
+          ticketId: selectedChat?.id,
           companyName: leadForm.companyName,
           email: leadForm.email,
           phone: leadForm.phone || undefined,
@@ -221,9 +233,11 @@ export default function RecepcionDashboardPage() {
         }),
       });
       setInfo(
-        `${res.message} · métrica diaria leads: ${res.dailyLeadMetrics}`,
+        `${res.message} · llega a Comercial (${res.destination?.label || "cotización DRAFT"}).`,
       );
+      setInfoHref(res.destination?.href || "/comercial");
       setSelectedChat(null);
+      setLeadForm({ companyName: "", email: "", serviceDate: "", phone: "" });
       setPanel("none");
       await load();
     } catch (err) {
@@ -235,7 +249,10 @@ export default function RecepcionDashboardPage() {
     e.preventDefault();
     setError("");
     try {
-      const t = await api<{ code: string }>("/api/v1/recepcion/pqrs/quick-ticket", {
+      const t = await api<{
+        code: string;
+        destination?: { href: string; area: string };
+      }>("/api/v1/recepcion/pqrs/quick-ticket", {
         method: "POST",
         body: JSON.stringify({
           subject: "Retraso en ruta",
@@ -245,7 +262,16 @@ export default function RecepcionDashboardPage() {
           routeLabel: pqrsForm.routeLabel || undefined,
         }),
       });
-      setInfo(`PQRS ${t.code} enviado a Torre de Control / QHSE`);
+      setInfo(
+        `PQRS ${t.code} enviada a ${t.destination?.area || "QHSE / Torre de Control"}.`,
+      );
+      setInfoHref(t.destination?.href || "/qhse/dashboard");
+      setPqrsForm({
+        requester: "",
+        message: "Cliente reporta retraso en ruta",
+        schoolName: "",
+        routeLabel: "",
+      });
       setPanel("none");
       await load();
     } catch (err) {
@@ -291,10 +317,7 @@ export default function RecepcionDashboardPage() {
               variant="ghost"
               className="w-auto border border-amber-500/50 px-4 py-2 text-amber-300 hover:bg-amber-500/10"
               onClick={() => {
-                if (!selectedChat) {
-                  setError("Selecciona un chat para convertir a Lead");
-                  return;
-                }
+                setError("");
                 setPanel("lead");
               }}
             >
@@ -316,7 +339,21 @@ export default function RecepcionDashboardPage() {
         <p className="text-sm text-[var(--brand-signal,#FF2A5F)]">{error}</p>
       ) : null}
       {info ? (
-        <p className="text-sm text-[var(--brand-amber,#FFB800)]">{info}</p>
+        <p className="text-sm text-[var(--brand-amber,#FFB800)]">
+          {info}{" "}
+          {infoHref.startsWith("/") ? (
+            <Link
+              href={infoHref}
+              className="ml-1 underline underline-offset-2"
+            >
+              Abrir destino
+            </Link>
+          ) : infoHref.startsWith("#") ? (
+            <a href={infoHref} className="ml-1 underline underline-offset-2">
+              Ver tablero
+            </a>
+          ) : null}
+        </p>
       ) : null}
 
       <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -325,19 +362,21 @@ export default function RecepcionDashboardPage() {
           value={metrics?.visitors ?? "—"}
           tone="ok"
           icon={<Users />}
-          delta={waiting > 0 ? `${waiting} en espera` : undefined}
+          delta={waiting > 0 ? `${waiting} en espera` : "Destino: Visitor Board"}
         />
         <KpiCard
           label="Leads convertidos"
           value={metrics?.leadsConverted ?? "—"}
           tone="warn"
           icon={<UserPlus />}
+          delta="Destino: Comercial"
         />
         <KpiCard
           label="PQRS rápidas"
           value={metrics?.pqrsQuick ?? "—"}
           tone="danger"
           icon={<AlertTriangle />}
+          delta="Destino: QHSE"
         />
       </section>
 
@@ -658,8 +697,8 @@ export default function RecepcionDashboardPage() {
         title="Nuevo Lead"
         description={
           selectedChat
-            ? `Chat ${selectedChat.code} · pase a comercial`
-            : "Selecciona un chat de la bandeja"
+            ? `Chat ${selectedChat.code} · pase a Comercial`
+            : "Lead presencial (walk-in). Llega a Comercial como cotización DRAFT."
         }
         footer={
           <>
@@ -676,7 +715,6 @@ export default function RecepcionDashboardPage() {
               form="lead-form"
               variant="primary"
               className="w-auto px-4 py-2"
-              disabled={!selectedChat}
             >
               Asignar a gestor comercial
             </Button>
@@ -702,6 +740,14 @@ export default function RecepcionDashboardPage() {
               setLeadForm((f) => ({ ...f, email: e.target.value }))
             }
             required
+          />
+          <input
+            className="field h-11 min-h-[44px] font-data"
+            placeholder="Teléfono"
+            value={leadForm.phone}
+            onChange={(e) =>
+              setLeadForm((f) => ({ ...f, phone: e.target.value }))
+            }
           />
           <input
             className="field h-11 min-h-[44px] font-data"

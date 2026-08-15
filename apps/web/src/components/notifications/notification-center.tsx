@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useNotifications } from "@/lib/notifications-context";
 
@@ -17,51 +18,53 @@ export function NotificationBell() {
   } = useNotifications();
   const [open, setOpen] = useState(false);
   const [pushMsg, setPushMsg] = useState("");
+  const [pushOk, setPushOk] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [coords, setCoords] = useState({ top: 56, right: 16 });
+  const wrapRef = useRef<HTMLDivElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
     function onDoc(e: MouseEvent) {
-      if (!panelRef.current?.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (wrapRef.current?.contains(t) || panelRef.current?.contains(t)) return;
+      setOpen(false);
     }
     if (open) document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, [open]);
 
-  return (
-    <div className="relative" ref={panelRef}>
-      <button
-        type="button"
-        className="flt-help-btn relative"
-        aria-label="Centro de notificaciones"
-        title="Centro de notificaciones"
-        onClick={() => {
-          setOpen((v) => !v);
-          void refresh();
-        }}
-      >
-        <svg
-          viewBox="0 0 24 24"
-          className="h-4 w-4"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          aria-hidden
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0v1a3 3 0 1 1-6 0v-1m6 0H9"
-          />
-        </svg>
-        {unread > 0 ? (
-          <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--brand-signal,#FF2A5F)] px-1 font-data text-[9px] text-white">
-            {unread > 99 ? "99+" : unread}
-          </span>
-        ) : null}
-      </button>
+  useEffect(() => {
+    if (!open) return;
+    function place() {
+      const el = wrapRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      setCoords({
+        top: r.bottom + 8,
+        right: Math.max(8, window.innerWidth - r.right),
+      });
+    }
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [open]);
 
-      {open ? (
-        <div className="absolute right-0 z-50 mt-2 w-[min(92vw,360px)] overflow-hidden rounded-lg border border-[var(--brand-line)] bg-[var(--brand-surface,#121722)] shadow-xl">
+  const panel =
+    open ? (
+      <div
+        ref={panelRef}
+        className="fixed z-[100] w-[min(92vw,360px)] overflow-hidden rounded-lg border border-[var(--brand-line)] bg-[var(--brand-surface,#121722)] shadow-xl"
+        style={{ top: coords.top, right: coords.right }}
+      >
           <div className="flex items-center justify-between border-b border-[var(--brand-line)] px-3 py-2">
             <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--brand-muted)]">
               Inbox · alertas
@@ -77,17 +80,26 @@ export function NotificationBell() {
 
           {webPushSupported ? (
             <div className="border-b border-[var(--brand-line)] px-3 py-2">
-              <button
-                type="button"
-                className="text-[11px] font-semibold text-[var(--brand-amber,#FFB800)]"
-                onClick={() => {
-                  void enableWebPush().then((r) => setPushMsg(r.message));
-                }}
-              >
-                Activar Web Push del navegador
-              </button>
-              {pushMsg ? (
-                <p className="mt-1 text-[10px] text-[var(--brand-muted)]">
+              {pushOk ? (
+                <p className="text-xs text-[var(--accent-primary)]">
+                  Avisos activados en este equipo
+                </p>
+              ) : (
+                <button
+                  type="button"
+                  className="inline-flex h-8 w-auto items-center rounded-lg bg-[var(--accent-primary)] px-3 text-xs font-semibold text-[var(--brand-primary-fg,#042f2e)]"
+                  onClick={() => {
+                    void enableWebPush().then((r) => {
+                      setPushOk(r.ok);
+                      setPushMsg(r.message);
+                    });
+                  }}
+                >
+                  Activar notificaciones
+                </button>
+              )}
+              {pushMsg && !pushOk ? (
+                <p className="mt-1.5 text-[11px] text-[var(--brand-muted)]">
                   {pushMsg}
                 </p>
               ) : null}
@@ -138,7 +150,41 @@ export function NotificationBell() {
             )}
           </ul>
         </div>
-      ) : null}
+      ) : null;
+
+  return (
+    <div className="relative" ref={wrapRef}>
+      <button
+        type="button"
+        className="flt-help-btn relative"
+        aria-label="Centro de notificaciones"
+        title="Centro de notificaciones"
+        onClick={() => {
+          setOpen((v) => !v);
+          void refresh();
+        }}
+      >
+        <svg
+          viewBox="0 0 24 24"
+          className="h-4 w-4"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          aria-hidden
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0v1a3 3 0 1 1-6 0v-1m6 0H9"
+          />
+        </svg>
+        {unread > 0 ? (
+          <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--brand-signal,#FF2A5F)] px-1 font-data text-[9px] text-white">
+            {unread > 99 ? "99+" : unread}
+          </span>
+        ) : null}
+      </button>
+      {mounted && panel ? createPortal(panel, document.body) : null}
     </div>
   );
 }

@@ -12,6 +12,7 @@ import {
   TripStatus,
   VehicleStatus,
   WorkOrderStatus,
+  EmployeeStatus,
 } from "@fsg/db";
 import { HARD_RULES, PreoperationalChecklistSchema } from "@fsg/shared";
 import type { PreoperationalChecklist } from "@fsg/shared";
@@ -41,6 +42,22 @@ const tripInclude = {
   invoices: { select: { id: true, number: true, status: true }, take: 5 },
 } as const;
 
+/** Cargo/área de expediente RRHH que debe existir también en el roster de flota. */
+export function isFleetDriverRole(title: string, area?: string | null): boolean {
+  const fold = (s: string) =>
+    s
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+  const t = fold(title || "");
+  const a = fold(area || "");
+  return (
+    t.includes("conductor") ||
+    a.includes("conductor") ||
+    a.includes("flota")
+  );
+}
+
 @Injectable()
 export class LogisticsService {
   constructor(
@@ -60,7 +77,116 @@ export class LogisticsService {
     });
   }
 
-  listDrivers(organizationId: string, all = false) {
+  async findTripByQuoteCode(organizationId: string, quoteCode: string) {
+    const rows = await this.prisma.trip.findMany({
+      where: { organizationId },
+      include: tripInclude,
+      orderBy: { createdAt: "desc" },
+      take: 200,
+    });
+    return (
+      rows.find((t) => {
+        const meta = t.meta as { quoteCode?: string; notes?: string } | null;
+        if (meta?.quoteCode === quoteCode) return true;
+        const blob = `${meta?.notes ?? ""} ${t.incidentNote ?? ""}`;
+        return blob.includes(quoteCode);
+      }) ?? null
+    );
+  }
+
+  private async nextTripCode(organizationId: string) {
+    const year = new Date().getFullYear();
+    const count = await this.prisma.trip.count({ where: { organizationId } });
+    let n = count + 1;
+    for (let i = 0; i < 30; i += 1) {
+      const code = `TRP-${year}-${String(n).padStart(4, "0")}`;
+      const taken = await this.prisma.trip.findUnique({
+        where: { code },
+        select: { id: true },
+      });
+      if (!taken) return code;
+      n += 1;
+    }
+    return `TRP-${year}-${Date.now().toString(36).toUpperCase()}`;
+  }
+
+  /**
+   * Si RRHH indexó un expediente Conductor sin perfil de flota, lo crea y vincula.
+   * Logística despacha sobre Driver, no sobre Employee.
+   */
+  async ensureDriverForEmployee(
+    organizationId: string,
+    emp: {
+      id: string;
+      name: string;
+      document: string;
+      phone?: string | null;
+      driverId?: string | null;
+      title: string;
+      area: string;
+    },
+  ): Promise<string | null> {
+    if (!isFleetDriverRole(emp.title, emp.area)) return emp.driverId ?? null;
+    const document = emp.document.trim();
+    if (!document) return emp.driverId ?? null;
+
+    if (emp.driverId) {
+      await this.prisma.driver.updateMany({
+        where: { id: emp.driverId, organizationId },
+        data: {
+          name: emp.name,
+          phone: emp.phone ?? undefined,
+          active: true,
+        },
+      });
+      return emp.driverId;
+    }
+
+    let driver = await this.prisma.driver.findFirst({
+      where: { organizationId, document },
+    });
+    if (!driver) {
+      try {
+        driver = await this.prisma.driver.create({
+          data: {
+            organizationId,
+            name: emp.name,
+            document,
+            phone: emp.phone ?? undefined,
+            active: true,
+          },
+        });
+      } catch {
+        driver = await this.prisma.driver.findFirst({
+          where: { organizationId, document },
+        });
+      }
+    }
+    if (!driver) return null;
+
+    await this.prisma.employee.update({
+      where: { id: emp.id },
+      data: { driverId: driver.id },
+    });
+    return driver.id;
+  }
+
+  async syncDriversFromHr(organizationId: string) {
+    const employees = await this.prisma.employee.findMany({
+      where: {
+        organizationId,
+        driverId: null,
+        status: { not: EmployeeStatus.INACTIVE },
+      },
+    });
+    for (const emp of employees) {
+      if (!isFleetDriverRole(emp.title, emp.area)) continue;
+      await this.ensureDriverForEmployee(organizationId, emp);
+    }
+  }
+
+  async listDrivers(organizationId: string, all = false) {
+    await this.syncDriversFromHr(organizationId);
     return this.prisma.driver.findMany({
       where: {
         organizationId,
@@ -311,12 +437,11 @@ export class LogisticsService {
       }
     }
 
-    const count = await this.prisma.trip.count({ where: { organizationId } });
     const assigned = Boolean(data.vehicleId && data.driverId);
 
     const trip = await this.prisma.trip.create({
       data: {
-        code: `TRP-${1000 + count + 1}`,
+        code: await this.nextTripCode(organizationId),
         origin: data.origin,
         destination: data.destination,
         departAt,
@@ -427,14 +552,13 @@ export class LogisticsService {
       quoteCode?: string;
     },
   ) {
-    const count = await this.prisma.trip.count({ where: { organizationId } });
     const departAt = new Date();
     departAt.setDate(departAt.getDate() + 1);
     departAt.setHours(6, 0, 0, 0);
 
     return this.prisma.trip.create({
       data: {
-        code: `TRP-${1000 + count + 1}`,
+        code: await this.nextTripCode(organizationId),
         origin: data.origin,
         destination: data.destination,
         departAt,
@@ -442,6 +566,11 @@ export class LogisticsService {
         fareAmount: data.fareAmount,
         status: TripStatus.PENDING,
         organizationId,
+        meta: {
+          source: "COMMERCIAL_QUOTE",
+          quoteCode: data.quoteCode ?? null,
+          notes: data.notes ?? null,
+        },
       },
       include: tripInclude,
     });
@@ -458,14 +587,13 @@ export class LogisticsService {
       notes?: string;
     },
   ) {
-    const count = await this.prisma.trip.count({ where: { organizationId } });
     const departAt = new Date();
     departAt.setDate(departAt.getDate() + 1);
     departAt.setHours(6, 0, 0, 0);
 
     return this.prisma.trip.create({
       data: {
-        code: `TRP-${1000 + count + 1}`,
+        code: await this.nextTripCode(organizationId),
         origin: data.origin,
         destination: data.destination,
         departAt,
@@ -474,6 +602,10 @@ export class LogisticsService {
         fareAmount: data.fareAmount ?? 0,
         status: TripStatus.PENDING,
         organizationId,
+        meta: {
+          source: "COMMERCIAL_CONTRACT",
+          notes: data.notes ?? null,
+        },
       },
       include: tripInclude,
     });

@@ -74,7 +74,10 @@ export default function LogisticaServiciosPage() {
   const [destPin, setDestPin] = useState<PlacePin | null>(null);
   const [assignDriverId, setAssignDriverId] = useState("");
   const [assignVehicleId, setAssignVehicleId] = useState("");
-  const [createOpen, setCreateOpen] = useState(true);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [focusCode, setFocusCode] = useState<string | null>(null);
+  const [focusMissing, setFocusMissing] = useState(false);
+  const [listLoaded, setListLoaded] = useState(false);
   const [deviationsOpen, setDeviationsOpen] = useState(false);
   const [deviationCount, setDeviationCount] = useState(0);
   const [form, setForm] = useState({
@@ -97,6 +100,7 @@ export default function LogisticaServiciosPage() {
   const loadServicios = useCallback(async () => {
     const rows = await api<Servicio[]>("/logistica/servicios");
     setServicios(rows);
+    setListLoaded(true);
   }, []);
 
   const loadPool = useCallback(async () => {
@@ -110,6 +114,11 @@ export default function LogisticaServiciosPage() {
   const loadClock = useCallback(async () => {
     const c = await api<{ iso: string }>("/logistica/reloj");
     setClock(new Date(c.iso).toLocaleTimeString("es-CO", { hour12: false }));
+  }, []);
+
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get("code");
+    setFocusCode(code);
   }, []);
 
   useEffect(() => {
@@ -164,6 +173,22 @@ export default function LogisticaServiciosPage() {
       clearInterval(iv);
     };
   }, [selectedId]);
+
+  useEffect(() => {
+    if (!focusCode) {
+      setFocusMissing(false);
+      return;
+    }
+    if (!listLoaded) return;
+    const hit = servicios.find((s) => s.code === focusCode);
+    if (hit) {
+      setSelectedId(hit.id);
+      setCreateOpen(false);
+      setFocusMissing(false);
+    } else {
+      setFocusMissing(true);
+    }
+  }, [focusCode, servicios, listLoaded]);
 
   async function onCreateServicio(e: FormEvent) {
     e.preventDefault();
@@ -273,6 +298,11 @@ export default function LogisticaServiciosPage() {
     Boolean(form.driverId && form.vehicleId) &&
     Boolean(selectedDriver?.ready && selectedVehicle?.ready);
 
+  function openCreate() {
+    setCreateOpen(true);
+    setError("");
+  }
+
   return (
     <div
       className="fade-in flex h-[calc(100vh-5.5rem)] min-h-[560px] flex-col gap-3"
@@ -302,7 +332,7 @@ export default function LogisticaServiciosPage() {
               type="button"
               variant="primary"
               className="w-auto"
-              onClick={() => setCreateOpen(true)}
+              onClick={openCreate}
             >
               <Plus className="mr-1 h-4 w-4" />
               Nueva ruta
@@ -311,6 +341,22 @@ export default function LogisticaServiciosPage() {
         }
       />
 
+      {focusCode && !focusMissing ? (
+        <p className="rounded border border-[var(--brand-primary)]/30 bg-[var(--brand-primary)]/10 px-3 py-2 text-sm text-[var(--brand-primary)]">
+          Enfocado {focusCode} — borrador desde Comercial. Asigne conductor y
+          placa para despachar. El mapa queda vacío hasta georreferenciar la
+          ruta.
+        </p>
+      ) : null}
+      {focusMissing && focusCode ? (
+        <p
+          role="alert"
+          className="rounded border border-[var(--brand-signal)]/40 bg-[var(--brand-signal)]/10 px-3 py-2 text-sm text-[var(--brand-signal)]"
+        >
+          {focusCode} no está en Programación de Servicios. Vuelva a Comercial y
+          pulse Generar viaje en esa cotización.
+        </p>
+      ) : null}
       {statusMsg ? (
         <p className="rounded border border-[var(--brand-primary)]/30 bg-[var(--brand-primary)]/10 px-3 py-2 text-sm text-[var(--brand-primary)]">
           {statusMsg}
@@ -325,10 +371,16 @@ export default function LogisticaServiciosPage() {
         </p>
       ) : null}
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[minmax(280px,30%)_minmax(0,70%)]">
-        {/* —— Izquierda: lista + chat —— */}
-        <aside className="flex min-h-0 flex-col gap-3 overflow-hidden">
-          <div className="fsg-panel flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[minmax(18rem,22rem)_minmax(0,1fr)]">
+        {/* —— Izquierda: lista + alta + chat —— */}
+        <aside className="relative z-10 flex min-h-0 flex-col gap-3 overflow-hidden">
+          <div
+            className={`fsg-panel flex flex-col overflow-hidden ${
+              createOpen
+                ? "max-h-[200px] shrink-0"
+                : "min-h-[220px] flex-1"
+            }`}
+          >
             <div className="flex items-center justify-between border-b border-[var(--brand-line)] px-3 py-2">
               <h2 className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--brand-muted)]">
                 Servicios ({servicios.length})
@@ -350,7 +402,7 @@ export default function LogisticaServiciosPage() {
                     title="Sin servicios indexados"
                     description="Crea una ruta en el mapa para despachar la flota."
                     actionLabel="Nueva ruta"
-                    onAction={() => setCreateOpen(true)}
+                    onAction={openCreate}
                   />
                 </div>
               ) : (
@@ -361,7 +413,7 @@ export default function LogisticaServiciosPage() {
                         role="button"
                         tabIndex={0}
                         className={`w-full cursor-pointer px-3 py-2.5 text-left transition-colors duration-150 ${
-                          selectedId === s.id
+                          selectedId === s.id || s.code === focusCode
                             ? "bg-[var(--brand-primary)]/10"
                             : "hover:bg-white/[0.03]"
                         }`}
@@ -396,7 +448,13 @@ export default function LogisticaServiciosPage() {
                         <p className="mt-0.5 text-[10px] text-[var(--brand-muted)]">
                           {s.driver?.name ?? "Sin conductor"} ·{" "}
                           {s.vehicle?.plate ?? "Sin placa"}
+                          {s.customer?.name ? ` · ${s.customer.name}` : ""}
                         </p>
+                        {s.meta?.quoteCode ? (
+                          <p className="mt-0.5 font-data text-[10px] text-[var(--accent-metric,#FFB800)]">
+                            Desde cotización {s.meta.quoteCode}
+                          </p>
+                        ) : null}
                         <div className="mt-2 flex flex-wrap gap-1">
                           {s.status !== "IN_TRANSIT" &&
                           s.status !== "COMPLETED" ? (
@@ -431,6 +489,183 @@ export default function LogisticaServiciosPage() {
               )}
             </div>
           </div>
+
+          {createOpen ? (
+            <form
+              id="crear-servicio"
+              onSubmit={onCreateServicio}
+              className="fsg-panel max-h-[min(52vh,28rem)] shrink-0 space-y-3 overflow-y-auto p-3"
+              data-testid="servicio-form"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold text-[var(--text-primary)]">
+                  Nueva ruta
+                </h3>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-auto px-2 py-1 text-xs"
+                  onClick={() => setCreateOpen(false)}
+                >
+                  Cerrar
+                </Button>
+              </div>
+
+              <ol className="flex flex-wrap gap-1.5 text-[10px]">
+                {[
+                  { ok: step1, label: "1 · Ruta A→B" },
+                  { ok: step2, label: "2 · Salida" },
+                  { ok: step3Ready, label: "3 · Asignación" },
+                ].map((s) => (
+                  <li
+                    key={s.label}
+                    className={`rounded border px-2 py-0.5 ${
+                      s.ok
+                        ? "border-[var(--brand-primary)]/40 bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]"
+                        : "border-[var(--border-subtle)] text-[var(--text-secondary)]"
+                    }`}
+                  >
+                    {s.label}
+                  </li>
+                ))}
+              </ol>
+
+              <p className="text-xs text-[var(--text-secondary)]">
+                Marca origen (A) y destino (B) en el mapa, o búscalo en las
+                pestañas A / B.
+              </p>
+              <div className="grid gap-1.5 text-xs">
+                <div className="rounded-md border border-[var(--border-subtle)] px-2 py-1.5">
+                  <span className="font-data text-[10px] uppercase tracking-[0.1em] text-[var(--brand-amber,#D97706)]">
+                    A · Origen
+                  </span>
+                  <p className="mt-0.5 text-[var(--text-primary)]">
+                    {originPin?.label ?? "Sin marcar"}
+                  </p>
+                </div>
+                <div className="rounded-md border border-[var(--border-subtle)] px-2 py-1.5">
+                  <span className="font-data text-[10px] uppercase tracking-[0.1em] text-[var(--brand-signal,#DC2626)]">
+                    B · Destino
+                  </span>
+                  <p className="mt-0.5 text-[var(--text-primary)]">
+                    {destPin?.label ?? "Sin marcar"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-2">
+                <label className="text-xs text-[var(--text-secondary)]">
+                  Salida *
+                  <input
+                    className="field mt-1 w-full font-data"
+                    type="datetime-local"
+                    value={form.departAt}
+                    onChange={(e) =>
+                      setForm({ ...form, departAt: e.target.value })
+                    }
+                    required
+                    aria-label="Salida"
+                  />
+                </label>
+                <label className="text-xs text-[var(--text-secondary)]">
+                  Llegada estimada
+                  <input
+                    className="field mt-1 w-full font-data"
+                    type="datetime-local"
+                    value={form.arriveAt}
+                    onChange={(e) =>
+                      setForm({ ...form, arriveAt: e.target.value })
+                    }
+                    aria-label="Llegada estimada"
+                  />
+                </label>
+              </div>
+
+              <label className="block text-xs text-[var(--text-secondary)]">
+                Conductor (opcional)
+                <select
+                  className="field mt-1 w-full"
+                  data-testid="dispatch-driver"
+                  value={form.driverId}
+                  onChange={(e) =>
+                    setForm({ ...form, driverId: e.target.value })
+                  }
+                >
+                  <option value="">Sin asignar ahora…</option>
+                  {drivers.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.ready ? "✓ " : "⚠ "}
+                      {d.name}
+                      {!d.ready ? ` · ${d.blockers[0] ?? "revisar"}` : ""}
+                    </option>
+                  ))}
+                </select>
+                {selectedDriver && !selectedDriver.ready ? (
+                  <p className="mt-1 text-[11px] text-[var(--brand-amber,#D97706)]">
+                    No se asignará aún: {selectedDriver.blockers.join(" · ")}.
+                  </p>
+                ) : null}
+              </label>
+
+              <label className="block text-xs text-[var(--text-secondary)]">
+                Vehículo / placa (opcional)
+                <select
+                  className="field mt-1 w-full"
+                  data-testid="dispatch-vehicle"
+                  value={form.vehicleId}
+                  onChange={(e) =>
+                    setForm({ ...form, vehicleId: e.target.value })
+                  }
+                >
+                  <option value="">Sin asignar ahora…</option>
+                  {vehicles.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.ready ? "✓ " : "⚠ "}
+                      {v.plate}
+                      {!v.ready ? ` · ${v.blockers[0] ?? "revisar"}` : ""}
+                    </option>
+                  ))}
+                </select>
+                {selectedVehicle && !selectedVehicle.ready ? (
+                  <p className="mt-1 text-[11px] text-[var(--brand-amber,#D97706)]">
+                    No se asignará aún: {selectedVehicle.blockers.join(" · ")}.
+                  </p>
+                ) : null}
+              </label>
+
+              <div className="grid grid-cols-1 gap-2">
+                <input
+                  className="field"
+                  placeholder="Funcionario / cliente"
+                  value={form.officerName}
+                  onChange={(e) =>
+                    setForm({ ...form, officerName: e.target.value })
+                  }
+                />
+                <input
+                  className="field font-data"
+                  placeholder="Cédula funcionario"
+                  value={form.officerDocument}
+                  onChange={(e) =>
+                    setForm({ ...form, officerDocument: e.target.value })
+                  }
+                />
+              </div>
+
+              <div className="flex justify-end">
+                <Button
+                  type="submit"
+                  variant="primary"
+                  className="w-auto"
+                  disabled={!canConfirm}
+                >
+                  {form.driverId || form.vehicleId
+                    ? "Crear (asigna si checklist OK)"
+                    : "Crear sin asignación"}
+                </Button>
+              </div>
+            </form>
+          ) : null}
 
           {selected &&
           (!selected.driver || !selected.vehicle) &&
@@ -482,7 +717,7 @@ export default function LogisticaServiciosPage() {
             </div>
           ) : null}
 
-          {tracking ? (
+          {tracking && !createOpen ? (
             <div className="fsg-panel max-h-[120px] shrink-0 overflow-auto p-3">
               <p className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--brand-muted)]">
                 <Radio className="h-3 w-3" />
@@ -501,20 +736,22 @@ export default function LogisticaServiciosPage() {
             </div>
           ) : null}
 
-          <div className="grid shrink-0 gap-2">
-            <OpsChatPanel
-              mode="trip"
-              tripId={selectedId}
-              tripCode={selected?.code}
-            />
-            <OpsChatPanel mode="support" />
-          </div>
+          {!createOpen ? (
+            <div className="grid shrink-0 gap-2">
+              <OpsChatPanel
+                mode="trip"
+                tripId={selectedId}
+                tripCode={selected?.code}
+              />
+              <OpsChatPanel mode="support" />
+            </div>
+          ) : null}
         </aside>
 
-        {/* —— Derecha: mapa full-height + panel flotante —— */}
-        <section className="relative min-h-[420px] overflow-hidden rounded-xl border border-[var(--brand-line)] bg-[#0A0D14]">
+        {/* —— Derecha: mapa (stacking aislado para no tapar Servicios) —— */}
+        <section className="relative z-0 isolate min-h-[320px] overflow-hidden rounded-xl border border-[var(--brand-line)] bg-[#0A0D14] lg:min-h-0">
           {tracking && selectedId && !createOpen ? (
-            <div className="absolute inset-0 z-[1]">
+            <div className="absolute inset-0">
               <RouteMap
                 mode={tracking.mode}
                 suggested={tracking.suggestedRoute}
@@ -532,164 +769,6 @@ export default function LogisticaServiciosPage() {
               fillHeight
             />
           )}
-
-          {createOpen ? (
-            <div className="pointer-events-none absolute inset-x-3 bottom-3 z-[20] sm:inset-x-auto sm:bottom-4 sm:left-4 sm:right-auto sm:max-w-md">
-              <form
-                onSubmit={onCreateServicio}
-                className="pointer-events-auto space-y-3 rounded-xl border border-white/10 bg-[rgba(18,23,34,0.88)] p-4 shadow-2xl backdrop-blur-md"
-                data-testid="servicio-form"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <h3 className="text-sm font-semibold text-slate-100">
-                    Crear servicio
-                  </h3>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="w-auto px-2 py-1 text-xs"
-                    onClick={() => setCreateOpen(false)}
-                  >
-                    Cerrar
-                  </Button>
-                </div>
-
-                <ol className="flex flex-wrap gap-1.5 text-[10px]">
-                  {[
-                    { ok: step1, label: "1 · Ruta A→B" },
-                    { ok: step2, label: "2 · Salida" },
-                    {
-                      ok: step3Ready,
-                      label: "3 · Asignación",
-                    },
-                  ].map((s) => (
-                    <li
-                      key={s.label}
-                      className={`rounded border px-2 py-0.5 ${
-                        s.ok
-                          ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
-                          : "border-white/10 text-slate-400"
-                      }`}
-                    >
-                      {s.label}
-                    </li>
-                  ))}
-                </ol>
-
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  <label className="text-xs text-slate-400">
-                    Salida *
-                    <input
-                      className="field mt-1 w-full font-data"
-                      type="datetime-local"
-                      value={form.departAt}
-                      onChange={(e) =>
-                        setForm({ ...form, departAt: e.target.value })
-                      }
-                      required
-                      aria-label="Salida"
-                    />
-                  </label>
-                  <label className="text-xs text-slate-400">
-                    Llegada estimada
-                    <input
-                      className="field mt-1 w-full font-data"
-                      type="datetime-local"
-                      value={form.arriveAt}
-                      onChange={(e) =>
-                        setForm({ ...form, arriveAt: e.target.value })
-                      }
-                      aria-label="Llegada estimada"
-                    />
-                  </label>
-                </div>
-
-                <label className="block text-xs text-slate-400">
-                  Conductor (opcional)
-                  <select
-                    className="field mt-1 w-full"
-                    data-testid="dispatch-driver"
-                    value={form.driverId}
-                    onChange={(e) =>
-                      setForm({ ...form, driverId: e.target.value })
-                    }
-                  >
-                    <option value="">Sin asignar ahora…</option>
-                    {drivers.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.ready ? "✓ " : "⚠ "}
-                        {d.name}
-                        {!d.ready ? ` · ${d.blockers[0] ?? "revisar"}` : ""}
-                      </option>
-                    ))}
-                  </select>
-                  {selectedDriver && !selectedDriver.ready ? (
-                    <p className="mt-1 text-[11px] text-amber-400">
-                      No se asignará aún: {selectedDriver.blockers.join(" · ")}.
-                    </p>
-                  ) : null}
-                </label>
-
-                <label className="block text-xs text-slate-400">
-                  Vehículo / placa (opcional)
-                  <select
-                    className="field mt-1 w-full"
-                    data-testid="dispatch-vehicle"
-                    value={form.vehicleId}
-                    onChange={(e) =>
-                      setForm({ ...form, vehicleId: e.target.value })
-                    }
-                  >
-                    <option value="">Sin asignar ahora…</option>
-                    {vehicles.map((v) => (
-                      <option key={v.id} value={v.id}>
-                        {v.ready ? "✓ " : "⚠ "}
-                        {v.plate}
-                        {!v.ready ? ` · ${v.blockers[0] ?? "revisar"}` : ""}
-                      </option>
-                    ))}
-                  </select>
-                  {selectedVehicle && !selectedVehicle.ready ? (
-                    <p className="mt-1 text-[11px] text-amber-400">
-                      No se asignará aún: {selectedVehicle.blockers.join(" · ")}.
-                    </p>
-                  ) : null}
-                </label>
-
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  <input
-                    className="field"
-                    placeholder="Funcionario / cliente"
-                    value={form.officerName}
-                    onChange={(e) =>
-                      setForm({ ...form, officerName: e.target.value })
-                    }
-                  />
-                  <input
-                    className="field font-data"
-                    placeholder="Cédula funcionario"
-                    value={form.officerDocument}
-                    onChange={(e) =>
-                      setForm({ ...form, officerDocument: e.target.value })
-                    }
-                  />
-                </div>
-
-                <div className="flex justify-end">
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    className="w-auto"
-                    disabled={!canConfirm}
-                  >
-                    {form.driverId || form.vehicleId
-                      ? "Crear (asigna si checklist OK)"
-                      : "Crear sin asignación"}
-                  </Button>
-                </div>
-              </form>
-            </div>
-          ) : null}
         </section>
       </div>
 

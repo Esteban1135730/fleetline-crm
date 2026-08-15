@@ -166,6 +166,8 @@ export function CommandSearch({ items }: { items: NavItem[] }) {
           <input
             ref={inputRef}
             data-testid="command-search-input"
+            data-no-validate="true"
+            data-field="skip"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {

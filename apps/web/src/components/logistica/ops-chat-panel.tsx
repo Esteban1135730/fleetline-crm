@@ -18,10 +18,13 @@ export function OpsChatPanel({
   mode,
   tripId,
   tripCode,
+  heightClass = "h-[160px]",
 }: {
   mode: "trip" | "support";
   tripId?: string | null;
   tripCode?: string;
+  /** Alto del panel; por defecto compacto para no tapar la lista de servicios. */
+  heightClass?: string;
 }) {
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [text, setText] = useState("");
@@ -122,7 +125,7 @@ export function OpsChatPanel({
         : "Chat del servicio";
 
   return (
-    <div className="fsg-panel flex h-[360px] flex-col overflow-hidden">
+    <div className={`fsg-panel flex ${heightClass} min-h-0 flex-col overflow-hidden`}>
       <div className="border-b border-[var(--brand-line)] px-3 py-2">
         <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--brand-muted)]">
           {title}

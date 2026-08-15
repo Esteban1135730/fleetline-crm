@@ -21,10 +21,10 @@ export function EmptyState({
 }: EmptyStateProps) {
   return (
     <div
-      className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-700/80 bg-slate-950/40 px-6 py-14 text-center"
+      className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[var(--border-subtle)] bg-[var(--bg-surface-1)] px-6 py-14 text-center"
       role="status"
     >
-      <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full border border-slate-700 bg-zinc-900 text-slate-500">
+      <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface-2)] text-[var(--text-secondary)]">
         {icon ?? (
           <svg
             viewBox="0 0 24 24"
@@ -39,9 +39,9 @@ export function EmptyState({
           </svg>
         )}
       </div>
-      <h3 className="text-base font-semibold text-slate-200">{title}</h3>
+      <h3 className="text-base font-semibold text-[var(--text-primary)]">{title}</h3>
       {description ? (
-        <p className="mt-2 max-w-md text-sm text-slate-500">{description}</p>
+        <p className="mt-2 max-w-md text-sm text-[var(--text-secondary)]">{description}</p>
       ) : null}
       {actionLabel && onAction ? (
         <div className="mt-5 flex w-full justify-end sm:w-auto sm:justify-center">

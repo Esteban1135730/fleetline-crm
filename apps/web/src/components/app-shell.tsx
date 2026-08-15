@@ -57,6 +57,8 @@ import {
   NotificationBell,
   NotificationToasts,
 } from "@/components/notifications/notification-center";
+import { FormGuard } from "@/components/forms/form-guard";
+import { ConfirmMutationHost } from "@/components/confirm-mutation-dialog";
 import { NotificationsProvider } from "@/lib/notifications-context";
 
 const NAV_OPEN_KEY = "flt-nav-depts-open";
@@ -131,12 +133,17 @@ function TopBar({
     toggleHelp,
     helpOpen,
   } = useShell();
-  const statusClass =
-    systemStatus === "NOMINAL"
-      ? "text-[var(--accent-primary)]"
-      : systemStatus === "ALERT"
-        ? "text-[var(--accent-metric)]"
-        : "text-[var(--accent-alert)]";
+  const {
+    user,
+    organizations = [],
+    activeOrganizationId,
+    setActiveOrganization,
+  } = useAuth();
+  const orgList = Array.isArray(organizations) ? organizations : [];
+  const isMaster = user?.role === "platform_master";
+  const activeOrgName =
+    orgList.find((o) => o.id === activeOrganizationId)?.name ||
+    user?.organizationName;
   /** Evita mismatch SSR/cliente (Mac vs Windows) */
   const [modLabel, setModLabel] = useState("Ctrl K");
   useEffect(() => {
@@ -145,102 +152,90 @@ function TopBar({
     );
     setModLabel(isApple ? "⌘K" : "Ctrl K");
   }, []);
+  const statusClass =
+    systemStatus === "NOMINAL"
+      ? "text-[var(--accent-primary)]"
+      : systemStatus === "ALERT"
+        ? "text-[var(--accent-metric)]"
+        : "text-[var(--accent-alert)]";
 
   return (
     <header className="flt-topbar">
-      <div className="flex min-w-0 items-center gap-3">
-        <Tooltip content="Abrir o cerrar el menú de áreas corporativas">
-          <button
-            type="button"
-            className="flt-icon-btn lg:hidden"
-            onClick={toggleSidebar}
-            aria-label="Abrir navegación"
-            title="Abrir menú de áreas"
-          >
-            <NavIcon view="menu" className="h-4 w-4" />
-          </button>
-        </Tooltip>
-        <div className="flex min-w-0 items-center gap-2.5">
-          <BrandMark className="hidden h-7 w-7 sm:block" />
-          <div className="min-w-0">
-            <p className="font-data text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--accent-primary)]">
-              {brand.tagline}
-            </p>
-            <p className="truncate font-display text-sm font-bold tracking-tight text-[var(--text-primary)]">
-              {brand.name}
-            </p>
-          </div>
-        </div>
-        <Tooltip content={`Área activa: ${moduleBadge}`}>
-          <span className="flt-module-badge hidden md:inline-flex">
-            {moduleBadge}
-          </span>
-        </Tooltip>
-      </div>
-
-      <Tooltip
-        content={`Buscar en todo el sistema (${modLabel}). Placa, conductor, cliente o área.`}
-        side="bottom"
-      >
+      <div className="flt-topbar-left">
         <button
           type="button"
-          className="flt-search-trigger flt-search-trigger--hero"
-          onClick={() => setCommandOpen(true)}
-          title={`Buscar en todo el sistema (${modLabel})`}
+          className="flt-icon-btn lg:hidden"
+          onClick={toggleSidebar}
+          aria-label="Abrir menú"
+          title="Abrir menú"
         >
-          <NavIcon view="search" className="h-4 w-4 shrink-0" />
-          <span className="truncate">
-            Buscar por placa, conductor o cliente…
-          </span>
-          <kbd className="flt-kbd hidden sm:inline-flex" suppressHydrationWarning>
-            {modLabel}
-          </kbd>
+          <NavIcon view="menu" className="h-4 w-4" />
         </button>
-      </Tooltip>
+        <BrandMark className="hidden h-7 w-7 sm:block" />
+        <p className="hidden truncate font-display text-sm font-bold tracking-tight text-[var(--text-primary)] sm:block">
+          {brand.name}
+        </p>
+        <span className="flt-module-badge">{moduleBadge}</span>
+      </div>
 
-      <div className="flex items-center justify-end gap-2 sm:gap-3">
-        <Tooltip content="Estado del uplink API/DB: NOMINAL, ALERT u OFFLINE">
-          <p
-            className={`hidden font-data text-[10px] uppercase tracking-[0.12em] xl:block ${statusClass}`}
-          >
-            SYSTEM STATUS: {systemStatus}
-          </p>
-        </Tooltip>
+      <button
+        type="button"
+        className="flt-search-trigger"
+        onClick={() => setCommandOpen(true)}
+        title={`Buscar (${modLabel})`}
+      >
+        <NavIcon view="search" className="h-4 w-4 shrink-0" />
+        <span className="min-w-0 flex-1 truncate">Buscar…</span>
+        <kbd className="flt-kbd hidden md:inline-flex" suppressHydrationWarning>
+          {modLabel}
+        </kbd>
+      </button>
+
+      <div className="flt-topbar-right">
+        <span
+          className={`flt-status-dot ${statusClass}`}
+          title={`System status: ${systemStatus}`}
+          aria-label={`Estado ${systemStatus}`}
+        />
         <NotificationBell />
-        <Tooltip
-          content={
-            helpOpen
-              ? "Cerrar guía del área (Esc o Cmd/Ctrl+/)"
-              : "Abrir guía de 3 pasos de esta área (Cmd/Ctrl+/)"
-          }
+        <button
+          type="button"
+          className={`flt-help-btn ${helpOpen ? "is-active" : ""}`}
+          onClick={toggleHelp}
+          aria-label="Ayuda"
+          aria-pressed={helpOpen}
+          title="Ayuda (Ctrl+/)"
         >
-          <button
-            type="button"
-            className={`flt-help-btn ${helpOpen ? "is-active" : ""}`}
-            onClick={toggleHelp}
-            aria-label="Centro de ayuda"
-            aria-pressed={helpOpen}
-            title="Centro de ayuda del área actual (Cmd/Ctrl+/)"
-          >
-            ?
-          </button>
-        </Tooltip>
+          ?
+        </button>
         <ThemeToggle />
+        {isMaster && orgList.length > 0 ? (
+          <select
+            className="field hidden h-8 max-w-[140px] py-0 text-xs lg:block"
+            data-testid="tenant-switcher"
+            data-field="skip"
+            aria-label="Empresa activa"
+            title="Empresa activa"
+            value={activeOrganizationId || user?.organizationId || ""}
+            onChange={(e) => setActiveOrganization?.(e.target.value)}
+          >
+            {orgList.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.name}
+              </option>
+            ))}
+          </select>
+        ) : null}
         <div
           className="flt-user-chip"
-          title={`${userName} · rol ${roleLabel}`}
+          title={`${userName} · ${roleLabel}${activeOrgName ? ` · ${activeOrgName}` : ""}`}
         >
-          <div className="min-w-0 text-right">
-            <p className="truncate text-xs font-semibold text-[var(--text-primary)]">
-              {userName}
-            </p>
-            <p className="font-data text-[9px] uppercase tracking-[0.12em] text-[var(--accent-primary)]">
-              {roleLabel}
-            </p>
-          </div>
           <span className="flt-avatar" aria-hidden>
-            {userName.slice(0, 1).toUpperCase()}
+            {(userName || "?").slice(0, 1).toUpperCase()}
           </span>
+          <p className="hidden min-w-0 max-w-[120px] truncate text-xs font-semibold text-[var(--text-primary)] lg:block">
+            {userName}
+          </p>
         </div>
       </div>
     </header>
@@ -315,13 +310,10 @@ function SideNav({
       <aside
         className={`flt-sidebar ${sidebarCollapsed ? "is-collapsed" : "is-expanded"}`}
       >
-        <div className="flex h-[60px] items-center justify-between border-b border-[var(--border-subtle)] px-3">
+        <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-[var(--border-subtle)] px-3">
           {!sidebarCollapsed ? (
-            <p
-              className="px-1 font-data text-[9px] uppercase tracking-[0.16em] text-[var(--text-secondary)]"
-              title="17 áreas independientes — preferencias en localStorage"
-            >
-              Áreas corporativas
+            <p className="min-w-0 truncate px-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
+              Áreas
             </p>
           ) : (
             <span className="mx-auto text-[var(--accent-primary)]">
@@ -366,45 +358,37 @@ function SideNav({
 
             if (sidebarCollapsed) {
               return (
-                <Tooltip key={dept.id} content={dept.tip} side="right">
-                  <Link
-                    href={primary.href}
-                    title={dept.label}
-                    className={`flt-nav-item ${anyActive ? "is-active" : ""}`}
-                    onClick={() => {
-                      if (window.innerWidth < 1024) setSidebarCollapsed(true);
-                    }}
-                  >
-                    <NavIcon view={primary.view} className="h-4 w-4 shrink-0" />
-                  </Link>
-                </Tooltip>
+                <Link
+                  key={dept.id}
+                  href={primary.href}
+                  title={dept.label}
+                  className={`flt-nav-item ${anyActive ? "is-active" : ""}`}
+                  onClick={() => {
+                    if (window.innerWidth < 1024) setSidebarCollapsed(true);
+                  }}
+                >
+                  <NavIcon view={primary.view} className="h-4 w-4 shrink-0" />
+                </Link>
               );
             }
 
             if (!multi) {
-              const tip = primary.tip || dept.tip;
               return (
-                <Tooltip
+                <Link
                   key={dept.id}
-                  content={tip}
-                  side="right"
-                  className="w-full"
+                  href={primary.href}
+                  title={primary.tip || dept.tip}
+                  className={`flt-nav-item ${anyActive ? "is-active" : ""}`}
+                  onClick={() => {
+                    if (window.innerWidth < 1024) setSidebarCollapsed(true);
+                  }}
                 >
-                  <Link
-                    href={primary.href}
-                    title={tip}
-                    className={`flt-nav-item ${anyActive ? "is-active" : ""}`}
-                    onClick={() => {
-                      if (window.innerWidth < 1024) setSidebarCollapsed(true);
-                    }}
-                  >
-                    <NavIcon
-                      view={primary.view}
-                      className="h-3.5 w-3.5 shrink-0"
-                    />
-                    <span className="truncate">{primary.label}</span>
-                  </Link>
-                </Tooltip>
+                  <NavIcon
+                    view={primary.view}
+                    className="h-3.5 w-3.5 shrink-0"
+                  />
+                  <span className="min-w-0 flex-1 truncate">{primary.label}</span>
+                </Link>
               );
             }
 
@@ -457,26 +441,22 @@ function SideNav({
                       );
                       const active = best?.href === item.href;
                       return (
-                        <Tooltip
+                        <Link
                           key={item.href}
-                          content={item.tip}
-                          side="right"
-                          className="w-full"
+                          href={item.href}
+                          title={item.tip}
+                          className={`flt-nav-item flt-nav-item--nested ${
+                            active ? "is-active" : ""
+                          }`}
+                          onClick={() => {
+                            if (window.innerWidth < 1024)
+                              setSidebarCollapsed(true);
+                          }}
                         >
-                          <Link
-                            href={item.href}
-                            title={item.tip}
-                            className={`flt-nav-item flt-nav-item--nested ${
-                              active ? "is-active" : ""
-                            }`}
-                            onClick={() => {
-                              if (window.innerWidth < 1024)
-                                setSidebarCollapsed(true);
-                            }}
-                          >
-                            <span className="truncate">{item.label}</span>
-                          </Link>
-                        </Tooltip>
+                          <span className="min-w-0 flex-1 truncate">
+                            {item.label}
+                          </span>
+                        </Link>
                       );
                     })}
                   </div>
@@ -486,33 +466,32 @@ function SideNav({
           })}
         </nav>
 
-        <div className="border-t border-[var(--border-subtle)] p-3 space-y-1">
-          <Tooltip content="Perfil, contraseña y preferencias de cuenta">
-            <Link
-              href="/cuenta"
-              className={`flt-nav-item ${pathname.startsWith("/cuenta") ? "is-active" : ""}`}
-              title="Mi cuenta"
-            >
-              <NavIcon view="cuenta" className="h-3.5 w-3.5 shrink-0" />
-              {!sidebarCollapsed ? (
-                <span className="truncate">Mi cuenta</span>
-              ) : null}
-            </Link>
-          </Tooltip>
-          <Tooltip content="Cerrar sesión y limpiar token local">
-            <Button
-              variant="ghost"
-              className={`w-full ${sidebarCollapsed ? "!justify-center !px-0" : "!justify-start"}`}
-              onClick={onLogout}
-              title="Cerrar sesión"
-            >
-              {sidebarCollapsed ? (
-                <NavIcon view="close" className="h-4 w-4" />
-              ) : (
-                "Cerrar sesión"
-              )}
-            </Button>
-          </Tooltip>
+        <div className="border-t border-[var(--border-subtle)] p-2">
+          <Link
+            href="/cuenta"
+            className={`flt-nav-item ${pathname.startsWith("/cuenta") ? "is-active" : ""}`}
+            title="Mi cuenta"
+          >
+            <NavIcon view="cuenta" className="h-3.5 w-3.5 shrink-0" />
+            {!sidebarCollapsed ? (
+              <span className="min-w-0 flex-1 truncate">Mi cuenta</span>
+            ) : null}
+          </Link>
+          <button
+            type="button"
+            className="flt-nav-item w-[calc(100%-1rem)] border-0 bg-transparent text-left"
+            onClick={onLogout}
+            title="Cerrar sesión"
+          >
+            {sidebarCollapsed ? (
+              <NavIcon view="close" className="h-4 w-4 shrink-0" />
+            ) : (
+              <>
+                <NavIcon view="close" className="h-3.5 w-3.5 shrink-0" />
+                <span className="min-w-0 flex-1 truncate">Cerrar sesión</span>
+              </>
+            )}
+          </button>
         </div>
       </aside>
     </>
@@ -1161,9 +1140,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <NotificationsProvider>
-      <div className="flt-shell">
-        <TopBar
+    <div className="flt-shell">
+      <TopBar
           userName={user.name}
           roleLabel={ROLE_LABELS[normalizeRole(user.role)] || user.role}
           moduleBadge={currentModuleLabel(pathname)}
@@ -1184,15 +1162,18 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
         </div>
         <CommandSearch items={flatNav} />
         <NotificationToasts />
-      </div>
-    </NotificationsProvider>
+    </div>
   );
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <ShellProvider>
-      <ShellFrame>{children}</ShellFrame>
+      <FormGuard />
+      <ConfirmMutationHost />
+      <NotificationsProvider>
+        <ShellFrame>{children}</ShellFrame>
+      </NotificationsProvider>
     </ShellProvider>
   );
 }

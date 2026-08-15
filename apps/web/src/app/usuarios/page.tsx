@@ -54,7 +54,7 @@ export default function UsuariosPage() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("fsg2026");
+  const [password, setPassword] = useState("");
   const [role, setRole] = useState<Role>("gestor_operativo");
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
@@ -80,6 +80,7 @@ export default function UsuariosPage() {
       });
       setName("");
       setEmail("");
+      setPassword("");
       if (created.pendingAuthorization || created.status === "pending") {
         setInfo(
           created.message ||
@@ -164,27 +165,35 @@ export default function UsuariosPage() {
           className="field"
           placeholder="Nombre"
           data-testid="usuarios-name"
+          data-field="personName"
           value={name}
           onChange={(e) => setName(e.target.value)}
           required
+          minLength={2}
+          autoComplete="name"
         />
         <input
           className="field"
           placeholder="Email"
           type="email"
           data-testid="usuarios-email"
+          data-field="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
+          autoComplete="email"
         />
         <input
           className="field"
-          placeholder="Password"
+          placeholder="Clave (mín. 8)"
           type="password"
           data-testid="usuarios-password"
+          data-field="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
+          minLength={8}
+          autoComplete="new-password"
         />
         <select
           className="field"
@@ -205,7 +214,7 @@ export default function UsuariosPage() {
       <div className="fsg-panel data-shell overflow-hidden">
         <div className="border-b border-[var(--brand-line)] px-4 py-3 font-display text-sm font-semibold">
           Directorio ({users.length})
-          {isMaster ? " · todas las empresas" : ""}
+          {isMaster ? " · empresa activa" : ""}
         </div>
         <table className="w-full text-left text-sm">
           <thead>
@@ -292,7 +301,7 @@ export default function UsuariosPage() {
                     <Button
                       variant="ghost"
                       onClick={async () => {
-                        const pwd = prompt("Nueva clave para el usuario:", "fsg2026");
+                        const pwd = prompt("Nueva clave para el usuario:", "Fleet2026*");
                         if (!pwd) return;
                         await api(`/users/${u.id}`, {
                           method: "PATCH",

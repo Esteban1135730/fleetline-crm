@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { Field, FieldOptional } from "./validation";
 
 /** Roles canónicos (empresa + plataforma + apps) */
 export const RoleSchema = z.enum([
@@ -877,27 +878,40 @@ export function modulesForRole(role: string | Role): ModuleId[] {
 export * from "./rbac";
 export * from "./departments";
 export * from "./nav-departments";
+export type { FieldKind } from "./validation";
+export {
+  Field,
+  FieldOptional,
+  FIELD_MESSAGES,
+  digitsOnly,
+  sanitizeText,
+  sanitizeUnknown,
+  inferFieldKind,
+  isAllowedPartial,
+  filterPasted,
+  validateComplete,
+} from "./validation";
 
 export const LoginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(4),
+  email: Field.email,
+  password: z.string().min(4).max(128),
 });
 export type LoginInput = z.infer<typeof LoginSchema>;
 
 export const CreateUserSchema = z.object({
-  name: z.string().min(2),
-  email: z.string().email(),
-  password: z.string().min(6),
+  name: Field.personName,
+  email: Field.email,
+  password: Field.password,
   role: RoleSchema,
   active: z.boolean().optional(),
 });
 export type CreateUserInput = z.infer<typeof CreateUserSchema>;
 
 export const CustomerSchema = z.object({
-  name: z.string().min(2),
-  nit: z.string().min(5),
-  email: z.string().email().optional(),
-  phone: z.string().optional(),
+  name: Field.legalName,
+  nit: Field.nit,
+  email: FieldOptional.email,
+  phone: FieldOptional.phone,
   segment: z.enum(["B2B", "ESCOLAR", "TURISMO"]).default("B2B"),
 });
 export type CustomerInput = z.infer<typeof CustomerSchema>;
@@ -1084,35 +1098,98 @@ export function normalizePreoperational(
   };
 }
 
-/** Tipos de vehículo para cotizador comercial */
+/** Tipos de vehículo para cotizador comercial (capacidad de pasajeros). */
 export const QuoteVehicleTypeSchema = z.enum([
-  "BUS_ESCOLAR",
-  "BUS_TURISMO",
-  "CAMION_CARGA",
+  "CAMIONETA_STATION_WAGON",
+  "CAMIONETA_CAMPERO",
+  "CAMIONETA_DOBLE_CABINA",
   "VAN",
+  "MICROBUS",
+  "BUSETA",
+  "BUS",
 ]);
 export type QuoteVehicleType = z.infer<typeof QuoteVehicleTypeSchema>;
 
+/** Códigos legado → catálogo vigente */
+const QUOTE_VEHICLE_LEGACY: Record<string, QuoteVehicleType> = {
+  BUS_ESCOLAR: "BUS",
+  BUS_TURISMO: "BUS",
+  CAMION_CARGA: "CAMIONETA_DOBLE_CABINA",
+};
+
+export function resolveQuoteVehicleType(raw: string): QuoteVehicleType {
+  const mapped = QUOTE_VEHICLE_LEGACY[raw] ?? raw;
+  if (mapped in QUOTE_VEHICLE_COSTS) return mapped as QuoteVehicleType;
+  return "BUS";
+}
+
 export const QUOTE_VEHICLE_COSTS: Record<
   QuoteVehicleType,
-  { label: string; costPerKm: number; driverPay: number }
+  {
+    label: string;
+    passengers: string;
+    passengersMin: number;
+    passengersMax: number;
+    costPerKm: number;
+    driverPay: number;
+  }
 > = {
-  BUS_ESCOLAR: {
-    label: "Bus escolar",
-    costPerKm: 3200,
-    driverPay: 120_000,
+  CAMIONETA_STATION_WAGON: {
+    label: "Camioneta station wagon — 1 a 4 pasajeros",
+    passengers: "1 a 4 pasajeros",
+    passengersMin: 1,
+    passengersMax: 4,
+    costPerKm: 1800,
+    driverPay: 70_000,
   },
-  BUS_TURISMO: {
-    label: "Bus turismo",
-    costPerKm: 4500,
-    driverPay: 150_000,
+  CAMIONETA_CAMPERO: {
+    label: "Camioneta campero — 1 a 4 pasajeros",
+    passengers: "1 a 4 pasajeros",
+    passengersMin: 1,
+    passengersMax: 4,
+    costPerKm: 1900,
+    driverPay: 70_000,
   },
-  CAMION_CARGA: {
-    label: "Camión de carga",
+  CAMIONETA_DOBLE_CABINA: {
+    label: "Camioneta doble cabina — 1 a 4 pasajeros",
+    passengers: "1 a 4 pasajeros",
+    passengersMin: 1,
+    passengersMax: 4,
+    costPerKm: 2000,
+    driverPay: 75_000,
+  },
+  VAN: {
+    label: "Van — 5 a 9 pasajeros",
+    passengers: "5 a 9 pasajeros",
+    passengersMin: 5,
+    passengersMax: 9,
+    costPerKm: 2200,
+    driverPay: 80_000,
+  },
+  MICROBUS: {
+    label: "Microbus — 10 a 18 pasajeros",
+    passengers: "10 a 18 pasajeros",
+    passengersMin: 10,
+    passengersMax: 18,
     costPerKm: 2800,
     driverPay: 100_000,
   },
-  VAN: { label: "Van / microbús", costPerKm: 2200, driverPay: 80_000 },
+  BUSETA: {
+    label: "Buseta — 19 a 25 pasajeros",
+    passengers: "19 a 25 pasajeros",
+    passengersMin: 19,
+    passengersMax: 25,
+    costPerKm: 3500,
+    driverPay: 120_000,
+  },
+  BUS: {
+    label: "Bus — 26 a 41 pasajeros",
+    passengers: "26 a 41 pasajeros",
+    passengersMin: 26,
+    passengersMax: 41,
+    costPerKm: 4500,
+    driverPay: 150_000,
+  },
 };
 
 /** Costo promedio peaje COP (piloto) */
@@ -1152,7 +1229,8 @@ export type QuoteCostBreakdown = {
 export function calculateQuotePrice(
   input: QuoteCalculateInput,
 ): QuoteCostBreakdown {
-  const vehicle = QUOTE_VEHICLE_COSTS[input.tipoVehiculo];
+  const tipo = resolveQuoteVehicleType(input.tipoVehiculo);
+  const vehicle = QUOTE_VEHICLE_COSTS[tipo];
   const margen = input.margenDeseado ?? QUOTE_DEFAULT_MARGIN_PCT;
   const peajes = input.cantidadPeajes ?? 0;
   const costoDistancia = input.distanciaKm * vehicle.costPerKm;
@@ -1166,7 +1244,7 @@ export function calculateQuotePrice(
   return {
     origen: input.origen.trim(),
     destino: input.destino.trim(),
-    tipoVehiculo: input.tipoVehiculo,
+    tipoVehiculo: tipo,
     tipoVehiculoLabel: vehicle.label,
     distanciaKm: input.distanciaKm,
     cantidadPeajes: peajes,

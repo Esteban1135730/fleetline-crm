@@ -51,7 +51,9 @@ export class CustomersService {
     return this.prisma.customer.findMany({
       where: { organizationId },
       orderBy: { name: "asc" },
-      include: { _count: { select: { quotes: true, trips: true } } },
+      include: {
+        _count: { select: { quotes: true, trips: true, contracts: true } },
+      },
     });
   }
 
@@ -113,12 +115,33 @@ export class CustomersService {
     });
   }
 
-  listQuotes(organizationId: string) {
-    return this.prisma.quote.findMany({
+  async listQuotes(organizationId: string) {
+    const quotes = await this.prisma.quote.findMany({
       where: { customer: { organizationId } },
       include: { customer: true },
       orderBy: { createdAt: "desc" },
     });
+    const trips = await this.prisma.trip.findMany({
+      where: { organizationId },
+      select: { id: true, code: true, status: true, meta: true },
+      orderBy: { createdAt: "desc" },
+      take: 300,
+    });
+    const byQuote = new Map<string, { id: string; code: string; status: string }>();
+    for (const t of trips) {
+      const meta = t.meta as { quoteCode?: string; notes?: string } | null;
+      const fromMeta = meta?.quoteCode;
+      const blob = `${meta?.notes ?? ""}`;
+      const fromNotes = blob.match(/cotizaci[oó]n\s+(COT-[\w-]+)/i)?.[1];
+      const qCode = fromMeta || fromNotes;
+      if (qCode && !byQuote.has(qCode)) {
+        byQuote.set(qCode, { id: t.id, code: t.code, status: t.status });
+      }
+    }
+    return quotes.map((q) => ({
+      ...q,
+      draftTrip: byQuote.get(q.code) ?? null,
+    }));
   }
 
   calculateQuote(body: unknown) {
@@ -191,7 +214,6 @@ export class CustomersService {
     if (!q) throw new NotFoundException("Cotización no encontrada");
 
     const mapped = status.toUpperCase() as QuoteStatus;
-    const wasOpen = !isWinStatus(q.status);
     const willWin = isWinStatus(mapped);
 
     const updated = await this.prisma.quote.update({
@@ -203,11 +225,25 @@ export class CustomersService {
     let draftTrip: Awaited<
       ReturnType<LogisticsService["createDraftTripFromQuote"]>
     > | null = null;
-    if (wasOpen && willWin) {
-      draftTrip = await this.createTripFromWonQuote(organizationId, updated);
+    let tripError: string | null = null;
+    if (willWin) {
+      draftTrip = await this.logistics.findTripByQuoteCode(
+        organizationId,
+        updated.code,
+      );
+      if (!draftTrip) {
+        try {
+          draftTrip = await this.createTripFromWonQuote(organizationId, updated);
+        } catch (err) {
+          tripError =
+            err instanceof Error
+              ? err.message
+              : "No se pudo generar el viaje en Logística";
+        }
+      }
     }
 
-    return { ...updated, draftTrip };
+    return { ...updated, draftTrip, tripError };
   }
 
   private async createTripFromWonQuote(

@@ -5,6 +5,8 @@ import { ValidationPipe } from "@nestjs/common";
 import { NestExpressApplication } from "@nestjs/platform-express";
 import { existsSync, mkdirSync } from "fs";
 import { AppModule } from "./app.module";
+import { sanitizeBodyMiddleware } from "./common/sanitize-body.middleware";
+import { ZodExceptionFilter } from "./common/zod-exception.filter";
 
 config({ path: resolve(__dirname, "../../../.env") });
 
@@ -38,7 +40,16 @@ async function bootstrap() {
       return callback(null, origins.length === 0);
     },
     credentials: true,
+    allowedHeaders: [
+      "Authorization",
+      "Content-Type",
+      "X-Organization-Id",
+      "Accept",
+    ],
   });
+
+  app.use(sanitizeBodyMiddleware);
+  app.useGlobalFilters(new ZodExceptionFilter());
 
   app.useGlobalPipes(
     new ValidationPipe({

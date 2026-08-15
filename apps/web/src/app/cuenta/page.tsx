@@ -29,7 +29,7 @@ export default function CuentaPage() {
 
   const canSave =
     currentPassword.length > 0 &&
-    newPassword.length >= 6 &&
+    newPassword.length >= 8 &&
     passwordsMatch;
 
   async function onSubmit(e: FormEvent) {
@@ -103,14 +103,15 @@ export default function CuentaPage() {
                 className="field h-11 min-h-[44px]"
                 type="password"
                 placeholder="Nueva contraseña"
+                data-field="password"
                 value={newPassword}
                 onChange={(e) => setNew(e.target.value)}
                 required
-                minLength={6}
+                minLength={8}
                 autoComplete="new-password"
               />
               <p className="mt-1.5 text-xs text-gray-400">
-                Mínimo 6 caracteres. Usa una clave distinta a la actual.
+                Mínimo 8 caracteres. Usa una clave distinta a la actual.
               </p>
             </div>
             <div>
@@ -118,10 +119,11 @@ export default function CuentaPage() {
                 className="field h-11 min-h-[44px]"
                 type="password"
                 placeholder="Confirmar nueva contraseña"
+                data-field="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirm(e.target.value)}
                 required
-                minLength={6}
+                minLength={8}
                 autoComplete="new-password"
               />
               {confirmPassword.length > 0 && !passwordsMatch ? (

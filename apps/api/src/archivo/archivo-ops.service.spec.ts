@@ -61,6 +61,48 @@ describe("ArchivoOpsService — inventory.reorder_level_reached", () => {
     );
   });
 
+  it("searchUniversal cruza flota, conductores y personal además del expediente", async () => {
+    const prisma = {
+      archiveDocument: { findMany: jest.fn().mockResolvedValue([]) },
+      vehicle: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: "v1",
+            plate: "BUS-001",
+            brand: "Mercedes-Benz",
+            model: "OF-1721",
+            status: "AVAILABLE",
+          },
+        ]),
+      },
+      driver: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: "d1", name: "Conductor Demo Norte", document: "1002002002", active: true },
+        ]),
+      },
+      employee: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: "e1",
+            name: "Conductor Demo Norte",
+            document: "1002002002",
+            title: "Conductor",
+            area: "Flota",
+            driverId: "d1",
+          },
+        ]),
+      },
+      customer: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const svc = new ArchivoOpsService(prisma as never, { emit: jest.fn() } as never);
+    const hits = await svc.searchUniversal("org-1", "1002002002");
+    expect(prisma.driver.findMany).toHaveBeenCalled();
+    expect(prisma.vehicle.findMany).toHaveBeenCalled();
+    expect(hits.some((h) => h.kind === "driver" && h.documentNumber === "1002002002")).toBe(
+      true,
+    );
+  });
+
   it("no emite Kafka si el stock permanece por encima del mínimo", async () => {
     const item = {
       id: "item-2",

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { Field, FieldOptional } from "@fsg/shared";
 
 export const VisitClassSchema = z.enum([
   "DRIVER_CANDIDATE",
@@ -21,13 +22,13 @@ export const OmnicanalTagSchema = z.enum([
 ]);
 
 export const RecepcionCheckInSchema = z.object({
-  name: z.string().min(2),
-  document: z.string().min(4),
-  reason: z.string().min(3),
-  hostName: z.string().min(2),
-  company: z.string().optional(),
-  siteLabel: z.string().optional(),
-  phone: z.string().optional(),
+  name: Field.personName,
+  document: Field.document,
+  reason: Field.text,
+  hostName: Field.personName,
+  company: FieldOptional.legalName,
+  siteLabel: FieldOptional.text,
+  phone: FieldOptional.phone,
   kind: z.enum(["VISITOR", "CONTRACTOR"]).optional(),
   visitClass: VisitClassSchema.optional(),
   boardStatus: VisitBoardStatusSchema.optional(),
@@ -39,26 +40,26 @@ export const RecepcionCheckInSchema = z.object({
 export type RecepcionCheckInDto = z.infer<typeof RecepcionCheckInSchema>;
 
 export const ConvertLeadSchema = z.object({
-  ticketId: z.string().min(1),
-  companyName: z.string().min(2),
-  email: z.string().email(),
+  ticketId: z.string().min(1).optional(),
+  companyName: Field.legalName,
+  email: Field.email,
   serviceDate: z.coerce.date().optional(),
-  phone: z.string().optional(),
-  nit: z.string().optional(),
-  notes: z.string().optional(),
-  assigneeEmail: z.string().email().optional(),
+  phone: FieldOptional.phone,
+  nit: FieldOptional.nit,
+  notes: FieldOptional.notes,
+  assigneeEmail: FieldOptional.email,
   assigneeId: z.string().optional(),
 });
 export type ConvertLeadDto = z.infer<typeof ConvertLeadSchema>;
 
 export const QuickPqrsSchema = z.object({
   subject: z.string().min(3).optional().default("Retraso en ruta"),
-  requester: z.string().min(2),
-  message: z.string().min(3),
-  routeLabel: z.string().optional(),
-  schoolName: z.string().optional(),
+  requester: Field.personName,
+  message: Field.notes,
+  routeLabel: FieldOptional.text,
+  schoolName: FieldOptional.legalName,
   tripId: z.string().optional(),
-  vehiclePlate: z.string().optional(),
+  vehiclePlate: FieldOptional.plate,
   channel: z
     .enum(["WHATSAPP", "EMAIL", "PHONE", "WEB", "PRESENCIAL", "VOICE_AI"])
     .optional(),

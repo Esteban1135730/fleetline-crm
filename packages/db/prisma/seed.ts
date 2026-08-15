@@ -883,8 +883,8 @@ async function main() {
   });
 
   const sampleDoc = await prisma.archiveDocument.create({
-    data: {
-      organizationId: org.id,
+      data: {
+        organizationId: org.id,
       title: "SOAT BUS-001 — pendiente escaneo físico",
       plate: "BOG-892",
       taxIdOrDocument: "900123456",
@@ -900,19 +900,19 @@ async function main() {
   void sampleDoc;
 
   const mateo = await prisma.user.create({
-    data: {
+      data: {
       email: "auxiliarcontable@inretrans.com",
       name: "Operación Financiera / Auxiliar",
       role: RoleCode.AUXILIAR_CONTABLE,
       status: UserAccountStatus.ACTIVE,
       passwordHash,
-      organizationId: org.id,
-    },
+        organizationId: org.id,
+      },
   });
 
   await prisma.expenseLegalization.create({
-    data: {
-      organizationId: org.id,
+      data: {
+        organizationId: org.id,
       code: "LEG-2026-001",
       driverName: "Conductor / FSG Pilot",
       advanceAmount: 200000,
@@ -1241,7 +1241,7 @@ async function main() {
   });
 
   await prisma.costCenter.create({
-    data: {
+      data: {
       organizationId: org.id,
       plate: "BOG-892",
       code: "CC-BOG-892",
@@ -1307,22 +1307,22 @@ async function main() {
       plate: "BUS-001",
       brand: "Mercedes-Benz",
       model: "OF-1721",
-      year: 2022,
+        year: 2022,
       capacity: 40,
-      status: VehicleStatus.IN_SERVICE,
+        status: VehicleStatus.IN_SERVICE,
       odometerKm: 48200,
       soatActivo: true,
       tecnoActiva: true,
       lat: 4.710989,
       lng: -74.072092,
-      organizationId: org.id,
-    },
+        organizationId: org.id,
+      },
   });
   const bus002 = await prisma.vehicle.create({
-    data: {
+      data: {
       plate: "BUS-002",
-      brand: "Chevrolet",
-      model: "NPR",
+        brand: "Chevrolet",
+        model: "NPR",
       year: 2018,
       capacity: 28,
       status: VehicleStatus.COMPLIANCE_BLOCKED,
@@ -1341,32 +1341,32 @@ async function main() {
       plate: "ESC-010",
       brand: "Hino",
       model: "AK8J",
-      year: 2021,
+        year: 2021,
       capacity: 35,
-      status: VehicleStatus.AVAILABLE,
+        status: VehicleStatus.AVAILABLE,
       odometerKm: 31500,
       soatActivo: true,
       tecnoActiva: true,
       lat: 4.6682,
       lng: -74.0531,
-      organizationId: org.id,
-    },
+        organizationId: org.id,
+      },
   });
   const bus004 = await prisma.vehicle.create({
-    data: {
+      data: {
       plate: "TUR-220",
       brand: "Marcopolo",
       model: "G7",
-      year: 2020,
+        year: 2020,
       capacity: 44,
-      status: VehicleStatus.MAINTENANCE,
+        status: VehicleStatus.MAINTENANCE,
       odometerKm: 89000,
       soatActivo: true,
       tecnoActiva: true,
       lat: 4.625,
       lng: -74.081,
-      organizationId: org.id,
-    },
+        organizationId: org.id,
+      },
   });
 
   await prisma.complianceDocument.createMany({
@@ -1469,24 +1469,24 @@ async function main() {
 
   // ——— Comercial ———
   const custB2b = await prisma.customer.create({
-    data: {
+      data: {
       name: "Ecopetrol Movilidad Corp",
       nit: "899999068-1",
       email: "movilidad@ecopetrol.demo",
       phone: "6012345678",
       segment: CustomerSegment.B2B,
-      organizationId: org.id,
-    },
+        organizationId: org.id,
+      },
   });
   const custEscolar = await prisma.customer.create({
-    data: {
+      data: {
       name: "Colegio Andino Norte",
       nit: "830012345-6",
       email: "transporte@andino.demo",
       phone: "6019876543",
       segment: CustomerSegment.ESCOLAR,
-      organizationId: org.id,
-    },
+        organizationId: org.id,
+      },
   });
   const custTurismo = await prisma.customer.create({
     data: {
@@ -1550,10 +1550,10 @@ async function main() {
   });
 
   const contractB2b = await prisma.transportContract.create({
-    data: {
+      data: {
       code: "CTR-2026-0001",
       name: "Marco Ecopetrol Movilidad 2026",
-      channel: CommercialChannel.PRIVATE,
+        channel: CommercialChannel.PRIVATE,
       routeLabel: "Bogotá ↔ Barrancabermeja",
       monthlyValue: 18500000,
       budgetCap: 222000000,
@@ -1566,20 +1566,20 @@ async function main() {
       fixedFare: 1850000,
       startsAt: daysFromNow(-90),
       endsAt: daysFromNow(60),
-      status: ContractStatus.ACTIVE,
+        status: ContractStatus.ACTIVE,
       npsScore: 78,
       portfolioCompliancePct: 92,
       customerId: custB2b.id,
-      organizationId: org.id,
-    },
+        organizationId: org.id,
+      },
   });
   const contractEscolar = await prisma.transportContract.create({
-    data: {
+      data: {
       code: "CTR-2026-0002",
       name: "Escolar Andino Norte 2026",
-      channel: CommercialChannel.PRIVATE,
+        channel: CommercialChannel.PRIVATE,
       routeLabel: "Usaquén → Colegio Andino",
-      monthlyValue: 42000000,
+        monthlyValue: 42000000,
       budgetCap: 504000000,
       budgetConsumed: 84000000,
       tripQuota: 400,
@@ -1594,11 +1594,11 @@ async function main() {
       npsScore: 81,
       portfolioCompliancePct: 95,
       customerId: custEscolar.id,
-      organizationId: org.id,
-    },
+        organizationId: org.id,
+      },
   });
   await prisma.transportContract.create({
-    data: {
+      data: {
       code: "CTR-2026-0003",
       name: "Turismo Andes — charter flexible",
       channel: CommercialChannel.PRIVATE,
@@ -1612,10 +1612,10 @@ async function main() {
       ratePerKm: 4200,
       startsAt: daysFromNow(-30),
       endsAt: daysFromNow(335),
-      status: ContractStatus.ACTIVE,
+        status: ContractStatus.ACTIVE,
       customerId: custTurismo.id,
-      organizationId: org.id,
-    },
+        organizationId: org.id,
+      },
   });
   await prisma.transportContract.create({
     data: {
@@ -1643,7 +1643,7 @@ async function main() {
         stage: "REUNION_AGENDADA",
         estimatedMonthlyValue: 38000000,
         zone: "BOGOTA",
-        vehicleType: "BUS_ESCOLAR",
+        vehicleType: "BUS",
         distanceKm: 42,
         ownerUserId: felipeComercial.id,
         npsScore: 74,
@@ -1657,7 +1657,7 @@ async function main() {
         stage: "EN_NEGOCIACION",
         estimatedMonthlyValue: 22000000,
         zone: "BOGOTA",
-        vehicleType: "BUS_TURISMO",
+        vehicleType: "BUS",
         distanceKm: 280,
         ownerUserId: felipeComercial.id,
         npsScore: 78,
@@ -1759,14 +1759,14 @@ async function main() {
   const slaAssignedAt = new Date(Date.now() - 3 * 3600_000);
   await prisma.commercialDeal.create({
     data: {
-      organizationId: org.id,
+        organizationId: org.id,
       code: "B2B-2026-SLA01",
       accountName: "Lead SLA vencido — Alcaldía Demo",
       stage: "NUEVO_LEAD",
       estimatedMonthlyValue: 8_500_000,
       zone: "BOGOTA",
       sector: "B2G",
-      vehicleType: "BUS_ESCOLAR",
+      vehicleType: "BUS",
       ownerUserId: valentinaGestor.id,
       assignedAt: slaAssignedAt,
       slaDeadlineAt: new Date(slaAssignedAt.getTime() + 2 * 3600_000),
@@ -1860,7 +1860,7 @@ async function main() {
         payload: { period: "2026-08-Q1", heads: 42 },
       },
       {
-        organizationId: org.id,
+            organizationId: org.id,
         code: "EA-2026-0002",
         kind: "COMPRA_PESADA",
         title: "OC buses — CapEx flota escolar",
@@ -1871,7 +1871,7 @@ async function main() {
         payload: { units: 4, supplier: "Karosol" },
       },
       {
-        organizationId: org.id,
+            organizationId: org.id,
         code: "EA-2026-0003",
         kind: "CONTRATO",
         title: "Contrato marco VIP — aprobación final",
@@ -1884,8 +1884,8 @@ async function main() {
   });
 
   await prisma.managerialOverride.create({
-    data: {
-      organizationId: org.id,
+      data: {
+        organizationId: org.id,
       code: "OVR-2026-0001",
       title: "Conflicto VIP vs. capacidad — Ruta Norte",
       domain: "OPS_COMERCIAL",
@@ -1919,8 +1919,8 @@ async function main() {
   });
 
   await prisma.gerenciaWarRoomSession.create({
-    data: {
-      organizationId: org.id,
+      data: {
+        organizationId: org.id,
       code: "WR-2026-0001",
       topic: "Cuello de botella OT vs. pipeline comercial",
       status: "OPEN",
@@ -1937,8 +1937,8 @@ async function main() {
   });
 
   await prisma.secopOpportunity.create({
-    data: {
-      organizationId: org.id,
+      data: {
+        organizationId: org.id,
       processId: "SECOP-DEMO-2026-441",
       title: "Servicio especial de transporte SDDE 2026",
       entityName: "Alcaldía de Bogotá — SDDE",
@@ -1955,8 +1955,8 @@ async function main() {
 
   // ——— Rutas & viajes ———
   const routeBogMed = await prisma.route.create({
-    data: {
-      organizationId: org.id,
+      data: {
+        organizationId: org.id,
       code: "R-BOG-MED",
       name: "Bogotá → Medellín",
       origin: "Bogotá Terminal Salitre",
@@ -1966,8 +1966,8 @@ async function main() {
     },
   });
   const routeCorp = await prisma.route.create({
-    data: {
-      organizationId: org.id,
+      data: {
+        organizationId: org.id,
       code: "R-BOG-BCA",
       name: "Bogotá → Barranca",
       origin: "Bogotá Norte",
@@ -1977,8 +1977,8 @@ async function main() {
     },
   });
   const routeLocal = await prisma.route.create({
-    data: {
-      organizationId: org.id,
+      data: {
+        organizationId: org.id,
       code: "R-USQ-AND",
       name: "Usaquén escolar",
       origin: "Usaquén",
@@ -1989,7 +1989,7 @@ async function main() {
   });
 
   const tripTransit = await prisma.trip.create({
-    data: {
+      data: {
       code: "TRP-2026-0001",
       origin: "Bogotá Norte",
       destination: "Barrancabermeja Refinería",
@@ -2002,8 +2002,8 @@ async function main() {
       vehicleId: bus001.id,
       driverId: driverCarlos.id,
       routeId: routeCorp.id,
-      organizationId: org.id,
-    },
+        organizationId: org.id,
+      },
   });
   const tripAssigned = await prisma.trip.create({
     data: {
@@ -2167,7 +2167,7 @@ async function main() {
 
   await prisma.legalContractScan.create({
     data: {
-      organizationId: org.id,
+        organizationId: org.id,
       code: "LS-SEED-B2B-01",
       contractTitle: "Contrato marco B2B — Cliente VIP Andes",
       contractKind: "B2B",
@@ -2463,6 +2463,7 @@ async function main() {
   });
   await prisma.forensicFinding.create({
     data: {
+      code: "RF-001",
       title: "Desfase peajes vs planilla",
       severity: "MEDIUM",
       detail: "Gasto peaje reportado sin soporte OCR en viaje TRP-2026-0001",
@@ -2477,12 +2478,12 @@ async function main() {
       document: "80111222",
       title: "Director de Logística",
       area: "Operaciones",
-      status: EmployeeStatus.ACTIVE,
+        status: EmployeeStatus.ACTIVE,
       baseSalary: 8500000,
       hourlyRate: 45000,
       email: "despacho@inretrans.com",
-      organizationId: org.id,
-    },
+        organizationId: org.id,
+      },
   });
   await prisma.employee.create({
     data: {
@@ -2490,11 +2491,11 @@ async function main() {
       document: "52999888",
       title: "Analista RRHH",
       area: "Talento Humano",
-      status: EmployeeStatus.ACTIVE,
+        status: EmployeeStatus.ACTIVE,
       baseSalary: 4200000,
       hourlyRate: 28000,
-      organizationId: org.id,
-    },
+        organizationId: org.id,
+      },
   });
   await prisma.employee.create({
     data: {
@@ -2502,13 +2503,13 @@ async function main() {
       document: "1001001001",
       title: "Conductor C2",
       area: "Flota",
-      status: EmployeeStatus.ACTIVE,
+        status: EmployeeStatus.ACTIVE,
       baseSalary: 2800000,
       hourlyRate: 18000,
       fatigueScore: 12,
       driverId: driverCarlos.id,
-      organizationId: org.id,
-    },
+        organizationId: org.id,
+      },
   });
   await prisma.employee.create({
     data: {
@@ -2516,13 +2517,13 @@ async function main() {
       document: "1002002002",
       title: "Conductor C2",
       area: "Flota",
-      status: EmployeeStatus.ACTIVE,
+        status: EmployeeStatus.ACTIVE,
       baseSalary: 2600000,
       hourlyRate: 17000,
       fatigueScore: 45,
       driverId: driverPedro.id,
-      organizationId: org.id,
-    },
+        organizationId: org.id,
+      },
   });
   await prisma.employee.create({
     data: {
@@ -2530,13 +2531,13 @@ async function main() {
       document: "1003003003",
       title: "Conductora C1",
       area: "Flota",
-      status: EmployeeStatus.ACTIVE,
+        status: EmployeeStatus.ACTIVE,
       baseSalary: 2500000,
       hourlyRate: 16000,
       fatigueScore: 88,
       driverId: driverLucia.id,
-      organizationId: org.id,
-    },
+        organizationId: org.id,
+      },
   });
 
   await prisma.hqseTrainingRecord.createMany({

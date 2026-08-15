@@ -10,6 +10,7 @@ import {
   UploadedFile,
   UseGuards,
   UseInterceptors,
+  BadRequestException,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { diskStorage } from "multer";
@@ -142,6 +143,55 @@ export class ModulesController {
     },
   ) {
     return this.svc.createSarlaft(req.user.organizationId, body);
+  }
+
+  /** Expediente de evidencias (policía, procuraduría, registraduría, antecedentes). */
+  @Get("sarlaft/checks/:id/evidence")
+  @RequireModule("sarlaft")
+  listSarlaftEvidence(
+    @Req() req: { user: { organizationId: string } },
+    @Param("id") id: string,
+  ) {
+    return this.svc.listSarlaftEvidence(req.user.organizationId, id);
+  }
+
+  @Post("sarlaft/checks/:id/evidence")
+  @RequireModule("sarlaft")
+  @UseInterceptors(
+    FileInterceptor("file", {
+      storage: diskStorage({
+        destination: UPLOADS_DIR,
+        filename: (_req, file, cb) => {
+          const safe = extname(file.originalname).toLowerCase().slice(0, 10);
+          cb(null, `${randomUUID()}${safe}`);
+        },
+      }),
+      limits: { fileSize: 15 * 1024 * 1024 },
+    }),
+  )
+  uploadSarlaftEvidence(
+    @Req() req: { user: { organizationId: string; userId: string } },
+    @Param("id") id: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Body() body: { source?: string; title?: string },
+  ) {
+    if (!file) {
+      throw new BadRequestException("Adjunte el PDF o imagen de la consulta");
+    }
+    return this.svc.createSarlaftEvidence(
+      req.user.organizationId,
+      id,
+      {
+        source: body.source || "OTHER",
+        title: body.title || file.originalname,
+        storedName: file.filename,
+        originalName: file.originalname,
+        mimeType: file.mimetype,
+        absolutePath: join(UPLOADS_DIR, file.filename),
+        byteSize: file.size,
+      },
+      req.user.userId,
+    );
   }
 
   // Archivo

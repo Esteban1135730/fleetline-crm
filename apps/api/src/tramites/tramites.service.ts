@@ -1,10 +1,78 @@
-import { Injectable } from "@nestjs/common";
-import { DocStatus } from "@fsg/db";
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+} from "@nestjs/common";
+import { DocStatus, VehicleStatus } from "@fsg/db";
 import { PrismaService } from "../prisma/prisma.service";
 
 @Injectable()
 export class TramitesService {
   constructor(private prisma: PrismaService) {}
+
+  listFleetUnits(organizationId: string) {
+    return this.prisma.vehicle.findMany({
+      where: { organizationId },
+      select: {
+        id: true,
+        plate: true,
+        brand: true,
+        model: true,
+        year: true,
+        status: true,
+      },
+      orderBy: { plate: "asc" },
+    });
+  }
+
+  async registerVehicle(
+    organizationId: string,
+    data: {
+      plate: string;
+      brand: string;
+      model: string;
+      year?: number;
+    },
+  ) {
+    const plate = String(data.plate || "")
+      .trim()
+      .toUpperCase()
+      .replace(/\s+/g, "-");
+    const brand = String(data.brand || "").trim();
+    const model = String(data.model || "").trim();
+    const year = Number(data.year) || new Date().getFullYear();
+    if (plate.length < 5) {
+      throw new BadRequestException("Indique una placa válida (mín. 5 caracteres)");
+    }
+    if (!brand || !model) {
+      throw new BadRequestException("Indique marca y modelo de la unidad");
+    }
+    const exists = await this.prisma.vehicle.findFirst({
+      where: { organizationId, plate },
+      select: { id: true },
+    });
+    if (exists) {
+      throw new ConflictException(`La placa ${plate} ya está matriculada`);
+    }
+    return this.prisma.vehicle.create({
+      data: {
+        organizationId,
+        plate,
+        brand,
+        model,
+        year,
+        status: VehicleStatus.AVAILABLE,
+      },
+      select: {
+        id: true,
+        plate: true,
+        brand: true,
+        model: true,
+        year: true,
+        status: true,
+      },
+    });
+  }
 
   /**
    * Lista vehículos bloqueados o con documentos por vencer (≤15 días / ≤24h).

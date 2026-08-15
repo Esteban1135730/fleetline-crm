@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Get,
   Param,
@@ -22,6 +23,25 @@ export class TramitesController {
     private tramites: TramitesService,
     private nightly: NightlyComplianceWorker,
   ) {}
+
+  @Get("vehicles")
+  vehicles(@Req() req: { user: { organizationId: string } }) {
+    return this.tramites.listFleetUnits(req.user.organizationId);
+  }
+
+  @Post("vehicles")
+  createVehicle(
+    @Req() req: { user: { organizationId: string } },
+    @Body()
+    body: {
+      plate: string;
+      brand: string;
+      model: string;
+      year?: number;
+    },
+  ) {
+    return this.tramites.registerVehicle(req.user.organizationId, body);
+  }
 
   /**
    * Forzar sincronización RUNT / Ministerios para una unidad.

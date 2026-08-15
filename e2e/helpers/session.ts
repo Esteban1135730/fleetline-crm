@@ -50,6 +50,7 @@ export async function logout(page: Page) {
   await page.evaluate(() => {
     localStorage.removeItem("fsg_token");
     localStorage.removeItem("fsg_user");
+    localStorage.removeItem("fsg_active_org");
   });
 }
 

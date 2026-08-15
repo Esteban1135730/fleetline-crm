@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   QUOTE_DEFAULT_MARGIN_PCT,
   QUOTE_VEHICLE_COSTS,
@@ -26,6 +27,7 @@ type Customer = {
   segment: string;
   email?: string | null;
   phone?: string | null;
+  _count?: { quotes: number; trips: number; contracts: number };
 };
 
 type Quote = {
@@ -36,6 +38,7 @@ type Quote = {
   notes?: string | null;
   calcJson?: QuoteCostBreakdown | null;
   customer: { name: string };
+  draftTrip?: { id: string; code: string; status: string } | null;
 };
 
 type Contract = {
@@ -64,8 +67,53 @@ const TABS: { id: TabId; label: string; icon: typeof Calculator }[] = [
   { id: "clientes", label: "Directorio de Clientes", icon: Users },
 ];
 
+function customerOrigin(c: Customer): {
+  label: string;
+  tone: "emerald" | "amber" | "info";
+  detail: string;
+} {
+  const contracts = c._count?.contracts ?? 0;
+  const quotes = c._count?.quotes ?? 0;
+  if (contracts > 0) {
+    return {
+      label: "Contrato",
+      tone: "emerald",
+      detail:
+        quotes > 0
+          ? `${contracts} contrato${contracts === 1 ? "" : "s"} · ${quotes} cotización${quotes === 1 ? "" : "es"}`
+          : `${contracts} contrato${contracts === 1 ? "" : "s"} operativo${contracts === 1 ? "" : "s"}`,
+    };
+  }
+  if (quotes > 0) {
+    return {
+      label: "Solo cotización",
+      tone: "amber",
+      detail: `${quotes} cotización${quotes === 1 ? "" : "es"} · sin contrato`,
+    };
+  }
+  return {
+    label: "Directorio",
+    tone: "info",
+    detail: "Sin cotización ni contrato",
+  };
+}
+
 function money(n: number) {
-  return `$${Math.round(n).toLocaleString("es-CO")}`;
+  return formatCop(n);
+}
+
+/** COP colombiano: 11000000 → $11´000.000 */
+function formatCop(n: number) {
+  if (!Number.isFinite(n)) return "";
+  const abs = Math.round(Math.abs(n));
+  const sign = n < 0 ? "-" : "";
+  const s = String(abs);
+  if (s.length <= 6) {
+    return `${sign}$${abs.toLocaleString("es-CO")}`;
+  }
+  const head = Number(s.slice(0, -6)).toLocaleString("es-CO");
+  const tail = s.slice(-6);
+  return `${sign}$${head}´${tail.slice(0, 3)}.${tail.slice(3)}`;
 }
 
 const MARGIN_TIP =
@@ -75,12 +123,21 @@ export default function ComercialPage() {
   const { openInspector } = useShell();
   const [tab, setTab] = useState<TabId>("cotizador");
   const [customerModalOpen, setCustomerModalOpen] = useState(false);
+  const [editingCustomerId, setEditingCustomerId] = useState<string | null>(null);
+  const [customerError, setCustomerError] = useState("");
+  const [customerBusy, setCustomerBusy] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [contracts, setContracts] = useState<Contract[]>([]);
-  const [name, setName] = useState("");
-  const [nit, setNit] = useState("");
-  const [segment, setSegment] = useState<"B2B" | "ESCOLAR" | "TURISMO">("B2B");
+  const [customerForm, setCustomerForm] = useState({
+    name: "",
+    nit: "",
+    email: "",
+    phone: "",
+    segment: "B2B" as "B2B" | "ESCOLAR" | "TURISMO",
+  });
+  const [contractError, setContractError] = useState("");
+  const [contractBusy, setContractBusy] = useState(false);
   const [contractForm, setContractForm] = useState({
     name: "",
     customerId: "",
@@ -95,7 +152,7 @@ export default function ComercialPage() {
     customerId: "",
     origen: "Bogotá",
     destino: "Medellín",
-    tipoVehiculo: "BUS_TURISMO" as QuoteVehicleType,
+    tipoVehiculo: "BUS" as QuoteVehicleType,
     distanciaKm: "420",
     cantidadPeajes: "8",
     margenDeseado: String(QUOTE_DEFAULT_MARGIN_PCT),
@@ -172,36 +229,126 @@ export default function ComercialPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [calcPayload]);
 
-  async function onCreate(e: FormEvent) {
-    e.preventDefault();
-    await api("/comercial/customers", {
-      method: "POST",
-      body: JSON.stringify({ name, nit, segment }),
-    });
-    setName("");
-    setNit("");
+  function closeCustomerModal() {
     setCustomerModalOpen(false);
-    await load();
+    setEditingCustomerId(null);
+    setCustomerError("");
+    setCustomerForm({
+      name: "",
+      nit: "",
+      email: "",
+      phone: "",
+      segment: "B2B",
+    });
+  }
+
+  function openNewCustomer() {
+    setEditingCustomerId(null);
+    setCustomerError("");
+    setCustomerForm({
+      name: "",
+      nit: "",
+      email: "",
+      phone: "",
+      segment: "B2B",
+    });
+    setCustomerModalOpen(true);
+  }
+
+  function openEditCustomer(c: Customer) {
+    setEditingCustomerId(c.id);
+    setCustomerError("");
+    setCustomerForm({
+      name: c.name,
+      nit: c.nit,
+      email: c.email || "",
+      phone: c.phone || "",
+      segment:
+        c.segment === "ESCOLAR" || c.segment === "TURISMO"
+          ? c.segment
+          : "B2B",
+    });
+    setCustomerModalOpen(true);
+  }
+
+  async function onSaveCustomer(e: FormEvent) {
+    e.preventDefault();
+    setCustomerError("");
+    setCustomerBusy(true);
+    try {
+      if (editingCustomerId) {
+        await api(`/comercial/customers/${editingCustomerId}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            name: customerForm.name.trim(),
+            email: customerForm.email.trim() || undefined,
+            phone: customerForm.phone.trim() || undefined,
+            segment: customerForm.segment,
+          }),
+        });
+      } else {
+        await api("/comercial/customers", {
+          method: "POST",
+          body: JSON.stringify({
+            name: customerForm.name.trim(),
+            nit: customerForm.nit.trim(),
+            email: customerForm.email.trim() || undefined,
+            phone: customerForm.phone.trim() || undefined,
+            segment: customerForm.segment,
+          }),
+        });
+      }
+      closeCustomerModal();
+      await load();
+    } catch (err) {
+      setCustomerError(
+        err instanceof Error ? err.message : "No se pudo guardar el cliente",
+      );
+    } finally {
+      setCustomerBusy(false);
+    }
   }
 
   async function onCreateContract(e: FormEvent) {
     e.preventDefault();
-    await api("/comercial/contracts", {
-      method: "POST",
-      body: JSON.stringify({
-        ...contractForm,
-        monthlyValue: contractForm.monthlyValue
-          ? Number(contractForm.monthlyValue)
-          : undefined,
-      }),
-    });
-    setContractForm((f) => ({
-      ...f,
-      name: "",
-      route: "",
-      monthlyValue: "",
-    }));
-    await load();
+    setContractError("");
+    const monthlyRaw = contractForm.monthlyValue.replace(/\D/g, "");
+    if (!monthlyRaw) {
+      setContractError("Indique el valor mensual del contrato");
+      return;
+    }
+    if (monthlyRaw.length > 12) {
+      setContractError("Valor mensual máximo: $999´999.999.999");
+      return;
+    }
+    setContractBusy(true);
+    try {
+      await api("/comercial/contracts", {
+        method: "POST",
+        body: JSON.stringify({
+          name: contractForm.name,
+          customerId: contractForm.customerId,
+          channel: contractForm.channel,
+          route: contractForm.route,
+          startDate: contractForm.startDate,
+          endDate: contractForm.endDate,
+          monthlyValue: Number(monthlyRaw),
+        }),
+      });
+      setContractForm((f) => ({
+        ...f,
+        name: "",
+        route: "",
+        monthlyValue: "",
+      }));
+      await load();
+    } catch (err) {
+      setContractError(
+        err instanceof Error ? err.message : "No se pudo crear el contrato",
+      );
+    } finally {
+      setContractBusy(false);
+    }
   }
 
   async function saveQuoteFromCalc(e: FormEvent) {
@@ -222,13 +369,12 @@ export default function ComercialPage() {
   }
 
   async function approveAndConvert(q: Quote) {
-    const res = await api<Quote & { draftTrip?: { code: string } }>(
-      `/comercial/quotes/${q.id}/status`,
-      {
-        method: "PATCH",
-        body: JSON.stringify({ status: "WON" }),
-      },
-    );
+    const res = await api<
+      Quote & { draftTrip?: { code: string; id?: string }; tripError?: string | null }
+    >(`/comercial/quotes/${q.id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: "WON" }),
+    });
     await load();
     const tripCode = res.draftTrip?.code;
     openInspector(
@@ -237,13 +383,30 @@ export default function ComercialPage() {
         <p className="font-semibold text-[var(--accent-primary)]">
           Cotización WON — viaje borrador generado
         </p>
-        {tripCode ? (
-          <p className="font-data text-xs">
-            Viaje {tripCode} en Logística (PENDING)
+        {res.tripError ? (
+          <p role="alert" className="text-[var(--brand-signal)]">
+            {res.tripError}
           </p>
+        ) : null}
+        {tripCode ? (
+          <>
+            <p className="font-data text-xs text-[var(--text-primary)]">
+              Viaje {tripCode} · PENDING
+            </p>
+            <p className="text-xs text-[var(--text-secondary)]">
+              Llega a Logística → Programación de Servicios y Tracking GPS.
+              Queda sin conductor ni placa hasta que despacho lo asigne.
+            </p>
+            <Link
+              href={`/logistica/servicios?code=${encodeURIComponent(tripCode)}`}
+              className="inline-flex w-auto items-center rounded-md bg-[var(--brand-primary)] px-3 py-2 text-xs font-semibold text-[#04110c]"
+            >
+              Abrir en programación
+            </Link>
+          </>
         ) : (
           <p className="text-[var(--text-secondary)]">
-            Revise Logística para el viaje TRP generado.
+            No se indexó el viaje. Vuelva a convertir o revise el uplink.
           </p>
         )}
       </div>,
@@ -309,9 +472,26 @@ export default function ComercialPage() {
             {q.notes || "Sin desglose de cotizador"}
           </p>
         )}
-        {q.status === "DRAFT" ||
-        q.status === "SENT" ||
-        q.status === "APPROVED" ? (
+        {q.draftTrip ? (
+          <div className="space-y-2 border-t border-[var(--border-subtle)] pt-3">
+            <p className="font-data text-xs text-[var(--text-primary)]">
+              Viaje {q.draftTrip.code} · {q.draftTrip.status}
+            </p>
+            <p className="text-xs text-[var(--text-secondary)]">
+              Logística → Programación de Servicios y Tracking GPS. Sin
+              conductor ni placa hasta que despacho lo asigne.
+            </p>
+            <Link
+              href={`/logistica/servicios?code=${encodeURIComponent(q.draftTrip.code)}`}
+              className="inline-flex w-auto items-center rounded-md bg-[var(--brand-primary)] px-3 py-2 text-xs font-semibold text-[#04110c]"
+            >
+              Abrir en programación
+            </Link>
+          </div>
+        ) : q.status === "DRAFT" ||
+          q.status === "SENT" ||
+          q.status === "APPROVED" ||
+          q.status === "WON" ? (
           <div className="flex justify-end">
             <Button
               variant="primary"
@@ -319,7 +499,9 @@ export default function ComercialPage() {
               title="Aprueba la cotización (WON) y genera viaje borrador TRP en Logística"
               onClick={() => void approveAndConvert(q)}
             >
-              APROBAR Y CONVERTIR A VIAJE
+              {q.status === "WON"
+                ? "GENERAR VIAJE EN LOGÍSTICA"
+                : "APROBAR Y CONVERTIR A VIAJE"}
             </Button>
           </div>
         ) : null}
@@ -337,7 +519,7 @@ export default function ComercialPage() {
             type="button"
             variant="primary"
             className="w-auto"
-            onClick={() => setCustomerModalOpen(true)}
+            onClick={openNewCustomer}
           >
             <Plus className="mr-1 h-4 w-4" />
             Nuevo Cliente
@@ -401,95 +583,116 @@ export default function ComercialPage() {
               onSubmit={(e) => void saveQuoteFromCalc(e)}
               className="grid grid-cols-1 gap-3 md:grid-cols-3 lg:grid-cols-4"
             >
-              <select
-                className="field"
-                value={calcForm.customerId}
-                onChange={(e) =>
-                  setCalcForm({ ...calcForm, customerId: e.target.value })
-                }
-                required
-                title="Cliente de la cotización"
-              >
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-              <input
-                className="field"
-                placeholder="Origen"
-                value={calcForm.origen}
-                onChange={(e) =>
-                  setCalcForm({ ...calcForm, origen: e.target.value })
-                }
-                required
-                title="Origen de la ruta"
-              />
-              <input
-                className="field"
-                placeholder="Destino"
-                value={calcForm.destino}
-                onChange={(e) =>
-                  setCalcForm({ ...calcForm, destino: e.target.value })
-                }
-                required
-                title="Destino de la ruta"
-              />
-              <select
-                className="field"
-                value={calcForm.tipoVehiculo}
-                onChange={(e) =>
-                  setCalcForm({
-                    ...calcForm,
-                    tipoVehiculo: e.target.value as QuoteVehicleType,
-                  })
-                }
-                title="Tipo de unidad — costo/km y pago conductor"
-              >
-                {(Object.keys(QUOTE_VEHICLE_COSTS) as QuoteVehicleType[]).map(
-                  (k) => (
-                    <option key={k} value={k}>
-                      {QUOTE_VEHICLE_COSTS[k].label}
+              <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+                Cliente
+                <select
+                  className="field"
+                  value={calcForm.customerId}
+                  onChange={(e) =>
+                    setCalcForm({ ...calcForm, customerId: e.target.value })
+                  }
+                  required
+                  title="Cliente de la cotización"
+                >
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
                     </option>
-                  ),
-                )}
-              </select>
-              <input
-                className="field font-data"
-                type="number"
-                min={1}
-                placeholder="Distancia km"
-                value={calcForm.distanciaKm}
-                onChange={(e) =>
-                  setCalcForm({ ...calcForm, distanciaKm: e.target.value })
-                }
-                required
-                title="Distancia estimada (km)"
-              />
-              <input
-                className="field font-data"
-                type="number"
-                min={0}
-                placeholder="Cantidad peajes"
-                value={calcForm.cantidadPeajes}
-                onChange={(e) =>
-                  setCalcForm({ ...calcForm, cantidadPeajes: e.target.value })
-                }
-                title="Peajes estimados en la ruta"
-              />
-              <input
-                className="field font-data"
-                type="number"
-                min={1}
-                max={80}
-                placeholder="Margen %"
-                value={calcForm.margenDeseado}
-                onChange={(e) =>
-                  setCalcForm({ ...calcForm, margenDeseado: e.target.value })
-                }
-                title={MARGIN_TIP}
-              />
+                  ))}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+                Origen
+                <input
+                  className="field"
+                  placeholder="Ciudad o punto de origen"
+                  value={calcForm.origen}
+                  onChange={(e) =>
+                    setCalcForm({ ...calcForm, origen: e.target.value })
+                  }
+                  required
+                  title="Origen de la ruta"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+                Destino
+                <input
+                  className="field"
+                  placeholder="Ciudad o punto de destino"
+                  value={calcForm.destino}
+                  onChange={(e) =>
+                    setCalcForm({ ...calcForm, destino: e.target.value })
+                  }
+                  required
+                  title="Destino de la ruta"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+                Tipo de vehículo
+                <select
+                  className="field"
+                  value={calcForm.tipoVehiculo}
+                  onChange={(e) =>
+                    setCalcForm({
+                      ...calcForm,
+                      tipoVehiculo: e.target.value as QuoteVehicleType,
+                    })
+                  }
+                  title="Tipo de unidad — costo/km y pago conductor"
+                >
+                  {(Object.keys(QUOTE_VEHICLE_COSTS) as QuoteVehicleType[]).map(
+                    (k) => (
+                      <option key={k} value={k}>
+                        {QUOTE_VEHICLE_COSTS[k].label}
+                      </option>
+                    ),
+                  )}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+                Kilómetros recorridos
+                <input
+                  className="field font-data"
+                  type="number"
+                  min={1}
+                  placeholder="Ej. 360"
+                  value={calcForm.distanciaKm}
+                  onChange={(e) =>
+                    setCalcForm({ ...calcForm, distanciaKm: e.target.value })
+                  }
+                  required
+                  title="Kilómetros recorridos en la ruta"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+                Peajes
+                <input
+                  className="field font-data"
+                  type="number"
+                  min={0}
+                  placeholder="Cantidad"
+                  value={calcForm.cantidadPeajes}
+                  onChange={(e) =>
+                    setCalcForm({ ...calcForm, cantidadPeajes: e.target.value })
+                  }
+                  title="Número de peajes en la ruta"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+                Porcentaje de rentabilidad
+                <input
+                  className="field font-data"
+                  type="number"
+                  min={1}
+                  max={80}
+                  placeholder="%"
+                  value={calcForm.margenDeseado}
+                  onChange={(e) =>
+                    setCalcForm({ ...calcForm, margenDeseado: e.target.value })
+                  }
+                  title={MARGIN_TIP}
+                />
+              </label>
               <div className="flex items-end justify-end md:col-span-3 lg:col-span-1">
                 <Button
                   type="submit"
@@ -625,13 +828,25 @@ export default function ComercialPage() {
                           >
                             Detalle
                           </Button>
-                          {q.status === "DRAFT" || q.status === "SENT" ? (
+                          {q.draftTrip ? (
+                            <Link
+                              href={`/logistica/servicios?code=${encodeURIComponent(q.draftTrip.code)}`}
+                              className="inline-flex w-auto items-center rounded-md px-3 py-1.5 text-xs font-semibold text-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/10"
+                            >
+                              {q.draftTrip.code}
+                            </Link>
+                          ) : q.status === "DRAFT" ||
+                            q.status === "SENT" ||
+                            q.status === "WON" ||
+                            q.status === "APPROVED" ? (
                             <Button
                               variant="primary"
                               className="w-auto"
                               onClick={() => void approveAndConvert(q)}
                             >
-                              Aprobar → Viaje
+                              {q.status === "WON" || q.status === "APPROVED"
+                                ? "Generar viaje"
+                                : "Aprobar → Viaje"}
                             </Button>
                           ) : null}
                           {q.status === "DRAFT" ? (
@@ -699,88 +914,136 @@ export default function ComercialPage() {
             onSubmit={onCreateContract}
             className="fsg-panel grid grid-cols-1 gap-3 p-4 md:grid-cols-3 lg:grid-cols-4"
           >
-            <input
-              className="field md:col-span-2"
-              placeholder="Nombre del contrato"
-              value={contractForm.name}
-              onChange={(e) =>
-                setContractForm({ ...contractForm, name: e.target.value })
-              }
-              required
-            />
-            <select
-              className="field"
-              value={contractForm.customerId}
-              onChange={(e) =>
-                setContractForm({
-                  ...contractForm,
-                  customerId: e.target.value,
-                })
-              }
-              required
-            >
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-            <select
-              className="field"
-              value={contractForm.channel}
-              onChange={(e) =>
-                setContractForm({
-                  ...contractForm,
-                  channel: e.target.value as "PRIVATE" | "PUBLIC_TENDER",
-                })
-              }
-            >
-              <option value="PRIVATE">Empresa privada</option>
-              <option value="PUBLIC_TENDER">Licitación pública</option>
-            </select>
-            <input
-              className="field"
-              placeholder="Ruta"
-              value={contractForm.route}
-              onChange={(e) =>
-                setContractForm({ ...contractForm, route: e.target.value })
-              }
-            />
-            <input
-              className="field"
-              type="date"
-              value={contractForm.startDate}
-              onChange={(e) =>
-                setContractForm({
-                  ...contractForm,
-                  startDate: e.target.value,
-                })
-              }
-              required
-            />
-            <input
-              className="field"
-              type="date"
-              value={contractForm.endDate}
-              onChange={(e) =>
-                setContractForm({ ...contractForm, endDate: e.target.value })
-              }
-              required
-            />
-            <input
-              className="field"
-              type="number"
-              placeholder="Valor mensual COP"
-              value={contractForm.monthlyValue}
-              onChange={(e) =>
-                setContractForm({
-                  ...contractForm,
-                  monthlyValue: e.target.value,
-                })
-              }
-            />
+            <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)] md:col-span-2">
+              Nombre del contrato
+              <input
+                className="field"
+                data-field="legalName"
+                placeholder="Ej. SKETCHERS"
+                value={contractForm.name}
+                onChange={(e) =>
+                  setContractForm({ ...contractForm, name: e.target.value })
+                }
+                required
+                title="Nombre comercial del contrato"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+              Cliente
+              <select
+                className="field"
+                value={contractForm.customerId}
+                onChange={(e) =>
+                  setContractForm({
+                    ...contractForm,
+                    customerId: e.target.value,
+                  })
+                }
+                required
+                title="Cliente del contrato"
+              >
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+              Canal
+              <select
+                className="field"
+                value={contractForm.channel}
+                onChange={(e) =>
+                  setContractForm({
+                    ...contractForm,
+                    channel: e.target.value as "PRIVATE" | "PUBLIC_TENDER",
+                  })
+                }
+                title="Empresa privada o licitación pública"
+              >
+                <option value="PRIVATE">Empresa privada</option>
+                <option value="PUBLIC_TENDER">Licitación pública</option>
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+              Ruta
+              <input
+                className="field"
+                data-field="text"
+                placeholder="Ej. RUTA 80"
+                value={contractForm.route}
+                onChange={(e) =>
+                  setContractForm({ ...contractForm, route: e.target.value })
+                }
+                title="Corredor o ruta del contrato"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+              Fecha inicio
+              <input
+                className="field"
+                type="date"
+                value={contractForm.startDate}
+                onChange={(e) =>
+                  setContractForm({
+                    ...contractForm,
+                    startDate: e.target.value,
+                  })
+                }
+                required
+                title="Inicio de vigencia"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+              Fecha fin
+              <input
+                className="field"
+                type="date"
+                value={contractForm.endDate}
+                onChange={(e) =>
+                  setContractForm({ ...contractForm, endDate: e.target.value })
+                }
+                required
+                title="Fin de vigencia"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+              Valor mensual
+              <input
+                className="field font-data"
+                data-field="skip"
+                inputMode="decimal"
+                placeholder="$11´000.000"
+                value={
+                  contractForm.monthlyValue
+                    ? formatCop(Number(contractForm.monthlyValue))
+                    : ""
+                }
+                onChange={(e) =>
+                  setContractForm({
+                    ...contractForm,
+                    monthlyValue: e.target.value.replace(/\D/g, "").slice(0, 12),
+                  })
+                }
+                title="Canon mensual en pesos colombianos"
+              />
+            </label>
+            {contractError ? (
+              <p
+                role="alert"
+                className="md:col-span-3 lg:col-span-4 rounded border border-[var(--brand-signal)]/40 bg-[var(--brand-signal)]/10 px-3 py-2 text-sm text-[var(--brand-signal)]"
+              >
+                {contractError}
+              </p>
+            ) : null}
             <div className="flex justify-end md:col-span-3 lg:col-span-4">
-              <Button type="submit" variant="primary" className="w-auto">
+              <Button
+                type="submit"
+                variant="primary"
+                className="w-auto"
+                disabled={contractBusy}
+              >
                 Crear contrato operativo
               </Button>
             </div>
@@ -838,7 +1101,7 @@ export default function ComercialPage() {
                       </td>
                       <td className="px-4 py-2.5 font-data text-xs">
                         {ctr.monthlyValue
-                          ? `$${Number(ctr.monthlyValue).toLocaleString("es-CO")}`
+                          ? formatCop(Number(ctr.monthlyValue))
                           : "—"}
                       </td>
                       <td className="px-4 py-2.5">
@@ -964,7 +1227,7 @@ export default function ComercialPage() {
               type="button"
               variant="primary"
               className="w-auto"
-              onClick={() => setCustomerModalOpen(true)}
+              onClick={openNewCustomer}
             >
               <Plus className="mr-1 h-4 w-4" />
               Nuevo Cliente
@@ -977,20 +1240,23 @@ export default function ComercialPage() {
                 title="Sin clientes en directorio"
                 description="Registra el primer cliente B2B, escolar o turismo."
                 actionLabel="+ Nuevo Cliente"
-                onAction={() => setCustomerModalOpen(true)}
+                onAction={openNewCustomer}
               />
             </div>
           ) : (
             <table className="w-full text-left text-sm">
               <thead>
                 <tr>
-                  <th className="px-4 py-2">Nombre</th>
-                  <th className="px-4 py-2">Segmento</th>
-                  <th className="px-4 py-2" />
+                    <th className="px-4 py-2">Nombre</th>
+                    <th className="px-4 py-2">Vínculo</th>
+                    <th className="px-4 py-2">Segmento</th>
+                    <th className="px-4 py-2" />
                 </tr>
               </thead>
               <tbody>
-                {customers.map((c) => (
+                {customers.map((c) => {
+                  const origin = customerOrigin(c);
+                  return (
                   <tr
                     key={c.id}
                     className="border-t border-[var(--brand-line)]"
@@ -1007,6 +1273,14 @@ export default function ComercialPage() {
                       ) : null}
                     </td>
                     <td className="px-4 py-2.5">
+                      <Badge tone={origin.tone} title={origin.detail}>
+                        {origin.label}
+                      </Badge>
+                      <div className="mt-1 font-data text-[10px] text-[var(--brand-muted)]">
+                        {origin.detail}
+                      </div>
+                    </td>
+                    <td className="px-4 py-2.5">
                       <Badge>{c.segment}</Badge>
                     </td>
                     <td className="px-4 py-2.5">
@@ -1014,36 +1288,15 @@ export default function ComercialPage() {
                         <Button
                           variant="ghost"
                           className="w-auto"
-                          onClick={async () => {
-                            const n = window.prompt("Nombre", c.name);
-                            if (n === null) return;
-                            const email = window.prompt(
-                              "Email",
-                              c.email || "",
-                            );
-                            if (email === null) return;
-                            const phone = window.prompt(
-                              "Teléfono",
-                              c.phone || "",
-                            );
-                            if (phone === null) return;
-                            await api(`/comercial/customers/${c.id}`, {
-                              method: "PATCH",
-                              body: JSON.stringify({
-                                name: n.trim() || c.name,
-                                email: email.trim() || undefined,
-                                phone: phone.trim() || undefined,
-                              }),
-                            });
-                            await load();
-                          }}
+                          onClick={() => openEditCustomer(c)}
                         >
                           Editar
                         </Button>
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           )}
@@ -1052,61 +1305,123 @@ export default function ComercialPage() {
 
       <Modal
         open={customerModalOpen}
-        onClose={() => setCustomerModalOpen(false)}
-        title="Nuevo cliente"
-        description="Registro sujeto a chequeo SARLAFT por NIT."
+        onClose={closeCustomerModal}
+        title={editingCustomerId ? "Editar cliente" : "Nuevo cliente"}
+        description={
+          editingCustomerId
+            ? "Actualiza razón social, contacto y segmento."
+            : "Registro sujeto a chequeo SARLAFT por NIT."
+        }
         footer={
           <>
             <Button
               type="button"
               variant="ghost"
               className="w-auto"
-              onClick={() => setCustomerModalOpen(false)}
+              onClick={closeCustomerModal}
             >
               Cancelar
             </Button>
             <Button
               type="submit"
-              form="comercial-new-customer"
+              form="comercial-customer-form"
               variant="primary"
               className="w-auto"
+              disabled={customerBusy}
             >
-              Crear cliente
+              {editingCustomerId ? "Guardar cambios" : "Crear cliente"}
             </Button>
           </>
         }
       >
         <form
-          id="comercial-new-customer"
-          onSubmit={onCreate}
+          id="comercial-customer-form"
+          onSubmit={(e) => void onSaveCustomer(e)}
           className="grid gap-3"
         >
-          <input
-            placeholder="Nombre del cliente"
-            className="field"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-            title="Razón social del cliente"
-          />
-          <input
-            placeholder="NIT (ej. 900123456-1)"
-            className="field"
-            value={nit}
-            onChange={(e) => setNit(e.target.value)}
-            required
-            title="NIT sujeto a chequeo SARLAFT"
-          />
-          <select
-            className="field"
-            value={segment}
-            onChange={(e) => setSegment(e.target.value as typeof segment)}
-            title="Segmento comercial"
-          >
-            <option value="B2B">Empresa</option>
-            <option value="ESCOLAR">Colegio</option>
-            <option value="TURISMO">Turismo</option>
-          </select>
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+            Razón social
+            <input
+              className="field"
+              data-field="legalName"
+              placeholder="Ej. INREDESOFT SAS"
+              value={customerForm.name}
+              onChange={(e) =>
+                setCustomerForm({ ...customerForm, name: e.target.value })
+              }
+              required
+              title="Razón social del cliente"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+            NIT
+            <input
+              className="field font-data"
+              data-field="nit"
+              placeholder="900123456-1"
+              value={customerForm.nit}
+              onChange={(e) =>
+                setCustomerForm({ ...customerForm, nit: e.target.value })
+              }
+              required
+              disabled={Boolean(editingCustomerId)}
+              title="NIT sujeto a chequeo SARLAFT"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+            Correo
+            <input
+              className="field"
+              data-field="email"
+              type="email"
+              placeholder="contacto@empresa.com"
+              value={customerForm.email}
+              onChange={(e) =>
+                setCustomerForm({ ...customerForm, email: e.target.value })
+              }
+              title="Correo de contacto"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+            Teléfono
+            <input
+              className="field font-data"
+              data-field="phone"
+              inputMode="tel"
+              placeholder="3001234567"
+              value={customerForm.phone}
+              onChange={(e) =>
+                setCustomerForm({ ...customerForm, phone: e.target.value })
+              }
+              title="Teléfono de contacto"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+            Segmento
+            <select
+              className="field"
+              value={customerForm.segment}
+              onChange={(e) =>
+                setCustomerForm({
+                  ...customerForm,
+                  segment: e.target.value as typeof customerForm.segment,
+                })
+              }
+              title="Segmento comercial"
+            >
+              <option value="B2B">Empresa</option>
+              <option value="ESCOLAR">Colegio</option>
+              <option value="TURISMO">Turismo</option>
+            </select>
+          </label>
+          {customerError ? (
+            <p
+              role="alert"
+              className="rounded border border-[var(--brand-signal)]/40 bg-[var(--brand-signal)]/10 px-3 py-2 text-sm text-[var(--brand-signal)]"
+            >
+              {customerError}
+            </p>
+          ) : null}
         </form>
       </Modal>
     </div>

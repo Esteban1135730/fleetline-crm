@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -25,7 +26,9 @@ import {
   UpsertEmployeeSchema,
 } from "./dto/rrhh.dto";
 
-type AuthReq = { user: { organizationId: string; userId: string } };
+type AuthReq = {
+  user: { organizationId: string; userId: string; role: string };
+};
 
 @Controller(["rrhh", "api/v1/rrhh"])
 @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard, ModulesGuard)
@@ -71,7 +74,23 @@ export class RrhhController {
     @Body() body: unknown,
   ) {
     const dto = PatchEmployeeSchema.parse(body ?? {});
-    return this.rrhh.patchEmployee(req.user.organizationId, id, dto);
+    return this.rrhh.patchEmployee(
+      req.user.organizationId,
+      id,
+      dto,
+      req.user.role,
+    );
+  }
+
+  @Delete("employees/:id")
+  @Roles("platform_master", "org_admin")
+  @Permissions("personal", "DELETE")
+  deleteEmployee(@Req() req: AuthReq, @Param("id") id: string) {
+    return this.rrhh.deleteEmployee(
+      req.user.organizationId,
+      id,
+      req.user.role,
+    );
   }
 
   @Get("drivers")

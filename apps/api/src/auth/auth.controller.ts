@@ -1,28 +1,35 @@
 import { Body, Controller, Get, Patch, Post, Req, UseGuards } from "@nestjs/common";
+import { Field, LoginSchema } from "@fsg/shared";
+import { z } from "zod";
 import { AuthService } from "./auth.service";
 import { JwtAuthGuard } from "./jwt-auth.guard";
+
+const RegisterOrgSchema = z.object({
+  organizationName: Field.legalName,
+  nit: Field.nit,
+  adminName: Field.personName,
+  adminEmail: Field.email,
+  adminPassword: Field.password,
+});
+
+const ChangePasswordSchema = z.object({
+  currentPassword: z.string().min(4).max(128),
+  newPassword: Field.password,
+});
 
 @Controller("auth")
 export class AuthController {
   constructor(private auth: AuthService) {}
 
   @Post("login")
-  login(@Body() body: { email: string; password: string }) {
-    return this.auth.login(body.email, body.password);
+  login(@Body() body: unknown) {
+    const dto = LoginSchema.parse(body ?? {});
+    return this.auth.login(dto.email, dto.password);
   }
 
   @Post("register")
-  register(
-    @Body()
-    body: {
-      organizationName: string;
-      nit: string;
-      adminName: string;
-      adminEmail: string;
-      adminPassword: string;
-    },
-  ) {
-    return this.auth.registerOrganization(body);
+  register(@Body() body: unknown) {
+    return this.auth.registerOrganization(RegisterOrgSchema.parse(body ?? {}));
   }
 
   @UseGuards(JwtAuthGuard)
@@ -42,12 +49,13 @@ export class AuthController {
   @Patch("password")
   changePassword(
     @Req() req: { user: { userId: string } },
-    @Body() body: { currentPassword: string; newPassword: string },
+    @Body() body: unknown,
   ) {
+    const dto = ChangePasswordSchema.parse(body ?? {});
     return this.auth.changePassword(
       req.user.userId,
-      body.currentPassword,
-      body.newPassword,
+      dto.currentPassword,
+      dto.newPassword,
     );
   }
 

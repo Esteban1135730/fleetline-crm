@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { HARD_RULES } from "@fsg/shared";
+import {
+  Field,
+  FieldOptional,
+  HARD_RULES,
+  QuoteVehicleTypeSchema,
+} from "@fsg/shared";
 
 export const ADVANCE_PAYMENT_DISPATCH_BLOCK = "ADVANCE_PAYMENT_PENDING";
 
@@ -25,11 +30,9 @@ export const CotizacionExpressSchema = z.object({
   dealId: z.string().min(1).optional(),
   accountName: z.string().min(2).optional(),
   customerId: z.string().min(1).optional(),
-  phone: z.string().optional(),
+  phone: FieldOptional.phone,
   zone: z.string().min(2).default("BOGOTA"),
-  vehicleType: z
-    .enum(["BUS_ESCOLAR", "BUS_TURISMO", "CAMION_CARGA", "VAN"])
-    .default("VAN"),
+  vehicleType: QuoteVehicleTypeSchema.default("VAN"),
   distanceKm: z.number().positive().default(35),
   proposedRatePerKm: z.number().positive().optional(),
   discountPct: z.number().min(0).max(50).default(0),
@@ -62,7 +65,7 @@ export const LinkCobroAnticipadoSchema = z.object({
 export type LinkCobroAnticipadoDto = z.infer<typeof LinkCobroAnticipadoSchema>;
 
 export const RegistrarLlamadaSchema = z.object({
-  phone: z.string().min(7),
+  phone: Field.phone,
   customerId: z.string().min(1).optional(),
   dealId: z.string().min(1).optional(),
   accountName: z.string().min(2).optional(),

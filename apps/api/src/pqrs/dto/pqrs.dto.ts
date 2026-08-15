@@ -1,9 +1,10 @@
 import { z } from "zod";
+import { Field, FieldOptional } from "@fsg/shared";
 
 export const CreatePqrsTicketSchema = z.object({
-  subject: z.string().min(3),
-  requester: z.string().min(2),
-  message: z.string().min(3),
+  subject: z.string().min(3).max(200),
+  requester: Field.personName,
+  message: Field.notes,
   type: z.enum(["PETITION", "COMPLAINT", "CLAIM", "SUGGESTION"]),
   priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]).optional(),
   channel: z
@@ -32,13 +33,13 @@ export const ResolvePqrsTicketSchema = z.object({
 export type ResolvePqrsTicketDto = z.infer<typeof ResolvePqrsTicketSchema>;
 
 export const VisitorCheckInSchema = z.object({
-  name: z.string().min(2),
-  document: z.string().min(4),
-  reason: z.string().min(3),
-  hostName: z.string().min(2),
-  company: z.string().optional(),
-  siteLabel: z.string().optional(),
-  phone: z.string().optional(),
+  name: Field.personName,
+  document: Field.document,
+  reason: Field.text,
+  hostName: Field.personName,
+  company: FieldOptional.legalName,
+  siteLabel: FieldOptional.text,
+  phone: FieldOptional.phone,
   kind: z.enum(["VISITOR", "CONTRACTOR"]).optional(),
   arlValid: z.boolean().optional(),
   arlExpiresAt: z.coerce.date().optional(),
@@ -48,7 +49,7 @@ export type VisitorCheckInDto = z.infer<typeof VisitorCheckInSchema>;
 export const VisitorCheckOutSchema = z.object({
   visitorId: z.string().min(1).optional(),
   passCode: z.string().min(1).optional(),
-  document: z.string().min(4).optional(),
+  document: FieldOptional.document,
 }).refine((v) => Boolean(v.visitorId || v.passCode || v.document), {
   message: "visitorId, passCode o document requerido",
 });

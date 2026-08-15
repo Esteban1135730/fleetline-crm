@@ -5,6 +5,7 @@ import { Button } from "@fsg/ui";
 import { EMPLOYEE_AREA_GROUPS, EMPLOYEE_AREAS, EMPLOYEE_TITLES } from "@fsg/shared";
 import { Users } from "lucide-react";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
 import { EmptyState, KpiCard, SlideOver } from "@/components/audit";
 
 type Semaphore = "GREEN" | "AMBER" | "RED" | "N_A";
@@ -142,6 +143,9 @@ function isoDate(d: Date) {
 }
 
 export default function RrhhPage() {
+  const { user } = useAuth();
+  const canManageIdentity =
+    user?.role === "platform_master" || user?.role === "org_admin";
   const [tab, setTab] = useState<TabId>("personal");
   const [overview, setOverview] = useState<Overview | null>(null);
   const [rows, setRows] = useState<Emp[]>([]);
@@ -154,6 +158,7 @@ export default function RrhhPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({
     name: "",
+    document: "",
     title: "",
     area: "",
     phone: "",
@@ -226,6 +231,7 @@ export default function RrhhPage() {
     setEditingId(r.id);
     setEditForm({
       name: r.name,
+      document: r.document,
       title: r.title || r.position,
       area: r.area,
       phone: r.phone ?? "",
@@ -235,6 +241,7 @@ export default function RrhhPage() {
 
   async function saveEdit(id: string) {
     setError("");
+    const prev = rows.find((r) => r.id === id);
     try {
       await api(`/rrhh/employees/${id}`, {
         method: "PATCH",
@@ -244,12 +251,60 @@ export default function RrhhPage() {
           area: editForm.area,
           phone: editForm.phone || null,
           email: editForm.email || null,
+          ...(canManageIdentity ? { document: editForm.document.trim() } : {}),
         }),
+        confirm: {
+          title: `Confirmar edición · ${editForm.name}`,
+          previous: prev
+            ? {
+                name: prev.name,
+                document: prev.document,
+                title: prev.title || prev.position,
+                area: prev.area,
+                phone: prev.phone,
+                email: prev.email,
+              }
+            : undefined,
+        },
       });
       setEditingId(null);
       await loadAll();
     } catch (err) {
+      if ((err as { name?: string })?.name === "MutationCancelled") return;
       setError(err instanceof Error ? err.message : "No se pudo guardar ficha");
+    }
+  }
+
+  async function deleteEmployee(id: string, name: string) {
+    if (!canManageIdentity) return;
+    const prev = rows.find((r) => r.id === id);
+    setError("");
+    try {
+      await api(`/rrhh/employees/${id}`, {
+        method: "DELETE",
+        confirm: {
+          title: `Eliminar expediente · ${name}`,
+          record: prev
+            ? {
+                name: prev.name,
+                document: prev.document,
+                title: prev.title || prev.position,
+                area: prev.area,
+                status: prev.status,
+                phone: prev.phone,
+                email: prev.email,
+              }
+            : { name },
+        },
+      });
+      setEditingId(null);
+      setStatusMsg("Expediente eliminado");
+      await loadAll();
+    } catch (err) {
+      if ((err as { name?: string })?.name === "MutationCancelled") return;
+      setError(
+        err instanceof Error ? err.message : "No se pudo eliminar el expediente",
+      );
     }
   }
 
@@ -348,10 +403,10 @@ export default function RrhhPage() {
     <div className="fade-in mx-auto max-w-[1600px] space-y-6">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="page-title text-3xl font-bold text-white md:text-4xl">
+          <h1 className="page-title text-3xl font-bold text-[var(--text-primary)] md:text-4xl">
             Recursos Humanos
           </h1>
-          <p className="mt-1 text-sm text-gray-400">
+          <p className="mt-1 text-sm text-[var(--text-secondary)]">
             Expedientes · fatiga · nómina · capacitaciones PESV
           </p>
         </div>
@@ -465,20 +520,41 @@ export default function RrhhPage() {
                       >
                         <td className="px-4 py-2.5">
                           {editingId === r.id ? (
-                            <input
-                              className="field py-1 text-xs"
-                              value={editForm.name}
-                              onChange={(e) =>
-                                setEditForm({
-                                  ...editForm,
-                                  name: e.target.value,
-                                })
-                              }
-                            />
+                            <div className="space-y-1">
+                              <input
+                                className="field py-1 text-xs"
+                                value={editForm.name}
+                                onChange={(e) =>
+                                  setEditForm({
+                                    ...editForm,
+                                    name: e.target.value,
+                                  })
+                                }
+                                aria-label="Nombre"
+                              />
+                              {canManageIdentity ? (
+                                <input
+                                  className="field py-1 font-data text-xs"
+                                  value={editForm.document}
+                                  onChange={(e) =>
+                                    setEditForm({
+                                      ...editForm,
+                                      document: e.target.value,
+                                    })
+                                  }
+                                  placeholder="Documento / cédula"
+                                  aria-label="Número de documento"
+                                />
+                              ) : (
+                                <div className="text-sm text-[var(--text-secondary)]">
+                                  {r.document}
+                                </div>
+                              )}
+                            </div>
                           ) : (
                             <>
-                              <div className="font-bold text-white">{r.name}</div>
-                              <div className="text-sm text-gray-400">
+                              <div className="font-bold text-[var(--text-primary)]">{r.name}</div>
+                              <div className="text-sm text-[var(--text-secondary)]">
                                 {r.document}
                               </div>
                             </>
@@ -603,6 +679,17 @@ export default function RrhhPage() {
                               >
                                 Cancelar
                               </Button>
+                              {canManageIdentity ? (
+                                <Button
+                                  variant="danger"
+                                  className="w-auto"
+                                  onClick={() =>
+                                    void deleteEmployee(r.id, r.name)
+                                  }
+                                >
+                                  Eliminar
+                                </Button>
+                              ) : null}
                             </div>
                           ) : (
                             <Button
@@ -692,8 +779,8 @@ export default function RrhhPage() {
                       className="border-t border-[var(--brand-line)]"
                     >
                       <td className="px-4 py-2.5">
-                        <div className="font-bold text-white">{r.name}</div>
-                        <div className="text-sm text-gray-400">
+                        <div className="font-bold text-[var(--text-primary)]">{r.name}</div>
+                        <div className="text-sm text-[var(--text-secondary)]">
                           {r.driver?.document || r.document}
                         </div>
                       </td>
@@ -889,11 +976,11 @@ export default function RrhhPage() {
                       className="border-t border-[var(--brand-line)]"
                     >
                       <td className="px-4 py-2.5">
-                        <div className="font-bold text-white">
+                        <div className="font-bold text-[var(--text-primary)]">
                           {t.driver?.name ?? "—"}
                         </div>
                         {t.driver?.document ? (
-                          <div className="text-sm text-gray-400">
+                          <div className="text-sm text-[var(--text-secondary)]">
                             {t.driver.document}
                           </div>
                         ) : null}
@@ -941,27 +1028,31 @@ export default function RrhhPage() {
           onSubmit={onCreate}
           className="grid grid-cols-1 gap-3"
         >
-          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-slate-400">
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
             Nombre
             <input
               className="field"
               placeholder="Nombre completo"
+              data-field="personName"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               required
+              autoComplete="name"
             />
           </label>
-          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-slate-400">
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
             Documento
             <input
               className="field font-data"
               placeholder="Cédula / ID"
+              data-field="document"
+              inputMode="numeric"
               value={form.document}
               onChange={(e) => setForm({ ...form, document: e.target.value })}
               required
             />
           </label>
-          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-slate-400">
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
             Cargo
             <select
               className="field"
@@ -975,7 +1066,7 @@ export default function RrhhPage() {
               ))}
             </select>
           </label>
-          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-slate-400">
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
             Área / departamento
             <select
               className="field"
@@ -993,7 +1084,7 @@ export default function RrhhPage() {
               ))}
             </select>
           </label>
-          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-slate-400">
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
             Vínculo flota
             <select
               className="field"

@@ -24,6 +24,7 @@ const REVISOR_MUTATION_ALLOW = [
   "/api/v1/revisoria-fiscal/notas",
   "/revisoria-fiscal/dictamen",
   "/api/v1/revisoria-fiscal/dictamen",
+  "/revisoria/findings",
 ];
 
 /**

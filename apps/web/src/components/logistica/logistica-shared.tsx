@@ -52,6 +52,11 @@ export type Servicio = {
   driver?: Driver | null;
   vehicle?: Vehicle | null;
   customer?: { id: string; name: string } | null;
+  meta?: {
+    source?: string;
+    quoteCode?: string | null;
+    notes?: string | null;
+  } | null;
   auditLogs?: Array<{ id: string; message: string; serverTime: string }>;
   _count?: { trackPoints: number };
 };

@@ -385,9 +385,10 @@ html.light .theme-toggle:hover {
 .theme-toggle-opt {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
+  justify-content: center;
+  gap: 0;
   border-radius: 999px;
-  padding: 0.4rem 0.75rem;
+  padding: 0.35rem;
   color: var(--text-secondary);
   transition:
     background-color 150ms ease-in-out,
@@ -637,6 +638,9 @@ html.dark .login-card {
   border-color: var(--accent-primary);
   box-shadow: 0 0 0 3px var(--brand-primary-glow), var(--glow-active);
 }
+.field[aria-invalid="true"] {
+  border-color: var(--accent-alert, #ff2a5f);
+}
 
 .field-label,
 label.field-label {
@@ -854,70 +858,91 @@ html.light .badge-info {
 }
 
 .flt-topbar {
-  height: 60px;
+  position: relative;
+  height: 56px;
   flex-shrink: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(220px, 560px) minmax(0, 1fr);
+  display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0 1rem;
+  padding: 0 0.85rem;
+  overflow: visible;
   border-bottom: 1px solid var(--border-subtle);
   background: color-mix(in srgb, var(--bg-surface-1) 88%, transparent);
   backdrop-filter: blur(12px);
-  z-index: 40;
+  z-index: 50;
 }
 
 html.dark .flt-topbar {
   background: color-mix(in srgb, var(--bg-canvas) 82%, var(--bg-surface-1));
 }
 
-.flt-module-badge {
+.flt-topbar-left,
+.flt-topbar-right {
+  display: flex;
+  min-width: 0;
   align-items: center;
+  gap: 0.5rem;
+}
+
+.flt-topbar-left {
+  flex: 0 1 auto;
+  overflow: hidden;
+}
+
+.flt-topbar-right {
+  flex: 0 0 auto;
+  justify-content: flex-end;
+}
+
+.flt-status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.flt-module-badge {
+  display: inline-flex;
+  max-width: 9rem;
+  align-items: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   border-radius: 999px;
   border: 1px solid var(--border-subtle);
   background: color-mix(in srgb, var(--accent-primary) 10%, transparent);
   color: var(--accent-primary);
-  padding: 0.25rem 0.7rem;
+  padding: 0.15rem 0.55rem;
   font-family: var(--font-mono), "JetBrains Mono", monospace;
   font-size: 10px;
   font-weight: 600;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
 .flt-search-trigger {
   display: flex;
+  flex: 1 1 180px;
   align-items: center;
-  gap: 0.65rem;
-  height: 38px;
-  width: 100%;
+  gap: 0.5rem;
+  height: 36px;
+  min-width: 0;
   max-width: 420px;
   margin: 0 auto;
-  padding: 0 0.85rem;
+  padding: 0 0.75rem;
+  overflow: hidden;
   border-radius: 10px;
   border: 1px solid var(--border-subtle);
   background: var(--bg-surface-1);
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: 13px;
   text-align: left;
+  white-space: nowrap;
   transition:
     border-color 150ms ease-in-out,
     box-shadow 150ms ease-in-out;
-}
-
-.flt-search-trigger--hero {
-  height: 44px;
-  max-width: 560px;
-  padding: 0 1rem;
-  font-size: 13.5px;
-  color: var(--text-primary);
-  border-color: color-mix(in srgb, var(--accent-primary) 28%, var(--border-subtle));
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-primary) 8%, transparent);
-}
-
-.flt-search-trigger--hero span:first-of-type,
-.flt-search-trigger--hero > span {
-  color: var(--text-secondary);
 }
 
 .flt-search-trigger:hover {
@@ -939,8 +964,13 @@ html.dark .flt-topbar {
 .flt-user-chip {
   display: flex;
   align-items: center;
-  gap: 0.65rem;
-  max-width: 180px;
+  gap: 0.45rem;
+  min-width: 0;
+  max-width: 160px;
+}
+
+.flt-tenant-switch select {
+  min-width: 160px;
 }
 
 .flt-avatar {
@@ -1000,7 +1030,7 @@ html.dark .flt-sidebar {
 }
 
 .flt-sidebar.is-expanded {
-  width: 240px;
+  width: 248px;
 }
 
 .flt-sidebar.is-collapsed {
@@ -1019,7 +1049,7 @@ html.dark .flt-sidebar {
     border-right: none;
   }
   .flt-sidebar.is-expanded {
-    width: min(240px, 86vw);
+    width: min(248px, 88vw);
   }
 }
 
@@ -1035,14 +1065,20 @@ html.dark .flt-sidebar {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 0.7rem;
-  margin: 0 0.5rem 2px;
-  padding: 0.55rem 0.75rem;
+  gap: 0.55rem;
+  margin: 0 0.4rem 1px;
+  padding: 0.42rem 0.65rem;
+  min-width: 0;
+  min-height: 34px;
+  overflow: hidden;
   border-radius: 0 8px 8px 0;
   border-left: 2px solid transparent;
   color: var(--text-secondary);
-  font-size: 13px;
-  transition: all 150ms ease-in-out;
+  font-size: 12.5px;
+  line-height: 1.2;
+  white-space: nowrap;
+  transition: background 150ms ease-in-out, color 150ms ease-in-out,
+    border-color 150ms ease-in-out;
 }
 
 .flt-sidebar.is-collapsed .flt-nav-item {
@@ -1182,19 +1218,25 @@ html.light .flt-command-panel {
 .flt-dept-trigger {
   display: flex;
   width: 100%;
+  min-width: 0;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem;
-  padding: 0.55rem 1rem;
+  gap: 0.4rem;
+  margin: 0 0.4rem 1px;
+  padding: 0.42rem 0.65rem;
+  overflow: hidden;
   border: none;
+  border-radius: 8px;
   background: transparent;
   color: var(--text-secondary);
-  font-family: var(--font-mono), "JetBrains Mono", monospace;
-  font-size: 10px;
+  font-family: inherit;
+  font-size: 12.5px;
   font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  letter-spacing: 0;
+  text-transform: none;
   text-align: left;
+  line-height: 1.2;
+  white-space: nowrap;
   cursor: pointer;
   transition: color 150ms ease, background 150ms ease;
 }
@@ -1207,12 +1249,12 @@ html.light .flt-command-panel {
 }
 
 .flt-dept-items {
-  padding: 0.15rem 0 0.45rem;
+  padding: 0 0 0.2rem;
 }
 
 .flt-nav-item--nested {
-  padding-left: 1.35rem !important;
-  font-size: 12.5px;
+  padding-left: 1.85rem !important;
+  font-size: 12px;
 }
 
 .flt-cockpit-banner {
@@ -1559,4 +1601,49 @@ html.light .flt-command-panel {
   font-size: 11px;
   font-weight: 700;
 }
+
+/* ── Light mode: leftover dark-only utilities (KPIs, tablas, paneles) ── */
+html.light .flt-workbench [class*="bg-zinc-9"],
+html.light .flt-workbench [class*="bg-slate-9"],
+html.light .flt-workbench [class*="bg-slate-8"],
+html.light .flt-workbench [class*="bg-gray-9"],
+html.light .flt-workbench [class*="bg-gray-8"] {
+  background-color: var(--bg-surface-1);
+}
+
+html.light .flt-workbench [class*="border-slate-8"],
+html.light .flt-workbench [class*="border-slate-7"],
+html.light .flt-workbench [class*="border-gray-8"],
+html.light .flt-workbench [class*="border-gray-7"] {
+  border-color: var(--border-subtle);
+}
+
+html.light .flt-workbench :is(
+    [class*="text-white"],
+    [class*="text-slate-1"],
+    [class*="text-slate-2"]
+  ):not(.flt-btn):not(.flt-btn *):not([class*="bg-[#"]):not(
+    [class*="bg-emerald"]
+  ):not([class*="bg-rose"]):not([class*="bg-red"]) {
+  color: var(--text-primary);
+}
+
+html.light .flt-workbench :is(
+    [class*="text-slate-4"],
+    [class*="text-slate-5"],
+    [class*="text-gray-4"],
+    [class*="text-gray-5"]
+  ) {
+  color: var(--text-secondary);
+}
+
+html.light .data-shell table th {
+  background: #f1f5f9;
+  color: var(--text-secondary);
+}
+
+html.light .data-shell table tbody tr:hover {
+  background: color-mix(in srgb, var(--accent-primary) 8%, #ffffff);
+}
+
 

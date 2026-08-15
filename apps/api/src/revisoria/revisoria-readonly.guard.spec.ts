@@ -1,11 +1,12 @@
 import { ForbiddenException } from "@nestjs/common";
 import { RevisoriaReadOnlyGuard } from "./revisoria-readonly.guard";
 
-function mockCtx(method: string, role?: string) {
+function mockCtx(method: string, role?: string, path?: string) {
   return {
     switchToHttp: () => ({
       getRequest: () => ({
         method,
+        originalUrl: path,
         user: role ? { role } : undefined,
       }),
     }),
@@ -19,6 +20,17 @@ describe("RevisoriaReadOnlyGuard — Módulo 11", () => {
     expect(guard.canActivate(mockCtx("GET", "revisoria"))).toBe(true);
     expect(guard.canActivate(mockCtx("GET", "REVISOR_FISCAL"))).toBe(true);
     expect(guard.canActivate(mockCtx("HEAD", "revisoria"))).toBe(true);
+  });
+
+  it("permite registrar hallazgos forenses al revisor", () => {
+    expect(
+      guard.canActivate(mockCtx("POST", "revisoria", "/revisoria/findings")),
+    ).toBe(true);
+    expect(
+      guard.canActivate(
+        mockCtx("PATCH", "revisor_fiscal", "/revisoria/findings/abc"),
+      ),
+    ).toBe(true);
   });
 
   it("bloquea POST/PUT/DELETE de revisoría con HTTP 403", () => {

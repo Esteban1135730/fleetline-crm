@@ -185,13 +185,10 @@ export class UsersService {
     const where: {
       organizationId?: string;
       status?: UserAccountStatus;
-    } = {};
+    } = {
+      organizationId: actor.organizationId,
+    };
 
-    if (this.isPlatformMaster(actor.role)) {
-      if (opts?.organizationId) where.organizationId = opts.organizationId;
-    } else {
-      where.organizationId = actor.organizationId;
-    }
     if (opts?.status) {
       where.status = opts.status.toUpperCase() as UserAccountStatus;
     }
@@ -224,9 +221,7 @@ export class UsersService {
       );
     }
 
-    const orgId = this.isPlatformMaster(actor.role)
-      ? data.organizationId || actor.organizationId
-      : actor.organizationId;
+    const orgId = actor.organizationId;
 
     if (!orgId) throw new BadRequestException("organizationId requerido");
 
@@ -302,9 +297,7 @@ export class UsersService {
     },
   ) {
     const existing = await this.prisma.user.findFirst({
-      where: this.isPlatformMaster(actor.role)
-        ? { id }
-        : { id, organizationId: actor.organizationId },
+      where: { id, organizationId: actor.organizationId },
     });
     if (!existing) throw new NotFoundException("Usuario no encontrado");
 
@@ -369,9 +362,7 @@ export class UsersService {
       throw new BadRequestException("No puedes desactivar tu propio usuario");
     }
     const existing = await this.prisma.user.findFirst({
-      where: this.isPlatformMaster(actor.role)
-        ? { id }
-        : { id, organizationId: actor.organizationId },
+      where: { id, organizationId: actor.organizationId },
     });
     if (!existing) throw new NotFoundException("Usuario no encontrado");
     if (existing.role === Role.PLATFORM_MASTER) {
@@ -414,9 +405,7 @@ export class UsersService {
     }
 
     const existing = await this.prisma.user.findFirst({
-      where: this.isPlatformMaster(actor.role)
-        ? { id }
-        : { id, organizationId: actor.organizationId },
+      where: { id, organizationId: actor.organizationId },
     });
     if (!existing) throw new NotFoundException("Usuario no encontrado");
     if (existing.status !== UserAccountStatus.PENDING) {

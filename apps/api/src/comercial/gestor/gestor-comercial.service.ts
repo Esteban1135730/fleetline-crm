@@ -18,6 +18,7 @@ import {
   HARD_RULES,
   QUOTE_VEHICLE_COSTS,
   COMERCIAL_ZONE_SALARY_PER_KM,
+  resolveQuoteVehicleType,
 } from "@fsg/shared";
 import { PrismaService } from "../../prisma/prisma.service";
 import { KafkaEventsService } from "../../logistics/kafka-events.service";
@@ -204,7 +205,7 @@ export class GestorComercialService {
       }
     }
 
-    const vehicle = QUOTE_VEHICLE_COSTS[dto.vehicleType];
+    const vehicle = QUOTE_VEHICLE_COSTS[resolveQuoteVehicleType(dto.vehicleType)];
     const salary =
       COMERCIAL_ZONE_SALARY_PER_KM[dto.zone.toUpperCase()] ??
       COMERCIAL_ZONE_SALARY_PER_KM.DEFAULT;

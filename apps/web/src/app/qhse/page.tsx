@@ -28,7 +28,7 @@ type Event = {
 };
 
 const EMPTY_FORM = {
-  type: "NPS",
+  type: "INCIDENT",
   date: "",
   description: "",
   score: "5",
@@ -45,6 +45,8 @@ export default function CalidadPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [evidence, setEvidence] = useState<File[]>([]);
+  const [formError, setFormError] = useState("");
+  const [busy, setBusy] = useState(false);
 
   async function load() {
     const [s, e] = await Promise.all([
@@ -58,23 +60,47 @@ export default function CalidadPage() {
     void load().catch(console.error);
   }, []);
 
+  function openForm() {
+    setFormError("");
+    setForm({
+      ...EMPTY_FORM,
+      date: new Date().toISOString().slice(0, 10),
+    });
+    setEvidence([]);
+    setFormOpen(true);
+  }
+
   async function onCreate(e: FormEvent) {
     e.preventDefault();
-    const title = form.date
-      ? `${form.description.trim()} · ${form.date}`
-      : form.description.trim();
-    await api("/calidad/events", {
-      method: "POST",
-      body: JSON.stringify({
-        type: form.type,
-        title,
-        score: form.type === "NPS" ? Number(form.score) : undefined,
-      }),
-    });
-    setForm({ ...EMPTY_FORM, date: new Date().toISOString().slice(0, 10) });
-    setEvidence([]);
-    setFormOpen(false);
-    await load();
+    setFormError("");
+    const description = form.description.trim();
+    if (description.length < 3) {
+      setFormError("Indique la descripción de la novedad");
+      return;
+    }
+    const title = form.date ? `${description} · ${form.date}` : description;
+    setBusy(true);
+    try {
+      await api("/calidad/events", {
+        method: "POST",
+        body: JSON.stringify({
+          type: form.type,
+          title,
+          description,
+          score: form.type === "NPS" ? Number(form.score) : undefined,
+        }),
+      });
+      setForm({ ...EMPTY_FORM, date: new Date().toISOString().slice(0, 10) });
+      setEvidence([]);
+      setFormOpen(false);
+      await load();
+    } catch (err) {
+      setFormError(
+        err instanceof Error ? err.message : "No se pudo registrar la novedad",
+      );
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -88,13 +114,7 @@ export default function CalidadPage() {
           type="button"
           variant="primary"
           className="w-auto px-4 py-2"
-          onClick={() => {
-            setForm({
-              ...EMPTY_FORM,
-              date: new Date().toISOString().slice(0, 10),
-            });
-            setFormOpen(true);
-          }}
+          onClick={openForm}
         >
           <Plus className="mr-1.5 inline h-4 w-4" aria-hidden />
           Nuevo Reporte QHSE
@@ -136,13 +156,7 @@ export default function CalidadPage() {
           title="Sin reportes QHSE"
           description="Registre el primer evento de calidad, incidente o auditoría."
           actionLabel="+ Nuevo Reporte QHSE"
-          onAction={() => {
-            setForm({
-              ...EMPTY_FORM,
-              date: new Date().toISOString().slice(0, 10),
-            });
-            setFormOpen(true);
-          }}
+          onAction={openForm}
         />
       ) : (
         <div className="fsg-panel data-shell overflow-hidden">
@@ -218,6 +232,7 @@ export default function CalidadPage() {
               form="qhse-report-form"
               variant="primary"
               className="w-auto px-4 py-2"
+              disabled={busy}
             >
               Registrar
             </Button>
@@ -225,6 +240,14 @@ export default function CalidadPage() {
         }
       >
         <form id="qhse-report-form" onSubmit={onCreate} className="space-y-4">
+          {formError ? (
+            <p
+              role="alert"
+              className="rounded border border-[var(--brand-signal)]/40 bg-[var(--brand-signal)]/10 px-3 py-2 text-sm text-[var(--brand-signal)]"
+            >
+              {formError}
+            </p>
+          ) : null}
           <label className="block space-y-1.5">
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
               Tipo
@@ -234,8 +257,8 @@ export default function CalidadPage() {
               value={form.type}
               onChange={(e) => setForm({ ...form, type: e.target.value })}
             >
+              <option value="INCIDENT">Incidente / novedad</option>
               <option value="NPS">NPS</option>
-              <option value="INCIDENT">Incidente</option>
               <option value="AUDIT">Auditoría</option>
             </select>
           </label>
@@ -257,6 +280,7 @@ export default function CalidadPage() {
             </span>
             <textarea
               className="field min-h-[96px] w-full"
+              data-field="notes"
               placeholder="Detalle operativo del reporte"
               value={form.description}
               onChange={(e) =>
@@ -271,12 +295,19 @@ export default function CalidadPage() {
                 Score NPS
               </span>
               <input
-                className="field w-full"
-                type="number"
+                className="field w-full font-data"
+                data-field="integer"
+                inputMode="numeric"
                 min={0}
                 max={10}
+                placeholder="0 a 10"
                 value={form.score}
-                onChange={(e) => setForm({ ...form, score: e.target.value })}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    score: e.target.value.replace(/\D/g, "").slice(0, 2),
+                  })
+                }
               />
             </label>
           ) : null}

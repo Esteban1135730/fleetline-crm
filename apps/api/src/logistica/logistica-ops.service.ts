@@ -335,7 +335,7 @@ export class LogisticaOpsService {
         auditLogs: { orderBy: { createdAt: "desc" }, take: 5 },
         _count: { select: { trackPoints: true } },
       },
-      orderBy: { departAt: "desc" },
+      orderBy: { createdAt: "desc" },
       take: 100,
     });
   }
@@ -704,6 +704,7 @@ export class LogisticaOpsService {
     year: number,
     month: number,
   ) {
+    await this.logistics.syncDriversFromHr(organizationId);
     const from = new Date(year, month - 1, 1);
     const to = new Date(year, month, 1);
     const drivers = await this.prisma.driver.findMany({

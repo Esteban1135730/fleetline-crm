@@ -44,14 +44,26 @@ const emptyForm = {
   supplier: "",
   amount: "",
   quantity: "1",
-  category: "REPUESTOS",
+  category: "GENERAL",
   requestedBy: "",
 };
+
+function formatCop(n: number) {
+  if (!Number.isFinite(n) || n < 0) return "";
+  const abs = Math.round(n);
+  const s = String(abs);
+  if (s.length <= 6) return `$${abs.toLocaleString("es-CO")}`;
+  const head = Number(s.slice(0, -6)).toLocaleString("es-CO");
+  const tail = s.slice(-6);
+  return `$${head}´${tail.slice(0, 3)}.${tail.slice(3)}`;
+}
 
 export default function ComprasPage() {
   const [rows, setRows] = useState<Purchase[]>([]);
   const [slideOpen, setSlideOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
+  const [formError, setFormError] = useState("");
+  const [busy, setBusy] = useState(false);
 
   async function load() {
     setRows(await api<Purchase[]>("/compras/orders"));
@@ -80,25 +92,48 @@ export default function ComprasPage() {
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
-    const qty = Math.max(1, Number(form.quantity) || 1);
+    setFormError("");
+    const qty = Math.max(1, Number(form.quantity.replace(/\D/g, "")) || 1);
+    const amount = Number(form.amount.replace(/\D/g, ""));
+    if (!form.description.trim()) {
+      setFormError("Indique la descripción de la compra");
+      return;
+    }
+    if (!form.supplier.trim()) {
+      setFormError("Indique el proveedor");
+      return;
+    }
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setFormError("Indique el valor en COP");
+      return;
+    }
     const desc =
       qty > 1
         ? `${form.description.trim()} · ×${qty}`
         : form.description.trim();
-    await api("/compras/orders", {
-      method: "POST",
-      body: JSON.stringify({
-        description: desc,
-        supplier: form.supplier,
-        amount: Number(form.amount),
-        category: form.category,
-        requestedBy: form.requestedBy || undefined,
-        quantity: qty,
-      }),
-    });
-    setForm(emptyForm);
-    setSlideOpen(false);
-    await load();
+    setBusy(true);
+    try {
+      await api("/compras/orders", {
+        method: "POST",
+        body: JSON.stringify({
+          description: desc,
+          supplier: form.supplier.trim(),
+          amount,
+          category: form.category,
+          requestedBy: form.requestedBy.trim() || undefined,
+          quantity: qty,
+        }),
+      });
+      setForm(emptyForm);
+      setSlideOpen(false);
+      await load();
+    } catch (err) {
+      setFormError(
+        err instanceof Error ? err.message : "No se pudo crear la solicitud",
+      );
+    } finally {
+      setBusy(false);
+    }
   }
 
   function nextStatus(current: string) {
@@ -117,7 +152,10 @@ export default function ComprasPage() {
             type="button"
             variant="primary"
             className="w-auto"
-            onClick={() => setSlideOpen(true)}
+            onClick={() => {
+              setFormError("");
+              setSlideOpen(true);
+            }}
           >
             <Plus className="mr-1 h-4 w-4" />
             Crear Solicitud de Compra
@@ -134,7 +172,7 @@ export default function ComprasPage() {
         />
         <KpiCard
           label="Compras del Mes"
-          value={`$${kpis.monthSpend.toLocaleString("es-CO")}`}
+          value={formatCop(kpis.monthSpend)}
           tone="neutral"
           icon={<ShoppingCart />}
         />
@@ -156,7 +194,10 @@ export default function ComprasPage() {
             type="button"
             variant="primary"
             className="w-auto"
-            onClick={() => setSlideOpen(true)}
+            onClick={() => {
+              setFormError("");
+              setSlideOpen(true);
+            }}
           >
             <Plus className="mr-1 h-4 w-4" />
             Crear Solicitud de Compra
@@ -170,7 +211,10 @@ export default function ComprasPage() {
               title="Sin solicitudes de compra"
               description="Crea una OC con descripción, proveedor, cantidad y valor."
               actionLabel="+ Crear Solicitud de Compra"
-              onAction={() => setSlideOpen(true)}
+              onAction={() => {
+                setFormError("");
+                setSlideOpen(true);
+              }}
             />
           </div>
         ) : (
@@ -203,8 +247,7 @@ export default function ComprasPage() {
                     </td>
                     <td className="px-4 py-2.5">{r.supplier}</td>
                     <td className="px-4 py-2.5 font-data tabular-nums">
-                      $
-                      {Number(r.amount || 0).toLocaleString("es-CO")}
+                      {formatCop(Number(r.amount || 0))}
                     </td>
                     <td className="px-4 py-2.5">
                       <StatusPulseBadge
@@ -286,6 +329,7 @@ export default function ComprasPage() {
               variant="primary"
               className="w-auto"
               data-testid="compras-submit"
+              disabled={busy}
             >
               Crear solicitud
             </Button>
@@ -297,11 +341,20 @@ export default function ComprasPage() {
           onSubmit={onCreate}
           className="grid gap-3"
         >
+          {formError ? (
+            <p
+              role="alert"
+              className="rounded border border-[var(--brand-signal)]/40 bg-[var(--brand-signal)]/10 px-3 py-2 text-sm text-[var(--brand-signal)]"
+            >
+              {formError}
+            </p>
+          ) : null}
           <label className="text-xs text-slate-400">
             Descripción
             <input
               className="field mt-1 w-full"
-              placeholder="Ej. Filtros de aceite"
+              data-field="text"
+              placeholder="Ej. Compra de botellas de agua"
               data-testid="compras-description"
               value={form.description}
               onChange={(e) =>
@@ -314,6 +367,7 @@ export default function ComprasPage() {
             Proveedor
             <input
               className="field mt-1 w-full"
+              data-field="legalName"
               placeholder="Razón social"
               data-testid="compras-supplier"
               value={form.supplier}
@@ -326,14 +380,16 @@ export default function ComprasPage() {
               Cantidad
               <input
                 className="field mt-1 w-full font-data"
-                type="number"
-                min={1}
-                step={1}
+                data-field="integer"
+                inputMode="numeric"
                 placeholder="1"
                 data-testid="compras-qty"
                 value={form.quantity}
                 onChange={(e) =>
-                  setForm({ ...form, quantity: e.target.value })
+                  setForm({
+                    ...form,
+                    quantity: e.target.value.replace(/\D/g, "").slice(0, 6) || "",
+                  })
                 }
                 required
               />
@@ -342,12 +398,19 @@ export default function ComprasPage() {
               Valor COP
               <input
                 className="field mt-1 w-full font-data"
-                type="number"
-                min={0}
-                placeholder="0"
+                data-field="skip"
+                inputMode="numeric"
+                placeholder="$600.000"
                 data-testid="compras-amount"
-                value={form.amount}
-                onChange={(e) => setForm({ ...form, amount: e.target.value })}
+                value={
+                  form.amount ? formatCop(Number(form.amount)) : ""
+                }
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    amount: e.target.value.replace(/\D/g, "").slice(0, 12),
+                  })
+                }
                 required
               />
             </label>
@@ -370,7 +433,8 @@ export default function ComprasPage() {
             Solicitante (opcional)
             <input
               className="field mt-1 w-full"
-              placeholder="Nombre"
+              data-field="text"
+              placeholder="Área o nombre"
               value={form.requestedBy}
               onChange={(e) =>
                 setForm({ ...form, requestedBy: e.target.value })

@@ -161,7 +161,9 @@ export default function LogisticaConductoresPage() {
     (calendar?.drivers ?? drivers).find((d) => d.id === selectedDriverId) ??
     null;
 
-  const driverRows = calendar?.drivers ?? drivers;
+  const driverRows = drivers.length
+    ? drivers
+    : (calendar?.drivers ?? []);
 
   function shiftMonth(delta: number) {
     setCalMonth((m) => {

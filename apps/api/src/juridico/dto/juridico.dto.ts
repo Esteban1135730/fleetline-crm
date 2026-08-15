@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { Field, FieldOptional } from "@fsg/shared";
 
 export const SmartScanSchema = z.object({
   contractTitle: z.string().min(3).max(200),
@@ -22,21 +23,21 @@ export const SmartScanSchema = z.object({
 export type SmartScanDto = z.infer<typeof SmartScanSchema>;
 
 export const SarlaftConsultaListasSchema = z.object({
-  document: z.string().min(5).max(40),
-  subjectName: z.string().min(2).max(200).optional(),
+  document: Field.document,
+  subjectName: FieldOptional.personName,
   entityType: z
     .enum(["PROPIETARIO", "CLIENTE", "CONDUCTOR", "PROVEEDOR", "OTRO"])
     .optional(),
-  plate: z.string().min(3).max(20).optional(),
+  plate: FieldOptional.plate,
 });
 export type SarlaftConsultaListasDto = z.infer<
   typeof SarlaftConsultaListasSchema
 >;
 
 export const DisciplinaryMemoSchema = z.object({
-  subjectName: z.string().min(2).max(200),
-  document: z.string().min(5).max(40).optional(),
-  plate: z.string().min(3).max(20).optional(),
+  subjectName: Field.personName,
+  document: FieldOptional.document,
+  plate: FieldOptional.plate,
   charge: z.string().min(5).max(2000),
   tripId: z.string().cuid().optional(),
 });

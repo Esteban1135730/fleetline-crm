@@ -72,18 +72,18 @@ export function SlideOverHelp({
             role="dialog"
             aria-modal="true"
             aria-labelledby={titleId}
-            className="absolute inset-y-0 right-0 flex w-full max-w-md flex-col border-l border-slate-800 bg-zinc-950 shadow-2xl"
+            className="absolute inset-y-0 right-0 flex w-full max-w-md flex-col border-l border-[var(--border-subtle)] bg-[var(--bg-surface-1)] shadow-2xl"
           >
-            <header className="flex items-start justify-between gap-3 border-b border-slate-800 px-5 py-4">
+            <header className="flex items-start justify-between gap-3 border-b border-[var(--border-subtle)] px-5 py-4">
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-500">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--accent-primary)]">
                   Protocolo operativo
                 </p>
-                <h2 id={titleId} className="mt-1 text-lg font-semibold text-slate-100">
+                <h2 id={titleId} className="mt-1 text-lg font-semibold text-[var(--text-primary)]">
                   {title}
                 </h2>
                 {summary ? (
-                  <p className="mt-1 text-sm text-slate-400">{summary}</p>
+                  <p className="mt-1 text-sm text-[var(--text-secondary)]">{summary}</p>
                 ) : null}
               </div>
               <Button
@@ -96,14 +96,14 @@ export function SlideOverHelp({
               </Button>
             </header>
             <div className="flex-1 overflow-y-auto px-5 py-4">
-              <ol className="list-decimal space-y-2 pl-4 text-sm text-slate-200">
+              <ol className="list-decimal space-y-2 pl-4 text-sm text-[var(--text-primary)]">
                 {steps.map((s) => (
                   <li key={s} className="leading-relaxed">
                     {s}
                   </li>
                 ))}
               </ol>
-              {children ? <div className="mt-6 border-t border-slate-800 pt-4">{children}</div> : null}
+              {children ? <div className="mt-6 border-t border-[var(--border-subtle)] pt-4">{children}</div> : null}
             </div>
           </aside>
         </div>

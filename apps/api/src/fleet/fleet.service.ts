@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { Injectable, NotFoundException, ConflictException } from "@nestjs/common";
 import { VehicleStatus, WorkOrderStatus } from "@fsg/db";
 import { PrismaService } from "../prisma/prisma.service";
 
@@ -47,6 +47,7 @@ export class FleetService {
     organizationId: string,
     id: string,
     data: {
+      plate?: string;
       brand?: string;
       model?: string;
       year?: number;
@@ -60,9 +61,21 @@ export class FleetService {
       where: { id, organizationId },
     });
     if (!v) throw new NotFoundException("Vehículo no encontrado");
+
+    const plate = data.plate?.trim().toUpperCase();
+    if (plate && plate !== v.plate) {
+      const dup = await this.prisma.vehicle.findFirst({
+        where: { organizationId, plate, NOT: { id } },
+      });
+      if (dup) {
+        throw new ConflictException(`Ya existe una unidad con placa ${plate}`);
+      }
+    }
+
     return this.prisma.vehicle.update({
       where: { id },
       data: {
+        plate: plate || undefined,
         brand: data.brand,
         model: data.model,
         year: data.year,
@@ -74,6 +87,21 @@ export class FleetService {
           : undefined,
       },
     });
+  }
+
+  async deleteVehicle(organizationId: string, id: string) {
+    const v = await this.prisma.vehicle.findFirst({
+      where: { id, organizationId },
+      include: { _count: { select: { trips: true } } },
+    });
+    if (!v) throw new NotFoundException("Vehículo no encontrado");
+    if (v._count.trips > 0) {
+      throw new ConflictException(
+        "No se puede eliminar: la unidad tiene viajes. Corrige la placa con Editar.",
+      );
+    }
+    await this.prisma.vehicle.delete({ where: { id } });
+    return { ok: true, id };
   }
 
   listWorkOrders(organizationId: string) {

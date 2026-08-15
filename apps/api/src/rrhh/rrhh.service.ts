@@ -1,13 +1,15 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { EmployeeStatus } from "@fsg/db";
-import { HARD_RULES } from "@fsg/shared";
+import { HARD_RULES, normalizeRole } from "@fsg/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { FatigueManagementService } from "./fatigue-management.service";
+import { LogisticsService } from "../logistics/logistics.service";
 import type {
   CreateTrainingDto,
   PatchEmployeeDto,
@@ -74,11 +76,17 @@ function fatigueSemaphore(score: number): "GREEN" | "AMBER" | "RED" {
   return "GREEN";
 }
 
+function canManageTenantIdentity(role?: string) {
+  const r = normalizeRole(String(role || ""));
+  return r === "platform_master" || r === "org_admin";
+}
+
 @Injectable()
 export class RrhhService {
   constructor(
     private prisma: PrismaService,
     private fatigue: FatigueManagementService,
+    private logistics: LogisticsService,
   ) {}
 
   async listEmployees(organizationId: string) {
@@ -121,7 +129,12 @@ export class RrhhService {
         data,
         include: { driver: { select: driverSelect } },
       });
-      return mapEmployeeRow(updated);
+      await this.logistics.ensureDriverForEmployee(organizationId, updated);
+      const linked = await this.prisma.employee.findFirst({
+        where: { id: updated.id },
+        include: { driver: { select: driverSelect } },
+      });
+      return mapEmployeeRow(linked ?? updated);
     }
 
     try {
@@ -129,6 +142,14 @@ export class RrhhService {
         data: { ...data, organizationId },
         include: { driver: { select: driverSelect } },
       });
+      if (!created.driverId) {
+        await this.logistics.ensureDriverForEmployee(organizationId, created);
+        const linked = await this.prisma.employee.findFirst({
+          where: { id: created.id },
+          include: { driver: { select: driverSelect } },
+        });
+        if (linked) return mapEmployeeRow(linked);
+      }
       return mapEmployeeRow(created);
     } catch {
       throw new BadRequestException({
@@ -142,11 +163,35 @@ export class RrhhService {
     organizationId: string,
     id: string,
     dto: PatchEmployeeDto,
+    actorRole?: string,
   ) {
     const existing = await this.prisma.employee.findFirst({
       where: { id, organizationId },
     });
     if (!existing) throw new NotFoundException("Expediente no encontrado");
+
+    const canManageIdentity = canManageTenantIdentity(actorRole);
+    if (dto.document !== undefined && !canManageIdentity) {
+      throw new ForbiddenException(
+        "Solo el maestro de plataforma o el admin de la empresa pueden corregir el documento",
+      );
+    }
+
+    if (dto.document) {
+      const clash = await this.prisma.employee.findFirst({
+        where: {
+          organizationId,
+          document: dto.document.trim(),
+          NOT: { id },
+        },
+      });
+      if (clash) {
+        throw new BadRequestException({
+          error: "EMPLOYEE_DOCUMENT_CONFLICT",
+          message: "Ya existe un expediente con ese documento",
+        });
+      }
+    }
 
     if (dto.driverId) {
       const driver = await this.prisma.driver.findFirst({
@@ -155,6 +200,7 @@ export class RrhhService {
       if (!driver) throw new NotFoundException("Conductor no encontrado");
     }
 
+    const nextDocument = dto.document?.trim();
     const updated = await this.prisma.employee.update({
       where: { id },
       data: {
@@ -167,13 +213,47 @@ export class RrhhService {
         hourlyRate: dto.hourlyRate,
         driverId: dto.driverId === undefined ? undefined : dto.driverId,
         fatigueScore: dto.fatigueScore,
+        document: canManageIdentity ? nextDocument : undefined,
         status: dto.status
           ? (dto.status.toUpperCase() as EmployeeStatus)
           : undefined,
       },
       include: { driver: { select: driverSelect } },
     });
-    return mapEmployeeRow(updated);
+
+    if (canManageIdentity && nextDocument && existing.driverId) {
+      await this.prisma.driver.update({
+        where: { id: existing.driverId },
+        data: { document: nextDocument },
+      });
+    }
+
+    await this.logistics.ensureDriverForEmployee(organizationId, updated);
+    const linked = await this.prisma.employee.findFirst({
+      where: { id: updated.id },
+      include: { driver: { select: driverSelect } },
+    });
+    return mapEmployeeRow(linked ?? updated);
+  }
+
+  async deleteEmployee(
+    organizationId: string,
+    id: string,
+    actorRole?: string,
+  ) {
+    if (!canManageTenantIdentity(actorRole)) {
+      throw new ForbiddenException(
+        "Solo el maestro de plataforma o el admin de la empresa pueden eliminar un expediente",
+      );
+    }
+    const existing = await this.prisma.employee.findFirst({
+      where: { id, organizationId },
+    });
+    if (!existing) throw new NotFoundException("Expediente no encontrado");
+
+    await this.prisma.payrollLine.deleteMany({ where: { employeeId: id } });
+    await this.prisma.employee.delete({ where: { id } });
+    return { ok: true as const, id };
   }
 
   fatigueStatus(organizationId: string, driverId: string) {
@@ -340,10 +420,6 @@ export class RrhhService {
   }
 
   listDriversForOps(organizationId: string) {
-    return this.prisma.driver.findMany({
-      where: { organizationId, active: true },
-      select: driverSelect,
-      orderBy: { name: "asc" },
-    });
+    return this.logistics.listDrivers(organizationId);
   }
 }

@@ -38,7 +38,7 @@ type MasterUser = {
 };
 
 export default function PlataformaPage() {
-  const { user, loading } = useAuth();
+  const { user, loading, setActiveOrganization } = useAuth();
   const router = useRouter();
   const [orgs, setOrgs] = useState<OrgRow[]>([]);
   const [users, setUsers] = useState<MasterUser[]>([]);
@@ -153,8 +153,8 @@ export default function PlataformaPage() {
         />
         <HowToBox
           steps={[
-            "Cada empresa es un tenant (organizationId = tenantId).",
-            "Define tope de licencias (maxUsers) al registrar o editar.",
+            "Cada empresa es un tenant. El maestro opera una a la vez desde el selector del encabezado.",
+            "El admin de cada empresa tiene mando total sobre su tenant (usuarios, RRHH, operación).",
             "Suspende tenants o usuarios sin afectar otras flotas.",
           ]}
         />
@@ -167,6 +167,7 @@ export default function PlataformaPage() {
         <input
           className="field"
           placeholder="Razón social"
+          data-field="legalName"
           value={form.organizationName}
           onChange={(e) =>
             setForm((f) => ({ ...f, organizationName: e.target.value }))
@@ -176,6 +177,7 @@ export default function PlataformaPage() {
         <input
           className="field font-data"
           placeholder="NIT"
+          data-field="nit"
           value={form.nit}
           onChange={(e) => setForm((f) => ({ ...f, nit: e.target.value }))}
           required
@@ -192,6 +194,7 @@ export default function PlataformaPage() {
         <input
           className="field"
           placeholder="Nombre Org Admin"
+          data-field="personName"
           value={form.adminName}
           onChange={(e) => setForm((f) => ({ ...f, adminName: e.target.value }))}
           required
@@ -261,6 +264,14 @@ export default function PlataformaPage() {
                 </td>
                 <td className="px-4 py-2.5">
                   <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="primary"
+                      className="w-auto"
+                      onClick={() => setActiveOrganization(o.id, "/usuarios")}
+                    >
+                      Operar
+                    </Button>
                     {o.status === "SUSPENDED" ? (
                       <Button
                         type="button"

@@ -18,6 +18,7 @@ import {
   COMERCIAL_ZONE_SALARY_PER_KM,
   HARD_RULES,
   QUOTE_VEHICLE_COSTS,
+  resolveQuoteVehicleType,
   type QuoteVehicleType,
 } from "@fsg/shared";
 import { PrismaService } from "../../prisma/prisma.service";
@@ -650,7 +651,7 @@ export class DirectorComercialService {
     zone: string,
     vehicleType: QuoteVehicleType,
   ) {
-    const vehicleBase = QUOTE_VEHICLE_COSTS[vehicleType];
+    const vehicleBase = QUOTE_VEHICLE_COSTS[resolveQuoteVehicleType(vehicleType)];
 
     const fuelAgg = await this.prisma.routeExpense.aggregate({
       where: {

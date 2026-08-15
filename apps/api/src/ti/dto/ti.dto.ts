@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { Field, FieldOptional } from "@fsg/shared";
 
 export const SystemLogsQuerySchema = z.object({
   level: z.enum(["DEBUG", "INFO", "WARN", "ERROR"]).optional(),
@@ -34,8 +35,8 @@ export const SynthesizeSchema = z.object({
 export type SynthesizeDto = z.infer<typeof SynthesizeSchema>;
 
 export const OnboardingLinkSchema = z.object({
-  email: z.string().email(),
-  name: z.string().min(2).max(120).optional(),
+  email: Field.email,
+  name: FieldOptional.personName,
   targetRole: z.string().min(2).max(64).optional(),
   ttlMinutes: z.coerce.number().int().positive().max(7 * 24 * 60).optional(),
 });

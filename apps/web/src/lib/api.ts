@@ -1,4 +1,9 @@
 import type { Role } from "@fsg/shared";
+import {
+  MutationCancelled,
+  parseJsonBody,
+  requestMutationConfirm,
+} from "@/lib/mutation-confirm";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -11,13 +16,27 @@ export type AuthUser = {
   /** Alias multi-tenant (= organizationId) */
   tenantId?: string;
   companyId?: string;
+  organizationName?: string;
   directiveReadOnly?: boolean;
   status?: string;
 };
 
+const ACTIVE_ORG_KEY = "fsg_active_org";
+
 function getToken() {
   if (typeof window === "undefined") return null;
   return localStorage.getItem("fsg_token");
+}
+
+export function getActiveOrganizationId(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(ACTIVE_ORG_KEY);
+}
+
+export function setActiveOrganizationId(id: string | null) {
+  if (typeof window === "undefined") return;
+  if (!id) localStorage.removeItem(ACTIVE_ORG_KEY);
+  else localStorage.setItem(ACTIVE_ORG_KEY, id);
 }
 
 export function setSession(token: string, user: AuthUser) {
@@ -28,6 +47,23 @@ export function setSession(token: string, user: AuthUser) {
 export function clearSession() {
   localStorage.removeItem("fsg_token");
   localStorage.removeItem("fsg_user");
+  localStorage.removeItem(ACTIVE_ORG_KEY);
+}
+
+function skipTenantHeader(path: string) {
+  return (
+    path.startsWith("/plataforma") ||
+    path.startsWith("/api/v1/plataforma") ||
+    path.startsWith("/auth/login") ||
+    path.startsWith("/auth/register")
+  );
+}
+
+function tenantHeaderFor(path: string): string | null {
+  if (skipTenantHeader(path)) return null;
+  const stored = getStoredUser();
+  if (stored?.role !== "platform_master") return null;
+  return getActiveOrganizationId() || stored.organizationId || null;
 }
 
 export function getStoredUser(): AuthUser | null {
@@ -78,21 +114,66 @@ function formatApiError(err: unknown, fallback: string): string {
   return fallback;
 }
 
+export type MutationConfirmOptions = {
+  skip?: boolean;
+  title?: string;
+  previous?: Record<string, unknown>;
+  record?: Record<string, unknown>;
+};
+
+export type ApiOptions = RequestInit & {
+  confirm?: MutationConfirmOptions;
+};
+
+const SKIP_CONFIRM_PATH =
+  /notifications|\/health\b|\/auth\/me\b|telemetry|gps|heartbeat|presence|socket/i;
+
+async function confirmMutationIfNeeded(
+  path: string,
+  options: ApiOptions,
+) {
+  const confirm = options.confirm;
+  if (confirm?.skip) return;
+  const method = String(options.method || "GET").toUpperCase();
+  if (method !== "PATCH" && method !== "PUT" && method !== "DELETE") return;
+  if (SKIP_CONFIRM_PATH.test(path)) return;
+  const next = parseJsonBody(options.body);
+  const kind = method === "DELETE" ? "delete" : "edit";
+  const ok = await requestMutationConfirm({
+    kind,
+    title:
+      confirm?.title ||
+      (kind === "delete" ? "Confirmar eliminación" : "Confirmar edición"),
+    previous: confirm?.previous,
+    next: kind === "edit" ? next : undefined,
+    record: confirm?.record || (kind === "delete" ? next || confirm?.previous : undefined),
+    path,
+  });
+  if (!ok) throw new MutationCancelled();
+}
+
 export async function api<T>(
   path: string,
-  options: RequestInit = {},
+  options: ApiOptions = {},
 ): Promise<T> {
+  await confirmMutationIfNeeded(path, options);
+
+  const { confirm: _confirm, ...fetchOptions } = options;
   const token = getToken();
   const headers: HeadersInit = {
-    ...(options.headers || {}),
+    ...(fetchOptions.headers || {}),
   };
   const isForm =
-    typeof FormData !== "undefined" && options.body instanceof FormData;
+    typeof FormData !== "undefined" && fetchOptions.body instanceof FormData;
   if (!isForm) {
     (headers as Record<string, string>)["Content-Type"] = "application/json";
   }
   if (token) {
     (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
+  }
+  const tenantId = tenantHeaderFor(path);
+  if (tenantId) {
+    (headers as Record<string, string>)["X-Organization-Id"] = tenantId;
   }
 
   const controller = new AbortController();
@@ -101,9 +182,9 @@ export async function api<T>(
 
   try {
     const res = await fetch(`${API_URL}${path}`, {
-      ...options,
+      ...fetchOptions,
       headers,
-      signal: options.signal ?? controller.signal,
+      signal: fetchOptions.signal ?? controller.signal,
     });
 
     if (!res.ok) {
@@ -113,6 +194,7 @@ export async function api<T>(
     if (res.status === 204) return undefined as T;
     return res.json() as Promise<T>;
   } catch (err) {
+    if (err instanceof MutationCancelled) throw err;
     if (err instanceof DOMException && err.name === "AbortError") {
       throw new Error("Error de sincronización con la red — uplink timeout");
     }
@@ -123,13 +205,13 @@ export async function api<T>(
 }
 
 export namespace api {
-  export function get<T>(path: string, options?: RequestInit): Promise<T> {
+  export function get<T>(path: string, options?: ApiOptions): Promise<T> {
     return api<T>(path, { ...options, method: "GET" });
   }
   export function post<T>(
     path: string,
     body?: unknown,
-    options?: RequestInit,
+    options?: ApiOptions,
   ): Promise<T> {
     return api<T>(path, {
       ...options,
@@ -152,6 +234,10 @@ export async function apiDownload(
   const headers: HeadersInit = {};
   if (token) {
     (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
+  }
+  const tenantId = tenantHeaderFor(path);
+  if (tenantId) {
+    (headers as Record<string, string>)["X-Organization-Id"] = tenantId;
   }
 
   const res = await fetch(`${API_URL}${path}`, { headers });

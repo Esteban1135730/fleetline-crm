@@ -234,7 +234,7 @@ export function ServicioMapPlanner({
   }
 
   const chrome = showChrome ? (
-    <div className="space-y-3 border-b border-[var(--brand-line)] p-3">
+    <div className="space-y-2 border-b border-[var(--brand-line)] p-2.5">
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
@@ -323,26 +323,10 @@ export function ServicioMapPlanner({
         </ul>
       ) : null}
 
-      <div className="grid gap-2 text-xs md:grid-cols-2">
-        <div className="rounded-md border border-[var(--brand-line)] p-2">
-          <div className="font-data text-[10px] uppercase tracking-[0.1em] text-[var(--brand-amber)]">
-            Origen (A)
-          </div>
-          <div className="mt-1 text-[var(--brand-fg)]">
-            {origin?.label ?? "Sin seleccionar"}
-          </div>
-        </div>
-        <div className="rounded-md border border-[var(--brand-line)] p-2">
-          <div className="font-data text-[10px] uppercase tracking-[0.1em] text-[var(--brand-signal)]">
-            Destino (B)
-          </div>
-          <div className="mt-1 text-[var(--brand-fg)]">
-            {dest?.label ?? "Sin seleccionar"}
-          </div>
-        </div>
-      </div>
-
-      <p className="text-[11px] text-[var(--brand-muted)]">{hint}</p>
+      <p className="text-[11px] text-[var(--brand-muted)]">
+        {origin ? `A · ${origin.label}` : hint}
+        {dest ? ` → B · ${dest.label}` : ""}
+      </p>
       {preview ? (
         <p className="font-data text-xs text-[var(--brand-primary)]">
           Ruta estimada · {preview.distanceKm} km · ~{preview.durationMin} min

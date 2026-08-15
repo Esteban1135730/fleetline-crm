@@ -52,19 +52,19 @@ export const NAV_DEPARTMENTS: NavDepartment[] = [
   AREA(
     "gerencia",
     "/gerencia",
-    "Gerencia General",
+    "Gerencia",
     "Coordinación general de operaciones, metas y seguimiento inter-áreas.",
   ),
   AREA(
     "rrhh",
     "/rrhh",
-    "Recursos Humanos",
+    "RRHH",
     "Personal por área, estado laboral y fatiga operativa.",
   ),
   AREA(
     "revisoria_fiscal",
     "/revisoria-fiscal",
-    "Revisoría Fiscal",
+    "Revisoría",
     "Hallazgos de revisoría fiscal registrados y seguidos en el CRM.",
   ),
   AREA(
@@ -87,19 +87,19 @@ export const NAV_DEPARTMENTS: NavDepartment[] = [
       {
         href: "/logistica/servicios",
         view: "logistica",
-        label: "Programación de Servicios y Tracking GPS",
+        label: "Servicios y GPS",
         tip: "Crear servicios, asignar unidad/conductor y trazar ruta GPS en vivo.",
       },
       {
         href: "/logistica/conductores",
         view: "logistica",
-        label: "Gestión de Conductores y Nómina de Extras",
+        label: "Conductores",
         tip: "Calendario de disponibilidad, relevos PESV y liquidación de extras.",
       },
       {
         href: "/logistica/conductores/reporte-nomina",
         view: "logistica",
-        label: "Reporte Mensual Nómina / Extras",
+        label: "Nómina extras",
         tip: "Consolidado mensual, detalle día a día y exportación Excel/PDF.",
       },
     ],
@@ -137,19 +137,19 @@ export const NAV_DEPARTMENTS: NavDepartment[] = [
   AREA(
     "tecnologia_ti",
     "/ti/dashboard",
-    "Tecnología y TI",
+    "Tecnología",
     "Centro de Control · usuarios · help desk · NOC.",
   ),
   AREA(
     "archivo",
     "/archivo/dashboard",
-    "Archivo y Papelería",
+    "Archivo",
     "Custodia física · papelería · búsqueda universal.",
   ),
   AREA(
     "call_center",
     "/recepcion/dashboard",
-    "Recepción y Call Center",
+    "Recepción",
     "Visitantes en sede y tickets de atención al cliente.",
   ),
   AREA(

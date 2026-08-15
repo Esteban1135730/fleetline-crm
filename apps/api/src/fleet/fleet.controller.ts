@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -46,6 +47,7 @@ export class FleetController {
     @Param("id") id: string,
     @Body()
     body: {
+      plate?: string;
       brand?: string;
       model?: string;
       year?: number;
@@ -56,6 +58,14 @@ export class FleetController {
     },
   ) {
     return this.service.updateVehicle(req.user.organizationId, id, body);
+  }
+
+  @Delete("vehicles/:id")
+  deleteVehicle(
+    @Req() req: { user: { organizationId: string } },
+    @Param("id") id: string,
+  ) {
+    return this.service.deleteVehicle(req.user.organizationId, id);
   }
 
   @Get("work-orders")

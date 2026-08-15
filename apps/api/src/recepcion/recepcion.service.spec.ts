@@ -95,6 +95,11 @@ describe("RecepcionService — Kafka check-in y convert-lead", () => {
             meta: { receptionInbox: true },
           },
         ),
+        create: jest.fn().mockResolvedValue({
+          id: "t-walkin",
+          code: "LEAD-2026-0001",
+          meta: {},
+        }),
         update: jest.fn().mockResolvedValue({}),
         count: jest.fn().mockResolvedValue(0),
       },
@@ -179,5 +184,17 @@ describe("RecepcionService — Kafka check-in y convert-lead", () => {
       "recepcion.lead.converted",
       expect.objectContaining({ ticketId: "t1" }),
     );
+  });
+
+  it("crea Lead presencial sin chat de bandeja", async () => {
+    const { svc, prisma } = buildService();
+    const out = await svc.convertLead("org1", "actor1", {
+      companyName: "Walkin SAS",
+      email: "hola@walkin.co",
+    });
+    expect(prisma.ticket.create).toHaveBeenCalled();
+    expect(out.ticketId).toBe("t-walkin");
+    expect(out.message).toMatch(/Lead presencial/i);
+    expect(out.destination.href).toBe("/comercial");
   });
 });

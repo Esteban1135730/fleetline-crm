@@ -13,7 +13,7 @@ import {
 } from "@nestjs/common";
 import * as bcrypt from "bcryptjs";
 import { AccountType, Role, UserAccountStatus } from "@fsg/db";
-import { normalizeRole } from "@fsg/shared";
+import { Field, FieldOptional, normalizeRole } from "@fsg/shared";
 import { z } from "zod";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { Roles, RolesGuard } from "../auth/roles.guard";
@@ -24,25 +24,25 @@ type AuthReq = {
 };
 
 const CreateOrgSchema = z.object({
-  organizationName: z.string().min(2),
-  nit: z.string().min(3),
-  adminName: z.string().min(2),
-  adminEmail: z.string().email(),
-  adminPassword: z.string().min(8),
-  maxUsers: z.number().int().min(1).max(10_000).optional(),
+  organizationName: Field.legalName,
+  nit: Field.nit,
+  adminName: Field.personName,
+  adminEmail: Field.email,
+  adminPassword: Field.password,
+  maxUsers: z.coerce.number().int().min(1).max(10_000).optional(),
 });
 
 const PatchOrgSchema = z.object({
-  name: z.string().min(2).optional(),
-  maxUsers: z.number().int().min(1).max(10_000).optional(),
+  name: Field.legalName.optional(),
+  maxUsers: z.coerce.number().int().min(1).max(10_000).optional(),
   status: z.enum(["ACTIVE", "SUSPENDED", "TRIAL"]).optional(),
-  suspendedReason: z.string().max(500).optional(),
+  suspendedReason: FieldOptional.notes,
 });
 
 const PatchUserSchema = z.object({
   active: z.boolean().optional(),
   status: z.enum(["PENDING", "ACTIVE", "REJECTED"]).optional(),
-  name: z.string().min(2).optional(),
+  name: Field.personName.optional(),
   role: z.string().optional(),
 });
 

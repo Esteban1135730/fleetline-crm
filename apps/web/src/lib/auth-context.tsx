@@ -13,10 +13,19 @@ import { ROLE_VIEWS, normalizeRole, resolveModuleId, type Role } from "@fsg/shar
 import {
   api,
   clearSession,
+  getActiveOrganizationId,
   getStoredUser,
+  setActiveOrganizationId,
   setSession,
   type AuthUser,
 } from "@/lib/api";
+
+export type TenantOrg = {
+  id: string;
+  name: string;
+  nit: string;
+  status: string;
+};
 
 type AuthContextValue = {
   user: AuthUser | null;
@@ -33,6 +42,9 @@ type AuthContextValue = {
   /** Primera ruta permitida según el rol del usuario */
   homePath: string;
   canAccess: (view: string) => boolean;
+  organizations: TenantOrg[];
+  activeOrganizationId: string | null;
+  setActiveOrganization: (id: string, href?: string) => void;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -125,6 +137,10 @@ export function homePathForRole(role: Role | string): string {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [organizations, setOrganizations] = useState<TenantOrg[]>([]);
+  const [activeOrganizationId, setActiveOrgState] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -133,6 +149,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       return;
     }
+    setActiveOrgState(
+      getActiveOrganizationId() || stored.organizationId || null,
+    );
 
     const safety = window.setTimeout(() => {
       if (!cancelled) {
@@ -147,6 +166,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (cancelled) return;
         setUser(me);
         localStorage.setItem("fsg_user", JSON.stringify(me));
+        if (!getActiveOrganizationId()) {
+          setActiveOrgState(me.organizationId);
+        }
       })
       .catch(() => {
         if (cancelled) return;
@@ -164,6 +186,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  useEffect(() => {
+    if (!user || user.role !== "platform_master") {
+      setOrganizations([]);
+      return;
+    }
+    let cancelled = false;
+    api<TenantOrg[]>("/plataforma/organizations")
+      .then((rows) => {
+        if (cancelled) return;
+        setOrganizations(rows);
+        const current = getActiveOrganizationId();
+        if (current && !rows.some((o) => o.id === current)) {
+          setActiveOrganizationId(user.organizationId);
+          setActiveOrgState(user.organizationId);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setOrganizations([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
   const login = useCallback(async (email: string, password: string) => {
     const res = await api<{ accessToken: string; user: AuthUser }>(
       "/auth/login",
@@ -174,6 +220,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
     setSession(res.accessToken, res.user);
     setUser(res.user);
+    setActiveOrganizationId(res.user.organizationId);
+    setActiveOrgState(res.user.organizationId);
     return res.user;
   }, []);
 
@@ -194,6 +242,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       );
       setSession(res.accessToken, res.user);
       setUser(res.user);
+      setActiveOrganizationId(res.user.organizationId);
+      setActiveOrgState(res.user.organizationId);
       return res.user;
     },
     [],
@@ -202,6 +252,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(() => {
     clearSession();
     setUser(null);
+    setOrganizations([]);
+    setActiveOrgState(null);
+  }, []);
+
+  const setActiveOrganization = useCallback((id: string, href?: string) => {
+    if (!id) return;
+    const same = id === getActiveOrganizationId();
+    setActiveOrganizationId(id);
+    setActiveOrgState(id);
+    if (href) {
+      window.location.assign(href);
+      return;
+    }
+    if (!same) window.location.reload();
   }, []);
 
   const homePath = user ? homePathForRole(user.role) : "/login";
@@ -218,8 +282,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo(
-    () => ({ user, loading, login, register, logout, homePath, canAccess }),
-    [user, loading, login, register, logout, homePath, canAccess],
+    () => ({
+      user,
+      loading,
+      login,
+      register,
+      logout,
+      homePath,
+      canAccess,
+      organizations,
+      activeOrganizationId,
+      setActiveOrganization,
+    }),
+    [
+      user,
+      loading,
+      login,
+      register,
+      logout,
+      homePath,
+      canAccess,
+      organizations,
+      activeOrganizationId,
+      setActiveOrganization,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -228,5 +314,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error("useAuth must be used within AuthProvider");
-  return ctx;
+  return {
+    ...ctx,
+    organizations: ctx.organizations ?? [],
+    activeOrganizationId: ctx.activeOrganizationId ?? null,
+    setActiveOrganization: ctx.setActiveOrganization ?? (() => undefined),
+  };
 }

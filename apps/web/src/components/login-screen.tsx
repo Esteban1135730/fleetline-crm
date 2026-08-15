@@ -131,6 +131,7 @@ export function LoginScreen() {
               id="nodeEmail"
               className="login-field border border-gray-700 bg-[color-mix(in_srgb,var(--surface)_105%,white)]"
               type="email"
+              data-field="email"
               placeholder={AUTH_COPY.nodeEmailPlaceholder}
               value={email}
               onChange={(e) => {

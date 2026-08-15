@@ -181,10 +181,24 @@ export class RecepcionService {
       `[RECEPCION] check-in ${visitor.name} class=${visitClass} badge=${visitor.badgeRfid || "—"}`,
     );
 
+    const destination =
+      visitClass === VisitClass.DRIVER_CANDIDATE
+        ? { area: "Recursos Humanos", href: "/rrhh" }
+        : visitClass === VisitClass.SUPPLIER
+          ? { area: "Compras / Taller", href: "/compras" }
+          : visitClass === VisitClass.B2B_MEETING
+            ? { area: "Comercial", href: "/comercial" }
+            : { area: "Anfitrión / Recepción", href: "/recepcion/dashboard" };
+
     return {
       ...visitor,
       pass: { passCode, qrPayload },
       kafkaEvents: ["visitor.checked_in", "frontdesk.visitor.cleared"],
+      destination: {
+        board: "Smart Visitor Board",
+        notifiedArea: destination.area,
+        href: destination.href,
+      },
     };
   }
 
@@ -328,10 +342,44 @@ export class RecepcionService {
     actorUserId: string,
     dto: ConvertLeadDto,
   ) {
-    const ticket = await this.prisma.ticket.findFirst({
-      where: { id: dto.ticketId, organizationId },
-    });
-    if (!ticket) throw new NotFoundException("Chat/ticket no encontrado");
+    let ticket = dto.ticketId
+      ? await this.prisma.ticket.findFirst({
+          where: { id: dto.ticketId, organizationId },
+        })
+      : null;
+    if (dto.ticketId && !ticket) {
+      throw new NotFoundException("Chat/ticket no encontrado");
+    }
+    if (!ticket) {
+      const year = new Date().getFullYear();
+      const count = await this.prisma.ticket.count({
+        where: {
+          organizationId,
+          createdAt: { gte: new Date(`${year}-01-01`) },
+        },
+      });
+      const code = `LEAD-${year}-${String(count + 1).padStart(4, "0")}`;
+      ticket = await this.prisma.ticket.create({
+        data: {
+          organizationId,
+          code,
+          subject: `Lead presencial: ${dto.companyName.trim()}`,
+          requester: dto.companyName.trim(),
+          message:
+            dto.notes?.trim() ||
+            "Lead walk-in registrado en recepción (sin chat omnicanal).",
+          channel: TicketChannel.PRESENCIAL,
+          status: TicketStatus.OPEN,
+          priority: TicketPriority.MEDIUM,
+          meta: {
+            source: "recepcion_walkin_lead",
+            receptionInbox: false,
+            assignedAwayFromReception: true,
+            createdBy: actorUserId,
+          },
+        },
+      });
+    }
 
     const nit =
       dto.nit?.trim() ||
@@ -463,7 +511,14 @@ export class RecepcionService {
       ticketId: ticket.id,
       assignedAwayFromReception: true,
       dailyLeadMetrics: dailyLeads,
-      message: "Chat convertido a Lead · asignado a gestor comercial",
+      destination: {
+        area: "Comercial",
+        href: "/comercial",
+        label: `Cotización ${quote.code}`,
+      },
+      message: dto.ticketId
+        ? "Chat convertido a Lead · asignado a gestor comercial"
+        : "Lead presencial creado · asignado a gestor comercial",
     };
   }
 
@@ -509,6 +564,7 @@ export class RecepcionService {
           createdBy: actorUserId,
           notifyTorre: true,
           notifyQhse: true,
+          receptionInbox: false,
         },
       },
     });
@@ -544,7 +600,14 @@ export class RecepcionService {
       payload: { ticketId: ticket.id },
     });
 
-    return ticket;
+    return {
+      ...ticket,
+      destination: {
+        area: "QHSE / Torre de Control",
+        href: "/qhse/dashboard",
+        label: ticket.code,
+      },
+    };
   }
 
   async dailyMetrics(organizationId: string) {

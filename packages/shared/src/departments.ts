@@ -180,7 +180,9 @@ export const EMPLOYEE_TITLES = [
   "Auditor control interno",
   "Presidente / CEO",
   "Gestor vinculaciones",
+  "Director de recursos humanos",
   "Director comercial",
+  "Gestor comercial",
   "Ejecutivo de ventas",
   "Coordinador comercial",
   "Gerente general",
@@ -196,6 +198,7 @@ export const EMPLOYEE_TITLES = [
   "Monitora escolar",
   "Analista",
   "Auxiliar administrativo",
+  "Aprendiz SENA",
   "Otro",
 ] as const;
 

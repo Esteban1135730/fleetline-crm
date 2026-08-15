@@ -107,7 +107,7 @@ export default function DirectorComercialDashboardPage() {
       }>("/api/v1/comercial/director/cotizar", {
         accountName: accountName || "Cuenta B2B Demo",
         zone,
-        vehicleType: "BUS_ESCOLAR",
+        vehicleType: "BUS",
         distanceKm: 45,
         proposedRatePerKm: Number(rate) || undefined,
         discountPct: Number(discount) || 0,

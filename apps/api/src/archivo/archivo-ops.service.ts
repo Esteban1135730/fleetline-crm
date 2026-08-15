@@ -230,63 +230,258 @@ export class ArchivoOpsService {
     const term = q.trim();
     if (term.length < 2) return [];
 
-    const docs = await this.prisma.archiveDocument.findMany({
-      where: {
-        organizationId,
-        deletedAt: null,
-        OR: [
-          { plate: { contains: term, mode: "insensitive" } },
-          { taxIdOrDocument: { contains: term, mode: "insensitive" } },
-          { title: { contains: term, mode: "insensitive" } },
-          { tags: { has: term } },
-          { entityId: { contains: term, mode: "insensitive" } },
-        ],
-      },
-      orderBy: { updatedAt: "desc" },
-      take: 40,
-      select: {
-        id: true,
-        title: true,
-        plate: true,
-        taxIdOrDocument: true,
-        fileRef: true,
-        contentHash: true,
-        aisle: true,
-        shelf: true,
-        box: true,
-        custodyStatus: true,
-        pendingDigitization: true,
-        docType: true,
-        category: true,
-        vehicleId: true,
-        driverId: true,
-        entityType: true,
-        entityId: true,
-        updatedAt: true,
-      },
-    });
+    const digits = term.replace(/\D+/g, "");
+    const plateKey = term.replace(/[\s-]/g, "").toUpperCase();
+    const nameTerm = term;
 
-    return docs.map((d) => ({
-      id: d.id,
-      title: d.title,
-      plate: d.plate,
-      documentNumber: d.taxIdOrDocument,
-      digitalPdf: d.fileRef,
-      contentHash: d.contentHash,
-      locationLabel: this.formatLocation(d.aisle, d.shelf, d.box),
-      aisle: d.aisle,
-      shelf: d.shelf,
-      box: d.box,
-      custodyStatus: d.custodyStatus,
-      pendingDigitization: d.pendingDigitization,
-      docType: d.docType,
-      category: d.category,
-      vehicleId: d.vehicleId,
-      driverId: d.driverId,
-      entityType: d.entityType,
-      entityId: d.entityId,
-      updatedAt: d.updatedAt.toISOString(),
-    }));
+    const [docs, vehicles, drivers, employees, customers] = await Promise.all([
+      this.prisma.archiveDocument.findMany({
+        where: {
+          organizationId,
+          deletedAt: null,
+          OR: [
+            { plate: { contains: term, mode: "insensitive" } },
+            { taxIdOrDocument: { contains: term, mode: "insensitive" } },
+            ...(digits.length >= 4
+              ? [
+                  {
+                    taxIdOrDocument: {
+                      contains: digits,
+                      mode: "insensitive" as const,
+                    },
+                  },
+                ]
+              : []),
+            { title: { contains: term, mode: "insensitive" } },
+            { tags: { has: term } },
+            { entityId: { contains: term, mode: "insensitive" } },
+          ],
+        },
+        orderBy: { updatedAt: "desc" },
+        take: 20,
+        select: {
+          id: true,
+          title: true,
+          plate: true,
+          taxIdOrDocument: true,
+          fileRef: true,
+          contentHash: true,
+          aisle: true,
+          shelf: true,
+          box: true,
+          custodyStatus: true,
+          pendingDigitization: true,
+          docType: true,
+          category: true,
+          vehicleId: true,
+          driverId: true,
+          entityType: true,
+          entityId: true,
+          updatedAt: true,
+        },
+      }),
+      this.prisma.vehicle.findMany({
+        where: {
+          organizationId,
+          OR: [
+            { plate: { contains: term, mode: "insensitive" } },
+            { plate: { contains: plateKey, mode: "insensitive" } },
+            { brand: { contains: nameTerm, mode: "insensitive" } },
+            { model: { contains: nameTerm, mode: "insensitive" } },
+          ],
+        },
+        orderBy: { plate: "asc" },
+        take: 12,
+        select: {
+          id: true,
+          plate: true,
+          brand: true,
+          model: true,
+          status: true,
+        },
+      }),
+      this.prisma.driver.findMany({
+        where: {
+          organizationId,
+          OR: [
+            { document: { contains: term } },
+            ...(digits.length >= 4 ? [{ document: { contains: digits } }] : []),
+            { name: { contains: nameTerm, mode: "insensitive" } },
+          ],
+        },
+        orderBy: { name: "asc" },
+        take: 12,
+        select: { id: true, name: true, document: true, active: true },
+      }),
+      this.prisma.employee.findMany({
+        where: {
+          organizationId,
+          OR: [
+            { document: { contains: term } },
+            ...(digits.length >= 4 ? [{ document: { contains: digits } }] : []),
+            { name: { contains: nameTerm, mode: "insensitive" } },
+          ],
+        },
+        orderBy: { name: "asc" },
+        take: 12,
+        select: {
+          id: true,
+          name: true,
+          document: true,
+          title: true,
+          area: true,
+          driverId: true,
+        },
+      }),
+      this.prisma.customer.findMany({
+        where: {
+          organizationId,
+          OR: [
+            { nit: { contains: term, mode: "insensitive" } },
+            ...(digits.length >= 4
+              ? [{ nit: { contains: digits, mode: "insensitive" as const } }]
+              : []),
+            { name: { contains: nameTerm, mode: "insensitive" } },
+          ],
+        },
+        orderBy: { name: "asc" },
+        take: 8,
+        select: { id: true, name: true, nit: true, segment: true },
+      }),
+    ]);
+
+    const linkedDriverIds = new Set(
+      employees.map((e) => e.driverId).filter((id): id is string => Boolean(id)),
+    );
+
+    type Hit = {
+      kind: "document" | "vehicle" | "driver" | "employee" | "customer";
+      id: string;
+      title: string;
+      plate: string | null;
+      documentNumber: string | null;
+      digitalPdf: string | null;
+      contentHash: string | null;
+      locationLabel: string | null;
+      custodyStatus: string;
+      pendingDigitization: boolean;
+      docType: string;
+      category?: string | null;
+      vehicleId: string | null;
+      driverId: string | null;
+      entityType: string | null;
+      entityId: string | null;
+      updatedAt?: string;
+    };
+
+    const hits: Hit[] = [];
+
+    for (const v of vehicles) {
+      hits.push({
+        kind: "vehicle",
+        id: v.id,
+        title: `${v.plate} — ${v.brand} ${v.model}`.trim(),
+        plate: v.plate,
+        documentNumber: null,
+        digitalPdf: null,
+        contentHash: null,
+        locationLabel: v.status,
+        custodyStatus: "AVAILABLE",
+        pendingDigitization: false,
+        docType: "UNIDAD",
+        vehicleId: v.id,
+        driverId: null,
+        entityType: "VEHICLE",
+        entityId: v.id,
+      });
+    }
+
+    for (const d of drivers) {
+      hits.push({
+        kind: "driver",
+        id: d.id,
+        title: d.name,
+        plate: null,
+        documentNumber: d.document,
+        digitalPdf: null,
+        contentHash: null,
+        locationLabel: d.active ? "Activo" : "Inactivo",
+        custodyStatus: "AVAILABLE",
+        pendingDigitization: false,
+        docType: "CONDUCTOR",
+        vehicleId: null,
+        driverId: d.id,
+        entityType: "DRIVER",
+        entityId: d.id,
+      });
+    }
+
+    for (const e of employees) {
+      if (e.driverId && linkedDriverIds.has(e.driverId)) {
+        if (drivers.some((d) => d.id === e.driverId)) continue;
+      }
+      hits.push({
+        kind: "employee",
+        id: e.id,
+        title: e.name,
+        plate: null,
+        documentNumber: e.document,
+        digitalPdf: null,
+        contentHash: null,
+        locationLabel: [e.title, e.area].filter(Boolean).join(" · ") || null,
+        custodyStatus: "AVAILABLE",
+        pendingDigitization: false,
+        docType: "PERSONAL",
+        vehicleId: null,
+        driverId: e.driverId,
+        entityType: "EMPLOYEE",
+        entityId: e.id,
+      });
+    }
+
+    for (const c of customers) {
+      hits.push({
+        kind: "customer",
+        id: c.id,
+        title: c.name,
+        plate: null,
+        documentNumber: c.nit,
+        digitalPdf: null,
+        contentHash: null,
+        locationLabel: c.segment,
+        custodyStatus: "AVAILABLE",
+        pendingDigitization: false,
+        docType: "CLIENTE",
+        vehicleId: null,
+        driverId: null,
+        entityType: "CUSTOMER",
+        entityId: c.id,
+      });
+    }
+
+    for (const d of docs) {
+      hits.push({
+        kind: "document",
+        id: d.id,
+        title: d.title,
+        plate: d.plate,
+        documentNumber: d.taxIdOrDocument,
+        digitalPdf: d.fileRef,
+        contentHash: d.contentHash,
+        locationLabel: this.formatLocation(d.aisle, d.shelf, d.box),
+        custodyStatus: d.custodyStatus,
+        pendingDigitization: d.pendingDigitization,
+        docType: d.docType,
+        category: d.category,
+        vehicleId: d.vehicleId,
+        driverId: d.driverId,
+        entityType: d.entityType,
+        entityId: d.entityId,
+        updatedAt: d.updatedAt.toISOString(),
+      });
+    }
+
+    return hits.slice(0, 40);
   }
 
   async dashboard(organizationId: string) {

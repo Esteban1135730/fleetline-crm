@@ -59,43 +59,146 @@ const EMPTY_FORM = {
   notes: "",
 };
 
+const EMPTY_ALTA = {
+  plate: "",
+  brand: "",
+  model: "",
+  year: String(new Date().getFullYear()),
+};
+
+function asVehicleList(raw: unknown): Vehicle[] {
+  if (Array.isArray(raw)) return raw as Vehicle[];
+  if (raw && typeof raw === "object" && Array.isArray((raw as { items?: unknown }).items)) {
+    return (raw as { items: Vehicle[] }).items;
+  }
+  return [];
+}
+
 export default function TramitesPage() {
   const [rows, setRows] = useState<Procedure[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [matrix, setMatrix] = useState<FleetMatrix | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [alta, setAlta] = useState(EMPTY_ALTA);
+  const [showAlta, setShowAlta] = useState(false);
   const [fleetTab, setFleetTab] = useState<"all" | "route" | "alerts">("all");
   const [fleetQuery, setFleetQuery] = useState("");
+  const [loadError, setLoadError] = useState("");
+  const [formError, setFormError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function loadFleetUnits(): Promise<Vehicle[]> {
+    try {
+      const v = await api<unknown>("/tramites/vehicles");
+      const list = asVehicleList(v);
+      if (list.length) return list;
+    } catch {
+      /* fallback a flota / matriz */
+    }
+    try {
+      const v = await api<unknown>("/fleet/vehicles");
+      const list = asVehicleList(v);
+      if (list.length) return list;
+    } catch {
+      /* matriz como última fuente */
+    }
+    return [];
+  }
 
   async function load() {
-    const [p, v, m] = await Promise.all([
+    setLoadError("");
+    const [p, v, m] = await Promise.allSettled([
       api<Procedure[]>("/tramites/procedures"),
-      api<Vehicle[]>("/fleet/vehicles"),
+      loadFleetUnits(),
       api<FleetMatrix>("/tramites/fleet-matrix"),
     ]);
-    setRows(p);
-    setVehicles(v);
-    setMatrix(m);
-    if (!form.vehicleId && v[0]) {
-      setForm((f) => ({ ...f, vehicleId: v[0].id }));
+    const errors: string[] = [];
+    if (p.status === "fulfilled") setRows(Array.isArray(p.value) ? p.value : []);
+    else errors.push(p.reason instanceof Error ? p.reason.message : "Trámites no disponibles");
+
+    let fleet: Vehicle[] = v.status === "fulfilled" ? v.value : [];
+    if (m.status === "fulfilled") {
+      setMatrix(m.value);
+      if (!fleet.length && m.value?.vehicles?.length) {
+        fleet = m.value.vehicles.map((row) => ({
+          id: row.vehicleId,
+          plate: row.plate,
+          brand: "",
+          model: "",
+        }));
+      }
+    } else {
+      errors.push(
+        m.reason instanceof Error ? m.reason.message : "Semáforo de flota no disponible",
+      );
     }
+    setVehicles(fleet);
+    if (errors.length) setLoadError(errors.join(" · "));
   }
 
   useEffect(() => {
-    void load().catch(console.error);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    void load().catch((e) =>
+      setLoadError(e instanceof Error ? e.message : "Uplink fallido"),
+    );
   }, []);
+
+  function openForm() {
+    setFormError("");
+    setForm(EMPTY_FORM);
+    setAlta(EMPTY_ALTA);
+    setShowAlta(vehicles.length === 0);
+    setFormOpen(true);
+  }
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
-    await api("/tramites/procedures", {
-      method: "POST",
-      body: JSON.stringify(form),
-    });
-    setForm((f) => ({ ...f, reference: "", notes: "", validTo: "" }));
-    setFormOpen(false);
-    await load();
+    setFormError("");
+    setBusy(true);
+    try {
+      let vehicleId = form.vehicleId;
+      if (!vehicleId) {
+        const plate = alta.plate.trim();
+        if (!plate) {
+          setFormError("Seleccione una placa o matricule la unidad");
+          return;
+        }
+        const created = await api<Vehicle>("/tramites/vehicles", {
+          method: "POST",
+          body: JSON.stringify({
+            plate,
+            brand: alta.brand.trim() || "N/D",
+            model: alta.model.trim() || "N/D",
+            year: Number(alta.year) || new Date().getFullYear(),
+          }),
+        });
+        vehicleId = created.id;
+      }
+      if (!form.validTo) {
+        setFormError("Indique la vigencia del documento");
+        return;
+      }
+      await api("/tramites/procedures", {
+        method: "POST",
+        body: JSON.stringify({
+          vehicleId,
+          type: form.type,
+          reference: form.reference,
+          validTo: form.validTo,
+          notes: form.notes,
+        }),
+      });
+      setForm(EMPTY_FORM);
+      setAlta(EMPTY_ALTA);
+      setFormOpen(false);
+      await load();
+    } catch (err) {
+      setFormError(
+        err instanceof Error ? err.message : "No se pudo registrar el trámite",
+      );
+    } finally {
+      setBusy(false);
+    }
   }
 
   const filteredFleet = useMemo(() => {
@@ -130,19 +233,19 @@ export default function TramitesPage() {
             type="button"
             variant="primary"
             className="w-auto px-4 py-2"
-            onClick={() => {
-              setForm((f) => ({
-                ...f,
-                vehicleId: f.vehicleId || vehicles[0]?.id || "",
-              }));
-              setFormOpen(true);
-            }}
+            onClick={openForm}
           >
             <Plus className="mr-1.5 inline h-4 w-4" aria-hidden />
             Nuevo Trámite
           </Button>
         }
       />
+
+      {loadError ? (
+        <p className="rounded-lg border border-[var(--accent-alert)]/40 bg-[var(--accent-alert)]/10 px-3 py-2 text-sm text-[var(--accent-alert)]">
+          {loadError}
+        </p>
+      ) : null}
 
       {matrix ? (
         <div className="grid gap-3 sm:grid-cols-3">
@@ -219,8 +322,18 @@ export default function TramitesPage() {
             <div className="p-4">
               <EmptyState
                 icon={<FileCheck className="h-7 w-7" />}
-                title="Sin unidades en filtro"
-                description="Ajuste pestaña o búsqueda de placa."
+                title={
+                  vehicles.length === 0
+                    ? "Sin unidades matriculadas"
+                    : "Sin unidades en filtro"
+                }
+                description={
+                  vehicles.length === 0
+                    ? "Matricule una placa desde Nuevo trámite para indexar SOAT, tecnomecánica o TO."
+                    : "Ajuste pestaña o búsqueda de placa."
+                }
+                actionLabel="+ Nuevo Trámite"
+                onAction={openForm}
               />
             </div>
           ) : (
@@ -279,7 +392,7 @@ export default function TramitesPage() {
           title="Sin trámites registrados"
           description="Indexe SOAT, tecnomecánica o tarjeta de operación."
           actionLabel="+ Nuevo Trámite"
-          onAction={() => setFormOpen(true)}
+          onAction={openForm}
         />
       ) : (
         <div className="fsg-panel data-shell overflow-hidden">
@@ -408,30 +521,109 @@ export default function TramitesPage() {
               form="tramite-form"
               variant="primary"
               className="w-auto px-4 py-2"
+              disabled={busy}
             >
-              Registrar
+              {busy ? "Registrando…" : "Registrar"}
             </Button>
           </>
         }
       >
         <form id="tramite-form" onSubmit={onCreate} className="space-y-4">
+          {formError ? (
+            <p className="rounded-md border border-[var(--accent-alert)]/40 bg-[var(--accent-alert)]/10 px-3 py-2 text-xs text-[var(--accent-alert)]">
+              {formError}
+            </p>
+          ) : null}
           <label className="block space-y-1.5">
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
               Vehículo
             </span>
             <select
-              className="field w-full"
+              className="field w-full font-data"
               value={form.vehicleId}
-              onChange={(e) => setForm({ ...form, vehicleId: e.target.value })}
-              required
+              onChange={(e) => {
+                const id = e.target.value;
+                if (id === "__alta__") {
+                  setShowAlta(true);
+                  setForm({ ...form, vehicleId: "" });
+                  return;
+                }
+                setShowAlta(false);
+                setForm({ ...form, vehicleId: id });
+              }}
+              required={vehicles.length > 0 && !showAlta}
             >
+              <option value="">
+                {vehicles.length
+                  ? "Seleccione placa…"
+                  : "Sin unidades — matricule abajo"}
+              </option>
               {vehicles.map((v) => (
                 <option key={v.id} value={v.id}>
-                  {v.plate} — {v.brand} {v.model}
+                  {v.plate}
+                  {v.brand || v.model ? ` — ${v.brand} ${v.model}`.trim() : ""}
                 </option>
               ))}
+              <option value="__alta__">+ Matricular unidad nueva</option>
             </select>
           </label>
+          {showAlta || vehicles.length === 0 ? (
+            <div className="grid grid-cols-2 gap-3 rounded-lg border border-[var(--border-subtle)] p-3">
+              <label className="col-span-2 block space-y-1.5">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Placa
+                </span>
+                <input
+                  className="field w-full font-data"
+                  data-field="skip"
+                  placeholder="ABC-123"
+                  value={alta.plate}
+                  onChange={(e) =>
+                    setAlta({ ...alta, plate: e.target.value.toUpperCase() })
+                  }
+                  required={!form.vehicleId}
+                />
+              </label>
+              <label className="block space-y-1.5">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Marca
+                </span>
+                <input
+                  className="field w-full"
+                  data-field="skip"
+                  placeholder="Chevrolet"
+                  value={alta.brand}
+                  onChange={(e) => setAlta({ ...alta, brand: e.target.value })}
+                  required={!form.vehicleId}
+                />
+              </label>
+              <label className="block space-y-1.5">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Modelo
+                </span>
+                <input
+                  className="field w-full"
+                  data-field="skip"
+                  placeholder="NPR"
+                  value={alta.model}
+                  onChange={(e) => setAlta({ ...alta, model: e.target.value })}
+                  required={!form.vehicleId}
+                />
+              </label>
+              <label className="col-span-2 block space-y-1.5">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Año
+                </span>
+                <input
+                  className="field w-full font-data"
+                  data-field="skip"
+                  inputMode="numeric"
+                  value={alta.year}
+                  onChange={(e) => setAlta({ ...alta, year: e.target.value })}
+                />
+              </label>
+            </div>
+          ) : null}
           <label className="block space-y-1.5">
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
               Tipo
@@ -454,6 +646,7 @@ export default function TramitesPage() {
             </span>
             <input
               className="field w-full"
+              data-field="skip"
               value={form.reference}
               onChange={(e) => setForm({ ...form, reference: e.target.value })}
             />
@@ -474,8 +667,9 @@ export default function TramitesPage() {
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
               Notas
             </span>
-            <input
-              className="field w-full"
+            <textarea
+              className="field w-full min-h-[72px]"
+              data-field="notes"
               value={form.notes}
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
             />

@@ -1,21 +1,21 @@
 import { z } from "zod";
-import { HARD_RULES } from "@fsg/shared";
+import { Field, FieldOptional, HARD_RULES } from "@fsg/shared";
 import { ComplianceDocType, DocStatus, VehicleStatus } from "@fsg/db";
 
 export const PortalLinkSchema = z.object({
-  ownerName: z.string().min(2),
-  ownerDocument: z.string().min(5),
-  ownerEmail: z.string().email().optional(),
-  ownerPhone: z.string().optional(),
-  plate: z.string().optional(),
+  ownerName: Field.personName,
+  ownerDocument: Field.document,
+  ownerEmail: FieldOptional.email,
+  ownerPhone: FieldOptional.phone,
+  plate: FieldOptional.plate,
   /** horas de vigencia del link */
   ttlHours: z.coerce.number().int().min(1).max(168).optional().default(72),
 });
 export type PortalLinkDto = z.infer<typeof PortalLinkSchema>;
 
 export const BackgroundCheckSchema = z.object({
-  document: z.string().min(5),
-  driverName: z.string().optional(),
+  document: Field.document,
+  driverName: FieldOptional.personName,
   driverId: z.string().optional(),
 });
 export type BackgroundCheckDto = z.infer<typeof BackgroundCheckSchema>;

@@ -139,10 +139,16 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
   const enableWebPush = useCallback(async () => {
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) {
-      return { ok: false, message: "Este navegador no soporta Service Worker" };
+      return {
+        ok: false,
+        message: "Este navegador no permite avisos en segundo plano",
+      };
     }
     if (!("PushManager" in window)) {
-      return { ok: false, message: "Este navegador no soporta Web Push" };
+      return {
+        ok: false,
+        message: "Este navegador no permite avisos emergentes",
+      };
     }
     try {
       const { publicKey } = await api<{ publicKey: string | null }>(
@@ -151,13 +157,15 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       if (!publicKey) {
         return {
           ok: false,
-          message:
-            "Web Push listo en cliente — configura VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY en el API",
+          message: "Los avisos aún no están disponibles. Contacta a TI.",
         };
       }
       const perm = await Notification.requestPermission();
       if (perm !== "granted") {
-        return { ok: false, message: "Permiso de notificaciones denegado" };
+        return {
+          ok: false,
+          message: "No se dio permiso para mostrar avisos",
+        };
       }
       const reg = await navigator.serviceWorker.ready;
       const sub = await reg.pushManager.subscribe({
@@ -173,11 +181,12 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
           userAgent: navigator.userAgent,
         }),
       });
-      return { ok: true, message: "Web Push activado" };
+      return { ok: true, message: "Avisos activados" };
     } catch (e) {
       return {
         ok: false,
-        message: e instanceof Error ? e.message : "No se pudo activar Web Push",
+        message:
+          e instanceof Error ? e.message : "No se pudieron activar los avisos",
       };
     }
   }, []);

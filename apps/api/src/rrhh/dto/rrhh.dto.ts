@@ -1,20 +1,21 @@
 import { z } from "zod";
+import { Field, FieldOptional } from "@fsg/shared";
 
 export const UpsertEmployeeSchema = z
   .object({
     id: z.string().min(1).optional(),
-    name: z.string().min(2),
-    document: z.string().min(3),
+    name: Field.personName,
+    document: Field.document,
     /** Canónico Prisma */
     title: z.string().min(1).optional(),
     /** Alias UI legado */
     position: z.string().min(1).optional(),
     area: z.string().min(1),
     status: z.enum(["ACTIVE", "VACATION", "MEDICAL", "INACTIVE"]).optional(),
-    baseSalary: z.coerce.number().nonnegative().optional(),
-    hourlyRate: z.coerce.number().nonnegative().optional(),
-    email: z.string().email().optional().nullable(),
-    phone: z.string().optional().nullable(),
+    baseSalary: Field.money.optional(),
+    hourlyRate: Field.money.optional(),
+    email: FieldOptional.email,
+    phone: FieldOptional.phone,
     driverId: z.string().min(1).optional().nullable(),
   })
   .transform((v) => ({
@@ -34,17 +35,18 @@ export type UpsertEmployeeDto = z.infer<typeof UpsertEmployeeSchema>;
 
 export const PatchEmployeeSchema = z
   .object({
-    name: z.string().min(2).optional(),
+    name: Field.personName.optional(),
     title: z.string().min(1).optional(),
     position: z.string().min(1).optional(),
     area: z.string().min(1).optional(),
     status: z.enum(["ACTIVE", "VACATION", "MEDICAL", "INACTIVE"]).optional(),
-    baseSalary: z.coerce.number().nonnegative().optional(),
-    hourlyRate: z.coerce.number().nonnegative().optional(),
-    email: z.string().email().optional().nullable(),
-    phone: z.string().optional().nullable(),
+    baseSalary: Field.money.optional(),
+    hourlyRate: Field.money.optional(),
+    email: z.union([Field.email, z.null()]).optional(),
+    phone: z.union([Field.phone, z.null()]).optional(),
     driverId: z.string().min(1).optional().nullable(),
-    fatigueScore: z.coerce.number().int().nonnegative().optional(),
+    fatigueScore: Field.integer.nonnegative().optional(),
+    document: Field.document.optional(),
   })
   .transform((v) => ({
     ...v,

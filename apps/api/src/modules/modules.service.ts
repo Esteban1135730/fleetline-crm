@@ -1,4 +1,4 @@
-import { createHash } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import { readFile } from "fs/promises";
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import {
@@ -249,18 +249,32 @@ export class ModulesService {
   async createQuality(
     organizationId: string,
     data: {
-      type: string;
-      title: string;
+      type?: string;
+      title?: string;
       description?: string;
       score?: number;
     },
   ) {
+    const kind = String(data.type || "INCIDENT").trim().toUpperCase() || "INCIDENT";
+    const title = String(data.title || data.description || "").trim();
+    if (title.length < 3) {
+      throw new BadRequestException(
+        "Indique la descripción del reporte QHSE (mínimo 3 caracteres)",
+      );
+    }
+    const scoreRaw = data.score;
+    const npsScore =
+      kind === "NPS" && scoreRaw != null && Number.isFinite(Number(scoreRaw))
+        ? Math.max(0, Math.min(10, Math.round(Number(scoreRaw))))
+        : null;
+
     const created = await this.prisma.qualityEvent.create({
       data: {
         organizationId,
-        kind: data.type,
-        title: data.title,
-        npsScore: data.score ?? null,
+        kind,
+        title,
+        npsScore,
+        status: "OPEN",
       },
     });
     return this.mapQualityRow(created);
@@ -373,11 +387,63 @@ export class ModulesService {
   }
 
   // —— SARLAFT ——
-  listSarlaft(organizationId: string) {
-    return this.prisma.sarlaftCheck.findMany({
+  private async loadSarlaftEvidenceRows(
+    organizationId: string,
+    checkId?: string,
+  ) {
+    type Row = {
+      id: string;
+      checkId: string;
+      source: string;
+      title: string;
+      fileRef: string | null;
+      originalName: string | null;
+      createdAt: Date;
+    };
+    try {
+      if (checkId) {
+        return await this.prisma.$queryRaw<Row[]>`
+          SELECT id, "checkId", source::text AS source, title, "fileRef",
+                 "originalName", "createdAt"
+          FROM "SarlaftEvidence"
+          WHERE "organizationId" = ${organizationId} AND "checkId" = ${checkId}
+          ORDER BY "createdAt" DESC
+        `;
+      }
+      return await this.prisma.$queryRaw<Row[]>`
+        SELECT id, "checkId", source::text AS source, title, "fileRef",
+               "originalName", "createdAt"
+        FROM "SarlaftEvidence"
+        WHERE "organizationId" = ${organizationId}
+        ORDER BY "createdAt" DESC
+      `;
+    } catch {
+      return [] as Row[];
+    }
+  }
+
+  async listSarlaft(organizationId: string) {
+    const rows = await this.prisma.sarlaftCheck.findMany({
       where: { organizationId },
       include: { customer: { select: { name: true } } },
       orderBy: { createdAt: "desc" },
+    });
+    const evidenceRows = await this.loadSarlaftEvidenceRows(organizationId);
+    const byCheck = new Map<string, typeof evidenceRows>();
+    for (const ev of evidenceRows) {
+      const list = byCheck.get(ev.checkId) ?? [];
+      list.push(ev);
+      byCheck.set(ev.checkId, list);
+    }
+    return rows.map((r) => {
+      const evidences = byCheck.get(r.id) ?? [];
+      return {
+        ...r,
+        subjectDoc: r.document,
+        checkedAt: r.createdAt.toISOString(),
+        evidences,
+        evidenceCount: evidences.length,
+      };
     });
   }
 
@@ -394,17 +460,25 @@ export class ModulesService {
     if (!data.subjectName?.trim() || !data.subjectDoc?.trim()) {
       throw new BadRequestException("SARLAFT requiere subjectName y subjectDoc");
     }
-    return this.prisma.sarlaftCheck.create({
-      data: {
-        organizationId,
-        subjectName: data.subjectName,
-        document: data.subjectDoc,
-        risk: (data.risk as SarlaftRisk) || SarlaftRisk.LOW,
-        notes: data.notes,
-        customerId: data.customerId,
-      },
-      include: { customer: { select: { name: true } } },
-    });
+    return this.prisma.sarlaftCheck
+      .create({
+        data: {
+          organizationId,
+          subjectName: data.subjectName,
+          document: data.subjectDoc,
+          risk: (data.risk as SarlaftRisk) || SarlaftRisk.LOW,
+          notes: data.notes,
+          customerId: data.customerId,
+        },
+        include: { customer: { select: { name: true } } },
+      })
+      .then((r) => ({
+        ...r,
+        subjectDoc: r.document,
+        checkedAt: r.createdAt.toISOString(),
+        evidences: [],
+        evidenceCount: 0,
+      }));
   }
 
   async updateSarlaft(
@@ -425,6 +499,110 @@ export class ModulesService {
       },
       include: { customer: { select: { name: true } } },
     });
+  }
+
+  async listSarlaftEvidence(organizationId: string, checkId: string) {
+    const check = await this.prisma.sarlaftCheck.findFirst({
+      where: { id: checkId, organizationId },
+      select: { id: true },
+    });
+    if (!check) throw new NotFoundException("Consulta SARLAFT no encontrada");
+    return this.loadSarlaftEvidenceRows(organizationId, checkId);
+  }
+
+  async createSarlaftEvidence(
+    organizationId: string,
+    checkId: string,
+    data: {
+      source: string;
+      title: string;
+      storedName: string;
+      originalName: string;
+      mimeType?: string;
+      absolutePath: string;
+      byteSize?: number;
+    },
+    actorUserId?: string,
+  ) {
+    const check = await this.prisma.sarlaftCheck.findFirst({
+      where: { id: checkId, organizationId },
+      select: { id: true },
+    });
+    if (!check) throw new NotFoundException("Consulta SARLAFT no encontrada");
+
+    const allowed = [
+      "POLICIA",
+      "PROCURADURIA",
+      "REGISTRADURIA",
+      "ANTECEDENTES",
+      "LISTAS",
+      "OTHER",
+    ];
+    const source = allowed.includes(data.source) ? data.source : "OTHER";
+
+    let contentHash: string | null = null;
+    try {
+      const buf = await readFile(data.absolutePath);
+      contentHash = this.sha256Hex(buf);
+    } catch {
+      throw new BadRequestException(
+        "Fallo de sellado criptográfico — reintentar uplink",
+      );
+    }
+
+    const id = randomUUID().replace(/-/g, "").slice(0, 24);
+    const title = data.title || data.originalName;
+    const fileRef = `/uploads/${data.storedName}`;
+
+    await this.prisma.$executeRaw`
+      INSERT INTO "SarlaftEvidence" (
+        id, "checkId", source, title, "fileRef", "originalName",
+        "mimeType", "byteSize", "contentHash", "uploadedById",
+        "organizationId", "createdAt"
+      ) VALUES (
+        ${id},
+        ${checkId},
+        ${source}::"SarlaftEvidenceSource",
+        ${title},
+        ${fileRef},
+        ${data.originalName},
+        ${data.mimeType ?? null},
+        ${data.byteSize ?? null},
+        ${contentHash},
+        ${actorUserId ?? null},
+        ${organizationId},
+        NOW()
+      )
+    `;
+
+    await this.prisma.auditLog.create({
+      data: {
+        action: "SARLAFT_EVIDENCE",
+        entity: "SarlaftEvidence",
+        entityId: id,
+        userId: actorUserId,
+        meta: {
+          organizationId,
+          checkId,
+          source,
+          title,
+          contentHash,
+        },
+      },
+    });
+
+    return {
+      id,
+      checkId,
+      source,
+      title,
+      fileRef,
+      originalName: data.originalName,
+      mimeType: data.mimeType ?? null,
+      byteSize: data.byteSize ?? null,
+      contentHash,
+      createdAt: new Date().toISOString(),
+    };
   }
 
   // —— Archivo ——
@@ -743,11 +921,24 @@ export class ModulesService {
   }
 
   // —— Revisoría ——
-  listForensic(organizationId: string) {
-    return this.prisma.forensicFinding.findMany({
+  private serializeFinding<
+    T extends { amount?: { toString(): string } | number | null },
+  >(row: T) {
+    return {
+      ...row,
+      amount:
+        row.amount == null || row.amount === undefined
+          ? null
+          : Number(row.amount),
+    };
+  }
+
+  async listForensic(organizationId: string) {
+    const rows = await this.prisma.forensicFinding.findMany({
       where: { organizationId },
       orderBy: { createdAt: "desc" },
     });
+    return rows.map((row) => this.serializeFinding(row));
   }
 
   async createForensic(
@@ -762,7 +953,7 @@ export class ModulesService {
     const count = await this.prisma.forensicFinding.count({
       where: { organizationId },
     });
-    return this.prisma.forensicFinding.create({
+    const created = await this.prisma.forensicFinding.create({
       data: {
         organizationId,
         code: `RF-${String(count + 1).padStart(3, "0")}`,
@@ -772,6 +963,7 @@ export class ModulesService {
         amount: data.amount,
       },
     });
+    return this.serializeFinding(created);
   }
 
   async updateForensic(
@@ -783,10 +975,11 @@ export class ModulesService {
       where: { id, organizationId },
     });
     if (!f) throw new NotFoundException();
-    return this.prisma.forensicFinding.update({
+    const updated = await this.prisma.forensicFinding.update({
       where: { id },
       data,
     });
+    return this.serializeFinding(updated);
   }
 
   async createAlert(

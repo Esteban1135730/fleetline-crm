@@ -634,6 +634,16 @@ enum SarlaftEntityType {
   THIRD_PARTY
 }
 
+/// Fuente de evidencia de debida diligencia SARLAFT
+enum SarlaftEvidenceSource {
+  POLICIA
+  PROCURADURIA
+  REGISTRADURIA
+  ANTECEDENTES
+  LISTAS
+  OTHER
+}
+
 enum SarlaftAlertStatus {
   PENDING
   UNDER_REVIEW
@@ -859,6 +869,7 @@ model Organization {
   qualityEvents      QualityEvent[]
   fuecDocuments      FuecDocument[]
   sarlaftChecks      SarlaftCheck[]
+  sarlaftEvidences   SarlaftEvidence[]
   archiveDocuments   ArchiveDocument[]
   visitors           Visitor[]
   systemAlerts       SystemAlert[]
@@ -1011,6 +1022,7 @@ model User {
   disbursedPayments  PaymentSchedule[]    @relation("PaymentDisburser")
   rodamientoLiquidations RodamientoLiquidation[] @relation("RodamientoLiquidator")
   sarlaftResolutions SarlaftCheck[] @relation("SarlaftResolver")
+  sarlaftEvidenceUploads SarlaftEvidence[] @relation("SarlaftEvidenceUploader")
   notifications      UserNotification[]
   webPushSubscriptions WebPushSubscription[]
   devicePushTokens   DevicePushToken[]
@@ -3404,6 +3416,7 @@ model DianEmission {
 
 model ForensicFinding {
   id             String       @id @default(cuid())
+  code           String
   title          String
   severity       String
   detail         String
@@ -3414,6 +3427,7 @@ model ForensicFinding {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
+  @@unique([organizationId, code])
   @@index([organizationId, status])
   @@index([organizationId, severity])
 }
@@ -3825,6 +3839,7 @@ model SarlaftCheck {
   organization     Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
+  evidences        SarlaftEvidence[]
 
   @@index([organizationId, risk])
   @@index([organizationId, status, createdAt])
@@ -3832,6 +3847,28 @@ model SarlaftCheck {
   @@index([document])
   @@index([customerId])
   @@index([riskScore])
+}
+
+/// Evidencia de consulta SARLAFT (policía, procuraduría, registraduría, antecedentes)
+model SarlaftEvidence {
+  id             String                @id @default(cuid())
+  checkId        String
+  check          SarlaftCheck          @relation(fields: [checkId], references: [id], onDelete: Cascade)
+  source         SarlaftEvidenceSource
+  title          String
+  fileRef        String?
+  originalName   String?
+  mimeType       String?
+  byteSize       Int?
+  contentHash    String?
+  uploadedById   String?
+  uploadedBy     User?                 @relation("SarlaftEvidenceUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+  organizationId String
+  organization   Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime              @default(now())
+
+  @@index([checkId, createdAt])
+  @@index([organizationId, source])
 }
 
 model ArchiveDocument {

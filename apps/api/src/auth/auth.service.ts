@@ -26,6 +26,7 @@ export class AuthService {
     organizationId: string;
     directiveReadOnly?: boolean;
     status?: UserAccountStatus;
+    organization?: { name: string } | null;
   }) {
     return {
       id: user.id,
@@ -36,6 +37,7 @@ export class AuthService {
       organizationId: user.organizationId,
       tenantId: user.organizationId,
       companyId: user.organizationId,
+      organizationName: user.organization?.name,
       directiveReadOnly: Boolean(user.directiveReadOnly),
       status: String(user.status ?? UserAccountStatus.ACTIVE).toLowerCase(),
     };
@@ -85,7 +87,10 @@ export class AuthService {
   }
 
   async me(userId: string) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { organization: true },
+    });
     if (!user || !user.active) throw new UnauthorizedException();
     if (
       user.status === UserAccountStatus.PENDING ||
@@ -133,8 +138,8 @@ export class AuthService {
     currentPassword: string,
     newPassword: string,
   ) {
-    if (!newPassword || newPassword.length < 6) {
-      throw new BadRequestException("La nueva clave debe tener al menos 6 caracteres");
+    if (!newPassword || newPassword.length < 8) {
+      throw new BadRequestException("La nueva clave debe tener al menos 8 caracteres");
     }
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user || !user.active) throw new UnauthorizedException();
@@ -232,7 +237,10 @@ export class AuthService {
 
     return {
       accessToken: await this.jwt.signAsync(payload),
-      user: this.toPublicUser(result.admin),
+      user: this.toPublicUser({
+        ...result.admin,
+        organization: result.org,
+      }),
       organization: {
         id: result.org.id,
         name: result.org.name,
