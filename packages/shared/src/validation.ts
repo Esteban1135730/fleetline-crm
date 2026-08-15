@@ -89,7 +89,7 @@ export function sanitizeUnknown(value: unknown, keyHint = "", depth = 0): unknow
     return value;
   }
   if (typeof value === "boolean" || value == null) return value;
-  if (typeof Buffer !== "undefined" && Buffer.isBuffer(value)) return value;
+  if (value instanceof Uint8Array) return value;
   if (Array.isArray(value)) {
     return value.slice(0, 500).map((item) => sanitizeUnknown(item, keyHint, depth + 1));
   }
