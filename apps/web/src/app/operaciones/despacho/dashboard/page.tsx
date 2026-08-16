@@ -75,7 +75,7 @@ export default function DespachoDashboardPage() {
       }`;
       setDash(await api<Dash>(path));
     } catch (e) {
-      setError((e as Error).message || "Señal perdida — reintentando uplink");
+      setError((e as Error).message || "Señal perdida — reintentando conexión");
     }
   }, [customerId, vehicleType]);
 
@@ -148,7 +148,7 @@ export default function DespachoDashboardPage() {
 
   return (
     <div className="fade-in mx-auto max-w-[1600px] space-y-6">
-      <PageIntro module="logistica" title="Micro-Dispatch 4.0" />
+      <PageIntro module="logistica" title="Microdespacho" />
       <HowToBox
         steps={[
           "Triple candado: Tarjeta de Operación + Extintor + Fatiga < 30 / descanso ≥ 8h.",
@@ -175,7 +175,7 @@ export default function DespachoDashboardPage() {
         <Badge tone="amber">
           Descanso ≥ {dash?.rules.minLegalRestHours ?? 8}h
         </Badge>
-        <Badge tone="emerald">Ack App {dash?.stats.ackRate ?? 0}%</Badge>
+        <Badge tone="emerald">Acuse de app {dash?.stats.ackRate ?? 0}%</Badge>
       </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[240px_1fr]">
@@ -238,7 +238,7 @@ export default function DespachoDashboardPage() {
         <section id="gantt" className="fsg-panel p-4">
           <header className="mb-4">
             <h3 className="font-display text-lg text-[var(--text-primary)]">
-              Gantt diario horizontal
+              Cronograma diario
             </h3>
             <p className="text-sm text-[var(--text-secondary)]">
               Velocidad táctica · por vehículo
@@ -294,7 +294,7 @@ export default function DespachoDashboardPage() {
       <section id="relevo" className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="fsg-panel overflow-hidden">
           <header className="border-b border-[var(--border-subtle)] px-4 py-3">
-            <h3 className="font-display text-base">Monitor estado App</h3>
+            <h3 className="font-display text-base">Monitor de estado de la app</h3>
             <p className="text-xs text-[var(--text-secondary)]">
               Confirmación de lectura del itinerario
             </p>

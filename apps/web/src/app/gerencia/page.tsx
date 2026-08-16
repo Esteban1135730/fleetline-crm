@@ -6,13 +6,13 @@ export default function GerenciaPage() {
   return (
     <AreaCockpitShell
       module="gerencia"
-      title="Cockpit de Gerencia General"
-      statusLine="System Status: Nominal — coordinación inter-áreas"
+      title="Tablero de Gerencia General"
+      statusLine="Estado del sistema: nominal — coordinación entre áreas"
       kpis={[
         {
           label: "Viajes en curso",
           value: "—",
-          hint: "Señal Live Telemetry",
+          hint: "Señal de telemetría en vivo",
           accent: "emerald",
         },
         {

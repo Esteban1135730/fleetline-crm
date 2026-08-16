@@ -101,7 +101,7 @@ export const DEPARTMENTS: Department[] = [
   },
   {
     id: "call_center",
-    label: "Call Center",
+    label: "Centro de llamadas",
     subAreas: ["Tickets", "WhatsApp", "Correo", "Teléfono"],
     modules: ["call_center"],
   },
@@ -130,7 +130,7 @@ export const EMPLOYEE_AREAS = [
   "Presidencia",
   "Gerencia",
   "Subgerencia",
-  "Recepción / Call Center",
+  "Recepción / Centro de llamadas",
   "Tecnología / TI",
   "Archivo",
   "Contabilidad",
@@ -154,7 +154,7 @@ export const EMPLOYEE_AREAS = [
   "Trámites",
   // Legado (expedientes históricos)
   "Operaciones",
-  "Call Center",
+  "Centro de llamadas",
   "HSQE / Calidad",
   "Recursos Humanos",
   "Parqueadero",
@@ -164,21 +164,21 @@ export type EmployeeArea = (typeof EMPLOYEE_AREAS)[number];
 
 /** Cargos tipificados para alta de expediente (campo Cargo) */
 export const EMPLOYEE_TITLES = [
-  "Recepcionista / Concierge",
+  "Recepcionista",
   "Líder TI",
   "Gestor documental",
   "Auxiliar contable",
   "Gestor contable",
   "Tesorero",
-  "Director financiero (CFO)",
-  "Líder QHSE",
+  "Director financiero",
+  "Líder de calidad y SST",
   "Líder Compras",
   "Director operativo",
   "Gestor operativo / Despacho",
   "Coordinador de campo",
   "Operador centro de control",
   "Auditor control interno",
-  "Presidente / CEO",
+  "Presidente",
   "Gestor vinculaciones",
   "Director de recursos humanos",
   "Director comercial",
@@ -216,7 +216,7 @@ export const EMPLOYEE_AREA_GROUPS: ReadonlyArray<{
   {
     label: "Soporte corporativo",
     areas: [
-      "Recepción / Call Center",
+      "Recepción / Centro de llamadas",
       "Tecnología / TI",
       "Archivo",
       "Vinculaciones / RRHH",
@@ -243,18 +243,18 @@ export const EMPLOYEE_AREA_GROUPS: ReadonlyArray<{
     ],
   },
   {
-    label: "Comercial & Legal",
+    label: "Comercial y jurídico",
     areas: ["Comercial", "Jurídico", "Revisoría Fiscal"],
   },
   {
-    label: "Mantenimiento & Patio",
+    label: "Mantenimiento y patio",
     areas: ["Taller", "Almacén Taller", "Parqueadero / Patio"],
   },
   {
     label: "Legado (expedientes previos)",
     areas: [
       "Operaciones",
-      "Call Center",
+      "Centro de llamadas",
       "HSQE / Calidad",
       "Recursos Humanos",
       "Parqueadero",

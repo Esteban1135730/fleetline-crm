@@ -196,7 +196,7 @@ export async function api<T>(
   } catch (err) {
     if (err instanceof MutationCancelled) throw err;
     if (err instanceof DOMException && err.name === "AbortError") {
-      throw new Error("Error de sincronización con la red — uplink timeout");
+      throw new Error("Error de sincronización con la red — tiempo de espera agotado");
     }
     throw err;
   } finally {

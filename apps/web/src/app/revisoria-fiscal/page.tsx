@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Button } from "@fsg/ui";
 import { ClipboardList, Plus } from "lucide-react";
 import { api } from "@/lib/api";
+import { statusEs } from "@fsg/shared";
 import {
   EmptyState,
   EvidenceDropzone,
@@ -186,7 +187,7 @@ export default function RevisoriaPage() {
                       tone={statusTone(r.status)}
                       pulse={r.status === "OPEN"}
                     >
-                      {r.status}
+                      {statusEs(r.status)}
                     </StatusPulseBadge>
                   </td>
                   <td className="px-4 py-2.5">

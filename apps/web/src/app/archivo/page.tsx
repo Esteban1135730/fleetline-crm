@@ -90,7 +90,7 @@ export default function ArchivoPage() {
         });
         setStatusMsg(
           sealed.contentHash
-            ? `DOCUMENTO SELLADO · HASH NOMINAL · ${shortHash(sealed.contentHash)}`
+            ? `DOCUMENTO SELLADO · SELLO NOMINAL · ${shortHash(sealed.contentHash)}`
             : "DOCUMENTO INDEXADO",
         );
       } else {
@@ -106,7 +106,7 @@ export default function ArchivoPage() {
       setUploadOpen(false);
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Fallo de uplink — archivo");
+      setError(err instanceof Error ? err.message : "Fallo de conexión — archivo");
     }
   }
 
@@ -118,7 +118,7 @@ export default function ArchivoPage() {
     <div className="fade-in mx-auto max-w-[1600px] space-y-6">
       <PageIntro
         module="archivo"
-        title="Archivo / Data Room"
+        title="Archivo / Sala documental"
         action={
           <Button
             type="button"

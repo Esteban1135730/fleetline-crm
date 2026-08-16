@@ -6,13 +6,13 @@ export default function PresidenciaPage() {
   return (
     <AreaCockpitShell
       module="presidencia"
-      title="Cockpit de Presidencia"
-      statusLine="System Status: Nominal — gobierno corporativo"
+      title="Tablero de Presidencia"
+      statusLine="Estado del sistema: nominal — gobierno corporativo"
       kpis={[
         {
           label: "Directivas activas",
           value: "—",
-          hint: "Instrumentación Phase 2",
+          hint: "Instrumentación fase 2",
           accent: "emerald",
         },
         {

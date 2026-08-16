@@ -57,7 +57,7 @@ export default function DashboardPage() {
   useEffect(() => {
     api<Metrics>("/dashboard/metrics")
       .then(setM)
-      .catch((e) => setError(e instanceof Error ? e.message : "Error de uplink"));
+      .catch((e) => setError(e instanceof Error ? e.message : "Error de conexión"));
   }, []);
 
   const alertas = m ? m.bloqueosHoy + m.novedades : 0;
@@ -70,7 +70,7 @@ export default function DashboardPage() {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="font-data text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-primary)]">
-              Clean Cockpit · {user ? ROLE_LABELS[user.role] : "—"}
+              Tablero operativo · {user ? ROLE_LABELS[user.role] : "—"}
             </p>
             <h1 className="mt-2 font-display text-2xl font-bold tracking-tight text-[var(--text-primary)] sm:text-3xl">
               Hola {firstName}, este es el estado operativo de hoy
@@ -84,8 +84,8 @@ export default function DashboardPage() {
               type="button"
               className="flt-help-btn"
               onClick={() => setHelpOpen(true)}
-              title="Cómo leer el cockpit"
-              aria-label="Cómo leer el cockpit"
+              title="Cómo leer el tablero"
+              aria-label="Cómo leer el tablero"
             >
               ?
             </button>
@@ -101,7 +101,7 @@ export default function DashboardPage() {
         <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div
             className="flt-kpi-giant flt-kpi-giant--ok"
-            title="Viajes en ASSIGNED o IN_TRANSIT ahora mismo"
+            title="Viajes asignados o en ruta ahora mismo"
           >
             <p className="flt-kpi-giant-label">Viajes activos</p>
             <p className="flt-kpi-giant-value font-data">{m.viajesActivos}</p>
@@ -175,7 +175,7 @@ export default function DashboardPage() {
               Tesorería
             </Link>
           </Tooltip>
-          <Tooltip content="Ir al Data Room: documentos con hash SHA-256">
+          <Tooltip content="Ir a la sala documental: documentos con sello digital">
             <Link
               href="/archivo"
               className="text-[var(--accent-primary)] underline-offset-2 hover:underline"

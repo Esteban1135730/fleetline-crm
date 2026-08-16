@@ -91,7 +91,7 @@ export default function GerenciaDashboardPage() {
       }
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Uplink fallido");
+      setError(e instanceof Error ? e.message : "Conexión fallida");
     }
   }, []);
 
@@ -162,7 +162,7 @@ export default function GerenciaDashboardPage() {
       setMsg(`${res.status}: ${res.message}`);
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Override fallido");
+      setError(e instanceof Error ? e.message : "Excepción fallida");
     } finally {
       setBusy(false);
     }
@@ -288,7 +288,7 @@ export default function GerenciaDashboardPage() {
               </p>
             </div>
             <div className="rounded-lg border border-[var(--fl-border)] p-2">
-              <p className="text-[var(--fl-subtext)]">Deals abiertos</p>
+              <p className="text-[var(--fl-subtext)]">Oportunidades abiertas</p>
               <p className="font-mono text-lg text-[var(--fl-text)]">
                 {dash?.scorecard.perspectives.customer.openDeals ?? 0}
               </p>
@@ -324,7 +324,7 @@ export default function GerenciaDashboardPage() {
           </h2>
           <div className="flex flex-wrap gap-3">
             <div className="rounded-lg border border-[var(--fl-border)] p-3">
-              <p className="text-xs text-[var(--fl-subtext)]">NPS VIP</p>
+              <p className="text-xs text-[var(--fl-subtext)]">Satisfacción VIP</p>
               <p className="font-mono text-2xl text-[var(--fl-text)]">
                 {dash?.riskRadar.vipNps ?? "—"}
               </p>
@@ -380,7 +380,7 @@ export default function GerenciaDashboardPage() {
         className="rounded-xl border border-[var(--fl-border)] bg-[var(--fl-surface)] p-5"
       >
         <h2 className="text-sm font-semibold text-[var(--fl-text)]">
-          Directorio de Comando · War Room
+          Directorio de comando · Sala de crisis
         </h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {(dash?.commandDirectory ?? []).map((d) => (

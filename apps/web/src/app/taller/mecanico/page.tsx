@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
 import { api } from "@/lib/api";
+import { statusEs } from "@fsg/shared";
 import { HowToBox, PageIntro } from "@/components/page-intro";
 
 type Order = {
@@ -28,7 +29,7 @@ export default function MecanicoTechAppPage() {
       setOrders(rows);
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Uplink fallido");
+      setError(e instanceof Error ? e.message : "Conexión fallida");
     }
   }, []);
 
@@ -52,7 +53,7 @@ export default function MecanicoTechAppPage() {
       setActiveId(running ? null : workOrderId);
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Timer fallido");
+      setError(e instanceof Error ? e.message : "Cronómetro fallido");
     } finally {
       setBusy(false);
     }
@@ -81,7 +82,7 @@ export default function MecanicoTechAppPage() {
 
   return (
     <div className="mx-auto max-w-lg space-y-6 px-2 py-4">
-      <PageIntro module="taller" title="FSG Tech App" />
+      <PageIntro module="taller" title="App del mecánico" />
       <HowToBox
         steps={[
           "Modo Grease-Proof: botones grandes, alto contraste.",
@@ -119,7 +120,7 @@ export default function MecanicoTechAppPage() {
                     {o.code} · {o.bayCode ?? "—"}
                   </p>
                 </div>
-                <Badge tone={running ? "amber" : "slate"}>{o.status}</Badge>
+                <Badge tone={running ? "amber" : "slate"}>{statusEs(o.status)}</Badge>
               </div>
               <p className="mt-3 text-base text-[var(--fl-text)]">
                 {o.description}

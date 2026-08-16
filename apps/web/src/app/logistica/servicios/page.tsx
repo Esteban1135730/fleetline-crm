@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { Button } from "@fsg/ui";
 import { Bell, MapPin, Plus, Radio } from "lucide-react";
 import { api } from "@/lib/api";
+import { statusEs } from "@fsg/shared";
 import { PageIntro } from "@/components/page-intro";
 import {
   EmptyState,
@@ -30,7 +31,7 @@ const ServicioMapPlanner = dynamic(
     ssr: false,
     loading: () => (
       <div className="flex h-full items-center justify-center bg-[#0A0D14] text-sm text-[var(--brand-muted)]">
-        Cargando uplink cartográfico…
+        Cargando mapa…
       </div>
     ),
   },
@@ -123,7 +124,7 @@ export default function LogisticaServiciosPage() {
 
   useEffect(() => {
     void Promise.all([loadServicios(), loadPool(), loadClock()]).catch((e) =>
-      setError(e instanceof Error ? e.message : "Uplink fallido"),
+      setError(e instanceof Error ? e.message : "Conexión fallida"),
     );
     const t = setInterval(() => void loadClock(), 1000);
     return () => clearInterval(t);
@@ -163,7 +164,7 @@ export default function LogisticaServiciosPage() {
         if (alive) setTracking(t);
       } catch (e) {
         if (alive)
-          setError(e instanceof Error ? e.message : "Tracking fallido");
+          setError(e instanceof Error ? e.message : "Seguimiento fallido");
       }
     };
     void pull();
@@ -256,7 +257,7 @@ export default function LogisticaServiciosPage() {
           vehicleId: assignVehicleId,
         }),
       });
-      setStatusMsg("Servicio asignado — checklist normativo OK");
+      setStatusMsg("Servicio asignado — lista normativa correcta");
       setAssignDriverId("");
       setAssignVehicleId("");
       await loadServicios();
@@ -310,7 +311,7 @@ export default function LogisticaServiciosPage() {
     >
       <PageIntro
         module="logistica"
-        title="Programación de Servicios y Tracking GPS"
+        title="Programación de servicios y seguimiento GPS"
         action={
           <div className="flex items-center gap-2">
             <ServerClockBadge clock={clock} />
@@ -439,7 +440,7 @@ export default function LogisticaServiciosPage() {
                             }
                             pulse={s.status === "IN_TRANSIT"}
                           >
-                            {s.status}
+                            {statusEs(s.status)}
                           </StatusPulseBadge>
                         </div>
                         <p className="mt-1 text-sm">
@@ -660,7 +661,7 @@ export default function LogisticaServiciosPage() {
                   disabled={!canConfirm}
                 >
                   {form.driverId || form.vehicleId
-                    ? "Crear (asigna si checklist OK)"
+                    ? "Crear (asigna si la lista normativa está correcta)"
                     : "Crear sin asignación"}
                 </Button>
               </div>
@@ -721,7 +722,7 @@ export default function LogisticaServiciosPage() {
             <div className="fsg-panel max-h-[120px] shrink-0 overflow-auto p-3">
               <p className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--brand-muted)]">
                 <Radio className="h-3 w-3" />
-                Audit log
+                Bitácora de seguimiento
               </p>
               <ul className="space-y-1 font-data text-[11px]">
                 {tracking.audit.map((a) => (
@@ -776,7 +777,7 @@ export default function LogisticaServiciosPage() {
         open={deviationsOpen}
         onClose={() => setDeviationsOpen(false)}
         title="Desviaciones pendientes"
-        description="ACEPTAR autoriza tracking / extras; CANCELAR restaura estado previo."
+        description="ACEPTAR autoriza seguimiento / extras; CANCELAR restaura el estado previo."
         widthClass="max-w-lg"
       >
         <SupervisorDeviationsPanel

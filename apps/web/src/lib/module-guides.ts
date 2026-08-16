@@ -24,10 +24,10 @@ export const MODULE_GUIDES: Partial<Record<ModuleId | "cuenta", ModuleGuide>> =
   {
     plataforma: {
       title: "Consola maestro",
-      summary: "Alta de empresas y Org Admin por organización.",
+      summary: "Alta de empresas y administrador por organización.",
       steps: [
-        "Registre la empresa con NIT único y datos del Org Admin.",
-        "El Org Admin gestiona usuarios de su flota desde Usuarios.",
+        "Registre la empresa con NIT único y datos del administrador.",
+        "El administrador gestiona usuarios de su flota desde Usuarios.",
         "Use el directorio global en Usuarios para auditar todas las cuentas.",
       ],
     },
@@ -114,11 +114,11 @@ export const MODULE_GUIDES: Partial<Record<ModuleId | "cuenta", ModuleGuide>> =
       ],
     },
     qhse: {
-      title: "Cómo operar QHSE",
-      summary: "Calidad, seguridad e incidentes HSQE.",
+      title: "Cómo operar calidad y SST",
+      summary: "Calidad, seguridad e incidentes.",
       steps: [
         "Registre el evento con tipo, severidad y área involucrada.",
-        "Use scores NPS cuando aplique encuesta de servicio.",
+        "Use el puntaje de satisfacción cuando aplique encuesta de servicio.",
         "Escalone incidentes críticos a Gerencia y RRHH.",
       ],
     },
@@ -127,7 +127,7 @@ export const MODULE_GUIDES: Partial<Record<ModuleId | "cuenta", ModuleGuide>> =
       summary: "Listas de riesgo y bloqueo operativo.",
       steps: [
         "Registre el chequeo con documento y nivel de riesgo.",
-        "HIGH/BLOCKED impiden alta de cliente y pago CxP.",
+        "Riesgo alto o bloqueado impide alta de cliente y pago CxP.",
         "Solo roles privilegiados pueden forzar override con auditoría.",
       ],
     },
@@ -142,16 +142,16 @@ export const MODULE_GUIDES: Partial<Record<ModuleId | "cuenta", ModuleGuide>> =
     },
     tecnologia_ti: {
       title: "Cómo operar Tecnología y TI",
-      summary: "NOC, salud de API/DB y alertas.",
+      summary: "Centro de monitoreo, salud de API/base de datos y alertas.",
       steps: [
-        "Verifique ping de API y latencia de base de datos.",
+        "Verifique la conexión de API y la latencia de base de datos.",
         "Revise alertas abiertas y asigne resolución.",
-        "Documente incidentes de uptime para auditoría.",
+        "Documente incidentes de disponibilidad para auditoría.",
       ],
     },
     archivo: {
       title: "Cómo usar Archivo y Papelería",
-      summary: "Data Room con sello SHA-256.",
+      summary: "Sala documental con sello digital.",
       steps: [
         "Suba el archivo: el sistema genera hash de integridad.",
         "Filtre por categoría o busque título, tag o hash.",
@@ -159,12 +159,12 @@ export const MODULE_GUIDES: Partial<Record<ModuleId | "cuenta", ModuleGuide>> =
       ],
     },
     call_center: {
-      title: "Cómo operar Recepción y Call Center",
+      title: "Cómo operar Recepción y centro de llamadas",
       summary: "Visitantes y tickets de atención.",
       steps: [
-        "Alterne las pestañas Call Center / Recepción según el flujo.",
+        "Alterne las pestañas Centro de llamadas / Recepción según el flujo.",
         "Registre tickets con canal, prioridad y agente.",
-        "En recepción, haga check-in y check-out de cada visitante.",
+        "En recepción, registre el ingreso y la salida de cada visitante.",
       ],
     },
     taller: {
@@ -172,7 +172,7 @@ export const MODULE_GUIDES: Partial<Record<ModuleId | "cuenta", ModuleGuide>> =
       summary: "Órdenes de trabajo y estado de flota.",
       steps: [
         "Abra una OT vinculada al vehículo.",
-        "Actualice el estado hasta cerrar (DONE).",
+        "Actualice el estado hasta cerrar (terminado).",
         "Un odómetro alto puede generar OT preventiva automática.",
       ],
     },
@@ -180,8 +180,8 @@ export const MODULE_GUIDES: Partial<Record<ModuleId | "cuenta", ModuleGuide>> =
       title: "Cómo controlar el patio",
       summary: "Ingreso y salida de unidades.",
       steps: [
-        "Registre check-in con placa al entrar al patio.",
-        "Al salir, haga check-out del mismo registro.",
+        "Registre el ingreso con placa al entrar al patio.",
+        "Al salir, registre la salida del mismo movimiento.",
         "Consulte el resumen del día para ocupación y movimientos.",
       ],
     },

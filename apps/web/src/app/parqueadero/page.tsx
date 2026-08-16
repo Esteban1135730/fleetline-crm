@@ -75,7 +75,7 @@ export default function ParqueaderoPage() {
           value={summary.vehiclesInside}
           tone="ok"
           icon={<ParkingSquare />}
-          delta="Sin check-out"
+          delta="Sin salida registrada"
         />
         <KpiCard
           label="Ingresos hoy"
@@ -185,7 +185,7 @@ export default function ParqueaderoPage() {
                           await load();
                         }}
                       >
-                        Check-out
+                        Registrar salida
                       </Button>
                     ) : null}
                   </td>

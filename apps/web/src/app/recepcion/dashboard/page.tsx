@@ -11,6 +11,7 @@ import {
   Users,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { statusEs } from "@fsg/shared";
 import { PageIntro } from "@/components/page-intro";
 import {
   EmptyState,
@@ -59,7 +60,7 @@ type Metrics = { visitors: number; leadsConverted: number; pqrsQuick: number };
 const VISIT_CLASS_LABEL: Record<string, string> = {
   DRIVER_CANDIDATE: "Candidato conductor",
   SUPPLIER: "Proveedor/contratista",
-  B2B_MEETING: "Cliente B2B / reunión",
+  B2B_MEETING: "Cliente empresa / reunión",
   OTHER: "Otro",
 };
 
@@ -136,7 +137,7 @@ export default function RecepcionDashboardPage() {
       setVisitors(vis);
       setMetrics(met);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error de uplink");
+      setError(e instanceof Error ? e.message : "Error de conexión");
     }
   }, [boardFilter]);
 
@@ -189,7 +190,7 @@ export default function RecepcionDashboardPage() {
       setInfo(
         dest
           ? `Visitante en ${dest.board}. Aviso enviado a ${dest.notifiedArea}.`
-          : "Visita registrada en el Smart Visitor Board.",
+          : "Visita registrada en el tablero de visitantes.",
       );
       setInfoHref(dest?.href || "#visitantes");
       setPanel("none");
@@ -233,7 +234,7 @@ export default function RecepcionDashboardPage() {
         }),
       });
       setInfo(
-        `${res.message} · llega a Comercial (${res.destination?.label || "cotización DRAFT"}).`,
+        `${res.message} · llega a Comercial (${res.destination?.label || "cotización en borrador"}).`,
       );
       setInfoHref(res.destination?.href || "/comercial");
       setSelectedChat(null);
@@ -300,7 +301,7 @@ export default function RecepcionDashboardPage() {
     <div className="fade-in mx-auto max-w-[1800px] space-y-4">
       <PageIntro
         module="call_center"
-        title="Recepción · Concierge omnicanal"
+        title="Recepción · Atención omnicanal"
         action={
           <div className="flex flex-wrap items-center justify-end gap-2">
             <Button
@@ -321,7 +322,7 @@ export default function RecepcionDashboardPage() {
                 setPanel("lead");
               }}
             >
-              + Nuevo Lead
+              + Nuevo prospecto
             </Button>
             <Button
               type="button"
@@ -362,10 +363,10 @@ export default function RecepcionDashboardPage() {
           value={metrics?.visitors ?? "—"}
           tone="ok"
           icon={<Users />}
-          delta={waiting > 0 ? `${waiting} en espera` : "Destino: Visitor Board"}
+          delta={waiting > 0 ? `${waiting} en espera` : "Destino: tablero de visitantes"}
         />
         <KpiCard
-          label="Leads convertidos"
+          label="Prospectos convertidos"
           value={metrics?.leadsConverted ?? "—"}
           tone="warn"
           icon={<UserPlus />}
@@ -425,7 +426,7 @@ export default function RecepcionDashboardPage() {
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center justify-between gap-2">
                         <span className="font-data text-[10px] uppercase tracking-wide text-[var(--text-secondary)]">
-                          {c.channel}
+                          {statusEs(c.channel)}
                         </span>
                         <StatusPulseBadge tone="fatiga">{c.tagLabel}</StatusPulseBadge>
                       </span>
@@ -468,7 +469,7 @@ export default function RecepcionDashboardPage() {
         >
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--brand-line)] px-4 py-3">
             <div className="font-display text-sm font-semibold">
-              Smart Visitor Board
+              Tablero de visitantes
               <span className="ml-2 font-data text-xs text-[var(--text-secondary)]">
                 espera {waiting}
               </span>
@@ -589,7 +590,7 @@ export default function RecepcionDashboardPage() {
                   >
                     <span className="font-data">{r.vehicle?.plate || "s/p"}</span>
                     {" · "}
-                    {r.schoolOrRoute} · {r.status}
+                    {r.schoolOrRoute} · {statusEs(r.status)}
                     {r.vehicle ? (
                       <span className="font-data text-[var(--text-secondary)]">
                         {" "}
@@ -608,7 +609,7 @@ export default function RecepcionDashboardPage() {
         open={panel === "visit"}
         onClose={() => setPanel("none")}
         title="Nuevo visitante"
-        description="Check-in con cédula, clasificación y gafete RFID."
+        description="Ingreso con cédula, clasificación y gafete RFID."
         footer={
           <>
             <Button
@@ -694,11 +695,11 @@ export default function RecepcionDashboardPage() {
       <Modal
         open={panel === "lead"}
         onClose={() => setPanel("none")}
-        title="Nuevo Lead"
+        title="Nuevo prospecto"
         description={
           selectedChat
             ? `Chat ${selectedChat.code} · pase a Comercial`
-            : "Lead presencial (walk-in). Llega a Comercial como cotización DRAFT."
+            : "Prospecto presencial (llegada directa). Llega a Comercial como cotización en borrador."
         }
         footer={
           <>
@@ -734,7 +735,7 @@ export default function RecepcionDashboardPage() {
           <input
             className="field h-11 min-h-[44px] font-data"
             type="email"
-            placeholder="Email"
+            placeholder="Correo"
             value={leadForm.email}
             onChange={(e) =>
               setLeadForm((f) => ({ ...f, email: e.target.value }))

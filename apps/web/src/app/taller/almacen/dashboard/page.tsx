@@ -46,7 +46,7 @@ export default function AlmacenTallerDashboard() {
       }
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Uplink fallido");
+      setError(e instanceof Error ? e.message : "Conexión fallida");
     }
   }, [workOrderId]);
 
@@ -90,7 +90,7 @@ export default function AlmacenTallerDashboard() {
 
   return (
     <div className="space-y-8">
-      <PageIntro module="taller" title="Smart Warehouse" />
+      <PageIntro module="taller" title="Almacén del taller" />
       <HowToBox
         steps={[
           "Busque por QR/SKU y despache al mecánico en un toque.",

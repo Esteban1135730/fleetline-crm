@@ -6,8 +6,8 @@ export const brand = {
   name: "Inretrans",
   shortName: "INR",
   tagline: "INRETRANS OS",
-  product: "CRM & Telemetry",
-  engine: "TELEMETRY ENGINE V2.4",
+  product: "CRM y telemetría",
+  engine: "MOTOR DE TELEMETRÍA V2.4",
 } as const;
 
 /** Aluminium & Quartz — Light Mode */

@@ -72,7 +72,7 @@ export default function CentroControlDashboardPage() {
         setSelectedSos(d.sosActive[0].id);
       }
     } catch (e) {
-      setError((e as Error).message || "Señal perdida — reintentando uplink");
+      setError((e as Error).message || "Señal perdida — reintentando conexión");
     }
   }, [selectedSos]);
 
@@ -93,7 +93,7 @@ export default function CentroControlDashboardPage() {
           body: JSON.stringify({
             plate: tipPlate || undefined,
             tipificacion: "DESVIO_TUBO",
-            notes: "Salida de tubo virtual — tipificación Watchtower",
+            notes: "Salida de tubo virtual — tipificación de torre de control",
             initiateVoip: true,
             sendSmsToCustomer: true,
           }),
@@ -124,7 +124,7 @@ export default function CentroControlDashboardPage() {
             authorizeEngineShutdown: true,
             enableAmbientListen: true,
             enableCabinStream: true,
-            notes: "Activación War Room desde consola",
+            notes: "Activación de sala de crisis desde consola",
           }),
         },
       );
@@ -157,7 +157,7 @@ export default function CentroControlDashboardPage() {
             vehicleId: sos?.vehicleId || undefined,
             plate: sos?.plate || undefined,
             confirmProtocol: true,
-            reason: "Protocolo emergencia confirmado — DEFCON 1",
+            reason: "Protocolo de emergencia confirmado — alerta máxima",
           }),
         },
       );
@@ -183,13 +183,13 @@ export default function CentroControlDashboardPage() {
       ) : null}
 
       <div className="relative z-10 rounded-xl border border-white/10 bg-[#0A0D14]/95 p-4">
-        <PageIntro module="logistica" title="Watchtower 24/7" />
+        <PageIntro module="logistica" title="Torre de control 24/7" />
         <p className="mt-1 text-sm text-[#94A3B8]">
           Video wall · monitoreo por excepción · solo anomalías
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
           <Badge tone={warRoom ? "rose" : "emerald"}>
-            {warRoom ? "DEFCON 1 · War Room" : "Nominal"}
+            {warRoom ? "Alerta máxima · Sala de crisis" : "Nominal"}
           </Badge>
           <Badge tone="amber">
             {(dash?.anomalies ?? []).length} excepciones
@@ -201,7 +201,7 @@ export default function CentroControlDashboardPage() {
         <HowToBox
           steps={[
             "Solo emergen unidades con anomalía (desvío, SOS, fatiga).",
-            "Desvío: tipificar → VoIP conductor + SMS cliente.",
+            "Desvío: tipificar → llamada al conductor + SMS al cliente.",
             "SOS: Modo Rojo · checklist · apagado IoT solo con protocolo confirmado.",
           ]}
         />
@@ -223,14 +223,14 @@ export default function CentroControlDashboardPage() {
         id="anomalias"
         className="relative z-10 rounded-xl border border-white/10 bg-[#05070c] p-4"
       >
-        <h3 className="font-display text-xl">Video Wall · Excepciones</h3>
+        <h3 className="font-display text-xl">Pantalla de monitoreo · Excepciones</h3>
         <p className="text-sm text-[#64748B]">
           Fondo negro — solo unidades fuera de nominal
         </p>
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {(dash?.anomalies ?? []).length === 0 ? (
             <p className="col-span-full py-16 text-center font-mono text-sm text-[#334155]">
-              Flota nominal — sin excepciones en uplink
+              Flota nominal — sin excepciones en la red
             </p>
           ) : (
             (dash?.anomalies ?? []).map((a) => (
@@ -284,7 +284,7 @@ export default function CentroControlDashboardPage() {
               disabled={busy}
               onClick={() => void tipificarDesvio()}
             >
-              Tipificar + VoIP/SMS
+              Tipificar + llamada/SMS
             </Button>
             <Button
               type="button"
@@ -293,7 +293,7 @@ export default function CentroControlDashboardPage() {
               disabled={busy}
               onClick={() => void activarSos()}
             >
-              Activar SOS / War Room
+              Activar SOS / Sala de crisis
             </Button>
           </div>
         </div>
@@ -313,7 +313,7 @@ export default function CentroControlDashboardPage() {
             <option value="">Sesión SOS…</option>
             {(dash?.sosActive ?? []).map((s) => (
               <option key={s.id} value={s.id}>
-                {s.code} · {s.plate || "—"} · DEFCON {s.defconLevel}
+                {s.code} · {s.plate || "—"} · Alerta {s.defconLevel}
               </option>
             ))}
           </select>
@@ -324,14 +324,14 @@ export default function CentroControlDashboardPage() {
               disabled={busy || !selectedSos}
               onClick={() => void apagadoRemoto()}
             >
-              Transmitir ENGINE_SHUTDOWN
+              Transmitir apagado de motor
             </Button>
             <Button
               type="button"
               variant="secondary"
               onClick={() => setPipOpen((v) => !v)}
             >
-              {pipOpen ? "Cerrar PIP" : "PIP Cabina"}
+              {pipOpen ? "Cerrar ventana de cabina" : "Ventana de cabina"}
             </Button>
           </div>
         </div>
@@ -342,7 +342,7 @@ export default function CentroControlDashboardPage() {
         id="voip"
         className="relative z-10 rounded-xl border border-white/10 bg-[#0A0D14] p-4"
       >
-        <h3 className="font-display text-lg">Consola VoIP · Marcación rápida</h3>
+        <h3 className="font-display text-lg">Consola de llamadas · Marcación rápida</h3>
         <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {(dash?.voipDirectory ?? []).map((d) => (
             <a
@@ -374,7 +374,7 @@ export default function CentroControlDashboardPage() {
       {pipOpen ? (
         <div className="fixed bottom-4 right-4 z-50 w-[280px] overflow-hidden rounded-xl border border-[#FF2A5F]/50 bg-[#0A0D14] shadow-2xl sm:w-[360px]">
           <div className="flex items-center justify-between border-b border-white/10 px-3 py-2">
-            <p className="font-mono text-xs text-[#FF2A5F]">PIP · CABINA LIVE</p>
+            <p className="font-mono text-xs text-[#FF2A5F]">CABINA EN VIVO</p>
             <button
               type="button"
               className="text-xs text-[#94A3B8]"
@@ -387,7 +387,7 @@ export default function CentroControlDashboardPage() {
             <div className="absolute left-2 top-2 h-2 w-2 animate-pulse rounded-full bg-[#FF2A5F]" />
             <p className="font-mono text-xs text-[#64748B]">
               Stream IP · escucha ambiental
-              {warRoom ? " · DEFCON 1" : ""}
+              {warRoom ? " · Alerta máxima" : ""}
             </p>
           </div>
         </div>

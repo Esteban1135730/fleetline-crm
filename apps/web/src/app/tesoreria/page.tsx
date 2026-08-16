@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
 import { Receipt } from "lucide-react";
 import { api } from "@/lib/api";
+import { statusEs } from "@fsg/shared";
 import { PageIntro } from "@/components/page-intro";
 import { EmptyState, KpiCard } from "@/components/audit";
 
@@ -287,7 +288,7 @@ export default function FinanzasPage() {
                             : "slate"
                       }
                     >
-                      {inv.status}
+                      {statusEs(inv.status)}
                     </Badge>
                     {inv.type === "PAYABLE" && inv.paymentApprovedAt ? (
                       <div className="mt-1 font-data text-[10px] text-[var(--accent-primary)]">

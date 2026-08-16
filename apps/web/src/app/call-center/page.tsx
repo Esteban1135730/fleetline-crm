@@ -13,7 +13,7 @@ export default function CallCenterPage() {
 
   return (
     <div className="fade-in mx-auto max-w-[1600px] space-y-4">
-      <PageIntro module="call_center" title="Recepción y Call Center" />
+      <PageIntro module="call_center" title="Recepción y centro de llamadas" />
       <div className="flex flex-wrap gap-2">
         <Tooltip content="Tickets de atención al cliente y asignación de agentes">
           <button
@@ -21,10 +21,10 @@ export default function CallCenterPage() {
             className={`flt-nav-item !inline-flex !w-auto px-4 transition-all duration-150 ease-in-out ${tab === "call" ? "is-active" : ""}`}
             onClick={() => setTab("call")}
           >
-            Call Center
+            Centro de llamadas
           </button>
         </Tooltip>
-        <Tooltip content="Check-in / check-out de visitantes en sede">
+        <Tooltip content="Ingreso y salida de visitantes en sede">
           <button
             type="button"
             className={`flt-nav-item !inline-flex !w-auto px-4 transition-all duration-150 ease-in-out ${tab === "recepcion" ? "is-active" : ""}`}

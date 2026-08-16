@@ -77,7 +77,7 @@ export default function GestorContableDashboardPage() {
       setDash(d);
       if (!customerId && d.customers[0]) setCustomerId(d.customers[0].id);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Uplink contable fallido");
+      setError(e instanceof Error ? e.message : "Conexión contable fallida");
     }
   }, [customerId]);
 
@@ -123,7 +123,7 @@ export default function GestorContableDashboardPage() {
       setSelectedExpense(null);
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error aprobación");
+      setError(e instanceof Error ? e.message : "Error de aprobación");
     }
   }
 
@@ -152,7 +152,7 @@ export default function GestorContableDashboardPage() {
       );
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error emisión DIAN");
+      setError(err instanceof Error ? err.message : "Error de emisión DIAN");
     }
   }
 
@@ -171,7 +171,7 @@ export default function GestorContableDashboardPage() {
       );
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error sync taller");
+      setError(e instanceof Error ? e.message : "Error de sincronización con taller");
     }
   }
 
@@ -180,7 +180,7 @@ export default function GestorContableDashboardPage() {
       <PageIntro module="contabilidad" title="Gestor contable · Contabilidad 4.0" />
       <HowToBox
         steps={[
-          "Audita peajes/tanqueos Smart Wallet y contabílalos al centro de costo por placa.",
+          "Audita peajes/tanqueos de la billetera de flota y contabílalos al centro de costo por placa.",
           "Emite FE DIAN sobre viajes COMPLETED del periodo — genera CxC automáticamente.",
           "Sincroniza OT de taller y depreciación por kilometraje al cierre.",
         ]}
@@ -282,7 +282,7 @@ export default function GestorContableDashboardPage() {
                 {!diario.length ? (
                   <tr>
                     <td colSpan={6} className="px-3 py-8 text-center text-[var(--text-secondary)]">
-                      Sin asientos en uplink
+                      Sin asientos en la red
                     </td>
                   </tr>
                 ) : null}

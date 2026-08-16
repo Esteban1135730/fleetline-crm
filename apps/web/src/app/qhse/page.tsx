@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
 import { AlertTriangle, ClipboardList, Plus, Star } from "lucide-react";
 import { api } from "@/lib/api";
+import { statusEs } from "@fsg/shared";
 import {
   EmptyState,
   EvidenceDropzone,
@@ -107,7 +108,7 @@ export default function CalidadPage() {
     <div className="fade-in mx-auto max-w-[1600px] space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="page-title text-3xl md:text-4xl">QHSE & NPS</h2>
+          <h2 className="page-title text-3xl md:text-4xl">Calidad, SST y satisfacción</h2>
           <p className="page-sub">Calidad, seguridad y satisfacción</p>
         </div>
         <Button
@@ -124,7 +125,7 @@ export default function CalidadPage() {
       {summary ? (
         <div className="stagger grid grid-cols-1 gap-4 md:grid-cols-4">
           <KpiCard
-            label="NPS"
+            label="Satisfacción"
             value={npsDisplay(summary.nps)}
             tone={
               summary.nps == null
@@ -185,7 +186,7 @@ export default function CalidadPage() {
                       tone={r.status === "OPEN" ? "danger" : "active"}
                       pulse={r.status === "OPEN"}
                     >
-                      {r.status}
+                      {statusEs(r.status)}
                     </StatusPulseBadge>
                   </td>
                   <td className="px-4 py-2.5">
@@ -258,7 +259,7 @@ export default function CalidadPage() {
               onChange={(e) => setForm({ ...form, type: e.target.value })}
             >
               <option value="INCIDENT">Incidente / novedad</option>
-              <option value="NPS">NPS</option>
+              <option value="NPS">Satisfacción</option>
               <option value="AUDIT">Auditoría</option>
             </select>
           </label>
@@ -292,7 +293,7 @@ export default function CalidadPage() {
           {form.type === "NPS" ? (
             <label className="block space-y-1.5">
               <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                Score NPS
+                Puntaje de satisfacción
               </span>
               <input
                 className="field w-full font-data"

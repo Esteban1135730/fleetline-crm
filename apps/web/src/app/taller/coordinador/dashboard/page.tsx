@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
 import { api } from "@/lib/api";
+import { statusEs } from "@fsg/shared";
 import { HowToBox, PageIntro } from "@/components/page-intro";
 
 type Wo = {
@@ -60,7 +61,7 @@ export default function CoordinadorTallerDashboard() {
       if (v[0] && !vehicleId) setVehicleId(v[0].id);
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Uplink fallido");
+      setError(e instanceof Error ? e.message : "Conexión fallida");
     }
   }, [vehicleId]);
 
@@ -119,7 +120,7 @@ export default function CoordinadorTallerDashboard() {
       <PageIntro module="taller" title="Torre de Taller 4.0" />
       <HowToBox
         steps={[
-          "Kanban de OT y mapa de bahías con cronómetro en vivo.",
+          "Tablero de órdenes y mapa de bahías con cronómetro en vivo.",
           "Alerta predictiva 500 km antes del preventivo + pre-kitting.",
           "QC Coordinador libera el vehículo en Logística (Rojo → Verde).",
         ]}
@@ -140,7 +141,7 @@ export default function CoordinadorTallerDashboard() {
         >
           {vehicles.map((v) => (
             <option key={v.id} value={v.id}>
-              {v.plate} · {v.status}
+              {v.plate} · {statusEs(v.status)}
             </option>
           ))}
         </select>
@@ -168,13 +169,13 @@ export default function CoordinadorTallerDashboard() {
                 <span className="font-mono text-sm text-[var(--fl-accent)]">
                   {b.bayCode}
                 </span>
-                {b.timerActive && <Badge tone="amber">TIMER</Badge>}
+                {b.timerActive && <Badge tone="amber">Cronómetro</Badge>}
               </div>
               <p className="mt-2 font-mono text-xs text-[var(--fl-text)]">
                 {b.code} · {b.plate}
               </p>
               <p className="text-xs text-[var(--fl-subtext)]">
-                {b.mechanic ?? "Sin mecánico"} · {b.status}
+                {b.mechanic ?? "Sin mecánico"} · {statusEs(b.status)}
               </p>
             </article>
           ))}
@@ -186,7 +187,7 @@ export default function CoordinadorTallerDashboard() {
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-[var(--fl-text)]">
-          Kanban OT
+          Tablero de órdenes
         </h2>
         <div className="grid gap-3 lg:grid-cols-4">
           {COLS.map((col) => (
@@ -195,7 +196,7 @@ export default function CoordinadorTallerDashboard() {
               className="rounded-xl border border-[var(--fl-border)] bg-[var(--fl-surface)] p-3"
             >
               <p className="mb-2 font-mono text-xs text-[var(--fl-subtext)]">
-                {col}
+                {statusEs(col)}
               </p>
               <ul className="space-y-2">
                 {(dash?.kanban?.[col] ?? []).map((o) => (

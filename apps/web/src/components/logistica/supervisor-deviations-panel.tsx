@@ -44,7 +44,7 @@ export function SupervisorDeviationsPanel({
       onCountChange?.(data.length);
       setError("");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Uplink desviaciones fallido");
+      setError(e instanceof Error ? e.message : "Conexión de desviaciones fallida");
     }
   }, [onCountChange]);
 
@@ -79,7 +79,7 @@ export function SupervisorDeviationsPanel({
         <EmptyState
           icon={<RouteIcon className="h-7 w-7" />}
           title="Sin desviaciones pendientes"
-          description="Inicio/fin fuera de geofence u horario aparecerán aquí."
+          description="Inicio/fin fuera de geocerca u horario aparecerán aquí."
         />
       ) : (
         <ul className="space-y-3">
@@ -162,8 +162,8 @@ export function SupervisorDeviationsPanel({
             Desviaciones · aprobación supervisor
           </h2>
           <p className="text-xs text-[var(--brand-muted)]">
-            Inicio/fin fuera de geofence u horario — ACEPTAR autoriza tracking /
-            extras; CANCELAR restaura estado previo.
+            Inicio/fin fuera de geocerca u horario — ACEPTAR autoriza seguimiento /
+            extras; CANCELAR restaura el estado previo.
           </p>
         </div>
         <Button

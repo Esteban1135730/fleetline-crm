@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   QUOTE_DEFAULT_MARGIN_PCT,
   QUOTE_VEHICLE_COSTS,
+  statusEs,
   type QuoteCostBreakdown,
   type QuoteVehicleType,
 } from "@fsg/shared";
@@ -208,7 +209,7 @@ export default function ComercialPage() {
     } catch (err) {
       setBreakdown(null);
       setCalcError(
-        err instanceof Error ? err.message : "Fallo de cálculo — uplink",
+        err instanceof Error ? err.message : "Fallo de cálculo — conexión",
       );
     } finally {
       setCalcBusy(false);
@@ -381,7 +382,7 @@ export default function ComercialPage() {
       `${q.code} · convertida`,
       <div className="space-y-3 text-sm">
         <p className="font-semibold text-[var(--accent-primary)]">
-          Cotización WON — viaje borrador generado
+          Cotización ganada — viaje borrador generado
         </p>
         {res.tripError ? (
           <p role="alert" className="text-[var(--brand-signal)]">
@@ -391,10 +392,10 @@ export default function ComercialPage() {
         {tripCode ? (
           <>
             <p className="font-data text-xs text-[var(--text-primary)]">
-              Viaje {tripCode} · PENDING
+              Viaje {tripCode} · Pendiente
             </p>
             <p className="text-xs text-[var(--text-secondary)]">
-              Llega a Logística → Programación de Servicios y Tracking GPS.
+              Llega a Logística → Programación de servicios y seguimiento GPS.
               Queda sin conductor ni placa hasta que despacho lo asigne.
             </p>
             <Link
@@ -406,7 +407,7 @@ export default function ComercialPage() {
           </>
         ) : (
           <p className="text-[var(--text-secondary)]">
-            No se indexó el viaje. Vuelva a convertir o revise el uplink.
+            No se indexó el viaje. Vuelva a convertir o revise la conexión.
           </p>
         )}
       </div>,
@@ -425,7 +426,7 @@ export default function ComercialPage() {
           <p className="mt-1 font-data text-lg font-bold text-[var(--text-primary)]">
             {money(Number(q.amount))}
           </p>
-          <p className="text-xs text-[var(--text-secondary)]">{q.status}</p>
+          <p className="text-xs text-[var(--text-secondary)]">{statusEs(q.status)}</p>
         </div>
         {calc ? (
           <dl className="space-y-2 font-data text-xs">
@@ -478,7 +479,7 @@ export default function ComercialPage() {
               Viaje {q.draftTrip.code} · {q.draftTrip.status}
             </p>
             <p className="text-xs text-[var(--text-secondary)]">
-              Logística → Programación de Servicios y Tracking GPS. Sin
+              Logística → Programación de servicios y seguimiento GPS. Sin
               conductor ni placa hasta que despacho lo asigne.
             </p>
             <Link
@@ -496,7 +497,7 @@ export default function ComercialPage() {
             <Button
               variant="primary"
               className="w-auto"
-              title="Aprueba la cotización (WON) y genera viaje borrador TRP en Logística"
+              title="Aprueba la cotización ganada y genera viaje borrador en Logística"
               onClick={() => void approveAndConvert(q)}
             >
               {q.status === "WON"
@@ -698,7 +699,7 @@ export default function ComercialPage() {
                   type="submit"
                   variant="primary"
                   className="w-auto"
-                  title="Guarda cotización DRAFT con precio sugerido y desglose"
+                  title="Guarda cotización en borrador con precio sugerido y desglose"
                 >
                   Guardar cotización
                 </Button>
@@ -774,7 +775,7 @@ export default function ComercialPage() {
                 <EmptyState
                   icon={<Calculator className="h-7 w-7" />}
                   title="Sin cotizaciones"
-                  description="Calcule una tarifa y guarde la cotización DRAFT."
+                  description="Calcule una tarifa y guarde la cotización en borrador."
                 />
               </div>
             ) : (
@@ -813,7 +814,7 @@ export default function ComercialPage() {
                                 : "info"
                           }
                         >
-                          {q.status}
+                          {statusEs(q.status)}
                         </Badge>
                       </td>
                       <td
@@ -1058,7 +1059,7 @@ export default function ComercialPage() {
                 <EmptyState
                   icon={<FileText className="h-7 w-7" />}
                   title="Sin contratos"
-                  description="Registra un contrato operativo B2B o licitación."
+                  description="Registra un contrato operativo de empresa o licitación."
                 />
               </div>
             ) : (
@@ -1115,7 +1116,7 @@ export default function ComercialPage() {
                           }
                           pulse={false}
                         >
-                          {ctr.status}
+                          {statusEs(ctr.status)}
                         </StatusPulseBadge>
                       </td>
                       <td className="px-4 py-2.5">
@@ -1238,7 +1239,7 @@ export default function ComercialPage() {
               <EmptyState
                 icon={<Users className="h-7 w-7" />}
                 title="Sin clientes en directorio"
-                description="Registra el primer cliente B2B, escolar o turismo."
+                description="Registra el primer cliente empresa, escolar o turismo."
                 actionLabel="+ Nuevo Cliente"
                 onAction={openNewCustomer}
               />

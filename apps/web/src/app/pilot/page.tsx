@@ -38,7 +38,7 @@ export default function PilotAppPage() {
       setDash(d);
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Uplink fallido");
+      setError(e instanceof Error ? e.message : "Conexión fallida");
     }
   }, []);
 
@@ -78,7 +78,7 @@ export default function PilotAppPage() {
       setMsg(res.message);
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Preop bloqueado");
+      setError(e instanceof Error ? e.message : "Preoperacional bloqueado");
     } finally {
       setBusy(false);
     }
@@ -120,7 +120,7 @@ export default function PilotAppPage() {
       <div className="flex min-h-[70vh] flex-col items-center justify-center bg-[#0A0D14] p-6 text-center">
         <p className="font-mono text-5xl text-[#FFB800]">{speed} km/h</p>
         <p className="mt-4 text-lg text-[#94A3B8]">
-          Driver-Safe · pantalla bloqueada
+          Modo conductor · pantalla bloqueada
         </p>
         <p className="mt-2 text-sm text-[#64748B]">
           Umbral {dash?.speedLockKph ?? 15} km/h
@@ -145,7 +145,7 @@ export default function PilotAppPage() {
 
   return (
     <div className="mx-auto max-w-lg space-y-6 p-4 pb-24">
-      <PageIntro module="apps" title="FSG Pilot" />
+      <PageIntro module="apps" title="App del conductor" />
       <HowToBox
         steps={[
           "Preoperacional fotográfico obligatorio antes del encendido.",
@@ -187,7 +187,7 @@ export default function PilotAppPage() {
             <div className="flex justify-between">
               <span className="font-mono">{t.code}</span>
               <Badge tone={t.preopDone ? "success" : "warning"}>
-                {t.preopDone ? "PREOP OK" : "PREOP PENDIENTE"}
+                {t.preopDone ? "Preoperacional listo" : "Preoperacional pendiente"}
               </Badge>
             </div>
             <p className="mt-1 font-mono text-sm text-[var(--fl-subtext)]">
@@ -241,7 +241,7 @@ export default function PilotAppPage() {
 
       {dash?.scoreCard && (
         <section className="rounded-xl border border-[var(--fl-border)] bg-[var(--fl-surface)] p-5">
-          <h2 className="mb-3 font-display text-lg">Score Card del día</h2>
+          <h2 className="mb-3 font-display text-lg">Tarjeta de puntaje del día</h2>
           <div className="grid grid-cols-3 gap-3 text-center">
             <div>
               <p className="font-mono text-2xl text-[var(--fl-accent)]">

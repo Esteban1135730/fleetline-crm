@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
-import { HARD_RULES } from "@fsg/shared";
+import { HARD_RULES, statusEs } from "@fsg/shared";
 import { api } from "@/lib/api";
 import { HowToBox, PageIntro } from "@/components/page-intro";
 
@@ -41,7 +41,7 @@ type Dash = {
 };
 
 const PIPE_COLS = [
-  { key: "NUEVO_LEAD", label: "Leads" },
+  { key: "NUEVO_LEAD", label: "Prospectos" },
   { key: "COTIZACION_ENVIADA", label: "Cotizados" },
   { key: "EN_NEGOCIACION", label: "Negociación" },
   { key: "CERRADO_GANADO", label: "Ganados" },
@@ -74,7 +74,7 @@ export default function GestorComercialDashboardPage() {
       setDash(data);
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Uplink fallido");
+      setError(e instanceof Error ? e.message : "Conexión fallida");
     }
   }, []);
 
@@ -90,7 +90,7 @@ export default function GestorComercialDashboardPage() {
       const res = await api.post<{ status: string; message: string }>(
         "/api/v1/comercial/gestor/cotizacion-express",
         {
-          accountName: account || "Lead Recepción Express",
+          accountName: account || "Prospecto de recepción exprés",
           discountPct: Number(discount) || 0,
           distanceKm: 35,
           vehicleType: "VAN",
@@ -150,18 +150,18 @@ export default function GestorComercialDashboardPage() {
       }>("/api/v1/comercial/gestor/link-cobro-anticipado", {
         amount: Number(cobroAmount) || 850000,
         method: "PSE",
-        accountName: account || "Cliente Express",
+        accountName: account || "Cliente exprés",
         origin: "Bogotá",
         destination: "Chía",
         createTrip: true,
       });
       setPayLinkId(res.link.id);
       setMsg(
-        `${res.status}: ${res.message} · gate=${res.dispatchGate.block ?? "OK"}`,
+        `${statusEs(res.status)}: ${res.message} · bloqueo=${res.dispatchGate.block ?? "ninguno"}`,
       );
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Link cobro fallido");
+      setError(e instanceof Error ? e.message : "Enlace de cobro fallido");
     } finally {
       setBusy(false);
     }
@@ -169,7 +169,7 @@ export default function GestorComercialDashboardPage() {
 
   async function confirmarPago() {
     if (!payLinkId) {
-      setError("Genera un link de cobro primero");
+      setError("Genere un enlace de cobro primero");
       return;
     }
     setBusy(true);
@@ -189,12 +189,12 @@ export default function GestorComercialDashboardPage() {
 
   return (
     <div className="space-y-8">
-      <PageIntro module="comercial" title="Acción Rápida · Sales Execution" />
+      <PageIntro module="comercial" title="Acción rápida · Ejecución comercial" />
 
       <HowToBox
         steps={[
           `Descuento máximo ${HARD_RULES.GESTOR_COMERCIAL_MAX_DISCOUNT_PCT}% — superior escala a Dirección.`,
-          "Link PSE/Tarjeta bloquea Despacho hasta confirmación de Tesorería.",
+          "El enlace PSE/tarjeta bloquea el despacho hasta confirmación de Tesorería.",
           "Marcador registra llamada + dictado de voz al colgar.",
         ]}
       />
@@ -235,7 +235,7 @@ export default function GestorComercialDashboardPage() {
 
       <section id="pipeline" className="space-y-3">
         <h2 className="text-sm font-semibold text-[var(--fl-text)]">
-          Mini-Pipeline personal
+          Mini-embudo personal
         </h2>
         <div className="grid gap-3 md:grid-cols-4">
           {PIPE_COLS.map((col) => (
@@ -312,7 +312,7 @@ export default function GestorComercialDashboardPage() {
           </label>
           <div className="flex flex-wrap gap-2">
             <Button disabled={busy} onClick={() => void runExpress()}>
-              Cotización express
+              Cotización exprés
             </Button>
             <Button disabled={busy} onClick={() => void runLlamada()}>
               Registrar llamada
@@ -334,7 +334,7 @@ export default function GestorComercialDashboardPage() {
           </label>
           <div className="flex flex-wrap gap-2">
             <Button disabled={busy} onClick={() => void runCobro()}>
-              Generar link PSE
+              Generar enlace PSE
             </Button>
             <Button disabled={busy || !payLinkId} onClick={() => void confirmarPago()}>
               Simular pago Tesorería
@@ -344,7 +344,7 @@ export default function GestorComercialDashboardPage() {
             <ul className="space-y-1 text-xs text-[var(--fl-subtext)]">
               {dash!.pendingPayments.map((p) => (
                 <li key={p.id} className="font-mono">
-                  {p.code} · {money(Number(p.amount))} · PENDING
+                  {p.code} · {money(Number(p.amount))} · Pendiente
                 </li>
               ))}
             </ul>

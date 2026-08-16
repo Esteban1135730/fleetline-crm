@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
-import { HARD_RULES } from "@fsg/shared";
+import { HARD_RULES, statusEs } from "@fsg/shared";
 import { api } from "@/lib/api";
 import { HowToBox, PageIntro } from "@/components/page-intro";
 
@@ -105,7 +105,7 @@ export default function JuridicoDashboardPage() {
       }
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Uplink fallido");
+      setError(e instanceof Error ? e.message : "Conexión fallida");
     }
   }, [selectedId]);
 
@@ -126,13 +126,13 @@ export default function JuridicoDashboardPage() {
         status: string;
         message: string;
       }>("/api/v1/juridico/contratos/smart-scan", {
-        contractTitle: "Revisión asistida — carga Legal Hub",
+        contractTitle: "Revisión asistida — carga del centro jurídico",
         contractKind: "B2B",
         contractText: scanText,
         comments: [
           {
             author: "Sofía Directora Jurídica",
-            body: "Smart Legal Scan iniciado",
+            body: "Revisión jurídica iniciada",
           },
         ],
       });
@@ -140,7 +140,7 @@ export default function JuridicoDashboardPage() {
       setSelectedId(res.id);
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Smart Scan fallido");
+      setError(e instanceof Error ? e.message : "Revisión automática fallida");
     } finally {
       setBusy(false);
     }
@@ -218,10 +218,10 @@ export default function JuridicoDashboardPage() {
 
   return (
     <div className="space-y-8">
-      <PageIntro module="juridico" title="Legal Hub 4.0" />
+      <PageIntro module="juridico" title="Centro jurídico" />
       <HowToBox
         steps={[
-          "Smart Legal Scan compara PDF/texto contra tope de penalidad FSG.",
+          "La revisión jurídica compara el documento contra el tope de penalidad.",
           "Calendario judicial marca audiencias y derechos de petición inamovibles.",
           "Expediente por placa sella preoperacionales, taller y GPS con hash SHA-256.",
           "Semáforos SARLAFT consultan OFAC, Clinton, Interpol y listas nacionales.",
@@ -319,7 +319,7 @@ export default function JuridicoDashboardPage() {
                           : "amber"
                     }
                   >
-                    {selected.status}
+                    {statusEs(selected.status)}
                   </Badge>
                   <Badge tone="slate">{selected.kind}</Badge>
                 </div>
@@ -346,7 +346,7 @@ export default function JuridicoDashboardPage() {
               </>
             ) : (
               <p className="text-sm text-[color:var(--fl-subtext)]">
-                Sin escaneos. Ejecute Smart Legal Scan.
+                Sin escaneos. Ejecute el análisis jurídico.
               </p>
             )}
             <textarea
@@ -356,7 +356,7 @@ export default function JuridicoDashboardPage() {
               className="w-full rounded-lg border border-[color:var(--fl-border)] bg-[color:var(--fl-canvas)] p-3 text-sm text-[color:var(--fl-text)]"
             />
             <Button disabled={busy} onClick={() => void runSmartScan()}>
-              Smart Legal Scan
+              Análisis jurídico
             </Button>
           </div>
 
@@ -459,7 +459,7 @@ export default function JuridicoDashboardPage() {
             className="rounded-lg border border-[color:var(--fl-border)] bg-[color:var(--fl-surface)] px-3 py-2 font-mono text-sm"
           />
           <Button disabled={busy} onClick={() => void generateExpediente()}>
-            Generar PDF inmutable
+            Generar documento inmutable
           </Button>
         </div>
         <ul className="space-y-2">

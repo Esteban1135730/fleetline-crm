@@ -80,7 +80,7 @@ export default function ArchivoDashboardPage() {
       const d = await api<Dashboard>("/api/v1/archivo/dashboard");
       setDash(d);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Uplink archivo fallido");
+      setError(e instanceof Error ? e.message : "Conexión de archivo fallida");
     }
   }, []);
 
@@ -270,11 +270,11 @@ export default function ArchivoDashboardPage() {
                   </div>
                   <div className="flex flex-col items-end gap-1">
                     {h.digitalPdf ? (
-                      <Badge tone="emerald">PDF indexado</Badge>
+                      <Badge tone="emerald">Documento indexado</Badge>
                     ) : hitKind(h) === "document" ? (
                       <Badge tone="amber">Sin PDF</Badge>
                     ) : (
-                      <Badge tone="neutral">Maestro operativo</Badge>
+                      <Badge tone="neutral">Registro operativo</Badge>
                     )}
                     {h.custodyStatus === "ON_LOAN" ? (
                       <Badge tone="rose">En préstamo</Badge>

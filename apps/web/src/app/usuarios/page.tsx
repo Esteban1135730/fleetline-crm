@@ -84,7 +84,7 @@ export default function UsuariosPage() {
       if (created.pendingAuthorization || created.status === "pending") {
         setInfo(
           created.message ||
-            "Alta registrada en PENDING — mando superior debe autorizar",
+            "Alta registrada en pendiente — mando superior debe autorizar",
         );
       }
       await load();
@@ -102,7 +102,7 @@ export default function UsuariosPage() {
         <HowToBox
           steps={[
             "Crea usuario con email, clave y rol operativo.",
-            "Si el rol es de mando igual o superior al tuyo, queda PENDING hasta autorización.",
+            "Si el rol es de mando igual o superior al tuyo, queda pendiente hasta autorización.",
             "Org admin puede modificar, resetear clave o desactivar usuarios de su empresa.",
           ]}
         />
@@ -174,7 +174,7 @@ export default function UsuariosPage() {
         />
         <input
           className="field"
-          placeholder="Email"
+          placeholder="Correo"
           type="email"
           data-testid="usuarios-email"
           data-field="email"
@@ -220,7 +220,7 @@ export default function UsuariosPage() {
           <thead>
             <tr>
               <th className="px-4 py-2">Nombre</th>
-              <th className="px-4 py-2">Email</th>
+              <th className="px-4 py-2">Correo</th>
               {isMaster ? <th className="px-4 py-2">Empresa</th> : null}
               <th className="px-4 py-2">Rol</th>
               <th className="px-4 py-2">Estado</th>
@@ -290,10 +290,10 @@ export default function UsuariosPage() {
                     }
                   >
                     {u.status === "pending"
-                      ? "PENDING"
+                      ? "Pendiente"
                       : u.active
-                        ? "ACTIVO"
-                        : "INACTIVO"}
+                        ? "Activo"
+                        : "Inactivo"}
                   </Badge>
                 </td>
                 <td className="px-4 py-2.5">

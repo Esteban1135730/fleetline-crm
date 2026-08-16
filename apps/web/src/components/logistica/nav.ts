@@ -12,7 +12,7 @@ export const LOGISTICA_SUBMENUS = [
   {
     id: "servicios" as const,
     href: "/logistica/servicios",
-    label: "Programación de Servicios y Tracking GPS",
+    label: "Programación de servicios y seguimiento GPS",
     apiBase: "/logistica/servicios",
   },
   {

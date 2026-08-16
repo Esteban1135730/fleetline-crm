@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Button } from "@fsg/ui";
 import { Car, ClipboardList, Ban, Wrench } from "lucide-react";
 import { api } from "@/lib/api";
+import { statusEs } from "@fsg/shared";
 import { PageIntro } from "@/components/page-intro";
 import {
   EmptyState,
@@ -389,7 +390,7 @@ export default function TallerPage() {
                   <td className="px-4 py-2.5">{o.description}</td>
                   <td className="px-4 py-2.5">
                     <StatusPulseBadge tone={otTone(o.status)}>
-                      {o.status}
+                      {statusEs(o.status)}
                     </StatusPulseBadge>
                   </td>
                   <td className="px-4 py-2.5">

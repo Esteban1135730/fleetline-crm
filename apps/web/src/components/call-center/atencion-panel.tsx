@@ -7,6 +7,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
 
 import { api } from "@/lib/api";
+import { statusEs } from "@fsg/shared";
 
 
 
@@ -104,7 +105,7 @@ export default function AtencionPanel() {
 
         <h2 className="page-title text-3xl md:text-4xl">Atención omnicanal</h2>
 
-        <p className="page-sub">Tickets WhatsApp, email, teléfono y web</p>
+        <p className="page-sub">Tickets WhatsApp, correo, teléfono y web</p>
 
       </div>
 
@@ -118,7 +119,7 @@ export default function AtencionPanel() {
 
           <option value="WHATSAPP">WhatsApp</option>
 
-          <option value="EMAIL">Email</option>
+          <option value="EMAIL">Correo</option>
 
           <option value="PHONE">Teléfono</option>
 
@@ -144,11 +145,11 @@ export default function AtencionPanel() {
 
                 <span className="font-data text-xs text-[var(--brand-primary)]">{t.code}</span>
 
-                <Badge>{t.channel}</Badge>
+                <Badge>{statusEs(t.channel)}</Badge>
 
-                <Badge tone={t.status === "OPEN" || t.status === "IN_PROGRESS" ? "rose" : "emerald"}>{t.status}</Badge>
+                <Badge tone={t.status === "OPEN" || t.status === "IN_PROGRESS" ? "rose" : "emerald"}>{statusEs(t.status)}</Badge>
 
-                <Badge tone={t.priority === "HIGH" ? "rose" : t.priority === "LOW" ? "cyan" : "amber"}>{t.priority}</Badge>
+                <Badge tone={t.priority === "HIGH" ? "rose" : t.priority === "LOW" ? "cyan" : "amber"}>{statusEs(t.priority)}</Badge>
 
                 {t.assignee ? (
 

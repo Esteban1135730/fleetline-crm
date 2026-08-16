@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
 import { api } from "@/lib/api";
+import { statusEs } from "@fsg/shared";
 import { HowToBox, PageIntro } from "@/components/page-intro";
 
 type YardApp = {
@@ -35,7 +36,7 @@ export default function AuxiliarYardAppPage() {
       setData(d);
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Uplink fallido");
+      setError(e instanceof Error ? e.message : "Conexión fallida");
     }
   }, []);
 
@@ -51,7 +52,7 @@ export default function AuxiliarYardAppPage() {
     try {
       await api.post("/api/v1/patio/lavado/completar", {
         washJobId: card.id,
-        notes: "Lavado OK — wet-finger",
+        notes: "Lavado correcto — huella húmeda",
       });
       setMsg(`Lavado ${card.plate} completado`);
       setIndex(0);
@@ -77,7 +78,7 @@ export default function AuxiliarYardAppPage() {
       setMsg(res.message);
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Yard Move fallido");
+      setError(e instanceof Error ? e.message : "Movimiento de patio fallido");
     } finally {
       setBusy(false);
     }
@@ -85,11 +86,11 @@ export default function AuxiliarYardAppPage() {
 
   return (
     <div className="mx-auto max-w-lg space-y-6 p-4 pb-24">
-      <PageIntro module="parqueadero" title="Smart Yard App" />
+      <PageIntro module="parqueadero" title="App de patio" />
       <HowToBox
         steps={[
           "Swipe o botones grandes para priorizar lavado.",
-          "Yard Moves reubican unidades LIFO.",
+          "Los movimientos de patio reubican unidades (último en entrar, primero en salir).",
           "UI optimizada para dedos mojados.",
         ]}
       />
@@ -109,7 +110,7 @@ export default function AuxiliarYardAppPage() {
         <div className="rounded-2xl border-2 border-[var(--fl-border)] bg-[var(--fl-surface)] p-6 shadow-[0_10px_30px_rgba(0,0,0,0.04)]">
           <div className="mb-2 flex justify-between">
             <Badge tone="warning">P{card.priority}</Badge>
-            <Badge tone="neutral">{card.status}</Badge>
+            <Badge tone="neutral">{statusEs(card.status)}</Badge>
           </div>
           <p className="font-mono text-4xl tracking-tight text-[var(--fl-text)]">
             {card.plate}
@@ -130,7 +131,7 @@ export default function AuxiliarYardAppPage() {
               disabled={busy}
               onClick={() => void completeWash()}
             >
-              Lavado OK
+              Lavado correcto
             </Button>
           </div>
         </div>
@@ -141,7 +142,7 @@ export default function AuxiliarYardAppPage() {
       )}
 
       <section>
-        <h2 className="mb-3 font-display text-lg">Yard Moves</h2>
+        <h2 className="mb-3 font-display text-lg">Movimientos de patio</h2>
         <ul className="space-y-3">
           {(data?.yardMoves || []).map((m) => (
             <li

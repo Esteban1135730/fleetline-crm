@@ -57,7 +57,7 @@ export default function RecepcionPanel() {
         <input className="field" placeholder="Empresa" value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} />
         <input className="field" placeholder="Motivo" value={form.purpose} onChange={(e) => setForm({ ...form, purpose: e.target.value })} required />
         <input className="field" placeholder="Anfitrión" value={form.hostName} onChange={(e) => setForm({ ...form, hostName: e.target.value })} required />
-        <Button type="submit" variant="primary">Check-in</Button>
+        <Button type="submit" variant="primary">Registrar ingreso</Button>
       </form>
       <div className="fsg-panel data-shell overflow-hidden">
         <table className="w-full text-left text-sm">
@@ -103,7 +103,7 @@ export default function RecepcionPanel() {
                           await load();
                         }}
                       >
-                        Check-out
+                        Registrar salida
                       </Button>
                       <Button
                         variant="ghost"

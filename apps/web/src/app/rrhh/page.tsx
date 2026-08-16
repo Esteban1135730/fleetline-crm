@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@fsg/ui";
-import { EMPLOYEE_AREA_GROUPS, EMPLOYEE_AREAS, EMPLOYEE_TITLES } from "@fsg/shared";
+import { EMPLOYEE_AREA_GROUPS, EMPLOYEE_AREAS, EMPLOYEE_TITLES, statusEs, systemStatusEs } from "@fsg/shared";
 import { Users } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
@@ -119,7 +119,7 @@ function semClass(s: Semaphore) {
 function semLabel(s: Semaphore) {
   if (s === "GREEN") return "VIGENTE";
   if (s === "AMBER") return "POR VENCER";
-  if (s === "RED") return "HARD-STOP";
+  if (s === "RED") return "BLOQUEO";
   return "N/A";
 }
 
@@ -195,7 +195,7 @@ export default function RrhhPage() {
 
   useEffect(() => {
     void loadAll().catch((err) =>
-      setError(err instanceof Error ? err.message : "Fallo de uplink — RRHH"),
+      setError(err instanceof Error ? err.message : "Fallo de conexión — RRHH"),
     );
   }, [loadAll]);
 
@@ -346,7 +346,7 @@ export default function RrhhPage() {
       });
       setStatusMsg(
         kind === "check-in"
-          ? "Turno OPEN — uplink de fatiga activo"
+          ? "Turno abierto — fatiga en seguimiento"
           : "Turno CLOSED — score de fatiga recalculado",
       );
       await loadAll();
@@ -431,13 +431,13 @@ export default function RrhhPage() {
           <KpiCard
             label="Personal activo"
             value={overview.personalActivo}
-            delta="Expedientes ACTIVE"
+            delta="Expedientes activos"
             tone="ok"
           />
           <KpiCard
             label="Fatiga alta"
             value={overview.fatigaAlta}
-            delta="Hard-Stop / score ≥80"
+            delta="Bloqueo operativo / puntaje ≥80"
             tone={overview.fatigaAlta > 0 ? "danger" : "ok"}
           />
           <KpiCard
@@ -452,9 +452,9 @@ export default function RrhhPage() {
             delta="Corridas indexadas"
           />
           <KpiCard
-            label="System Status"
-            value={overview.systemStatus}
-            delta="Nominal | Alert"
+            label="Estado del sistema"
+            value={systemStatusEs(overview.systemStatus)}
+            delta="Nominal | Alerta"
             tone={overview.systemStatus === "ALERT" ? "danger" : "ok"}
           />
         </div>
@@ -643,7 +643,7 @@ export default function RrhhPage() {
                           </span>
                           {r.dispatchBlocked ? (
                             <div className="text-[10px] text-[var(--brand-signal)]">
-                              {r.blockReason || "DISPATCH_BLOCKED"}
+                              {r.blockReason ? statusEs(r.blockReason) : "Despacho bloqueado"}
                             </div>
                           ) : null}
                         </td>
@@ -657,7 +657,7 @@ export default function RrhhPage() {
                           >
                             {STATUSES.map((s) => (
                               <option key={s} value={s}>
-                                {s}
+                                {statusEs(s)}
                               </option>
                             ))}
                           </select>
@@ -727,7 +727,7 @@ export default function RrhhPage() {
                 {drivers.map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.name} · fatiga {d.fatigueScore}
-                    {d.dispatchBlocked ? " · BLOCKED" : ""}
+                    {d.dispatchBlocked ? " · bloqueado" : ""}
                   </option>
                 ))}
               </select>
@@ -737,14 +737,14 @@ export default function RrhhPage() {
               className="w-auto px-4 py-2"
               onClick={() => void shiftAction("check-in")}
             >
-              Check-in turno
+              Entrada de turno
             </Button>
             <Button
               variant="ghost"
               className="w-auto px-4 py-2"
               onClick={() => void shiftAction("check-out")}
             >
-              Check-out
+              Salida de turno
             </Button>
             <Button
               variant="ghost"
@@ -798,11 +798,11 @@ export default function RrhhPage() {
                       <td className="px-4 py-2.5 font-data text-xs">
                         {r.dispatchBlocked ? (
                           <span className="text-[var(--brand-signal)]">
-                            HARD-STOP · {r.blockReason || "BLOCKED"}
+                            Bloqueo operativo · {r.blockReason ? statusEs(r.blockReason) : "Bloqueado"}
                           </span>
                         ) : (
                           <span className="text-[var(--brand-primary)]">
-                            CLEARED
+                            Liberado
                           </span>
                         )}
                       </td>
@@ -886,7 +886,7 @@ export default function RrhhPage() {
                         {new Date(run.periodEnd).toLocaleDateString("es-CO")}
                       </td>
                       <td className="px-4 py-2.5 font-data text-xs">
-                        {run.status}
+                        {statusEs(run.status)}
                       </td>
                       <td className="px-4 py-2.5 font-data">
                         {money(run.totalGross)}
@@ -1044,7 +1044,7 @@ export default function RrhhPage() {
             Documento
             <input
               className="field font-data"
-              placeholder="Cédula / ID"
+              placeholder="Cédula / documento"
               data-field="document"
               inputMode="numeric"
               value={form.document}

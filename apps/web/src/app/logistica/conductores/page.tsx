@@ -65,7 +65,7 @@ export default function LogisticaConductoresPage() {
 
   useEffect(() => {
     void Promise.all([loadDrivers(), loadClock()]).catch((e) =>
-      setError(e instanceof Error ? e.message : "Uplink fallido"),
+      setError(e instanceof Error ? e.message : "Conexión fallida"),
     );
     const t = setInterval(() => void loadClock(), 1000);
     return () => clearInterval(t);
@@ -307,7 +307,7 @@ export default function LogisticaConductoresPage() {
               <EmptyState
                 icon={<Users className="h-7 w-7" aria-hidden />}
                 title="Sin conductores"
-                description="No hay conductores cargados en el uplink de flota."
+                description="No hay conductores cargados en la flota."
               />
             </div>
           ) : (

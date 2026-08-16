@@ -218,7 +218,7 @@ export default function SarlaftPage() {
           <KpiCard
             label="Riesgo Alto"
             value={kpis.alto}
-            delta="HIGH / BLOCKED · pulse"
+            delta="Alto / Bloqueado · alerta"
             tone={kpis.alto > 0 ? "danger" : "ok"}
             icon={<ShieldAlert />}
           />

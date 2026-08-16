@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
 import { api } from "@/lib/api";
+import { statusEs } from "@fsg/shared";
 import { HowToBox, PageIntro } from "@/components/page-intro";
 
 type Dash = {
@@ -102,7 +103,7 @@ export default function CfoDashboardPage() {
         setSelectedLot(d.highValueLots[0].id);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Uplink CFO fallido");
+      setError(e instanceof Error ? e.message : "Conexión financiera fallida");
     }
   }, [selectedLot]);
 
@@ -179,7 +180,7 @@ export default function CfoDashboardPage() {
     <div className="fade-in mx-auto max-w-[1600px] space-y-5">
       <PageIntro
         module="tesoreria"
-        title="CFO Hub · Dirección Financiera"
+        title="Dirección financiera"
       />
       <HowToBox
         steps={[
@@ -465,7 +466,7 @@ export default function CfoDashboardPage() {
                     {cop(q.amount)}
                   </td>
                   <td className="px-2 py-2">
-                    <Badge tone="amber">{q.status}</Badge>
+                    <Badge tone="amber">{statusEs(q.status)}</Badge>
                   </td>
                 </tr>
               ))}

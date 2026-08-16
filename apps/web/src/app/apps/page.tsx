@@ -33,7 +33,7 @@ export default function AppsPage() {
         steps={[
           "Estas cifras salen de la base de datos del CRM (conductores, clientes, viajes).",
           "Las apps móviles aún no están integradas: no hay sync inventado.",
-          "Tickets y visitantes reflejan Call Center y Recepción en tiempo real.",
+          "Tickets y visitantes reflejan el centro de llamadas y Recepción en tiempo real.",
         ]}
       />
 

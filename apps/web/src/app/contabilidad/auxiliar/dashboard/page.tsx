@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
 import { api } from "@/lib/api";
+import { statusEs } from "@fsg/shared";
 import { HowToBox, PageIntro } from "@/components/page-intro";
 
 type Dash = {
@@ -74,7 +75,7 @@ export default function AuxiliarContableDashboardPage() {
       const d = await api<Dash>("/api/v1/contabilidad/auxiliar/dashboard");
       setDash(d);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Uplink contable fallido");
+      setError(e instanceof Error ? e.message : "Conexión contable fallida");
     }
   }, []);
 
@@ -99,18 +100,18 @@ export default function AuxiliarContableDashboardPage() {
       setMatchOut(out);
       if (out.causarBlocked) {
         setInfo(
-          `Bloqueo 3-Way · ${out.blockReason || out.reasons?.join("; ") || "discrepancia de valor"}`,
+          `Bloqueo de cruce triple · ${out.blockReason || out.reasons?.join("; ") || "discrepancia de valor"}`,
         );
       } else if (action === "CAUSAR") {
         setInfo("Factura causada — liberada a cola de Tesorería");
       } else if (action === "DEVOLVER") {
         setInfo("Factura devuelta al proveedor");
       } else if (out.causarEnabled) {
-        setInfo("Match OK — causación habilitada");
+        setInfo("Cruce correcto — causación habilitada");
       }
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error 3-Way Match");
+      setError(e instanceof Error ? e.message : "Error en el cruce triple");
     }
   }
 
@@ -138,7 +139,7 @@ export default function AuxiliarContableDashboardPage() {
       setInfo(`Auto-Match · ${out.matchedCount} emparejadas · ${out.unmatchedCount} pendientes`);
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error conciliación");
+      setError(err instanceof Error ? err.message : "Error de conciliación");
     }
   }
 
@@ -147,8 +148,8 @@ export default function AuxiliarContableDashboardPage() {
       <PageIntro module="contabilidad" title="Auxiliar contable · operación" />
       <HowToBox
         steps={[
-          "Kanban: facturas por radicar, anticipos por legalizar, extractos por conciliar.",
-          "Split-screen: soporte a la izquierda, captura 3-Way a la derecha.",
+          "Tablero: facturas por radicar, anticipos por legalizar, extractos por conciliar.",
+          "Pantalla partida: soporte a la izquierda, captura de cruce triple a la derecha.",
           "Causar solo si OC + remisión + factura coinciden; discrepancia bloquea.",
         ]}
       />
@@ -292,17 +293,17 @@ export default function AuxiliarContableDashboardPage() {
             </div>
           </div>
           <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4">
-            <h3 className="mb-3 text-sm font-semibold">Validación 3-Way Match</h3>
+            <h3 className="mb-3 text-sm font-semibold">Validación de cruce triple</h3>
             <div className="space-y-3">
               <input
                 className="w-full rounded-lg border border-[var(--border-subtle)] bg-transparent px-3 py-2 text-sm"
-                placeholder="ID Orden de Compra"
+                placeholder="Número de orden de compra"
                 value={poId}
                 onChange={(e) => setPoId(e.target.value)}
               />
               <input
                 className="w-full rounded-lg border border-[var(--border-subtle)] bg-transparent px-3 py-2 text-sm"
-                placeholder="ID Entrada de almacén / remisión"
+                placeholder="Número de entrada de almacén / remisión"
                 value={receiptId}
                 onChange={(e) => setReceiptId(e.target.value)}
               />
@@ -332,7 +333,7 @@ export default function AuxiliarContableDashboardPage() {
               {matchOut ? (
                 <div className="rounded-lg border border-[var(--border-subtle)] p-3 text-xs">
                   <p className="font-mono">
-                    Outcome: {matchOut.status} · Δ precio {matchOut.priceDelta ?? "—"}
+                    Resultado: {statusEs(matchOut.status)} · Δ precio {matchOut.priceDelta ?? "—"}
                   </p>
                   {matchOut.causarBlocked ? (
                     <Badge tone="rose">Causación bloqueada</Badge>
@@ -374,7 +375,7 @@ export default function AuxiliarContableDashboardPage() {
                   <td className="px-3 py-2 font-mono text-xs">{c.number}</td>
                   <td className="px-3 py-2">{c.counterparty}</td>
                   <td className="px-3 py-2 font-mono">{money(c.amount)}</td>
-                  <td className="px-3 py-2">{c.status}</td>
+                  <td className="px-3 py-2">{statusEs(c.status)}</td>
                 </tr>
               ))}
             </tbody>

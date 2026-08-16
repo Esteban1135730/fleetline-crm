@@ -40,6 +40,7 @@ import {
   navDeptForPath,
   normalizeRole,
   resolveModuleId,
+  systemStatusEs,
   type ModuleId,
   type NavDeptId,
   type NavDepartment,
@@ -90,7 +91,7 @@ function currentModuleLabel(pathname: string): string {
   if (seg === "cuenta") return "Cuenta";
   const resolved = resolveModuleId(seg);
   if (resolved) return MODULE_LABELS[resolved];
-  return "Fleet Operations";
+  return "Operaciones de flota";
 }
 
 function pathMatches(href: string, pathname: string) {
@@ -194,8 +195,8 @@ function TopBar({
       <div className="flt-topbar-right">
         <span
           className={`flt-status-dot ${statusClass}`}
-          title={`System status: ${systemStatus}`}
-          aria-label={`Estado ${systemStatus}`}
+          title={`Estado del sistema: ${systemStatusEs(systemStatus)}`}
+          aria-label={`Estado ${systemStatusEs(systemStatus)}`}
         />
         <NotificationBell />
         <button
@@ -333,7 +334,7 @@ function SideNav({
               onClick={toggleSidebar}
               title={sidebarCollapsed ? "Expandir menú" : "Colapsar menú"}
               aria-label={
-                sidebarCollapsed ? "Expandir sidebar" : "Colapsar sidebar"
+                sidebarCollapsed ? "Expandir menú lateral" : "Colapsar menú lateral"
               }
             >
               <NavIcon
@@ -675,7 +676,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       const dept: NavDepartment = {
         id: "call_center",
         label: "Recepción",
-        tip: "Concierge omnicanal · visitas · PQRS · radar lectura",
+        tip: "Recepción omnicanal · visitas · PQRS · radar de lectura",
         items: RECEPCIONISTA_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -690,7 +691,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       const dept: NavDepartment = {
         id: "tecnologia_ti",
         label: "Tecnología e infraestructura",
-        tip: "Centro de Control · usuarios · help desk · NOC",
+        tip: "Centro de control · usuarios · mesa de ayuda · supervisión",
         items: LIDER_TI_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -735,7 +736,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       const dept: NavDepartment = {
         id: "contabilidad",
         label: "Contabilidad 4.0",
-        tip: "PUC · DIAN · Smart Wallet · costeo flota",
+        tip: "PUC · DIAN · cartera digital · costeo de flota",
         items: GESTOR_CONTABLE_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -750,7 +751,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       const dept: NavDepartment = {
         id: "tesoreria",
         label: "Dirección Financiera",
-        tip: "CFO Hub · MFA · P&L · contratos",
+        tip: "Dirección financiera · aprobación · resultados · contratos",
         items: DIRECTOR_FINANCIERO_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -764,8 +765,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     if (role === "lider_qhse" || role === "qhse") {
       const dept: NavDepartment = {
         id: "qhse",
-        label: "QHSE · Prevención 4.0",
-        tip: "Radar · telemetría · siniestros · ESG",
+        label: "Calidad y SST",
+        tip: "Radar · telemetría · siniestros · ambiental",
         items: LIDER_QHSE_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -779,8 +780,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     if (role === "lider_compras" || role === "compras") {
       const dept: NavDepartment = {
         id: "compras",
-        label: "Smart Procurement",
-        tip: "Vendor Hub · OC · almacén · SOAT",
+        label: "Compras inteligentes",
+        tip: "Proveedores · órdenes · almacén · SOAT",
         items: LIDER_COMPRAS_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -795,7 +796,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       const dept: NavDepartment = {
         id: "logistica",
         label: "Dirección Operativa",
-        tip: "Control Tower · Gantt · capacidad",
+        tip: "Torre de control · cronograma · capacidad",
         items: DIRECTOR_OPERATIVO_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -809,8 +810,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     if (role === "gestor_operativo") {
       const dept: NavDepartment = {
         id: "logistica",
-        label: "Micro-Dispatch 4.0",
-        tip: "Asignación · relevo flash · hard-stops",
+        label: "Microdespacho",
+        tip: "Asignación · relevo rápido · bloqueos",
         items: GESTOR_OPERATIVO_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -824,8 +825,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     if (role === "coordinador_campo") {
       const dept: NavDepartment = {
         id: "logistica",
-        label: "Field Commander",
-        tip: "Geocerca · abordaje · auditoría sitio",
+        label: "Comando de campo",
+        tip: "Geocerca · abordaje · auditoría en sitio",
         items: COORDINADOR_CAMPO_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -839,8 +840,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     if (role === "operador_centro_control" || role === "centro_control") {
       const dept: NavDepartment = {
         id: "logistica",
-        label: "Watchtower 24/7",
-        tip: "Excepciones · SOS · IoT",
+        label: "Torre de control 24/7",
+        tip: "Excepciones · emergencia · sensores",
         items: OPERADOR_CENTRO_CONTROL_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -854,8 +855,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     if (role === "auditor_control_interno" || role === "control_interno") {
       const dept: NavDepartment = {
         id: "revisoria_fiscal",
-        label: "Forensic Hub",
-        tip: "Caja negra · hallazgos · smart audit",
+        label: "Centro forense",
+        tip: "Caja negra · hallazgos · auditoría",
         items: AUDITOR_CONTROL_INTERNO_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -869,8 +870,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     if (role === "presidente" || role === "presidencia") {
       const dept: NavDepartment = {
         id: "presidencia",
-        label: "Founder's Canvas",
-        tip: "Jarvis · CapEx · DEFCON",
+        label: "Lienzo de presidencia",
+        tip: "Asistente · inversión · crisis",
         items: PRESIDENTE_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -884,8 +885,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     if (role === "gestor_vinculaciones" || role === "vinculaciones") {
       const dept: NavDepartment = {
         id: "rrhh",
-        label: "Smart Onboarding",
-        tip: "Afiliados · RUNT/SIMIT · OCR",
+        label: "Alta de afiliados",
+        tip: "Afiliados · RUNT/SIMIT · lectura de documentos",
         items: GESTOR_VINCULACIONES_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -900,7 +901,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       const dept: NavDepartment = {
         id: "comercial",
         label: "Dirección Comercial",
-        tip: "Pipeline B2B · Cotizador · DocuSign",
+        tip: "Embudo empresas · Cotizador · Firma digital",
         items: DIRECTOR_COMERCIAL_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -914,7 +915,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     if (role === "gestor_comercial") {
       const dept: NavDepartment = {
         id: "comercial",
-        label: "Sales Execution",
+        label: "Ejecución comercial",
         tip: "Tareas · Marcador · Cobro anticipado",
         items: GESTOR_COMERCIAL_NAV.map((i) => ({
           href: i.href,
@@ -930,7 +931,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       const dept: NavDepartment = {
         id: "comercial",
         label: "Coordinación Comercial",
-        tip: "Leaderboard · SECOP · Round-Robin",
+        tip: "Tabla de posiciones · SECOP · asignación en ronda",
         items: COORDINADOR_COMERCIAL_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -945,7 +946,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       const dept: NavDepartment = {
         id: "gerencia",
         label: "Gerencia General",
-        tip: "Scorecard · Overrides · PIN",
+        tip: "Cuadro de mando · excepciones · PIN",
         items: GERENTE_GENERAL_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -959,7 +960,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     if (role === "director_juridico" || role === "juridico") {
       const dept: NavDepartment = {
         id: "juridico",
-        label: "Legal Hub 4.0",
+        label: "Centro jurídico",
         tip: "Contratos · SARLAFT · Expedientes",
         items: DIRECTOR_JURIDICO_NAV.map((i) => ({
           href: i.href,
@@ -974,8 +975,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     if (role === "revisor_fiscal") {
       const dept: NavDepartment = {
         id: "revisoria_fiscal",
-        label: "Truth Hub",
-        tip: "DIAN · Drill-down · Hard Lock",
+        label: "Centro de revisoría",
+        tip: "DIAN · Detalle · Cierre de periodo",
         items: REVISOR_FISCAL_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -990,7 +991,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       const dept: NavDepartment = {
         id: "taller",
         label: "Taller 4.0",
-        tip: "Kanban · Bahías · QC",
+        tip: "Tablero · Bahías · control de calidad",
         items: COORDINADOR_TALLER_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -1004,8 +1005,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     if (role === "auxiliar_almacen_taller") {
       const dept: NavDepartment = {
         id: "taller",
-        label: "Smart Warehouse",
-        tip: "QR · Despacho POS",
+        label: "Almacén del taller",
+        tip: "Código · despacho en mostrador",
         items: AUXILIAR_ALMACEN_TALLER_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -1019,8 +1020,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     if (role === "mecanico") {
       const dept: NavDepartment = {
         id: "taller",
-        label: "FSG Tech App",
-        tip: "OT · Timer · Foto/Voz",
+        label: "App de taller",
+        tip: "Órdenes · cronómetro · foto y voz",
         items: MECANICO_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -1034,8 +1035,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     if (role === "coordinador_patio") {
       const dept: NavDepartment = {
         id: "parqueadero",
-        label: "Smart Yard",
-        tip: "Yard Map · Talanquera LPR",
+        label: "Patio inteligente",
+        tip: "Mapa de patio · Talanquera",
         items: COORDINADOR_PATIO_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -1049,8 +1050,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     if (role === "auxiliar_patio") {
       const dept: NavDepartment = {
         id: "parqueadero",
-        label: "Smart Yard App",
-        tip: "Lavado · Yard Moves",
+        label: "App de patio",
+        tip: "Lavado · movimientos de patio",
         items: AUXILIAR_PATIO_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -1064,8 +1065,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     if (role === "conductor") {
       const dept: NavDepartment = {
         id: "logistica",
-        label: "FSG Pilot",
-        tip: "Preop · SOS · Viático",
+        label: "App del conductor",
+        tip: "Preoperacional · emergencia · viático",
         items: CONDUCTOR_PILOT_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -1080,7 +1081,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       const dept: NavDepartment = {
         id: "gerencia",
         label: "Ejecución Táctica",
-        tip: "Conflictos · Deadhead · Proyectos",
+        tip: "Conflictos · kilómetros en vacío · Proyectos",
         items: SUBGERENTE_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,

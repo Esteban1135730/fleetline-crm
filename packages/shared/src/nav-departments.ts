@@ -82,7 +82,7 @@ export const NAV_DEPARTMENTS: NavDepartment[] = [
   {
     id: "logistica",
     label: "Logística",
-    tip: "Programación de servicios, tracking GPS, conductores y nómina de extras.",
+    tip: "Programación de servicios, seguimiento GPS, conductores y nómina de extras.",
     items: [
       {
         href: "/logistica/servicios",
@@ -138,7 +138,7 @@ export const NAV_DEPARTMENTS: NavDepartment[] = [
     "tecnologia_ti",
     "/ti/dashboard",
     "Tecnología",
-    "Centro de Control · usuarios · help desk · NOC.",
+    "Centro de Control · usuarios · mesa de ayuda · monitoreo.",
   ),
   AREA(
     "archivo",

@@ -128,7 +128,7 @@ export default function ReporteNominaPage() {
 
   useEffect(() => {
     void loadDrivers().catch((e) =>
-      setError(e instanceof Error ? e.message : "Uplink fallido"),
+      setError(e instanceof Error ? e.message : "Conexión fallida"),
     );
   }, [loadDrivers]);
 
@@ -299,7 +299,7 @@ export default function ReporteNominaPage() {
                 className="block w-full px-3 py-2 text-left text-sm hover:bg-[var(--brand-primary)]/10"
                 onClick={() => void exportFile("pdf")}
               >
-                PDF desprendible
+                Comprobante en PDF
               </button>
             </div>
           ) : null}

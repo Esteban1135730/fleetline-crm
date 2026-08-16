@@ -101,7 +101,7 @@ export default function DirectorOperativoDashboardPage() {
       setDash(d);
       setCapacity(c);
     } catch (e) {
-      setError((e as Error).message || "Señal perdida — reintentando uplink");
+      setError((e as Error).message || "Señal perdida — reintentando conexión");
     }
   }, []);
 
@@ -176,7 +176,7 @@ export default function DirectorOperativoDashboardPage() {
         method: "POST",
         body: JSON.stringify({
           tripId,
-          reason: "Contingencia mayor — reasignación Gantt drag",
+          reason: "Contingencia mayor — reasignación de cronograma",
           radiusKm: 20,
           forceOverride: true,
           notifyDrivers: true,
@@ -188,7 +188,7 @@ export default function DirectorOperativoDashboardPage() {
       );
       await load();
     } catch (e) {
-      setError((e as Error).message || "Override fallido");
+      setError((e as Error).message || "Reasignación fallida");
     } finally {
       setBusy(false);
       setDragId(null);
@@ -217,12 +217,12 @@ export default function DirectorOperativoDashboardPage() {
 
   return (
     <div className="fade-in mx-auto max-w-[1600px] space-y-8">
-      <PageIntro module="logistica" title="Control Tower · Dirección Operativa" />
+      <PageIntro module="logistica" title="Torre de control · Dirección operativa" />
       <HowToBox
         steps={[
-          "Gantt: arrastre un servicio para override de contingencia (pool GPS).",
-          "Apruebe paradas de flota en ventanas de baja demanda — bloqueo automático en Gantt.",
-          "Capacity planning descuenta taller y descansos RRHH antes de alquilar flota.",
+          "Cronograma: arrastre un servicio para reasignación de contingencia (grupo GPS).",
+          "Apruebe paradas de flota en ventanas de baja demanda — bloqueo automático en el cronograma.",
+          "La planeación de capacidad descuenta taller y descansos de RRHH antes de alquilar flota.",
         ]}
       />
 
@@ -277,13 +277,13 @@ export default function DirectorOperativoDashboardPage() {
           <header className="mb-4 flex items-center justify-between">
             <div>
               <h3 className="font-display text-lg text-[var(--text-primary)]">
-                Gantt táctico
+                Cronograma táctico
               </h3>
               <p className="text-sm text-[var(--text-secondary)]">
-                Drag & drop · reasignación en vivo
+                Arrastrar y soltar · reasignación en vivo
               </p>
             </div>
-            {dragId ? <Badge tone="amber">Override listo</Badge> : null}
+            {dragId ? <Badge tone="amber">Reasignación lista</Badge> : null}
           </header>
           <div className="space-y-2">
             {plates.length === 0 ? (
@@ -341,13 +341,13 @@ export default function DirectorOperativoDashboardPage() {
               Radar de novedades
             </h3>
             <p className="text-xs text-[var(--text-secondary)]">
-              Tráfico · check-in · SOS
+              Tráfico · ingreso · SOS
             </p>
           </header>
           <ul className="max-h-[420px] divide-y divide-[var(--border-subtle)] overflow-y-auto">
             {(dash?.novedades ?? []).length === 0 ? (
               <li className="px-4 py-8 text-sm text-[var(--text-secondary)]">
-                Uplink nominal
+                Conexión nominal
               </li>
             ) : (
               dash!.novedades.map((n) => (
@@ -373,7 +373,7 @@ export default function DirectorOperativoDashboardPage() {
       {/* Capacity */}
       <section id="capacidad" className="fsg-panel p-5">
         <h3 className="font-display text-lg text-[var(--text-primary)]">
-          Capacity planning
+          Planeación de capacidad
         </h3>
         <p className="text-sm text-[var(--text-secondary)]">
           Flota disponible descontando taller y RRHH

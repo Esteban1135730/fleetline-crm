@@ -225,7 +225,7 @@ export function DashboardCharts({ data }: { data: ChartsPayload }) {
 
       <ChartCard
         title="Viajes por estado"
-        subtitle="Turquesa OK · Índigo en ruta · Dorado pendiente · Magenta novedad"
+        subtitle="Turquesa correcto · Índigo en ruta · Dorado pendiente · Magenta novedad"
         accent="info"
       >
         <ResponsiveContainer width="100%" height="100%">
@@ -269,7 +269,7 @@ export function DashboardCharts({ data }: { data: ChartsPayload }) {
       </ChartCard>
 
       <ChartCard
-        title="Satisfacción del cliente (NPS)"
+        title="Satisfacción del cliente"
         subtitle="Promedio mensual · escala de 0 a 5"
         accent="emerald"
       >
@@ -282,7 +282,7 @@ export function DashboardCharts({ data }: { data: ChartsPayload }) {
             <Line
               type="monotone"
               dataKey="nps"
-              name="Puntaje NPS"
+              name="Satisfacción"
               stroke={t.primary}
               strokeWidth={3}
               dot={{ r: 5, fill: t.amber, stroke: t.primary, strokeWidth: 2 }}

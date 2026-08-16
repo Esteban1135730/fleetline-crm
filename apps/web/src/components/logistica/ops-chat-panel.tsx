@@ -50,7 +50,7 @@ export function OpsChatPanel({
       setMessages(rows);
       setError("");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Chat offline");
+      setError(e instanceof Error ? e.message : "Chat sin conexión");
     }
   }, [path]);
 
@@ -144,7 +144,7 @@ export function OpsChatPanel({
           <ul className="flex-1 space-y-2 overflow-auto px-3 py-2">
             {messages.length === 0 ? (
               <li className="text-sm text-[var(--brand-muted)]">
-                Sin mensajes — escribe el primer uplink.
+                Sin mensajes — escribe el primer mensaje.
               </li>
             ) : (
               messages.map((m) => (

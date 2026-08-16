@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
 import { api } from "@/lib/api";
+import { statusEs } from "@fsg/shared";
 import { HowToBox, PageIntro } from "@/components/page-intro";
 
 type Urgency = "CRITICAL" | "LOW_STOCK" | "ADMIN";
@@ -97,7 +98,7 @@ export default function ComprasVendorDashboardPage() {
       const d = await api<Dash>("/api/v1/compras/dashboard");
       setDash(d);
     } catch (e) {
-      setError((e as Error).message || "Señal perdida — reintentando uplink");
+      setError((e as Error).message || "Señal perdida — reintentando conexión");
     }
   }, []);
 
@@ -142,7 +143,7 @@ export default function ComprasVendorDashboardPage() {
       }
       await load();
     } catch (e) {
-      setError((e as Error).message || "Smart bidding fallido");
+      setError((e as Error).message || "Licitación automática fallida");
     } finally {
       setBusy(false);
       void reqId;
@@ -151,12 +152,12 @@ export default function ComprasVendorDashboardPage() {
 
   return (
     <div className="fade-in mx-auto max-w-[1600px] space-y-8">
-      <PageIntro module="compras" title="Vendor Hub · Smart Procurement" />
+      <PageIntro module="compras" title="Centro de proveedores · Compras inteligentes" />
       <HowToBox
         steps={[
           "Bandeja: Rojo Bus Varado · Amarillo Stock Bajo · Verde Administrativo.",
-          "Smart Bidding envía RFQ a proveedores homologados y selecciona óptimo.",
-          "OC sobre tope → escalamiento al Director Financiero. Entrada almacén dispara 3-Way.",
+          "La puja automática envía solicitudes a proveedores homologados y elige la mejor oferta.",
+          "OC sobre tope → escalamiento al Director Financiero. Entrada al almacén dispara el cruce triple.",
         ]}
       />
 
@@ -178,11 +179,11 @@ export default function ComprasVendorDashboardPage() {
           disabled={busy}
           onClick={() => void runSmartBidding()}
         >
-          {busy ? "Procesando…" : "Smart Bidding + emitir OC"}
+          {busy ? "Procesando…" : "Pujar y emitir orden"}
         </Button>
         {dash ? (
           <Badge tone="amber">
-            Tope CFO {money(dash.savings.cfoThreshold)}
+            Tope de dirección financiera {money(dash.savings.cfoThreshold)}
           </Badge>
         ) : null}
         {dash ? (
@@ -199,13 +200,13 @@ export default function ComprasVendorDashboardPage() {
             Bandeja de requisiciones
           </h3>
           <p className="text-sm text-[var(--text-secondary)]">
-            Prioridad por urgencia · estilo Vendor Hub
+            Prioridad por urgencia · centro de proveedores
           </p>
         </header>
         <ul className="divide-y divide-[var(--border-subtle)]">
           {(dash?.inbox ?? []).length === 0 ? (
             <li className="px-5 py-8 text-sm text-[var(--text-secondary)]">
-              Sin requisiciones abiertas — dispare Smart Bidding desde Taller
+              Sin requisiciones abiertas — dispare la licitación desde Taller
             </li>
           ) : (
             dash!.inbox.map((item) => (
@@ -222,7 +223,7 @@ export default function ComprasVendorDashboardPage() {
                     {item.title}
                   </p>
                   <p className="text-xs text-[var(--text-secondary)]">
-                    Qty {item.quantity} · {item.status}
+                    Cant. {item.quantity} · {statusEs(item.status)}
                   </p>
                 </div>
                 <Badge tone={urgencyTone(item.urgency)}>{item.label}</Badge>
@@ -236,7 +237,7 @@ export default function ComprasVendorDashboardPage() {
       <section id="ordenes">
         <header className="mb-3 px-1">
           <h3 className="font-display text-lg text-[var(--text-primary)]">
-            Kanban de órdenes de compra
+            Tablero de órdenes de compra
           </h3>
           <p className="text-sm text-[var(--text-secondary)]">
             Cotizando → OC Emitida → En Tránsito → Recibido
@@ -269,7 +270,7 @@ export default function ComprasVendorDashboardPage() {
               code: o.code,
               title: o.description || o.code,
               meta: money(o.totalEstimated),
-              sub: `${o.status} · ${o.supplier?.name || "—"}`,
+              sub: `${statusEs(o.status)} · ${o.supplier?.name || "—"}`,
             }))}
           />
           <KanbanCol

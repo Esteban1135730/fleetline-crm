@@ -85,7 +85,7 @@ export default function PresidenciaDashboardPage() {
     try {
       setDash(await api<Dash>("/api/v1/presidencia/dashboard"));
     } catch (e) {
-      setError((e as Error).message || "Señal perdida — uplink Founder's Canvas");
+      setError((e as Error).message || "Señal perdida — conexión de presidencia");
     }
   }, []);
 
@@ -145,7 +145,7 @@ export default function PresidenciaDashboardPage() {
       );
       setJarvisOut(res.spokenSummary || res.message);
     } catch (e) {
-      setError((e as Error).message || "Jarvis sin uplink");
+      setError((e as Error).message || "Asistente sin conexión");
     } finally {
       setBusy(false);
       setTimeout(() => setListening(false), 1200);
@@ -169,7 +169,7 @@ export default function PresidenciaDashboardPage() {
       );
       setCapexOut(res.message);
     } catch (e) {
-      setError((e as Error).message || "Simulación CapEx fallida");
+      setError((e as Error).message || "Simulación de inversión fallida");
     } finally {
       setBusy(false);
     }
@@ -202,7 +202,7 @@ export default function PresidenciaDashboardPage() {
       );
       setDefconOpen(false);
     } catch (e) {
-      setError((e as Error).message || "DEFCON no activado");
+      setError((e as Error).message || "Protocolo de crisis no activado");
     } finally {
       setBusy(false);
     }
@@ -225,14 +225,14 @@ export default function PresidenciaDashboardPage() {
       <header className="relative z-10 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl font-semibold tracking-tight md:text-3xl">
-            The Founder&apos;s Canvas
+            Lienzo de presidencia
           </h1>
           <div className="mt-2 flex flex-wrap gap-2">
             <Badge tone={defconActive ? "rose" : "emerald"}>
-              {defconActive ? "DEFCON 2 · War Room" : "Nominal"}
+              {defconActive ? "Alerta máxima · Sala de crisis" : "Nominal"}
             </Badge>
             <Badge tone="amber">
-              Kill-Switch {dash?.killSwitch?.blockedPct ?? 0}%
+              Bloqueo operativo {dash?.killSwitch?.blockedPct ?? 0}%
             </Badge>
           </div>
         </div>
@@ -243,7 +243,7 @@ export default function PresidenciaDashboardPage() {
             className="w-auto px-4 py-2"
             onClick={() => setCapexOpen(true)}
           >
-            Simulador CapEx
+            Simulador de inversión
           </Button>
           <Button
             type="button"
@@ -251,7 +251,7 @@ export default function PresidenciaDashboardPage() {
             className="w-auto px-4 py-2 !bg-[#FF2A5F] !text-white"
             onClick={() => setDefconOpen(true)}
           >
-            DEFCON · Crisis
+            Protocolo de crisis
           </Button>
         </div>
       </header>
@@ -288,7 +288,7 @@ export default function PresidenciaDashboardPage() {
           icon={<ShieldAlert />}
         />
         <KpiCard
-          label={p?.nps.label || "NPS"}
+          label={p?.nps.label || "Satisfacción"}
           value={p ? String(p.nps.value) : "—"}
           delta={p ? `${p.nps.samples} muestras · ${p.nps.hint}` : undefined}
           tone="neutral"
@@ -351,7 +351,7 @@ export default function PresidenciaDashboardPage() {
           ) : (
             <EmptyState
               title="Sin serie de flujo"
-              description="Uplink de corredores o cashFlow pendiente."
+              description="Sin datos de corredores o flujo de caja."
             />
           )}
           {dash?.cashFlow?.atRiskAmount ? (
@@ -419,7 +419,7 @@ export default function PresidenciaDashboardPage() {
           ) : (
             <EmptyState
               title="Sin corredores de ingreso"
-              description="Mapa cifrado vacío — sin uplink de revenueHeat."
+              description="Mapa cifrado vacío — sin datos de calor de ingresos."
             />
           )}
         </section>
@@ -441,13 +441,13 @@ export default function PresidenciaDashboardPage() {
               listening ? "absolute animate-ping opacity-40" : ""
             }`}
           />
-          <span className="relative font-display text-sm text-white">Jarvis</span>
+          <span className="relative font-display text-sm text-white">Asistente</span>
         </div>
         <textarea
           className="field min-h-[72px] w-full max-w-xl"
           value={utterance}
           onChange={(e) => setUtterance(e.target.value)}
-          aria-label="Comando Jarvis"
+          aria-label="Comando del asistente"
         />
         <div className="mt-3 flex w-full max-w-xl justify-end">
           <Button
@@ -457,7 +457,7 @@ export default function PresidenciaDashboardPage() {
             disabled={busy}
             onClick={() => void askJarvis()}
           >
-            Hablar con Jarvis
+            Hablar con el asistente
           </Button>
         </div>
         {jarvisOut ? (
@@ -470,7 +470,7 @@ export default function PresidenciaDashboardPage() {
       <Modal
         open={capexOpen}
         onClose={() => setCapexOpen(false)}
-        title="Simulador CapEx"
+        title="Simulador de inversión"
         description="Compra de flota vs mapa de utilización"
         footer={
           <>
@@ -522,8 +522,8 @@ export default function PresidenciaDashboardPage() {
       <SlideOver
         open={defconOpen}
         onClose={() => setDefconOpen(false)}
-        title="DEFCON · Crisis Master"
-        description="Protocolo DEFCON 2 — sirena + blast masivo + War Room"
+        title="Protocolo de crisis"
+        description="Protocolo de alerta máxima — sirena + aviso masivo + sala de crisis"
         footer={
           <Button
             type="button"
@@ -532,7 +532,7 @@ export default function PresidenciaDashboardPage() {
             disabled={busy}
             onClick={() => void activarDefcon()}
           >
-            Activar DEFCON 2
+            Activar alerta máxima
           </Button>
         }
       >

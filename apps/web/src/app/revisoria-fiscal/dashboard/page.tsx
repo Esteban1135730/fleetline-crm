@@ -8,7 +8,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@fsg/ui";
-import { HARD_RULES } from "@fsg/shared";
+import { HARD_RULES, statusEs } from "@fsg/shared";
 import { api } from "@/lib/api";
 import {
   EmptyState,
@@ -111,9 +111,9 @@ function money(n: number) {
 
 const HELP_STEPS = [
   "Panel DIAN consolida ventas/compras y resalta retenciones omitidas o mal calculadas.",
-  "Drill-down forense: saldo PUC → factura → presupuesto → OC → almacén → egreso.",
+  "Detalle forense: saldo PUC → factura → presupuesto → OC → almacén → egreso.",
   `Muestreo automático del ${HARD_RULES.REVISORIA_SAMPLE_PCT}% de transacciones del mes.`,
-  "Hard Lock: dictamen PDF + bloqueo absoluto del periodo contable.",
+  "Cierre de periodo: dictamen en PDF y bloqueo absoluto del periodo contable.",
   "Navegación rápida: Ctrl/Cmd + K · Ayuda: tecla ?",
 ];
 
@@ -146,7 +146,7 @@ export default function RevisoriaFiscalDashboardPage() {
       setFlagged(impuestos.flagged);
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Uplink fallido");
+      setError(e instanceof Error ? e.message : "Conexión fallida");
     }
   }, []);
 
@@ -162,7 +162,7 @@ export default function RevisoriaFiscalDashboardPage() {
         await api.get<Drill>(`/api/v1/revisoria-fiscal/drill-down/${facturaId}`),
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Drill-down fallido");
+      setError(e instanceof Error ? e.message : "Detalle forense fallido");
     } finally {
       setBusy(false);
     }
@@ -179,14 +179,14 @@ export default function RevisoriaFiscalDashboardPage() {
           yearMonth: ym,
           pdfRef,
           opinion: "SIN_SALVEDADES",
-          notes: "Dictamen Truth Hub — cierre absoluto del periodo",
+          notes: "Dictamen de revisoría — cierre absoluto del periodo",
         },
       );
       setMsg(`${res.status}: ${res.message}`);
       setLockOpen(false);
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Hard Lock fallido");
+      setError(e instanceof Error ? e.message : "Cierre de periodo fallido");
     } finally {
       setBusy(false);
     }
@@ -221,10 +221,10 @@ export default function RevisoriaFiscalDashboardPage() {
         a.download = `truth-hub-${ym}.json`;
         a.click();
         URL.revokeObjectURL(url);
-        setMsg("Export JSON listo");
+        setMsg("Exportación JSON lista");
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Export fallido");
+      setError(e instanceof Error ? e.message : "Exportación fallida");
     } finally {
       setBusy(false);
     }
@@ -277,14 +277,14 @@ export default function RevisoriaFiscalDashboardPage() {
           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-500">
             Revisoría fiscal
           </p>
-          <h1 className="text-2xl font-bold text-slate-100">Truth Hub</h1>
+          <h1 className="text-2xl font-bold text-slate-100">Centro de revisoría</h1>
           <p className="mt-1 font-mono text-xs text-slate-500">
             Periodo {ym} · Ctrl/Cmd+K navegación global
           </p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
           <StatusPulseBadge tone={locked ? "danger" : "active"} pulse={locked}>
-            {locked ? "HARD LOCKED" : dash?.period.status || "OPEN"}
+            {locked ? "Cerrado en firme" : statusEs(dash?.period.status || "OPEN")}
           </StatusPulseBadge>
           {(dash?.impuestosSummary.flaggedCount ?? 0) > 0 ? (
             <StatusPulseBadge tone="fatiga">
@@ -292,11 +292,11 @@ export default function RevisoriaFiscalDashboardPage() {
             </StatusPulseBadge>
           ) : (
             <StatusPulseBadge tone="active" pulse={false}>
-              ACTIVE · DIAN OK
+              Activo · DIAN correcto
             </StatusPulseBadge>
           )}
           <SlideOverHelp
-            title="Cómo operar Truth Hub"
+            title="Cómo operar el centro de revisoría"
             summary="Protocolo forense de cierre e impuestos."
             steps={HELP_STEPS}
           />
@@ -325,7 +325,7 @@ export default function RevisoriaFiscalDashboardPage() {
             disabled={busy || locked}
             onClick={() => setLockOpen(true)}
           >
-            Hard Lock
+            Cierre de periodo
           </Button>
         </div>
       </div>
@@ -406,8 +406,8 @@ export default function RevisoriaFiscalDashboardPage() {
         filteredFlagged.length === 0 ? (
           <EmptyState
             title="Sin alertas de retención"
-            description="El pre-validador DIAN no marcó omisiones en el periodo. Use Hard Lock cuando el dictamen esté listo."
-            actionLabel="Abrir Hard Lock"
+            description="El pre-validador DIAN no marcó omisiones en el periodo. Use el cierre de periodo cuando el dictamen esté listo."
+            actionLabel="Abrir cierre de periodo"
             onAction={() => setLockOpen(true)}
           />
         ) : (
@@ -440,7 +440,7 @@ export default function RevisoriaFiscalDashboardPage() {
                         disabled={busy}
                         onClick={() => void openDrill(f.invoiceId)}
                       >
-                        Drill-down
+                        Ver detalle
                       </Button>
                     </td>
                   </tr>
@@ -558,7 +558,7 @@ export default function RevisoriaFiscalDashboardPage() {
       <Modal
         open={!!drill}
         onClose={() => setDrill(null)}
-        title={drill ? `Hilo de Ariadna · ${drill.invoice.number}` : "Drill-down"}
+        title={drill ? `Cadena de evidencia · ${drill.invoice.number}` : "Detalle forense"}
         description={drill?.message}
         footer={
           <Button className="w-auto px-4 py-2" onClick={() => setDrill(null)}>
@@ -588,7 +588,7 @@ export default function RevisoriaFiscalDashboardPage() {
             <li>
               Egreso:{" "}
               {drill.thread.egreso
-                .map((e) => `${e.status} ${money(e.amount)}`)
+                .map((e) => `${statusEs(e.status)} ${money(e.amount)}`)
                 .join(" · ") || "Sin comprobante"}
             </li>
           </ol>
@@ -599,8 +599,8 @@ export default function RevisoriaFiscalDashboardPage() {
       <Modal
         open={lockOpen}
         onClose={() => setLockOpen(false)}
-        title="Dictamen y Hard Lock"
-        description={`Sella el periodo ${ym}. Acción irreversible en uplink.`}
+        title="Dictamen y cierre de periodo"
+        description={`Sella el periodo ${ym}. Acción irreversible en la red.`}
         footer={
           <>
             <Button
@@ -616,7 +616,7 @@ export default function RevisoriaFiscalDashboardPage() {
               disabled={busy || locked}
               onClick={() => void applyHardLock()}
             >
-              {locked ? "Periodo sellado" : "Aplicar Hard Lock"}
+              {locked ? "Periodo sellado" : "Aplicar cierre de periodo"}
             </Button>
           </>
         }

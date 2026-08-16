@@ -29,7 +29,7 @@ type AreaCockpitShellProps = {
 export function AreaCockpitShell({
   module,
   title,
-  statusLine = "System Status: Nominal — cockpit en fase de instrumentación",
+  statusLine = "Estado del sistema: nominal — tablero en instrumentación",
   kpis,
 }: AreaCockpitShellProps) {
   const { toggleHelp } = useShell();

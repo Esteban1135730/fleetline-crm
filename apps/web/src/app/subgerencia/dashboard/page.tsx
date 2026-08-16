@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
 import { api } from "@/lib/api";
+import { statusEs } from "@fsg/shared";
 import { HowToBox, PageIntro } from "@/components/page-intro";
 
 type Conflict = {
@@ -46,7 +47,7 @@ export default function SubgerenciaDashboard() {
       setDash(d);
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Uplink fallido");
+      setError(e instanceof Error ? e.message : "Conexión fallida");
     }
   }, []);
 
@@ -83,7 +84,7 @@ export default function SubgerenciaDashboard() {
         steps={[
           "Deadhead Miles y parqueaderos satélite en el heatmap.",
           "Resolver conflictos Taller ↔ Logística con aprobación nivel 2.",
-          "Kanban de proyectos de mejora continua.",
+          "Tablero de proyectos de mejora continua.",
         ]}
       />
 
@@ -100,7 +101,7 @@ export default function SubgerenciaDashboard() {
 
       <section className="rounded-xl border border-[var(--fl-border)] bg-[var(--fl-surface)] p-5">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="font-display text-lg">Heatmap operativo</h2>
+          <h2 className="font-display text-lg">Mapa de calor operativo</h2>
           <Badge tone="warning">
             Deadhead {dash?.deadheadKm ?? 0} km
           </Badge>
@@ -166,12 +167,12 @@ export default function SubgerenciaDashboard() {
       </section>
 
       <section className="rounded-xl border border-[var(--fl-border)] bg-[var(--fl-surface)] p-5">
-        <h2 className="mb-4 font-display text-lg">Kanban estratégico</h2>
+        <h2 className="mb-4 font-display text-lg">Tablero estratégico</h2>
         <div className="grid gap-4 md:grid-cols-3">
           {(["BACKLOG", "IN_PROGRESS", "DONE"] as const).map((col) => (
             <div key={col}>
               <p className="mb-2 text-xs uppercase tracking-wide text-[var(--fl-subtext)]">
-                {col.replace("_", " ")}
+                {statusEs(col)}
               </p>
               <ul className="space-y-2">
                 {(dash?.kanban?.[col] || []).map((p) => (

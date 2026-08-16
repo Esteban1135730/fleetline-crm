@@ -53,7 +53,7 @@ type Dash = {
 };
 
 const STAGES: Array<{ key: string; label: string }> = [
-  { key: "NUEVO_LEAD", label: "Nuevos Leads" },
+  { key: "NUEVO_LEAD", label: "Nuevos prospectos" },
   { key: "REUNION_AGENDADA", label: "Reunión Agendada" },
   { key: "COTIZACION_ENVIADA", label: "Cotización Enviada" },
   { key: "EN_NEGOCIACION", label: "En Negociación" },
@@ -86,7 +86,7 @@ export default function DirectorComercialDashboardPage() {
       setDash(data);
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Uplink fallido");
+      setError(e instanceof Error ? e.message : "Conexión fallida");
     }
   }, []);
 
@@ -105,7 +105,7 @@ export default function DirectorComercialDashboardPage() {
         dealId: string;
         pdfRef?: string;
       }>("/api/v1/comercial/director/cotizar", {
-        accountName: accountName || "Cuenta B2B Demo",
+        accountName: accountName || "Cuenta empresas demo",
         zone,
         vehicleType: "BUS",
         distanceKm: 45,
@@ -125,7 +125,7 @@ export default function DirectorComercialDashboardPage() {
 
   async function runFirmar() {
     if (!signDealId || !signerEmail) {
-      setError("Deal ID y email firmante requeridos");
+      setError("ID de oportunidad y correo del firmante requeridos");
       return;
     }
     setBusy(true);
@@ -170,7 +170,7 @@ export default function DirectorComercialDashboardPage() {
         steps={[
           "Cotiza con costo real $/km (taller + combustible + salario zona).",
           `Margen < ${HARD_RULES.COMERCIAL_MIN_MARGIN_PCT}% escala a CFO antes del PDF.`,
-          "Firma DocuSign → Cerrado Ganado crea Centro de Costos + Capacity + facturación.",
+          "Firma electrónica → Cerrado ganado crea centro de costos, capacidad y facturación.",
         ]}
       />
 
@@ -231,7 +231,7 @@ export default function DirectorComercialDashboardPage() {
       {/* Pipeline Kanban */}
       <section id="pipeline" className="space-y-3">
         <h2 className="text-sm font-semibold text-[var(--fl-text)]">
-          Pipeline de Ventas
+          Embudo de ventas
         </h2>
         <div className="grid gap-3 overflow-x-auto md:grid-cols-5">
           {STAGES.map((col) => (
@@ -262,7 +262,7 @@ export default function DirectorComercialDashboardPage() {
                   </button>
                 ))}
                 {(dash?.kanban?.[col.key] ?? []).length === 0 && (
-                  <p className="text-xs text-[var(--fl-subtext)]">Sin deals</p>
+                  <p className="text-xs text-[var(--fl-subtext)]">Sin oportunidades</p>
                 )}
               </div>
             </div>
@@ -285,7 +285,7 @@ export default function DirectorComercialDashboardPage() {
               className="mt-1 w-full rounded-lg border border-[var(--fl-border)] bg-[var(--fl-canvas)] px-3 py-2 text-sm text-[var(--fl-text)]"
               value={accountName}
               onChange={(e) => setAccountName(e.target.value)}
-              placeholder="Colegio / Empresa B2B"
+              placeholder="Colegio / Empresa"
             />
           </label>
           <div className="grid grid-cols-3 gap-2">
@@ -326,19 +326,19 @@ export default function DirectorComercialDashboardPage() {
 
         <div className="space-y-3">
           <h2 className="text-sm font-semibold text-[var(--fl-text)]">
-            Firma DocuSign — Pase de Balón
+            Firma electrónica — Pase de relevo
           </h2>
           <label className="block text-xs text-[var(--fl-subtext)]">
-            Deal ID
+            ID de oportunidad
             <input
               className="mt-1 w-full rounded-lg border border-[var(--fl-border)] bg-[var(--fl-canvas)] px-3 py-2 font-mono text-sm"
               value={signDealId}
               onChange={(e) => setSignDealId(e.target.value)}
-              placeholder="Selecciona del kanban o cotiza"
+              placeholder="Selecciona del tablero o cotiza"
             />
           </label>
           <label className="block text-xs text-[var(--fl-subtext)]">
-            Email firmante
+            Correo del firmante
             <input
               className="mt-1 w-full rounded-lg border border-[var(--fl-border)] bg-[var(--fl-canvas)] px-3 py-2 text-sm"
               value={signerEmail}
@@ -406,7 +406,7 @@ export default function DirectorComercialDashboardPage() {
                   <Badge tone="amber">+{r.suggestedUpliftPct}%</Badge>
                 </div>
                 <p className="mt-1 font-mono text-xs text-[var(--fl-subtext)]">
-                  NPS {r.npsScore} · Cartera {r.portfolioCompliancePct}% ·{" "}
+                  Satisfacción {r.npsScore} · Cartera {r.portfolioCompliancePct}% ·{" "}
                   {money(r.monthlyValue)}
                 </p>
                 {r.task && (

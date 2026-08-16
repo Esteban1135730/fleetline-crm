@@ -146,7 +146,7 @@ export default function CampoDashboardPage() {
       refreshOffline();
       setMsg(res.message);
     } catch (e) {
-      setError((e as Error).message || "Sync diferida fallida — reintento al 4G");
+      setError((e as Error).message || "Sincronización diferida fallida — reintento al recuperar red");
     } finally {
       setBusy(false);
     }
@@ -204,7 +204,7 @@ export default function CampoDashboardPage() {
       q.push(event);
       saveOfflineQueue(q);
       refreshOffline();
-      setMsg("Abordaje guardado offline — sync automática al recuperar 4G");
+      setMsg("Abordaje guardado sin conexión — se sincroniza al recuperar la red");
       setDoc("");
       return;
     }
@@ -229,7 +229,7 @@ export default function CampoDashboardPage() {
       saveOfflineQueue(q);
       refreshOffline();
       setError(
-        `${(e as Error).message} — guardado en cola offline`,
+        `${(e as Error).message} — guardado en cola sin conexión`,
       );
     } finally {
       setBusy(false);
@@ -239,7 +239,7 @@ export default function CampoDashboardPage() {
   return (
     <div className="fade-in mx-auto max-w-[1200px] space-y-5 bg-[#0A0D14] p-3 text-[#F8FAFC] md:p-6">
       <div className="rounded-xl border border-white/10 bg-[#121722] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.04)]">
-        <PageIntro module="logistica" title="Field Commander Hub" />
+        <PageIntro module="logistica" title="Comando de campo" />
         <p className="mt-1 text-sm text-[#94A3B8]">
           Tablet-first · alto contraste solar · geocerca 5 km
         </p>
@@ -247,9 +247,9 @@ export default function CampoDashboardPage() {
 
       <HowToBox
         steps={[
-          "Radar 5 km alrededor de su GPS — pines verde/amarillo/rojo por ETA.",
-          "Fat-finger: Reportar novedad, manifiesto y llamada a base.",
-          "Abordaje override offline se sincroniza al recuperar red 4G.",
+          "Radar de 5 km alrededor de su GPS — pines verde/amarillo/rojo por hora estimada.",
+          "Error de dedo: reportar novedad, manifiesto y llamada a base.",
+          "El abordaje sin conexión se sincroniza al recuperar la red.",
         ]}
       />
 
@@ -269,7 +269,7 @@ export default function CampoDashboardPage() {
           Geocerca {radar?.geofence.radiusKm ?? 5} km
         </Badge>
         <Badge tone={offlineCount > 0 ? "amber" : "emerald"}>
-          Offline queue {offlineCount}
+          Cola sin conexión {offlineCount}
         </Badge>
         <Badge tone="amber">
           {radar?.approaching.length ?? 0} en aproximación
@@ -291,7 +291,7 @@ export default function CampoDashboardPage() {
         id="radar"
         className="rounded-xl border border-white/10 bg-[#121722] p-4"
       >
-        <h3 className="font-display text-xl">Live Radar</h3>
+        <h3 className="font-display text-xl">Radar en vivo</h3>
         <p className="text-sm text-[#94A3B8]">
           Centro {coords.lat.toFixed(4)}, {coords.lng.toFixed(4)}
         </p>
@@ -405,9 +405,9 @@ export default function CampoDashboardPage() {
 
       {/* Abordaje override */}
       <section className="rounded-xl border border-white/10 bg-[#121722] p-4">
-        <h3 className="font-display text-lg">Abordaje manual (override)</h3>
+        <h3 className="font-display text-lg">Abordaje manual (excepción)</h3>
         <p className="text-sm text-[#94A3B8]">
-          Documento o nombre — funciona offline
+          Documento o nombre — funciona sin conexión
         </p>
         <div className="mt-3 flex flex-col gap-3 sm:flex-row">
           <input

@@ -78,7 +78,7 @@ export default function ControlInternoDashboardPage() {
       const d = await api<Dash>("/api/v1/control-interno/dashboard");
       setDash(d);
     } catch (e) {
-      setError((e as Error).message || "Señal perdida — uplink forense");
+      setError((e as Error).message || "Señal perdida — conexión forense");
     }
   }, []);
 
@@ -113,7 +113,7 @@ export default function ControlInternoDashboardPage() {
             title: title.trim(),
             category: "OPERATIVA",
             severity: "MEDIUM",
-            description: "Hallazgo registrado desde Forensic Hub",
+            description: "Hallazgo registrado desde control interno",
           }),
         },
       );
@@ -146,13 +146,13 @@ export default function ControlInternoDashboardPage() {
   return (
     <div className="fade-in mx-auto max-w-[1280px] space-y-5 bg-[#F4F6F9] p-4 text-[#0F172A] dark:bg-[#0A0D14] dark:text-[#F8FAFC] md:p-6">
       <div className="rounded-xl border border-[#E2E8F0] bg-white p-4 shadow-[0_10px_30px_rgba(0,0,0,0.04)] dark:border-white/10 dark:bg-[#121722]">
-        <PageIntro module="revisoria_fiscal" title="Forensic Compliance Hub" />
+        <PageIntro module="revisoria_fiscal" title="Centro de control interno" />
         <p className="mt-1 text-sm text-[#64748B] dark:text-[#94A3B8]">
           Caja negra inmutable · lectura forense · sin mutación operativa
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
-          <Badge tone="emerald">AuditLog append-only</Badge>
-          <Badge tone="amber">Overrides hoy {dash?.overridesToday ?? 0}</Badge>
+          <Badge tone="emerald">Bitácora solo adición</Badge>
+          <Badge tone="amber">Excepciones hoy {dash?.overridesToday ?? 0}</Badge>
           <Badge tone="rose">
             Abiertas {dash?.findingStats.open ?? 0}
           </Badge>
@@ -161,8 +161,8 @@ export default function ControlInternoDashboardPage() {
 
       <HowToBox
         steps={[
-          "Caja Negra: timeline de acciones con usuario e IP.",
-          "Radar AI: hard-blocks de pagos y anomalías de combustible.",
+          "Caja negra: línea de tiempo de acciones con usuario e IP.",
+          "Radar de IA: bloqueos de pagos y anomalías de combustible.",
           "Hallazgos: Abierta → En Descargos → Cerrada con Plan de Mejora.",
         ]}
       />
@@ -184,9 +184,9 @@ export default function ControlInternoDashboardPage() {
           id="audit-log"
           className="rounded-xl border border-[#E2E8F0] bg-white p-4 dark:border-white/10 dark:bg-[#121722]"
         >
-          <h3 className="font-display text-lg">Caja Negra · Audit Trail</h3>
+          <h3 className="font-display text-lg">Caja negra · Rastro de auditoría</h3>
           <p className="text-xs text-[#64748B]">
-            Inmutable — sin UPDATE/DELETE en API
+            Inmutable — sin modificar ni borrar desde la API
           </p>
           <ol className="mt-3 max-h-[420px] space-y-2 overflow-y-auto">
             {(dash?.auditTrail.trail ?? []).map((row) => (
@@ -219,7 +219,7 @@ export default function ControlInternoDashboardPage() {
           id="anomalias"
           className="rounded-xl border border-[#E2E8F0] bg-white p-4 dark:border-white/10 dark:bg-[#121722]"
         >
-          <h3 className="font-display text-lg">Radar de Anomalías · AI Flags</h3>
+          <h3 className="font-display text-lg">Radar de anomalías · Alertas de IA</h3>
           <div className="mt-3 space-y-2">
             {(dash?.aiFlags ?? []).map((f) => (
               <article
@@ -271,7 +271,7 @@ export default function ControlInternoDashboardPage() {
             disabled={busy}
             onClick={() => void loadFuel()}
           >
-            Recalcular Smart Audit
+            Recalcular auditoría
           </Button>
         </section>
       </div>

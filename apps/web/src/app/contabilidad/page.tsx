@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
 import { BookOpen, FileSpreadsheet, Plus } from "lucide-react";
 import { api } from "@/lib/api";
+import { statusEs } from "@fsg/shared";
 import { PageIntro } from "@/components/page-intro";
 import { EmptyState, Modal } from "@/components/audit";
 
@@ -321,7 +322,7 @@ export default function ContabilidadPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge tone={e.status === "VOID" ? "rose" : "emerald"}>
-                        {e.status}
+                        {statusEs(e.status)}
                       </Badge>
                       {e.status !== "VOID" ? (
                         <Button

@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
 import { api } from "@/lib/api";
+import { statusEs } from "@fsg/shared";
 import { useAuth } from "@/lib/auth-context";
 import { HowToBox, PageIntro } from "@/components/page-intro";
 import { useRouter } from "next/navigation";
@@ -149,7 +150,7 @@ export default function PlataformaPage() {
       <div>
         <PageIntro
           module="plataforma"
-          title="Usuario Maestro · multi-tenant"
+          title="Usuario maestro · multiempresa"
         />
         <HowToBox
           steps={[
@@ -184,7 +185,7 @@ export default function PlataformaPage() {
         />
         <input
           className="field font-data"
-          placeholder="Licencias (maxUsers)"
+          placeholder="Licencias (máx. usuarios)"
           type="number"
           min={1}
           value={form.maxUsers}
@@ -193,7 +194,7 @@ export default function PlataformaPage() {
         />
         <input
           className="field"
-          placeholder="Nombre Org Admin"
+          placeholder="Nombre del administrador"
           data-field="personName"
           value={form.adminName}
           onChange={(e) => setForm((f) => ({ ...f, adminName: e.target.value }))}
@@ -201,7 +202,7 @@ export default function PlataformaPage() {
         />
         <input
           className="field font-data"
-          placeholder="Email Org Admin"
+          placeholder="Correo del administrador"
           type="email"
           value={form.adminEmail}
           onChange={(e) =>
@@ -211,7 +212,7 @@ export default function PlataformaPage() {
         />
         <input
           className="field"
-          placeholder="Clave Org Admin (mín. 8)"
+          placeholder="Clave del administrador (mín. 8)"
           type="password"
           value={form.adminPassword}
           onChange={(e) =>
@@ -259,7 +260,7 @@ export default function PlataformaPage() {
                   <Badge
                     tone={o.status === "ACTIVE" ? "emerald" : "rose"}
                   >
-                    {o.status}
+                    {statusEs(o.status)}
                   </Badge>
                 </td>
                 <td className="px-4 py-2.5">
@@ -347,7 +348,7 @@ export default function PlataformaPage() {
                 </td>
                 <td className="px-4 py-2.5">
                   <Badge tone={u.active ? "emerald" : "rose"}>
-                    {u.active ? "ACTIVE" : "OFF"}
+                    {u.active ? "Activo" : "Inactivo"}
                   </Badge>
                 </td>
                 <td className="px-4 py-2.5">

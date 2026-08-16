@@ -36,7 +36,7 @@ const FIELD_LABELS: Record<string, string> = {
   capacity: "Cupo de pasajeros",
   status: "Estado",
   name: "Nombre",
-  email: "Email",
+  email: "Correo",
   phone: "Teléfono",
   document: "Documento",
   role: "Rol",

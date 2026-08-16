@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
-import { HARD_RULES } from "@fsg/shared";
+import { HARD_RULES, statusEs } from "@fsg/shared";
 import { api } from "@/lib/api";
 import { HowToBox, PageIntro } from "@/components/page-intro";
 
@@ -83,7 +83,7 @@ export default function CoordinadorComercialDashboardPage() {
       }
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Uplink fallido");
+      setError(e instanceof Error ? e.message : "Conexión fallida");
     }
   }, []);
 
@@ -225,7 +225,7 @@ export default function CoordinadorComercialDashboardPage() {
       <section className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-xl border border-[var(--fl-border)] bg-[var(--fl-surface)] p-5">
           <h2 className="text-sm font-semibold text-[var(--fl-text)]">
-            Pipeline agregado · Forecast
+            Embudo agregado · Pronóstico
           </h2>
           <p className="mt-2 font-mono text-2xl text-[var(--fl-accent)]">
             {money(dash?.forecast.weightedMonthlyCop ?? 0)}
@@ -306,7 +306,7 @@ export default function CoordinadorComercialDashboardPage() {
       >
         <div className="flex flex-wrap items-end justify-between gap-3">
           <h2 className="text-sm font-semibold text-[var(--fl-text)]">
-            Bidding Tracker SECOP · Gantt
+            Seguimiento SECOP · Cronograma
           </h2>
           <div className="flex flex-wrap gap-2">
             <input
@@ -357,7 +357,7 @@ export default function CoordinadorComercialDashboardPage() {
                       <span>
                         {t.department}: {t.title}
                       </span>
-                      <span className="font-mono">{t.status}</span>
+                      <span className="font-mono">{statusEs(t.status)}</span>
                     </div>
                     <div className="relative h-2 rounded bg-[var(--fl-surface)]">
                       <div

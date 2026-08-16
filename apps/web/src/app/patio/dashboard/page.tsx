@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
 import { api } from "@/lib/api";
+import { statusEs } from "@fsg/shared";
 import { HowToBox, PageIntro } from "@/components/page-intro";
 
 type Dash = {
@@ -38,7 +39,7 @@ export default function CoordinadorPatioDashboard() {
       setDash(d);
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Uplink fallido");
+      setError(e instanceof Error ? e.message : "Conexión fallida");
     }
   }, []);
 
@@ -61,7 +62,7 @@ export default function CoordinadorPatioDashboard() {
       );
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Hard-Stop talanquera");
+      setError(e instanceof Error ? e.message : "Bloqueo de talanquera");
       await load();
     } finally {
       setBusy(false);
@@ -70,12 +71,12 @@ export default function CoordinadorPatioDashboard() {
 
   return (
     <div className="space-y-6 p-6">
-      <PageIntro module="parqueadero" title="Smart Yard" />
+      <PageIntro module="parqueadero" title="Patio inteligente" />
       <HowToBox
         steps={[
           "Yard Map muestra bahías LIFO por hora de salida.",
           "LPR valida viaje activo + docs jurídicos + alcoholimetría.",
-          "Hard-Stop dispara alarma si falla cualquier control.",
+          "El bloqueo operativo dispara alarma si falla cualquier control.",
         ]}
       />
 
@@ -110,7 +111,7 @@ export default function CoordinadorPatioDashboard() {
             />
           </label>
           <Button disabled={busy} onClick={() => void lprCheck()}>
-            Validar salida LPR
+            Validar salida por placa
           </Button>
         </div>
         <ul className="mt-4 space-y-2">
@@ -121,7 +122,7 @@ export default function CoordinadorPatioDashboard() {
             >
               <span className="font-mono">{t.plate}</span>
               <Badge tone={t.gateOpened ? "success" : "danger"}>
-                {t.gateOpened ? "ABIERTA" : t.denyReason || "HARD-STOP"}
+                {t.gateOpened ? "ABIERTA" : t.denyReason || "BLOQUEO OPERATIVO"}
               </Badge>
             </li>
           ))}
@@ -143,7 +144,7 @@ export default function CoordinadorPatioDashboard() {
                   {s.laneCode}/{s.bayCode}
                 </span>
                 <Badge tone={s.status === "OCCUPIED" ? "warning" : "neutral"}>
-                  {s.status}
+                  {statusEs(s.status)}
                 </Badge>
               </div>
               <p className="mt-2 font-mono text-lg text-[var(--fl-text)]">
@@ -172,7 +173,7 @@ export default function CoordinadorPatioDashboard() {
             >
               <span>{w.plate}</span>
               <span className="text-[var(--fl-subtext)]">
-                P{w.priority} · {w.status}
+                P{w.priority} · {statusEs(w.status)}
               </span>
             </li>
           ))}

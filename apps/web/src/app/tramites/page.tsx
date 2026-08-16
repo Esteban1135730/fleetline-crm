@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Button } from "@fsg/ui";
 import { FileCheck, Plus } from "lucide-react";
 import { api } from "@/lib/api";
+import { statusEs } from "@fsg/shared";
 import { PageIntro } from "@/components/page-intro";
 import {
   EmptyState,
@@ -139,7 +140,7 @@ export default function TramitesPage() {
 
   useEffect(() => {
     void load().catch((e) =>
-      setLoadError(e instanceof Error ? e.message : "Uplink fallido"),
+      setLoadError(e instanceof Error ? e.message : "Conexión fallida"),
     );
   }, []);
 
@@ -274,7 +275,7 @@ export default function TramitesPage() {
               {matrix.counts.red}
             </p>
             <p className="mt-3 text-xs font-medium text-slate-400">
-              Hard-Stop despacho · alertas {alertCount}
+              Bloqueo operativo de despacho · alertas {alertCount}
             </p>
           </article>
         </div>
@@ -438,7 +439,7 @@ export default function TramitesPage() {
                           ? "Por vencer"
                           : r.status === "EXPIRED"
                             ? "Vencido"
-                            : r.status}
+                            : statusEs(r.status)}
                     </StatusPulseBadge>
                   </td>
                   <td className="px-4 py-2.5">

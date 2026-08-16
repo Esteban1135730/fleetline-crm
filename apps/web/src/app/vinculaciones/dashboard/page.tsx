@@ -89,7 +89,7 @@ export default function VinculacionesDashboardPage() {
     try {
       setDash(await api<Dash>("/api/v1/vinculaciones/dashboard"));
     } catch (e) {
-      setError((e as Error).message || "Señal perdida — uplink vinculaciones");
+      setError((e as Error).message || "Señal perdida — conexión de vinculaciones");
     }
   }, []);
 
@@ -142,7 +142,7 @@ export default function VinculacionesDashboardPage() {
       setCedula("");
       await load();
     } catch (e) {
-      setError((e as Error).message || "Background check fallido");
+      setError((e as Error).message || "Verificación de antecedentes fallida");
     } finally {
       setBusy(false);
     }
@@ -174,12 +174,12 @@ export default function VinculacionesDashboardPage() {
   return (
     <div className="fade-in mx-auto max-w-[1400px] space-y-5 bg-[#F4F6F9] p-4 text-[#0F172A] dark:bg-[#0A0D14] dark:text-[#F8FAFC] md:p-6">
       <div className="rounded-xl border border-[#E2E8F0] bg-white p-4 shadow-[0_10px_30px_rgba(0,0,0,0.04)] dark:border-white/10 dark:bg-[#121722]">
-        <PageIntro module="rrhh" title="Smart Onboarding · Vinculaciones" />
+        <PageIntro module="rrhh" title="Alta de afiliados · Vinculaciones" />
         <p className="mt-1 text-sm text-[#64748B] dark:text-[#94A3B8]">
           Embudo de auditoría legal · RUNT/SIMIT · OCR
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
-          <Badge tone="amber">Pipeline {dash?.stats.received ?? 0} nuevas</Badge>
+          <Badge tone="amber">Embudo {dash?.stats.received ?? 0} nuevas</Badge>
           <Badge tone="rose">
             Bloqueo legal {dash?.stats.blockedLegal ?? 0}
           </Badge>
@@ -189,7 +189,7 @@ export default function VinculacionesDashboardPage() {
       <HowToBox
         steps={[
           "Genere link de auto-servicio para el propietario.",
-          "OCR extrae SOAT/TO/pólizas; contrato PDF listo para firma.",
+          "La lectura extrae SOAT, tarjeta de operación y pólizas; contrato listo para firma.",
           "TO vencida a las 00:00 → ROJO legal y rebote en Logística.",
         ]}
       />
@@ -207,7 +207,7 @@ export default function VinculacionesDashboardPage() {
 
       {/* Kanban */}
       <section id="kanban" className="space-y-3">
-        <h3 className="font-display text-lg">Kanban de Ingreso</h3>
+        <h3 className="font-display text-lg">Tablero de ingreso</h3>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           {STAGES.map((s) => (
             <div
@@ -261,7 +261,7 @@ export default function VinculacionesDashboardPage() {
           />
           <input
             className="field mt-2 w-full"
-            placeholder="Email"
+            placeholder="Correo"
             value={ownerEmail}
             onChange={(e) => setOwnerEmail(e.target.value)}
           />
@@ -272,12 +272,12 @@ export default function VinculacionesDashboardPage() {
             disabled={busy}
             onClick={() => void createPortal()}
           >
-            Generar portal-link
+            Generar enlace del portal
           </Button>
         </section>
 
         <section className="rounded-xl border border-[#E2E8F0] bg-white p-4 dark:border-white/10 dark:bg-[#121722]">
-          <h3 className="font-display text-base">Background check</h3>
+          <h3 className="font-display text-base">Verificación de antecedentes</h3>
           <input
             className="field mt-2 w-full"
             placeholder="Cédula conductor"
@@ -338,7 +338,7 @@ export default function VinculacionesDashboardPage() {
       {/* Split-screen OCR viewer */}
       <section className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         <div className="min-h-[220px] rounded-xl border border-dashed border-[#E2E8F0] bg-[#0A0D14]/5 p-4 font-mono text-xs dark:border-white/20">
-          <p className="mb-2 text-[#64748B]">Visor PDF (split)</p>
+          <p className="mb-2 text-[#64748B]">Visor de documento (pantalla partida)</p>
           <pre className="whitespace-pre-wrap text-[#0F172A] dark:text-[#F8FAFC]">
             {ocrText || "Pegue texto OCR / referencia de PDF"}
           </pre>
@@ -349,7 +349,7 @@ export default function VinculacionesDashboardPage() {
             {selectedPdf || "Contrato pendiente de generación"}
           </p>
           <p className="mt-4 text-xs text-[#64748B]">
-            Validación manual: contraste OCR vs PDF original antes de firma
+            Validación manual: contraste de lectura vs documento original antes de firma
             digital.
           </p>
         </div>
@@ -397,7 +397,7 @@ export default function VinculacionesDashboardPage() {
                   })}
                   <td className="py-2">
                     <Badge tone={row.legalRed ? "rose" : "emerald"}>
-                      {row.legalRed ? "ROJO" : "OK"}
+                      {row.legalRed ? "ROJO" : "Correcto"}
                     </Badge>
                   </td>
                 </tr>

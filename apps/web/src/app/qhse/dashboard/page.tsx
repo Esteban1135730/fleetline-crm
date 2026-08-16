@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
 import { Inbox, ShieldAlert, Star } from "lucide-react";
 import { api } from "@/lib/api";
+import { statusEs } from "@fsg/shared";
 import { PageIntro } from "@/components/page-intro";
 import {
   EmptyState,
@@ -104,7 +105,7 @@ export default function QhsePreventionDashboardPage() {
       setDash(d);
       setNps(n);
     } catch (e) {
-      setError((e as Error).message || "Señal perdida — reintentando uplink");
+      setError((e as Error).message || "Señal perdida — reintentando conexión");
     }
   }, []);
 
@@ -138,7 +139,7 @@ export default function QhsePreventionDashboardPage() {
         URL.revokeObjectURL(url);
       }
     } catch (e) {
-      setError((e as Error).message || "Exportación ESG fallida");
+      setError((e as Error).message || "Exportación ambiental fallida");
     } finally {
       setBusy(false);
     }
@@ -177,7 +178,7 @@ export default function QhsePreventionDashboardPage() {
           tone={rm ? signalTone(rm.licensesCoursesExpiring.signal) : "neutral"}
         />
         <KpiCard
-          label="Driver Score global"
+          label="Puntaje global del conductor"
           value={rm ? rm.globalDriverScore.value : 0}
           delta="Promedio flota activa"
           tone={rm ? signalTone(rm.globalDriverScore.signal) : "neutral"}
@@ -194,10 +195,10 @@ export default function QhsePreventionDashboardPage() {
             aria-hidden
           />
           <p className="text-xs uppercase tracking-wider text-[var(--text-secondary)]">
-            ESG · NPS & Huella CO₂
+            Sostenibilidad · Satisfacción y huella de CO₂
           </p>
           <p className="mt-1 font-display text-2xl text-[var(--text-primary)]">
-            NPS{" "}
+            Satisfacción{" "}
             <span className="font-mono tabular-nums">
               {npsDisplay(nps?.nps)}
             </span>
@@ -251,8 +252,8 @@ export default function QhsePreventionDashboardPage() {
             <div className="p-4">
               <EmptyState
                 icon={<Inbox className="h-7 w-7" />}
-                title="Sin novedades en uplink"
-                description="El feed GPS / PQRS aparece aquí en tiempo real."
+                title="Sin novedades en la red"
+                description="La cola de GPS y PQRS aparece aquí en tiempo real."
               />
             </div>
           ) : (
@@ -280,7 +281,7 @@ export default function QhsePreventionDashboardPage() {
                           : "emerald"
                     }
                   >
-                    {item.status}
+                    {statusEs(item.status)}
                   </Badge>
                 </li>
               ))}
@@ -294,7 +295,7 @@ export default function QhsePreventionDashboardPage() {
               Panel de investigaciones
             </h3>
             <p className="text-sm text-[var(--text-secondary)]">
-              War Room · Kanban siniestros
+              Sala de crisis · Tablero de siniestros
             </p>
           </header>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

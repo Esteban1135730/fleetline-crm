@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
 import { Headset, Mail, QrCode, UserPlus } from "lucide-react";
 import { api } from "@/lib/api";
+import { statusEs } from "@fsg/shared";
 import { PageIntro } from "@/components/page-intro";
 import { Can } from "@/lib/permissions";
 import { EmptyState, StatusPulseBadge } from "@/components/audit";
@@ -142,7 +143,7 @@ export default function TiDashboardPage() {
       setUsers(u);
       setTickets(t);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Uplink TI fallido");
+      setError(e instanceof Error ? e.message : "Conexión de TI fallida");
     }
   }, []);
 
@@ -169,10 +170,10 @@ export default function TiDashboardPage() {
       );
       setOnboardUrl(res.onboardingUrl);
       setInfo(
-        `Link de un solo uso generado · expira ${formatSession(res.expiresAt)}`,
+        `Enlace de un solo uso generado · expira ${formatSession(res.expiresAt)}`,
       );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error onboarding");
+      setError(err instanceof Error ? err.message : "Error en alta de usuario");
     }
   }
 
@@ -191,10 +192,10 @@ export default function TiDashboardPage() {
       setQrPayload(res.qrPayload);
       setPairCode(res.pairCode);
       setInfo(
-        `QR MDM listo · código ${res.pairCode} · expira ${formatSession(res.expiresAt)}`,
+        `QR de dispositivo listo · código ${res.pairCode} · expira ${formatSession(res.expiresAt)}`,
       );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error MDM");
+      setError(err instanceof Error ? err.message : "Error de emparejamiento");
     }
   }
 
@@ -231,7 +232,7 @@ export default function TiDashboardPage() {
             className="w-auto px-3 py-1.5 text-xs"
             onClick={() => void load()}
           >
-            Refrescar uplink
+            Refrescar conexión
           </Button>
         </div>
         {health ? (
@@ -249,7 +250,7 @@ export default function TiDashboardPage() {
               />
               <Semaforo
                 s={health.overallSemaphore}
-                label={`NOC ${health.overall}`}
+                label={`Centro de monitoreo · ${statusEs(health.overall)}`}
               />
               {(health.externalApis || []).map((a) => (
                 <Semaforo key={a.name} s={a.semaphore} label={a.name} />
@@ -270,7 +271,7 @@ export default function TiDashboardPage() {
                     />
                   </div>
                   <p className="mt-1 font-mono text-sm text-[var(--text-primary)]">
-                    {s.status}
+                    {statusEs(s.status)}
                     {typeof s.latencyMs === "number"
                       ? ` · ${s.latencyMs} ms`
                       : ""}
@@ -304,7 +305,7 @@ export default function TiDashboardPage() {
               >
                 <div className="relative min-w-[220px] flex-1">
                   <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                    Email
+                    Correo
                   </label>
                   <Mail
                     className="pointer-events-none absolute bottom-2.5 left-3 h-4 w-4 text-slate-500"
@@ -312,12 +313,12 @@ export default function TiDashboardPage() {
                   />
                   <input
                     className="w-full rounded-lg border border-[var(--border-subtle)] bg-transparent py-2 pl-9 pr-3 text-sm"
-                    placeholder="email nuevo usuario"
+                    placeholder="correo del nuevo usuario"
                     type="email"
                     required
                     value={onboardEmail}
                     onChange={(e) => setOnboardEmail(e.target.value)}
-                    aria-label="Email"
+                    aria-label="Correo"
                   />
                 </div>
                 <div>
@@ -338,7 +339,7 @@ export default function TiDashboardPage() {
                 </div>
                 <Button type="submit" className="w-auto px-4 py-2">
                   <UserPlus className="mr-1.5 inline h-4 w-4" aria-hidden />
-                  Onboarding
+                  Alta de usuario
                 </Button>
               </form>
             </Can>
@@ -350,7 +351,7 @@ export default function TiDashboardPage() {
                 onClick={() => void onMdmQr()}
               >
                 <QrCode className="mr-1.5 inline h-4 w-4" aria-hidden />
-                QR MDM
+                QR de dispositivo
               </Button>
             </Can>
           </div>
@@ -361,7 +362,7 @@ export default function TiDashboardPage() {
           ) : null}
           {pairCode ? (
             <p className="font-mono text-sm text-[var(--text-primary)]">
-              Código MDM: {pairCode}
+              Código de dispositivo: {pairCode}
             </p>
           ) : null}
           {qrPayload ? (
@@ -380,8 +381,8 @@ export default function TiDashboardPage() {
           {!users.length ? (
             <EmptyState
               icon={<UserPlus className="h-7 w-7" />}
-              title="Sin usuarios en uplink"
-              description="Genere un link de onboarding desde Acciones Rápidas."
+              title="Sin usuarios en la red"
+              description="Genere un enlace de alta desde Acciones rápidas."
             />
           ) : (
             <div className="overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
@@ -420,7 +421,7 @@ export default function TiDashboardPage() {
                             }
                             pulse={u.status === "pending"}
                           >
-                            {u.status}
+                            {statusEs(u.status)}
                           </StatusPulseBadge>
                         </td>
                         <td className="px-3 py-2 font-mono text-xs">
@@ -446,7 +447,7 @@ export default function TiDashboardPage() {
             <EmptyState
               icon={<Headset className="h-7 w-7" />}
               title="Bandeja vacía"
-              description="Sin tickets de help desk en uplink."
+              description="Sin tickets de mesa de ayuda."
             />
           ) : (
             <div className="space-y-2">
@@ -475,7 +476,7 @@ export default function TiDashboardPage() {
                     </p>
                   ) : null}
                   <p className="mt-2 font-mono text-[10px] text-[var(--text-secondary)]">
-                    {t.status} · {formatSession(t.createdAt)}
+                    {statusEs(t.status)} · {formatSession(t.createdAt)}
                     {t.createdBy ? ` · ${t.createdBy.name}` : ""}
                   </p>
                 </article>
