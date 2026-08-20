@@ -13,6 +13,10 @@ uploads
 packages/db/prisma/*.db
 packages/db/prisma/*.db-journal
 *.xlsx
+*.csv
+!packages/db/**/*.csv
+Modulo_Horas_extras_Proyecto_CRM.csv
+PROYECTO CRM DEFINITIVO.txt
 .cursor
 # Specs PDF / briefings para agentes Cursor (no van al repo ni al VPS)
 Nueva carpeta/
@@ -22,7 +26,7 @@ ya hecho/
 segundas/
 **/_extract/
 **/*.pdf
-!docs/**/*.pdf
+docs/**/*.pdf
 apps/web/tsconfig.tsbuildinfo
 # Playwright
 /test-results/
