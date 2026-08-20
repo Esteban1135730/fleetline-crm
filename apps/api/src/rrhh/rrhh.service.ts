@@ -11,9 +11,17 @@ import {
   hrDocumentChecklistForCargo,
   hrDocProfileLabel,
   normalizeRole,
+  resolveRrhhExcelColumns,
+  roleForEmployeeCargo,
   roleRank,
+  RRHH_EXCEL_COLUMN_BY_KEY,
+  RRHH_EXCEL_IMPORT_KEYS,
+  RRHH_EXCEL_LABEL_TO_KEY,
+  type RrhhExcelColumnDef,
+  type RrhhExcelColumnKey,
 } from "@fsg/shared";
 import { randomBytes } from "crypto";
+import ExcelJS from "exceljs";
 import { PrismaService } from "../prisma/prisma.service";
 import { UsersService } from "../users/users.service";
 import { FatigueManagementService } from "./fatigue-management.service";
@@ -207,6 +215,396 @@ export class RrhhService {
           }
         : null,
     }));
+  }
+
+  async exportEmployeesExcel(
+    organizationId: string,
+    columnKeys?: string[] | null,
+  ): Promise<{ buffer: Buffer; filename: string }> {
+    const cols = resolveRrhhExcelColumns(columnKeys);
+    const rows = await this.listEmployees(organizationId);
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = "INRETRANS OS";
+    workbook.created = new Date();
+
+    const sheet = workbook.addWorksheet("Personal RRHH");
+    this.applyRrhhExcelColumns(sheet, cols);
+
+    const fmtDate = (d?: Date | string | null) => {
+      if (!d) return "";
+      const dt = d instanceof Date ? d : new Date(d);
+      if (Number.isNaN(dt.getTime())) return "";
+      return dt.toISOString().slice(0, 10);
+    };
+    const num = (v: unknown) => {
+      if (v == null || v === "") return 0;
+      const n = Number(v);
+      return Number.isFinite(n) ? n : 0;
+    };
+
+    for (const row of rows) {
+      const driver = row.driver as
+        | {
+            licenseNumber?: string | null;
+            licenseCategory?: string | null;
+            licenseExpiresAt?: Date | string | null;
+          }
+        | null
+        | undefined;
+      const payload: Record<string, string | number> = {
+        document: row.document,
+        name: row.name,
+        area: row.area,
+        title: row.title,
+        status: row.status,
+        email: row.email ?? "",
+        phone: row.phone ?? "",
+        city: row.city ?? "",
+        address: row.address ?? "",
+        contractType: row.contractType ?? "",
+        hireDate: fmtDate(row.hireDate),
+        baseSalary: num(row.baseSalary),
+        hourlyRate: num(row.hourlyRate),
+        eps: row.eps ?? "",
+        arl: row.arl ?? "",
+        pensionFund: row.pensionFund ?? "",
+        compensationFund: row.compensationFund ?? "",
+        bankName: row.bankName ?? "",
+        bankAccountType: row.bankAccountType ?? "",
+        bankAccountNumber: row.bankAccountNumber ?? "",
+        emergencyContactName: row.emergencyContactName ?? "",
+        emergencyContactPhone: row.emergencyContactPhone ?? "",
+        emergencyContactRelation: row.emergencyContactRelation ?? "",
+        userEmail: row.user?.email ?? "",
+        userRole: row.user?.role ?? "",
+        userActive: row.user
+          ? row.user.active
+            ? "Sí"
+            : "No"
+          : "Sin usuario",
+        fatigueScore: row.fatigueScore,
+        fatigueSemaphore: row.fatigueSemaphore,
+        licenseSemaphore: row.licenseSemaphore,
+        licenseNumber: driver?.licenseNumber ?? "",
+        licenseCategory: driver?.licenseCategory ?? "",
+        licenseExpiresAt: fmtDate(driver?.licenseExpiresAt),
+        dispatchBlocked: row.dispatchBlocked ? "Sí" : "No",
+        blockReason: row.blockReason ?? "",
+        terminatedAt: fmtDate(
+          (row as { terminatedAt?: Date | string | null }).terminatedAt,
+        ),
+        terminationReason:
+          (row as { terminationReason?: string | null }).terminationReason ??
+          "",
+      };
+      const filtered: Record<string, string | number> = {};
+      for (const col of cols) {
+        filtered[col.key] = payload[col.key] ?? "";
+      }
+      sheet.addRow(filtered);
+    }
+
+    this.finalizeRrhhExcelSheet(sheet, cols);
+    const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
+    const stamp = new Date().toISOString().slice(0, 10);
+    return {
+      buffer,
+      filename: `rrhh-personal-${stamp}.xlsx`,
+    };
+  }
+
+  async buildEmployeesExcelTemplate(
+    columnKeys?: string[] | null,
+  ): Promise<{ buffer: Buffer; filename: string }> {
+    const keys =
+      columnKeys?.length
+        ? columnKeys
+        : [...RRHH_EXCEL_IMPORT_KEYS];
+    const cols = resolveRrhhExcelColumns(keys).filter((c) => c.importable);
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = "INRETRANS OS";
+    workbook.created = new Date();
+    const sheet = workbook.addWorksheet("Plantilla importación");
+    this.applyRrhhExcelColumns(sheet, cols);
+    sheet.addRow(
+      Object.fromEntries(
+        cols.map((c) => [
+          c.key,
+          c.requiredOnImport ? `(obligatorio)` : "",
+        ]),
+      ),
+    );
+    this.finalizeRrhhExcelSheet(sheet, cols);
+    const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
+    return {
+      buffer,
+      filename: `rrhh-plantilla-importacion.xlsx`,
+    };
+  }
+
+  async importEmployeesExcel(
+    organizationId: string,
+    actor: { userId: string; role: string },
+    fileBuffer: Buffer,
+  ): Promise<{
+    created: number;
+    updated: number;
+    skipped: number;
+    errors: Array<{ row: number; message: string }>;
+  }> {
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(Uint8Array.from(fileBuffer));
+    const sheet = workbook.worksheets[0];
+    if (!sheet) {
+      throw new BadRequestException("El archivo no contiene hojas");
+    }
+
+    const headerRow = sheet.getRow(1);
+    const colMap = new Map<number, RrhhExcelColumnKey>();
+    headerRow.eachCell({ includeEmpty: false }, (cell, colNumber) => {
+      const label = String(cell.text ?? cell.value ?? "")
+        .trim()
+        .toLowerCase();
+      const key =
+        RRHH_EXCEL_LABEL_TO_KEY[label] ||
+        (RRHH_EXCEL_COLUMN_BY_KEY[label as RrhhExcelColumnKey]
+          ? (label as RrhhExcelColumnKey)
+          : undefined);
+      if (key) colMap.set(colNumber, key);
+    });
+
+    if (![...colMap.values()].includes("document")) {
+      throw new BadRequestException(
+        'La plantilla debe incluir la columna "Documento"',
+      );
+    }
+
+    let created = 0;
+    let updated = 0;
+    let skipped = 0;
+    const errors: Array<{ row: number; message: string }> = [];
+
+    const lastRow = sheet.rowCount;
+    for (let r = 2; r <= lastRow; r++) {
+      const excelRow = sheet.getRow(r);
+      const raw: Partial<Record<RrhhExcelColumnKey, string>> = {};
+      let hasAny = false;
+      for (const [colNumber, key] of colMap.entries()) {
+        const cell = excelRow.getCell(colNumber);
+        let text = "";
+        if (cell.value instanceof Date) {
+          text = cell.value.toISOString().slice(0, 10);
+        } else if (
+          cell.value &&
+          typeof cell.value === "object" &&
+          "text" in (cell.value as object)
+        ) {
+          text = String((cell.value as { text?: string }).text ?? "").trim();
+        } else if (cell.value != null) {
+          text = String(cell.text || cell.value).trim();
+        }
+        if (text && text !== "(obligatorio)") {
+          raw[key] = text;
+          hasAny = true;
+        }
+      }
+      if (!hasAny) {
+        skipped += 1;
+        continue;
+      }
+
+      const document = (raw.document || "").replace(/\D/g, "") || raw.document?.trim();
+      if (!document) {
+        errors.push({ row: r, message: "Documento vacío" });
+        continue;
+      }
+
+      try {
+        const existing = await this.prisma.employee.findFirst({
+          where: { organizationId, document },
+          select: { id: true },
+        });
+
+        const title = (raw.title || "").trim();
+        const area = (raw.area || "").trim();
+        const name = (raw.name || "").trim();
+        const email = (raw.email || "").trim().toLowerCase();
+
+        const hireDate = raw.hireDate ? new Date(raw.hireDate) : undefined;
+        const baseSalary = raw.baseSalary
+          ? Number(String(raw.baseSalary).replace(/[^\d.-]/g, ""))
+          : undefined;
+        const hourlyRate = raw.hourlyRate
+          ? Number(String(raw.hourlyRate).replace(/[^\d.-]/g, ""))
+          : undefined;
+
+        const contractOk = [
+          "INDEFINIDO",
+          "TERMINO_FIJO",
+          "OBRA_LABOR",
+          "APRENDIZAJE",
+          "PRESTACION_SERVICIOS",
+        ] as const;
+        const bankOk = ["AHORROS", "CORRIENTE"] as const;
+        const statusOk = ["ACTIVE", "VACATION", "MEDICAL", "INACTIVE"] as const;
+        const contractType = contractOk.find(
+          (v) => v === (raw.contractType || "").toUpperCase(),
+        );
+        const bankAccountType = bankOk.find(
+          (v) => v === (raw.bankAccountType || "").toUpperCase(),
+        );
+        const status = statusOk.find(
+          (v) => v === (raw.status || "").toUpperCase(),
+        );
+
+        const hrPatch = {
+          ...(raw.phone ? { phone: raw.phone } : {}),
+          ...(raw.city ? { city: raw.city } : {}),
+          ...(raw.address ? { address: raw.address } : {}),
+          ...(contractType ? { contractType } : {}),
+          ...(hireDate && !Number.isNaN(hireDate.getTime())
+            ? { hireDate }
+            : {}),
+          ...(baseSalary !== undefined && Number.isFinite(baseSalary)
+            ? { baseSalary }
+            : {}),
+          ...(hourlyRate !== undefined && Number.isFinite(hourlyRate)
+            ? { hourlyRate }
+            : {}),
+          ...(raw.eps ? { eps: raw.eps } : {}),
+          ...(raw.arl ? { arl: raw.arl } : {}),
+          ...(raw.pensionFund ? { pensionFund: raw.pensionFund } : {}),
+          ...(raw.compensationFund
+            ? { compensationFund: raw.compensationFund }
+            : {}),
+          ...(raw.bankName ? { bankName: raw.bankName } : {}),
+          ...(bankAccountType ? { bankAccountType } : {}),
+          ...(raw.bankAccountNumber
+            ? { bankAccountNumber: raw.bankAccountNumber }
+            : {}),
+          ...(raw.emergencyContactName
+            ? { emergencyContactName: raw.emergencyContactName }
+            : {}),
+          ...(raw.emergencyContactPhone
+            ? { emergencyContactPhone: raw.emergencyContactPhone }
+            : {}),
+          ...(raw.emergencyContactRelation
+            ? { emergencyContactRelation: raw.emergencyContactRelation }
+            : {}),
+          ...(status ? { status } : {}),
+        };
+
+        if (existing) {
+          await this.patchEmployee(
+            organizationId,
+            existing.id,
+            {
+              ...(name ? { name } : {}),
+              ...(title ? { title } : {}),
+              ...(area ? { area } : {}),
+              ...(email ? { email } : {}),
+              ...hrPatch,
+            },
+            actor.role,
+          );
+          updated += 1;
+        } else {
+          if (!name || !title || !area || !email) {
+            errors.push({
+              row: r,
+              message:
+                "Alta nueva requiere Nombre, Área, Cargo y Correo laboral",
+            });
+            continue;
+          }
+          const role = roleForEmployeeCargo(title);
+          await this.provisionEmployee(organizationId, actor, {
+            name,
+            document,
+            email,
+            title,
+            area,
+            role,
+            phone: raw.phone,
+            baseSalary:
+              baseSalary !== undefined && Number.isFinite(baseSalary)
+                ? baseSalary
+                : undefined,
+            hourlyRate:
+              hourlyRate !== undefined && Number.isFinite(hourlyRate)
+                ? hourlyRate
+                : undefined,
+            address: raw.address ?? null,
+            city: raw.city ?? null,
+            contractType: contractType ?? null,
+            hireDate:
+              hireDate && !Number.isNaN(hireDate.getTime()) ? hireDate : null,
+            eps: raw.eps ?? null,
+            arl: raw.arl ?? null,
+            pensionFund: raw.pensionFund ?? null,
+            compensationFund: raw.compensationFund ?? null,
+            bankName: raw.bankName ?? null,
+            bankAccountType: bankAccountType ?? null,
+            bankAccountNumber: raw.bankAccountNumber ?? null,
+            emergencyContactName: raw.emergencyContactName ?? null,
+            emergencyContactPhone: raw.emergencyContactPhone ?? null,
+            emergencyContactRelation: raw.emergencyContactRelation ?? null,
+          });
+          created += 1;
+        }
+      } catch (e) {
+        errors.push({
+          row: r,
+          message: e instanceof Error ? e.message : "Fila no procesada",
+        });
+      }
+    }
+
+    return { created, updated, skipped, errors };
+  }
+
+  private applyRrhhExcelColumns(
+    sheet: ExcelJS.Worksheet,
+    cols: RrhhExcelColumnDef[],
+  ) {
+    sheet.columns = cols.map((c) => ({
+      header: c.label,
+      key: c.key,
+      width: c.width,
+    }));
+    const header = sheet.getRow(1);
+    header.font = { bold: true, color: { argb: "FFF8FAFC" } };
+    header.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FF0D9488" },
+    };
+    header.alignment = { vertical: "middle" };
+  }
+
+  private finalizeRrhhExcelSheet(
+    sheet: ExcelJS.Worksheet,
+    cols: RrhhExcelColumnDef[],
+  ) {
+    if (cols.some((c) => c.key === "baseSalary")) {
+      try {
+        sheet.getColumn("baseSalary").numFmt = "#,##0";
+      } catch {
+        /* ignore */
+      }
+    }
+    if (cols.some((c) => c.key === "hourlyRate")) {
+      try {
+        sheet.getColumn("hourlyRate").numFmt = "#,##0";
+      } catch {
+        /* ignore */
+      }
+    }
+    sheet.views = [{ state: "frozen", ySplit: 1 }];
+    sheet.autoFilter = {
+      from: { row: 1, column: 1 },
+      to: { row: 1, column: cols.length },
+    };
   }
 
   async provisionEmployee(

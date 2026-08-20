@@ -129,7 +129,7 @@ export function LoginScreen() {
             </label>
             <input
               id="nodeEmail"
-              className="login-field border border-gray-700 bg-[color-mix(in_srgb,var(--surface)_105%,white)]"
+              className="login-field border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] text-[var(--text-primary)]"
               type="email"
               data-field="email"
               placeholder={AUTH_COPY.nodeEmailPlaceholder}
@@ -152,7 +152,7 @@ export function LoginScreen() {
             <div className="relative">
               <input
                 id="nodePassword"
-                className="login-field w-full border border-gray-700 bg-[color-mix(in_srgb,var(--surface)_105%,white)] pr-11 font-data"
+                className="login-field w-full border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] pr-11 font-data text-[var(--text-primary)]"
                 type={showPassword ? "text" : "password"}
                 placeholder={AUTH_COPY.passwordPlaceholder}
                 value={password}
@@ -168,7 +168,7 @@ export function LoginScreen() {
               />
               <button
                 type="button"
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-emerald-400"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] hover:text-[var(--accent-primary)]"
                 onClick={() => setShowPassword((v) => !v)}
                 aria-label={showPassword ? "Ocultar clave" : "Ver clave"}
                 tabIndex={-1}
@@ -183,7 +183,7 @@ export function LoginScreen() {
             <div className="mt-2 flex justify-end">
               <a
                 href="mailto:ti@inretrans.com?subject=Recuperaci%C3%B3n%20de%20clave%20Fleetline"
-                className="text-xs text-slate-400 transition hover:text-emerald-400 hover:underline"
+                className="text-xs text-[var(--text-secondary)] transition hover:text-[var(--accent-primary)] hover:underline"
               >
                 ¿Olvidaste tu clave de acceso?
               </a>

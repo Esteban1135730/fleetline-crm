@@ -39,12 +39,15 @@ export function EvidenceDropzone({
       className={`cursor-pointer rounded-xl border border-dashed px-4 py-8 text-center transition ${
         isDragActive
           ? "border-emerald-500 bg-emerald-500/10"
-          : "border-slate-700 bg-zinc-900/50 hover:border-slate-500"
+          : "border-[var(--border-subtle)] bg-[color-mix(in_srgb,var(--bg-surface-2)_55%,transparent)] hover:border-[var(--text-secondary)]"
       }`}
     >
       <input {...getInputProps()} />
-      <FileUp className="mx-auto mb-2 h-8 w-8 text-slate-500" aria-hidden />
-      <p className="text-sm text-slate-300">
+      <FileUp
+        className="mx-auto mb-2 h-8 w-8 text-[var(--text-secondary)]"
+        aria-hidden
+      />
+      <p className="text-sm text-[var(--text-secondary)]">
         {isDragActive
           ? "Suelte la evidencia…"
           : `Arrastre ${acceptLabel} o haga clic`}

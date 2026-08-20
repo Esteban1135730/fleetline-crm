@@ -11,7 +11,7 @@ import {
   systemStatusEs,
   type Role,
 } from "@fsg/shared";
-import { Users, ShieldAlert } from "lucide-react";
+import { Users, ShieldAlert, FileSpreadsheet } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { EmptyState, KpiCard, Modal, SlideOver, StatusPulseBadge } from "@/components/audit";
@@ -22,6 +22,7 @@ import {
   type EmployeeFormValues,
 } from "@/components/rrhh/employee-form-fields";
 import { EmployeeDocumentsPanel } from "@/components/rrhh/employee-documents-panel";
+import { EmployeeExcelPanel } from "@/components/rrhh/employee-excel-panel";
 
 type Semaphore = "GREEN" | "AMBER" | "RED" | "N_A";
 
@@ -248,6 +249,7 @@ export default function RrhhPage() {
     expiringSoon: number;
   } | null>(null);
   const [altaOpen, setAltaOpen] = useState(false);
+  const [excelOpen, setExcelOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [docsOpen, setDocsOpen] = useState(false);
   const [docsEmployee, setDocsEmployee] = useState<Emp | null>(null);
@@ -557,17 +559,38 @@ export default function RrhhPage() {
           </p>
         </div>
         {tab === "personal" ? (
-          <Button
-            type="button"
-            variant="primary"
-            className="w-auto px-4 py-2"
-            data-testid="rrhh-alta-open"
-            onClick={() => setAltaOpen(true)}
-          >
-            + Nuevo empleado
-          </Button>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-auto px-4 py-2"
+              data-testid="rrhh-excel-open"
+              onClick={() => setExcelOpen(true)}
+            >
+              <FileSpreadsheet className="mr-1.5 h-4 w-4" aria-hidden />
+              Excel
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              className="w-auto px-4 py-2"
+              data-testid="rrhh-alta-open"
+              onClick={() => setAltaOpen(true)}
+            >
+              + Nuevo empleado
+            </Button>
+          </div>
         ) : null}
       </header>
+
+      <EmployeeExcelPanel
+        open={excelOpen}
+        onClose={() => setExcelOpen(false)}
+        onImported={() => {
+          setStatusMsg("Importación Excel procesada");
+          void loadAll();
+        }}
+      />
 
       {overview ? (
         <div

@@ -172,10 +172,10 @@ export default function VinculacionesDashboardPage() {
   }
 
   return (
-    <div className="fade-in mx-auto max-w-[1400px] space-y-5 bg-[#F4F6F9] p-4 text-[#0F172A] dark:bg-[#0A0D14] dark:text-[#F8FAFC] md:p-6">
-      <div className="rounded-xl border border-[#E2E8F0] bg-white p-4 shadow-[0_10px_30px_rgba(0,0,0,0.04)] dark:border-white/10 dark:bg-[#121722]">
+    <div className="fade-in mx-auto max-w-[1400px] space-y-5 bg-[var(--bg-canvas)] p-4 text-[var(--text-primary)] md:p-6">
+      <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-4 shadow-[0_10px_30px_rgba(0,0,0,0.04)]">
         <PageIntro module="rrhh" title="Alta de afiliados · Vinculaciones" />
-        <p className="mt-1 text-sm text-[#64748B] dark:text-[#94A3B8]">
+        <p className="mt-1 text-sm text-[var(--text-secondary)]">
           Embudo de auditoría legal · RUNT/SIMIT · OCR
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
@@ -212,7 +212,7 @@ export default function VinculacionesDashboardPage() {
           {STAGES.map((s) => (
             <div
               key={s.key}
-              className="rounded-xl border border-[#E2E8F0] bg-white p-3 dark:border-white/10 dark:bg-[#121722]"
+              className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-3"
             >
               <p className="text-xs font-semibold uppercase text-[#64748B]">
                 {s.label}
@@ -221,7 +221,7 @@ export default function VinculacionesDashboardPage() {
                 {(dash?.kanban[s.key] ?? []).map((card) => (
                   <li
                     key={card.id}
-                    className="rounded-lg border border-[#E2E8F0] px-2 py-2 text-sm dark:border-white/10"
+                    className="rounded-lg border border-[var(--border-subtle)] px-2 py-2 text-sm"
                   >
                     <p className="font-mono text-xs text-[#0D9488]">
                       {card.code}
@@ -245,7 +245,7 @@ export default function VinculacionesDashboardPage() {
 
       {/* Acciones */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <section className="rounded-xl border border-[#E2E8F0] bg-white p-4 dark:border-white/10 dark:bg-[#121722]">
+        <section className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-4">
           <h3 className="font-display text-base">Portal afiliado</h3>
           <input
             className="field mt-2 w-full"
@@ -276,7 +276,7 @@ export default function VinculacionesDashboardPage() {
           </Button>
         </section>
 
-        <section className="rounded-xl border border-[#E2E8F0] bg-white p-4 dark:border-white/10 dark:bg-[#121722]">
+        <section className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-4">
           <h3 className="font-display text-base">Verificación de antecedentes</h3>
           <input
             className="field mt-2 w-full"
@@ -315,7 +315,7 @@ export default function VinculacionesDashboardPage() {
 
         <section
           id="ocr"
-          className="rounded-xl border border-[#E2E8F0] bg-white p-4 dark:border-white/10 dark:bg-[#121722]"
+          className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-4"
         >
           <h3 className="font-display text-base">Validar OCR</h3>
           <textarea
@@ -337,13 +337,13 @@ export default function VinculacionesDashboardPage() {
 
       {/* Split-screen OCR viewer */}
       <section className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-        <div className="min-h-[220px] rounded-xl border border-dashed border-[#E2E8F0] bg-[#0A0D14]/5 p-4 font-mono text-xs dark:border-white/20">
+        <div className="min-h-[220px] rounded-xl border border-dashed border-[var(--border-subtle)] bg-[color-mix(in_srgb,var(--bg-canvas)_40%,transparent)] p-4 font-mono text-xs">
           <p className="mb-2 text-[#64748B]">Visor de documento (pantalla partida)</p>
-          <pre className="whitespace-pre-wrap text-[#0F172A] dark:text-[#F8FAFC]">
+          <pre className="whitespace-pre-wrap text-[var(--text-primary)]">
             {ocrText || "Pegue texto OCR / referencia de PDF"}
           </pre>
         </div>
-        <div className="min-h-[220px] rounded-xl border border-[#E2E8F0] bg-white p-4 dark:border-white/10 dark:bg-[#121722]">
+        <div className="min-h-[220px] rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-4">
           <p className="mb-2 text-sm text-[#64748B]">Extracción / contrato</p>
           <p className="font-mono text-sm text-[#0D9488]">
             {selectedPdf || "Contrato pendiente de generación"}
@@ -358,13 +358,13 @@ export default function VinculacionesDashboardPage() {
       {/* Traffic light */}
       <section
         id="vencimientos"
-        className="rounded-xl border border-[#E2E8F0] bg-white p-4 dark:border-white/10 dark:bg-[#121722]"
+        className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-4"
       >
         <h3 className="font-display text-lg">Matriz de Vencimientos</h3>
         <div className="mt-3 overflow-x-auto">
           <table className="w-full min-w-[720px] text-left text-sm">
             <thead>
-              <tr className="border-b border-[#E2E8F0] text-xs uppercase text-[#64748B] dark:border-white/10">
+              <tr className="border-b border-[var(--border-subtle)] text-xs uppercase text-[var(--text-secondary)]">
                 <th className="py-2 pr-2">Placa</th>
                 {Object.keys(DOC_LABELS).map((k) => (
                   <th key={k} className="py-2 pr-2">
@@ -378,7 +378,7 @@ export default function VinculacionesDashboardPage() {
               {(dash?.trafficLight ?? []).map((row) => (
                 <tr
                   key={row.vehicleId}
-                  className="border-b border-[#E2E8F0]/70 dark:border-white/5"
+                  className="border-b border-[var(--border-subtle)]"
                 >
                   <td className="py-2 pr-2 font-mono text-[#0D9488]">
                     {row.plate}

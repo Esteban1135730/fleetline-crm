@@ -175,7 +175,7 @@ export function DashboardCharts({ data }: { data: ChartsPayload }) {
                 <stop offset="100%" stopColor={t.primary} stopOpacity={0.02} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke={mode === "dark" ? "#212D42" : "#E2E8F0"} />
+            <CartesianGrid strokeDasharray="3 3" stroke={t.chartGrid} />
             <XAxis dataKey="month" tick={{ fill: t.muted, fontSize: 11 }} />
             <YAxis
               tick={{ fill: t.muted, fontSize: 11 }}
@@ -230,7 +230,7 @@ export function DashboardCharts({ data }: { data: ChartsPayload }) {
       >
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={trips}>
-            <CartesianGrid strokeDasharray="3 3" stroke={t.line} />
+            <CartesianGrid strokeDasharray="3 3" stroke={t.chartGrid} />
             <XAxis dataKey="name" tick={{ fill: t.muted, fontSize: 10 }} />
             <YAxis allowDecimals={false} tick={{ fill: t.muted, fontSize: 11 }} />
             <Tooltip contentStyle={tipStyle} />
@@ -275,7 +275,7 @@ export function DashboardCharts({ data }: { data: ChartsPayload }) {
       >
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={nps}>
-            <CartesianGrid strokeDasharray="3 3" stroke={t.line} />
+            <CartesianGrid strokeDasharray="3 3" stroke={t.chartGrid} />
             <XAxis dataKey="month" tick={{ fill: t.muted, fontSize: 11 }} />
             <YAxis domain={[0, 5]} tick={{ fill: t.muted, fontSize: 11 }} />
             <Tooltip contentStyle={tipStyle} />
@@ -298,7 +298,7 @@ export function DashboardCharts({ data }: { data: ChartsPayload }) {
       >
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={segments} layout="vertical" margin={{ left: 12 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke={t.line} />
+            <CartesianGrid strokeDasharray="3 3" stroke={t.chartGrid} />
             <XAxis
               type="number"
               allowDecimals={false}

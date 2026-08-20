@@ -412,7 +412,7 @@ export default function TiDashboardPage() {
                             <stop offset="100%" stopColor="#22d3ee" stopOpacity={0} />
                           </linearGradient>
                         </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="var(--brand-line)" />
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                         <XAxis dataKey="time" tick={{ fontSize: 10 }} />
                         <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} unit="%" />
                         <Tooltip formatter={(v: number) => [`${v}%`, "CPU"]} />

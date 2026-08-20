@@ -237,10 +237,10 @@ export default function CampoDashboardPage() {
   }
 
   return (
-    <div className="fade-in mx-auto max-w-[1200px] space-y-5 bg-[#0A0D14] p-3 text-[#F8FAFC] md:p-6">
-      <div className="rounded-xl border border-white/10 bg-[#121722] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.04)]">
+    <div className="fade-in mx-auto max-w-[1200px] space-y-5 bg-[var(--bg-canvas)] p-3 text-[var(--text-primary)] md:p-6">
+      <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-4 shadow-[0_10px_30px_rgba(0,0,0,0.04)]">
         <PageIntro module="logistica" title="Comando de campo" />
-        <p className="mt-1 text-sm text-[#94A3B8]">
+        <p className="mt-1 text-sm text-[var(--text-secondary)]">
           Tablet-first · alto contraste solar · geocerca 5 km
         </p>
       </div>
@@ -289,13 +289,13 @@ export default function CampoDashboardPage() {
       {/* Mapa / lista pines */}
       <section
         id="radar"
-        className="rounded-xl border border-white/10 bg-[#121722] p-4"
+        className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-4"
       >
         <h3 className="font-display text-xl">Radar en vivo</h3>
-        <p className="text-sm text-[#94A3B8]">
+        <p className="text-sm text-[var(--text-secondary)]">
           Centro {coords.lat.toFixed(4)}, {coords.lng.toFixed(4)}
         </p>
-        <div className="relative mt-4 min-h-[280px] overflow-hidden rounded-xl border border-white/10 bg-[radial-gradient(circle_at_center,#1a2332_0%,#0A0D14_70%)]">
+        <div className="relative mt-4 min-h-[280px] overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-[radial-gradient(circle_at_center,var(--bg-surface-2)_0%,var(--bg-canvas)_70%)]">
           <div className="absolute left-1/2 top-1/2 z-10 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#10B981] shadow-[0_0_20px_#10B981]" />
           <div className="absolute left-1/2 top-1/2 h-[70%] w-[70%] -translate-x-1/2 -translate-y-1/2 rounded-full border border-[#10B981]/30" />
           {(radar?.approaching ?? []).slice(0, 12).map((a, i) => {
@@ -307,7 +307,7 @@ export default function CampoDashboardPage() {
               <button
                 key={a.vehicleId}
                 type="button"
-                className={`absolute h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white/80 ${PIN_CLASS[a.pinColor] || PIN_CLASS.green}`}
+                className={`absolute h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-[var(--bg-surface-1)] ${PIN_CLASS[a.pinColor] || PIN_CLASS.green}`}
                 style={{ left: `${x}%`, top: `${y}%` }}
                 title={`${a.plate} · ETA ${a.etaMinutes} min · ${a.pin}`}
                 onClick={() => a.trip && setSelectedTrip(a.trip.id)}
@@ -325,7 +325,7 @@ export default function CampoDashboardPage() {
                 className={`flex items-center justify-between rounded-lg border px-3 py-3 ${
                   full?.trip?.id === selectedTrip
                     ? "border-[#10B981] bg-[#10B981]/10"
-                    : "border-white/10"
+                    : "border-[var(--border-subtle)]"
                 }`}
               >
                 <button
@@ -338,7 +338,7 @@ export default function CampoDashboardPage() {
                   <p className="font-mono text-sm text-[#10B981]">
                     #{row.rank} {row.plate}
                   </p>
-                  <p className="text-xs text-[#94A3B8]">
+                  <p className="text-xs text-[var(--text-secondary)]">
                     ETA {row.etaMinutes} min · {full?.trip?.driverName || "—"} ·{" "}
                     {full?.trip?.customerName || "—"}
                   </p>
@@ -404,14 +404,14 @@ export default function CampoDashboardPage() {
       </section>
 
       {/* Abordaje override */}
-      <section className="rounded-xl border border-white/10 bg-[#121722] p-4">
+      <section className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-4">
         <h3 className="font-display text-lg">Abordaje manual (excepción)</h3>
-        <p className="text-sm text-[#94A3B8]">
+        <p className="text-sm text-[var(--text-secondary)]">
           Documento o nombre — funciona sin conexión
         </p>
         <div className="mt-3 flex flex-col gap-3 sm:flex-row">
           <input
-            className="field min-h-[56px] flex-1 !bg-[#0A0D14] !text-lg text-white"
+            className="field min-h-[56px] flex-1 !bg-[var(--bg-surface-2)] !text-lg text-[var(--text-primary)]"
             placeholder="Cédula o nombre completo"
             value={doc}
             onChange={(e) => setDoc(e.target.value)}

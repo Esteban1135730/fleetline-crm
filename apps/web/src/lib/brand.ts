@@ -31,6 +31,7 @@ export const lightTheme = {
   railActive: "#0D9488",
   fieldBg: "#FFFFFF",
   success: "#0D9488",
+  chartGrid: "#94A3B8",
 } as const;
 
 /** Obsidian Telemetry — Dark Mode */
@@ -54,6 +55,7 @@ export const darkTheme = {
   railActive: "#10B981",
   fieldBg: "#1A2230",
   success: "#10B981",
+  chartGrid: "rgba(148, 163, 184, 0.28)",
 } as const;
 
 export type ThemeMode = "light" | "dark";
@@ -78,6 +80,7 @@ export type ThemeTokens = {
   railActive: string;
   fieldBg: string;
   success: string;
+  chartGrid: string;
 };
 
 export function themeToCssVars(tokens: ThemeTokens): Record<string, string> {
@@ -102,6 +105,7 @@ export function themeToCssVars(tokens: ThemeTokens): Record<string, string> {
     "--brand-rail-active": tokens.railActive,
     "--brand-field": tokens.fieldBg,
     "--brand-success": tokens.success,
+    "--chart-grid": tokens.chartGrid,
     "--bg-canvas": tokens.canvas,
     "--bg-surface-1": tokens.surface,
     "--bg-surface-2": tokens.surface2,

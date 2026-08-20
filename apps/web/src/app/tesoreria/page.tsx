@@ -337,7 +337,7 @@ export default function FinanzasPage() {
           <div className="mt-4 h-56">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={cashFlowData} barGap={4}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                 <XAxis dataKey="semana" tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} />
                 <Tooltip

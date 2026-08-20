@@ -9,10 +9,12 @@ import {
   Post,
   Query,
   Req,
+  Res,
   UploadedFile,
   UseGuards,
   UseInterceptors,
 } from "@nestjs/common";
+import type { Response } from "express";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { diskStorage } from "multer";
 import { extname, join, resolve } from "path";
@@ -70,6 +72,112 @@ export class RrhhController {
   @Get("employees")
   listEmployees(@Req() req: AuthReq) {
     return this.rrhh.listEmployees(req.user.organizationId);
+  }
+
+  @Get("employees/export/excel")
+  async exportEmployeesExcel(
+    @Req() req: AuthReq,
+    @Res() res: Response,
+    @Query("columns") columns?: string | string[],
+  ) {
+    const keys = Array.isArray(columns)
+      ? columns
+      : columns
+        ? String(columns)
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : undefined;
+    const { buffer, filename } = await this.rrhh.exportEmployeesExcel(
+      req.user.organizationId,
+      keys,
+    );
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${filename}"`,
+    );
+    res.send(buffer);
+  }
+
+  @Get("employees/export/template")
+  async exportEmployeesTemplate(
+    @Res() res: Response,
+    @Query("columns") columns?: string | string[],
+  ) {
+    const keys = Array.isArray(columns)
+      ? columns
+      : columns
+        ? String(columns)
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : undefined;
+    const { buffer, filename } =
+      await this.rrhh.buildEmployeesExcelTemplate(keys);
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${filename}"`,
+    );
+    res.send(buffer);
+  }
+
+  @Post("employees/import/excel")
+  @Permissions("personal", "CREATE")
+  @UseInterceptors(
+    FileInterceptor("file", {
+      storage: diskStorage({
+        destination: (_req, _file, cb) => {
+          const dir = join(UPLOADS_DIR, "rrhh-import");
+          if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+          cb(null, dir);
+        },
+        filename: (_req, file, cb) => {
+          cb(null, `${randomUUID()}${extname(file.originalname) || ".xlsx"}`);
+        },
+      }),
+      limits: { fileSize: 8 * 1024 * 1024 },
+      fileFilter: (_req, file, cb) => {
+        const ok =
+          /\.(xlsx|xls)$/i.test(file.originalname) ||
+          file.mimetype.includes("sheet") ||
+          file.mimetype.includes("excel");
+        cb(
+          ok ? null : new BadRequestException("Solo archivos Excel (.xlsx)"),
+          ok,
+        );
+      },
+    }),
+  )
+  async importEmployeesExcel(
+    @Req() req: AuthReq,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    if (!file?.path) {
+      throw new BadRequestException("Adjunte un archivo Excel");
+    }
+    const { readFileSync, unlinkSync } = await import("fs");
+    try {
+      const buffer = readFileSync(file.path);
+      return await this.rrhh.importEmployeesExcel(
+        req.user.organizationId,
+        req.user,
+        buffer,
+      );
+    } finally {
+      try {
+        unlinkSync(file.path);
+      } catch {
+        /* ignore */
+      }
+    }
   }
 
   @Post("employees/provision")

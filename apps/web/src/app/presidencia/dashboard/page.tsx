@@ -420,7 +420,7 @@ export default function PresidenciaDashboardPage() {
       </section>
 
       <div className="relative z-10 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <section className="rounded-xl border border-slate-800 bg-zinc-900/80 p-4">
+        <section className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-4">
           <div className="mb-3 flex items-center gap-2">
             <LineChartIcon className="h-4 w-4 text-emerald-500/70" aria-hidden />
             <h3 className="text-sm font-semibold text-slate-100">
@@ -431,12 +431,12 @@ export default function PresidenciaDashboardPage() {
             <div className="h-56 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={burnRateSeries}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                   <XAxis dataKey="mes" tick={{ fill: "#94A3B8", fontSize: 11 }} />
                   <YAxis tick={{ fill: "#94A3B8", fontSize: 11 }} width={48} />
                   <Tooltip
                     contentStyle={{
-                      background: "#121722",
+                      background: "var(--bg-surface-1)",
                       border: "1px solid rgba(255,255,255,0.1)",
                       borderRadius: 8,
                       fontSize: 12,
@@ -469,7 +469,7 @@ export default function PresidenciaDashboardPage() {
           )}
         </section>
 
-        <section className="rounded-xl border border-slate-800 bg-zinc-900/80 p-4">
+        <section className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-4">
           <div className="mb-3 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <Truck className="h-4 w-4 text-emerald-500/70" aria-hidden />
@@ -504,7 +504,7 @@ export default function PresidenciaDashboardPage() {
                   </Pie>
                   <Tooltip
                     contentStyle={{
-                      background: "#121722",
+                      background: "var(--bg-surface-1)",
                       border: "1px solid rgba(255,255,255,0.1)",
                       borderRadius: 8,
                       fontSize: 12,
@@ -519,7 +519,7 @@ export default function PresidenciaDashboardPage() {
           )}
         </section>
 
-        <section className="rounded-xl border border-slate-800 bg-zinc-900/80 p-4">
+        <section className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-4">
           <div className="mb-3 flex items-center gap-2">
             <ShieldAlert className="h-4 w-4 text-amber-500/70" aria-hidden />
             <h3 className="text-sm font-semibold text-slate-100">
@@ -552,7 +552,7 @@ export default function PresidenciaDashboardPage() {
           )}
         </section>
 
-        <section className="rounded-xl border border-slate-800 bg-zinc-900/80 p-4">
+        <section className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-4">
           <div className="mb-3 flex items-center gap-2">
             <TrendingUp className="h-4 w-4 text-emerald-500/70" aria-hidden />
             <h3 className="text-sm font-semibold text-slate-100">
@@ -563,12 +563,12 @@ export default function PresidenciaDashboardPage() {
             <div className="h-56 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={dash!.commercialPipeline!.weeks}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                   <XAxis dataKey="label" tick={{ fill: "#94A3B8", fontSize: 11 }} />
                   <YAxis tick={{ fill: "#94A3B8", fontSize: 11 }} width={48} />
                   <Tooltip
                     contentStyle={{
-                      background: "#121722",
+                      background: "var(--bg-surface-1)",
                       border: "1px solid rgba(255,255,255,0.1)",
                       borderRadius: 8,
                       fontSize: 12,
@@ -590,7 +590,7 @@ export default function PresidenciaDashboardPage() {
       </div>
 
       <div className="relative z-10 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <section className="rounded-xl border border-slate-800 bg-zinc-900/80 p-4">
+        <section className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-4">
           <div className="mb-3 flex items-center gap-2">
             <LineChartIcon className="h-4 w-4 text-emerald-500/70" aria-hidden />
             <h3 className="text-sm font-semibold text-slate-100">
@@ -601,7 +601,7 @@ export default function PresidenciaDashboardPage() {
             <div className="h-56 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={cashFlowSeries}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                   <XAxis
                     dataKey="name"
                     tick={{ fill: "#94A3B8", fontSize: 11 }}
@@ -614,7 +614,7 @@ export default function PresidenciaDashboardPage() {
                   />
                   <Tooltip
                     contentStyle={{
-                      background: "#121722",
+                      background: "var(--bg-surface-1)",
                       border: "1px solid rgba(255,255,255,0.1)",
                       borderRadius: 8,
                       fontSize: 12,
@@ -654,7 +654,7 @@ export default function PresidenciaDashboardPage() {
           ) : null}
         </section>
 
-        <section className="rounded-xl border border-slate-800 bg-zinc-900/80 p-4">
+        <section className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-4">
           <div className="mb-3 flex items-center gap-2">
             <Flame className="h-4 w-4 text-amber-500/70" aria-hidden />
             <h3 className="text-sm font-semibold text-slate-100">
@@ -665,7 +665,7 @@ export default function PresidenciaDashboardPage() {
             <div className="h-56 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={heatBars} layout="vertical" margin={{ left: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                   <XAxis
                     type="number"
                     domain={[0, 100]}
@@ -681,7 +681,7 @@ export default function PresidenciaDashboardPage() {
                   />
                   <Tooltip
                     contentStyle={{
-                      background: "#121722",
+                      background: "var(--bg-surface-1)",
                       border: "1px solid rgba(255,255,255,0.1)",
                       borderRadius: 8,
                       fontSize: 12,
@@ -720,7 +720,7 @@ export default function PresidenciaDashboardPage() {
 
       <section
         id="jarvis"
-        className="relative z-10 flex flex-col items-center rounded-xl border border-slate-800 bg-zinc-900/80 p-6"
+        className="relative z-10 flex flex-col items-center rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-6"
       >
         <div
           className={`relative mb-4 flex h-28 w-28 items-center justify-center rounded-full border-2 ${

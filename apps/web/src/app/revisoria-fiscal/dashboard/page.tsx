@@ -277,8 +277,8 @@ export default function RevisoriaFiscalDashboardPage() {
           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-500">
             Revisoría fiscal
           </p>
-          <h1 className="text-2xl font-bold text-slate-100">Centro de revisoría</h1>
-          <p className="mt-1 font-mono text-xs text-slate-500">
+          <h1 className="text-2xl font-bold text-[var(--text-primary)]">Centro de revisoría</h1>
+          <p className="mt-1 font-mono text-xs text-[var(--text-secondary)]">
             Periodo {ym} · Ctrl/Cmd+K navegación global
           </p>
         </div>
@@ -370,7 +370,7 @@ export default function RevisoriaFiscalDashboardPage() {
       </div>
 
       {/* Filtros + tabs */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-800 bg-zinc-900/60 px-3 py-2">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] px-3 py-2">
         <div className="flex flex-wrap gap-1">
           {(
             [
@@ -386,7 +386,7 @@ export default function RevisoriaFiscalDashboardPage() {
               className={`w-auto rounded-lg px-3 py-1.5 text-xs font-semibold ${
                 tab === id
                   ? "bg-emerald-500/20 text-emerald-300"
-                  : "text-slate-400 hover:bg-slate-800"
+                  : "text-[var(--text-secondary)] hover:bg-[var(--bg-surface-2)]"
               }`}
             >
               {label}
@@ -397,7 +397,7 @@ export default function RevisoriaFiscalDashboardPage() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Filtrar factura, cuenta, tercero…"
-          className="w-full max-w-xs rounded-lg border border-slate-800 bg-zinc-950 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-600 sm:w-auto"
+          className="w-full max-w-xs rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface-2)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] sm:w-auto"
         />
       </div>
 
@@ -411,9 +411,9 @@ export default function RevisoriaFiscalDashboardPage() {
             onAction={() => setLockOpen(true)}
           />
         ) : (
-          <div className="overflow-hidden rounded-xl border border-slate-800">
+          <div className="overflow-hidden rounded-xl border border-[var(--border-subtle)]">
             <table className="w-full text-left text-sm">
-              <thead className="border-b border-slate-800 bg-zinc-900/80 text-[11px] uppercase tracking-wide text-slate-500">
+              <thead className="border-b border-[var(--border-subtle)] bg-[var(--bg-surface-1)] text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
                 <tr>
                   <th className="px-4 py-3">Factura</th>
                   <th className="px-4 py-3">Issue</th>
@@ -425,15 +425,15 @@ export default function RevisoriaFiscalDashboardPage() {
                 {filteredFlagged.map((f) => (
                   <tr
                     key={f.invoiceId}
-                    className="border-b border-slate-800/80 bg-zinc-950/40"
+                    className="border-b border-[var(--border-subtle)]/80 bg-[color-mix(in_srgb,var(--bg-canvas)_50%,transparent)]"
                   >
-                    <td className="px-4 py-3 font-mono text-slate-200">
+                    <td className="px-4 py-3 font-mono text-[var(--text-primary)]">
                       {f.number}
                     </td>
                     <td className="px-4 py-3">
                       <StatusPulseBadge tone="danger">{f.issue}</StatusPulseBadge>
                     </td>
-                    <td className="px-4 py-3 text-slate-400">{f.detail}</td>
+                    <td className="px-4 py-3 text-[var(--text-secondary)]">{f.detail}</td>
                     <td className="px-4 py-3 text-right">
                       <Button
                         className="w-auto px-3 py-1.5"
@@ -462,7 +462,7 @@ export default function RevisoriaFiscalDashboardPage() {
             {filteredPuc.map((node) => (
               <div
                 key={node.id}
-                className="rounded-xl border border-slate-800 bg-zinc-900/70"
+                className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)]"
               >
                 <button
                   type="button"
@@ -471,7 +471,7 @@ export default function RevisoriaFiscalDashboardPage() {
                     setExpanded(expanded === node.id ? null : node.id)
                   }
                 >
-                  <span className="font-mono text-sm text-slate-200">
+                  <span className="font-mono text-sm text-[var(--text-primary)]">
                     {node.code} · {node.name}
                   </span>
                   <span className="font-mono text-xs text-amber-400">
@@ -480,18 +480,18 @@ export default function RevisoriaFiscalDashboardPage() {
                 </button>
                 {expanded === node.id ? (
                   node.invoices.length === 0 ? (
-                    <div className="border-t border-slate-800 px-4 py-3">
+                    <div className="border-t border-[var(--border-subtle)] px-4 py-3">
                       <EmptyState
                         title="Sin facturas vinculadas"
                         description="No hay movimientos en esta cuenta para la ventana actual."
                       />
                     </div>
                   ) : (
-                    <ul className="border-t border-slate-800 px-4 py-2">
+                    <ul className="border-t border-[var(--border-subtle)] px-4 py-2">
                       {node.invoices.map((inv) => (
                         <li
                           key={inv.id}
-                          className="flex items-center justify-between py-2 font-mono text-xs text-slate-400"
+                          className="flex items-center justify-between py-2 font-mono text-xs text-[var(--text-secondary)]"
                         >
                           <span>
                             {inv.number} · {inv.counterparty}
@@ -521,9 +521,9 @@ export default function RevisoriaFiscalDashboardPage() {
             description="Aún no hay ítems seleccionados para revisión forense este mes."
           />
         ) : (
-          <div className="overflow-hidden rounded-xl border border-slate-800">
+          <div className="overflow-hidden rounded-xl border border-[var(--border-subtle)]">
             <table className="w-full text-left text-sm">
-              <thead className="border-b border-slate-800 bg-zinc-900/80 text-[11px] uppercase tracking-wide text-slate-500">
+              <thead className="border-b border-[var(--border-subtle)] bg-[var(--bg-surface-1)] text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
                 <tr>
                   <th className="px-4 py-3">Documento</th>
                   <th className="px-4 py-3">Tipo</th>
@@ -535,14 +535,14 @@ export default function RevisoriaFiscalDashboardPage() {
                 {filteredSample.map((i) => (
                   <tr
                     key={i.id}
-                    className="cursor-pointer border-b border-slate-800/80 hover:bg-slate-900/60"
+                    className="cursor-pointer border-b border-[var(--border-subtle)]/80 hover:bg-[color-mix(in_srgb,var(--accent-primary)_8%,transparent)]"
                     onClick={() => void openDrill(i.id)}
                   >
-                    <td className="px-4 py-3 font-mono text-slate-200">
+                    <td className="px-4 py-3 font-mono text-[var(--text-primary)]">
                       {i.number}
                     </td>
-                    <td className="px-4 py-3 text-slate-400">{i.type}</td>
-                    <td className="px-4 py-3 text-slate-400">{i.counterparty}</td>
+                    <td className="px-4 py-3 text-[var(--text-secondary)]">{i.type}</td>
+                    <td className="px-4 py-3 text-[var(--text-secondary)]">{i.counterparty}</td>
                     <td className="px-4 py-3 text-right font-mono text-amber-400">
                       {money(i.amount)}
                     </td>
@@ -567,7 +567,7 @@ export default function RevisoriaFiscalDashboardPage() {
         }
       >
         {drill ? (
-          <ol className="list-decimal space-y-2 pl-5 text-sm text-slate-200">
+          <ol className="list-decimal space-y-2 pl-5 text-sm text-[var(--text-primary)]">
             <li>
               Firma presupuesto:{" "}
               <span className="font-mono text-amber-400">
@@ -621,17 +621,17 @@ export default function RevisoriaFiscalDashboardPage() {
           </>
         }
       >
-        <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+        <label className="block text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
           PDF dictamen
         </label>
         <input
           value={pdfRef}
           onChange={(e) => setPdfRef(e.target.value)}
-          className="mt-2 w-full rounded-lg border border-slate-800 bg-zinc-950 px-3 py-2 font-mono text-sm text-slate-200"
+          className="mt-2 w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface-2)] px-3 py-2 font-mono text-sm text-[var(--text-primary)]"
           placeholder="uploads/dictamen/…"
         />
         {dash?.period.dictamen ? (
-          <p className="mt-3 font-mono text-xs text-slate-500">
+          <p className="mt-3 font-mono text-xs text-[var(--text-secondary)]">
             Dictamen {dash.period.dictamen.opinion} · hash{" "}
             {dash.period.dictamen.signatureHash.slice(0, 16)}… ·{" "}
             {dash.period.dictamen.pdfRef}

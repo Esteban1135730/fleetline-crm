@@ -263,7 +263,7 @@ export default function GerenciaDashboardPage() {
               <div className="h-52">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={dash.tacticalPanel.hourlyActivity}>
-                    <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                     <XAxis dataKey="hora" tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} width={32} />
                     <Tooltip />
@@ -278,7 +278,7 @@ export default function GerenciaDashboardPage() {
               <div className="h-52">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={dash.tacticalPanel.fleetByType}>
-                    <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                     <XAxis dataKey="tipo" tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} width={32} />
                     <Tooltip />
@@ -296,7 +296,7 @@ export default function GerenciaDashboardPage() {
               <div className="h-52">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={dash.tacticalPanel.cashAging}>
-                    <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                     <XAxis dataKey="rango" tick={{ fontSize: 10 }} />
                     <YAxis tick={{ fontSize: 11 }} width={32} />
                     <Tooltip />

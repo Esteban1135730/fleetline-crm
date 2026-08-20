@@ -31,6 +31,6 @@ WORKDIR /app
 COPY --from=build /app /app
 RUN mkdir -p /app/uploads
 EXPOSE 4000
-# Schema SSOT avanza más rápido que migrate deploy histórico → db push en volumen existente.
-# --accept-data-loss: permite índices únicos nuevos (p. ej. Employee.userId) sin prompt interactivo.
-CMD ["sh", "-c", "pnpm --filter @fsg/db exec prisma db push --skip-generate --accept-data-loss && exec node apps/api/dist/main.js"]
+# Solo aplica migraciones / sync de schema SIN borrar datos.
+# Nunca usar --accept-data-loss ni docker compose down -v en el VPS.
+CMD ["sh", "-c", "pnpm --filter @fsg/db exec prisma migrate deploy || pnpm --filter @fsg/db exec prisma db push --skip-generate; exec node apps/api/dist/main.js"]

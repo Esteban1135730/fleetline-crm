@@ -1,6 +1,9 @@
 @import "tailwindcss";
 @import "@fsg/ui/globals.css";
 
+/* Toggle de app (html.dark / html.light) — no prefers-color-scheme */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* ═══════════════════════════════════════════════════════════
    OBSIDIAN TELEMETRY (dark) · ALUMINIUM & QUARTZ (light)
    Aero-Tech Minimalist — Fleetline design system
@@ -17,6 +20,7 @@ html.dark {
   --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
   --border-subtle: rgba(255, 255, 255, 0.07);
+  --chart-grid: rgba(148, 163, 184, 0.28);
   --glow-active: 0 0 15px rgba(16, 185, 129, 0.18);
 
   --brand-primary: var(--accent-primary);
@@ -53,6 +57,7 @@ html.light {
   --text-primary: #0f172a;
   --text-secondary: #64748b;
   --border-subtle: #e2e8f0;
+  --chart-grid: #94a3b8;
   --glow-active: 0 0 15px rgba(13, 148, 136, 0.18);
 
   --brand-primary: var(--accent-primary);
@@ -1609,38 +1614,150 @@ html.light .flt-command-panel {
   font-weight: 700;
 }
 
-/* ── Light mode: leftover dark-only utilities (KPIs, tablas, paneles) ── */
+/* ── Theme remaps: pantallas con utilidades dark-only / light-only ── */
+
+/* Canvas / superficies Obsidian hardcodeadas → tokens en light */
+html.light .flt-workbench [class*="bg-[#0A0D14]"],
+html.light .flt-workbench [class*="bg-[#0a0d14]"],
+html.light .flt-workbench [class*="bg-[#121722]"],
+html.light .flt-workbench [class*="bg-[#1A2230]"],
+html.light .flt-workbench [class*="bg-[#1a2230]"],
+html.light .flt-workbench [class*="bg-[#000000]"],
+html.light .flt-workbench [class*="!bg-[#0A0D14]"],
+html.light .flt-workbench [class*="!bg-[#0a0d14]"] {
+  background-color: var(--bg-surface-1) !important;
+}
+
+html.light .flt-workbench [class*="bg-[#0A0D14]/"],
+html.light .flt-workbench [class*="bg-[#0a0d14]/"],
+html.light .flt-workbench [class*="bg-[#121722]/"] {
+  background-color: color-mix(
+    in srgb,
+    var(--bg-surface-1) 92%,
+    transparent
+  ) !important;
+}
+
+/* Zinc / slate / gray oscuros → superficie clara */
 html.light .flt-workbench [class*="bg-zinc-9"],
+html.light .flt-workbench [class*="bg-zinc-8"],
 html.light .flt-workbench [class*="bg-slate-9"],
 html.light .flt-workbench [class*="bg-slate-8"],
 html.light .flt-workbench [class*="bg-gray-9"],
-html.light .flt-workbench [class*="bg-gray-8"] {
-  background-color: var(--bg-surface-1);
+html.light .flt-workbench [class*="bg-gray-8"],
+html.light .flt-workbench [class*="bg-neutral-9"],
+html.light .flt-workbench [class*="bg-neutral-8"] {
+  background-color: var(--bg-surface-1) !important;
+}
+
+html.light .flt-workbench [class*="!bg-black"]:not([class*="/"]),
+html.light .flt-workbench [class*="!bg-[#000"] {
+  background-color: var(--bg-surface-2) !important;
 }
 
 html.light .flt-workbench [class*="border-slate-8"],
 html.light .flt-workbench [class*="border-slate-7"],
 html.light .flt-workbench [class*="border-gray-8"],
-html.light .flt-workbench [class*="border-gray-7"] {
-  border-color: var(--border-subtle);
+html.light .flt-workbench [class*="border-gray-7"],
+html.light .flt-workbench [class*="border-zinc-8"],
+html.light .flt-workbench [class*="border-zinc-7"],
+html.light .flt-workbench [class*="border-white/10"],
+html.light .flt-workbench [class*="border-white/5"] {
+  border-color: var(--border-subtle) !important;
 }
 
 html.light .flt-workbench :is(
     [class*="text-white"],
+    [class*="!text-white"],
+    [class*="text-[#F8FAFC]"],
+    [class*="text-[#f8fafc]"],
     [class*="text-slate-1"],
-    [class*="text-slate-2"]
-  ):not(.flt-btn):not(.flt-btn *):not([class*="bg-[#"]):not(
-    [class*="bg-emerald"]
-  ):not([class*="bg-rose"]):not([class*="bg-red"]) {
-  color: var(--text-primary);
+    [class*="text-slate-2"],
+    [class*="text-zinc-1"],
+    [class*="text-zinc-2"]
+  ):not(.flt-btn):not(.flt-btn *):not([class*="bg-emerald"]):not(
+    [class*="bg-rose"]
+  ):not([class*="bg-red"]):not([class*="bg-[#FF"]):not(
+    [class*="bg-[#10"]
+  ):not([class*="bg-[#0D"]):not([class*="!bg-[#FF"]) {
+  color: var(--text-primary) !important;
 }
 
 html.light .flt-workbench :is(
+    [class*="text-slate-3"],
     [class*="text-slate-4"],
     [class*="text-slate-5"],
+    [class*="text-zinc-3"],
+    [class*="text-zinc-4"],
+    [class*="text-zinc-5"],
     [class*="text-gray-4"],
-    [class*="text-gray-5"]
+    [class*="text-gray-5"],
+    [class*="text-[#94A3B8]"],
+    [class*="text-[#94a3b8]"],
+    [class*="text-[#64748B]"],
+    [class*="text-[#64748b]"]
   ) {
+  color: var(--text-secondary) !important;
+}
+
+/* Inputs field forzados a negro en dashboards legacy */
+html.light .flt-workbench .field,
+html.light .flt-workbench input.field,
+html.light .flt-workbench textarea.field,
+html.light .flt-workbench select.field {
+  background-color: var(--bg-surface-1) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-subtle) !important;
+}
+
+/* Dark: paneles que quedaron en blanco puro (páginas duales) */
+html.dark .flt-workbench [class*="bg-white"]:not([class*="bg-white/"]):not(
+    .flt-btn
+  ):not([class*="bg-emerald"]):not([class*="bg-rose"]) {
+  background-color: var(--bg-surface-1) !important;
+}
+
+html.dark .flt-workbench [class*="text-slate-900"],
+html.dark .flt-workbench [class*="text-gray-900"],
+html.dark .flt-workbench [class*="text-zinc-900"],
+html.dark .flt-workbench [class*="text-neutral-900"] {
+  color: var(--text-primary) !important;
+}
+
+html.dark .flt-workbench [class*="text-slate-600"],
+html.dark .flt-workbench [class*="text-slate-700"],
+html.dark .flt-workbench [class*="text-gray-600"],
+html.dark .flt-workbench [class*="text-gray-700"] {
+  color: var(--text-secondary) !important;
+}
+
+html.dark .flt-workbench [class*="border-slate-200"],
+html.dark .flt-workbench [class*="border-gray-200"],
+html.dark .flt-workbench [class*="border-zinc-200"],
+html.dark .flt-workbench [class*="border-slate-100"] {
+  border-color: var(--border-subtle) !important;
+}
+
+/* Kbd / chips del shell */
+.flt-kbd {
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface-2);
+  color: var(--text-secondary);
+}
+
+html.light .flt-topbar kbd,
+html.light .flt-sidebar kbd,
+html.light kbd.flt-kbd {
+  border-color: var(--border-subtle);
+  background: #e2e8f0;
+  color: var(--text-primary);
+}
+
+html.dark .flt-topbar kbd,
+html.dark .flt-sidebar kbd,
+html.dark kbd.flt-kbd {
+  border-color: var(--border-subtle);
+  background: var(--bg-surface-2);
   color: var(--text-secondary);
 }
 
@@ -1651,6 +1768,15 @@ html.light .data-shell table th {
 
 html.light .data-shell table tbody tr:hover {
   background: color-mix(in srgb, var(--accent-primary) 8%, #ffffff);
+}
+
+html.dark .data-shell table th {
+  background: color-mix(in srgb, var(--bg-surface-2) 80%, transparent);
+  color: var(--text-secondary);
+}
+
+html.dark .data-shell table tbody tr:hover {
+  background: color-mix(in srgb, var(--accent-primary) 10%, transparent);
 }
 
 

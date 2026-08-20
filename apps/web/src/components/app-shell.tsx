@@ -507,7 +507,7 @@ function HelpStepText({ text }: { text: string }) {
         /^(Cmd\/Ctrl\+[K/]|Ctrl\+K|Esc|⌘K)$/.test(part) ? (
           <kbd
             key={`${part}-${i}`}
-            className="mx-0.5 rounded-md border border-gray-700 bg-gray-800 px-2 py-0.5 font-mono text-xs text-slate-200"
+            className="flt-kbd mx-0.5 rounded-md border px-2 py-0.5 font-mono text-xs"
           >
             {part}
           </kbd>
@@ -571,11 +571,11 @@ function HelpSheet() {
           </ol>
           <p className="font-data text-[10px] uppercase tracking-[0.12em] text-[var(--text-secondary)]">
             Atajo:{" "}
-            <kbd className="rounded-md border border-gray-700 bg-gray-800 px-2 py-0.5 font-mono text-xs normal-case tracking-normal">
+            <kbd className="flt-kbd rounded-md border px-2 py-0.5 font-mono text-xs normal-case tracking-normal">
               Cmd/Ctrl+/
             </kbd>{" "}
             ·{" "}
-            <kbd className="rounded-md border border-gray-700 bg-gray-800 px-2 py-0.5 font-mono text-xs normal-case tracking-normal">
+            <kbd className="flt-kbd rounded-md border px-2 py-0.5 font-mono text-xs normal-case tracking-normal">
               Esc
             </kbd>{" "}
             cierra

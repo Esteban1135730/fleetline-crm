@@ -496,7 +496,7 @@ export default function ReporteNominaPage() {
                   layout="vertical"
                   margin={{ top: 0, right: 8, left: 0, bottom: 0 }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--brand-line)" />
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--chart-grid)" />
                   <XAxis type="number" hide />
                   <YAxis
                     type="category"

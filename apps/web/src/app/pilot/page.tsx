@@ -117,12 +117,12 @@ export default function PilotAppPage() {
 
   if (locked) {
     return (
-      <div className="flex min-h-[70vh] flex-col items-center justify-center bg-[#0A0D14] p-6 text-center">
+      <div className="flex min-h-[70vh] flex-col items-center justify-center bg-[var(--bg-canvas)] p-6 text-center text-[var(--text-primary)]">
         <p className="font-mono text-5xl text-[#FFB800]">{speed} km/h</p>
-        <p className="mt-4 text-lg text-[#94A3B8]">
+        <p className="mt-4 text-lg text-[var(--text-secondary)]">
           Modo conductor · pantalla bloqueada
         </p>
-        <p className="mt-2 text-sm text-[#64748B]">
+        <p className="mt-2 text-sm text-[var(--text-secondary)]">
           Umbral {dash?.speedLockKph ?? 15} km/h
         </p>
         <Button
@@ -134,7 +134,7 @@ export default function PilotAppPage() {
         </Button>
         <button
           type="button"
-          className="mt-6 text-xs text-[#64748B] underline"
+          className="mt-6 text-xs text-[var(--text-secondary)] underline"
           onClick={() => void checkSpeed(0)}
         >
           Simular detención

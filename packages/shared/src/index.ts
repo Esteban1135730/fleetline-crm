@@ -878,6 +878,7 @@ export function modulesForRole(role: string | Role): ModuleId[] {
 export * from "./rbac";
 export * from "./departments";
 export * from "./hr-documents";
+export * from "./rrhh-excel";
 export * from "./nav-departments";
 export * from "./labels-es";
 export type { FieldKind } from "./validation";

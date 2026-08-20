@@ -47,9 +47,9 @@ type Dash = {
 };
 
 const SEV_CLASS: Record<Anomaly["severity"], string> = {
-  CRITICAL: "border-[#FF2A5F] bg-[#FF2A5F]/20 text-[#F8FAFC]",
-  HIGH: "border-[#FFB800]/60 bg-[#FFB800]/10 text-[#F8FAFC]",
-  WARN: "border-white/20 bg-white/5 text-[#F8FAFC]",
+  CRITICAL: "border-[#FF2A5F] bg-[#FF2A5F]/20 text-[var(--text-primary)]",
+  HIGH: "border-[#FFB800]/60 bg-[#FFB800]/10 text-[var(--text-primary)]",
+  WARN: "border-[var(--border-subtle)] bg-[color-mix(in_srgb,var(--bg-surface-2)_50%,transparent)] text-[var(--text-primary)]",
 };
 
 export default function CentroControlDashboardPage() {
@@ -174,17 +174,17 @@ export default function CentroControlDashboardPage() {
     <div
       className={`fade-in relative mx-auto min-h-[100dvh] max-w-[1400px] space-y-4 p-3 md:p-6 ${
         warRoom
-          ? "bg-[#1a0508] text-[#F8FAFC]"
-          : "bg-[#000000] text-[#F8FAFC]"
+          ? "bg-[color-mix(in_srgb,var(--accent-alert)_12%,var(--bg-canvas))] text-[var(--text-primary)]"
+          : "bg-[var(--bg-canvas)] text-[var(--text-primary)]"
       }`}
     >
       {warRoom ? (
         <div className="pointer-events-none fixed inset-0 z-0 animate-pulse bg-[#FF2A5F]/10" />
       ) : null}
 
-      <div className="relative z-10 rounded-xl border border-white/10 bg-[#0A0D14]/95 p-4">
+      <div className="relative z-10 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-4">
         <PageIntro module="logistica" title="Torre de control 24/7" />
-        <p className="mt-1 text-sm text-[#94A3B8]">
+        <p className="mt-1 text-sm text-[var(--text-secondary)]">
           Video wall · monitoreo por excepción · solo anomalías
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
@@ -221,15 +221,15 @@ export default function CentroControlDashboardPage() {
       {/* Video wall — anomalías */}
       <section
         id="anomalias"
-        className="relative z-10 rounded-xl border border-white/10 bg-[#05070c] p-4"
+        className="relative z-10 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-4"
       >
         <h3 className="font-display text-xl">Pantalla de monitoreo · Excepciones</h3>
-        <p className="text-sm text-[#64748B]">
+        <p className="text-sm text-[var(--text-secondary)]">
           Fondo negro — solo unidades fuera de nominal
         </p>
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {(dash?.anomalies ?? []).length === 0 ? (
-            <p className="col-span-full py-16 text-center font-mono text-sm text-[#334155]">
+            <p className="col-span-full py-16 text-center font-mono text-sm text-[var(--text-secondary)]">
               Flota nominal — sin excepciones en la red
             </p>
           ) : (
@@ -255,7 +255,7 @@ export default function CentroControlDashboardPage() {
                   </Badge>
                 </div>
                 <p className="mt-2 text-sm">{a.label}</p>
-                <p className="mt-1 font-mono text-xs text-[#94A3B8]">
+                <p className="mt-1 font-mono text-xs text-[var(--text-secondary)]">
                   {new Date(a.at).toLocaleTimeString("es-CO")}
                 </p>
               </article>
@@ -269,10 +269,10 @@ export default function CentroControlDashboardPage() {
         id="warroom"
         className="relative z-10 grid grid-cols-1 gap-3 lg:grid-cols-2"
       >
-        <div className="rounded-xl border border-white/10 bg-[#0A0D14] p-4">
+        <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-4">
           <h3 className="font-display text-lg">Desvío de geocerca</h3>
           <input
-            className="field mt-3 min-h-[48px] w-full !bg-black !text-white"
+            className="field mt-3 min-h-[48px] w-full !bg-[var(--bg-surface-2)] !text-[var(--text-primary)]"
             placeholder="Placa (opcional)"
             value={tipPlate}
             onChange={(e) => setTipPlate(e.target.value.toUpperCase())}
@@ -298,15 +298,15 @@ export default function CentroControlDashboardPage() {
           </div>
         </div>
 
-        <div className="rounded-xl border border-[#FF2A5F]/40 bg-[#12060a] p-4">
+        <div className="rounded-xl border border-[#FF2A5F]/40 bg-[color-mix(in_srgb,var(--accent-alert)_10%,var(--bg-surface-1))] p-4">
           <h3 className="font-display text-lg text-[#FF2A5F]">
             IoT · Apagado remoto
           </h3>
-          <p className="text-sm text-[#94A3B8]">
+          <p className="text-sm text-[var(--text-secondary)]">
             Requiere SOS ACTIVE + confirmación de protocolo
           </p>
           <select
-            className="field mt-3 min-h-[48px] w-full !bg-black !text-white"
+            className="field mt-3 min-h-[48px] w-full !bg-[var(--bg-surface-2)] !text-[var(--text-primary)]"
             value={selectedSos}
             onChange={(e) => setSelectedSos(e.target.value)}
           >
@@ -340,7 +340,7 @@ export default function CentroControlDashboardPage() {
       {/* Consola VoIP */}
       <section
         id="voip"
-        className="relative z-10 rounded-xl border border-white/10 bg-[#0A0D14] p-4"
+        className="relative z-10 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-4"
       >
         <h3 className="font-display text-lg">Consola de llamadas · Marcación rápida</h3>
         <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -348,11 +348,11 @@ export default function CentroControlDashboardPage() {
             <a
               key={d.driverId}
               href={d.phone ? `tel:${d.phone}` : undefined}
-              className="flex items-center justify-between rounded-lg border border-white/10 bg-black/60 px-3 py-3 hover:border-[#10B981]/50"
+              className="flex items-center justify-between rounded-lg border border-[var(--border-subtle)] bg-[color-mix(in_srgb,var(--bg-canvas)_70%,transparent)] px-3 py-3 hover:border-[#10B981]/50"
             >
               <div>
                 <p className="text-sm font-medium">{d.name}</p>
-                <p className="font-mono text-xs text-[#94A3B8]">
+                <p className="font-mono text-xs text-[var(--text-secondary)]">
                   Fatiga {d.fatigueScore}
                   {d.zone === "YELLOW" ? " · AMARILLA" : ""}
                 </p>
@@ -363,7 +363,7 @@ export default function CentroControlDashboardPage() {
             </a>
           ))}
           {(dash?.voipDirectory ?? []).length === 0 ? (
-            <p className="text-sm text-[#64748B]">
+            <p className="text-sm text-[var(--text-secondary)]">
               Sin conductores en zona de atención
             </p>
           ) : null}
@@ -372,12 +372,12 @@ export default function CentroControlDashboardPage() {
 
       {/* PIP flotante */}
       {pipOpen ? (
-        <div className="fixed bottom-4 right-4 z-50 w-[280px] overflow-hidden rounded-xl border border-[#FF2A5F]/50 bg-[#0A0D14] shadow-2xl sm:w-[360px]">
-          <div className="flex items-center justify-between border-b border-white/10 px-3 py-2">
+        <div className="fixed bottom-4 right-4 z-50 w-[280px] overflow-hidden rounded-xl border border-[#FF2A5F]/50 bg-[var(--bg-surface-1)] shadow-2xl sm:w-[360px]">
+          <div className="flex items-center justify-between border-b border-[var(--border-subtle)] px-3 py-2">
             <p className="font-mono text-xs text-[#FF2A5F]">CABINA EN VIVO</p>
             <button
               type="button"
-              className="text-xs text-[#94A3B8]"
+              className="text-xs text-[var(--text-secondary)]"
               onClick={() => setPipOpen(false)}
             >
               Cerrar
@@ -385,7 +385,7 @@ export default function CentroControlDashboardPage() {
           </div>
           <div className="relative flex h-44 items-center justify-center bg-[radial-gradient(circle_at_center,#1a0a0e,#000)]">
             <div className="absolute left-2 top-2 h-2 w-2 animate-pulse rounded-full bg-[#FF2A5F]" />
-            <p className="font-mono text-xs text-[#64748B]">
+            <p className="font-mono text-xs text-[var(--text-secondary)]">
               Stream IP · escucha ambiental
               {warRoom ? " · Alerta máxima" : ""}
             </p>

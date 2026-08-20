@@ -185,7 +185,7 @@ export function CommandSearch({ items }: { items: NavItem[] }) {
             placeholder="Buscar módulo, placa, conductor o acción…"
             className="w-full bg-transparent text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-secondary)]"
           />
-          <kbd className="rounded-md border border-gray-700 bg-gray-800 px-2 py-0.5 font-mono text-[10px] text-slate-300">
+          <kbd className="flt-kbd rounded-md border px-2 py-0.5 font-mono text-[10px]">
             ESC
           </kbd>
         </div>
@@ -197,7 +197,7 @@ export function CommandSearch({ items }: { items: NavItem[] }) {
           ) : (
             grouped.map((section) => (
               <div key={section.group} className="mb-1">
-                <p className="px-4 py-1.5 font-data text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                <p className="px-4 py-1.5 font-data text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--text-secondary)]">
                   {section.group}
                 </p>
                 <ul>
