@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Button } from "@fsg/ui";
-import { FileCheck, Plus } from "lucide-react";
+import { FileCheck, Plus, RefreshCw, ShieldAlert } from "lucide-react";
 import { api } from "@/lib/api";
 import { statusEs } from "@fsg/shared";
 import { PageIntro } from "@/components/page-intro";
@@ -88,6 +88,20 @@ export default function TramitesPage() {
   const [loadError, setLoadError] = useState("");
   const [formError, setFormError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [syncBusy, setSyncBusy] = useState<string | null>(null);
+
+  async function syncRunt(vehicleId: string) {
+    setSyncBusy(vehicleId);
+    setLoadError("");
+    try {
+      await api(`/tramites/sync/${vehicleId}`, { method: "POST" });
+      await load();
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : "Sync RUNT fallido");
+    } finally {
+      setSyncBusy(null);
+    }
+  }
 
   async function loadFleetUnits(): Promise<Vehicle[]> {
     try {
@@ -228,7 +242,8 @@ export default function TramitesPage() {
     <div className="fade-in mx-auto max-w-[1600px] space-y-6">
       <PageIntro
         module="tramites"
-        title="Trámites y documentos del vehículo"
+        title="Compliance Auto-Sync"
+        subtitle="Escudo documental · RUNT en vivo · Kill-Switch activo"
         action={
           <Button
             type="button"
@@ -241,6 +256,20 @@ export default function TramitesPage() {
           </Button>
         }
       />
+
+      {matrix && matrix.counts.red > 0 ? (
+        <div className="flex items-start gap-3 rounded-lg border border-[var(--accent-alert)]/40 bg-[var(--accent-alert)]/10 px-4 py-3">
+          <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-[var(--accent-alert)]" aria-hidden />
+          <div>
+            <p className="text-sm font-semibold">
+              Kill-Switch activo · {matrix.counts.red} unidad{matrix.counts.red !== 1 ? "es" : ""} bloqueada{matrix.counts.red !== 1 ? "s" : ""}
+            </p>
+            <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
+              Despacho restringido por SOAT, RTM o tarjeta de operación vencidos o ausentes.
+            </p>
+          </div>
+        </div>
+      ) : null}
 
       {loadError ? (
         <p className="rounded-lg border border-[var(--accent-alert)]/40 bg-[var(--accent-alert)]/10 px-3 py-2 text-sm text-[var(--accent-alert)]">
@@ -345,6 +374,7 @@ export default function TramitesPage() {
                   <th className="px-4 py-2">Odómetro</th>
                   <th className="px-4 py-2">Semáforo</th>
                   <th className="px-4 py-2">Detalle</th>
+                  <th className="px-4 py-2">RUNT</th>
                 </tr>
               </thead>
               <tbody>
@@ -378,6 +408,18 @@ export default function TramitesPage() {
                     <td className="px-4 py-2.5 text-xs text-[var(--text-secondary)]">
                       {[...v.blockReasons, ...v.warnings].join(" · ") ||
                         "Documentación al día"}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="w-auto px-2 py-1 text-[10px]"
+                        loading={syncBusy === v.vehicleId}
+                        onClick={() => void syncRunt(v.vehicleId)}
+                      >
+                        <RefreshCw className="mr-1 inline h-3 w-3" aria-hidden />
+                        Sync RUNT
+                      </Button>
                     </td>
                   </tr>
                 ))}
@@ -506,7 +548,7 @@ export default function TramitesPage() {
         open={formOpen}
         onClose={() => setFormOpen(false)}
         title="Nuevo trámite"
-        description="SOAT, tecnomecánica, tarjeta de operación y afines."
+        description="SOAT, RTM, TO · sincronización RUNT o carga OCR anti-fraude"
         footer={
           <>
             <Button
@@ -567,6 +609,18 @@ export default function TramitesPage() {
               ))}
               <option value="__alta__">+ Matricular unidad nueva</option>
             </select>
+            {form.vehicleId ? (
+              <Button
+                type="button"
+                variant="ghost"
+                className="mt-2 w-auto text-xs"
+                loading={syncBusy === form.vehicleId}
+                onClick={() => void syncRunt(form.vehicleId)}
+              >
+                <RefreshCw className="mr-1 inline h-3 w-3" aria-hidden />
+                Descargar vigencias desde RUNT
+              </Button>
+            ) : null}
           </label>
           {showAlta || vehicles.length === 0 ? (
             <div className="grid grid-cols-2 gap-3 rounded-lg border border-[var(--border-subtle)] p-3">

@@ -17,6 +17,12 @@ packages/db/prisma/*.db-journal
 # Specs PDF / briefings para agentes Cursor (no van al repo ni al VPS)
 Nueva carpeta/
 **/Nueva carpeta/
+por hacer/
+ya hecho/
+segundas/
+**/_extract/
+**/*.pdf
+!docs/**/*.pdf
 apps/web/tsconfig.tsbuildinfo
 # Playwright
 /test-results/

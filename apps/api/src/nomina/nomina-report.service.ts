@@ -8,6 +8,22 @@ import {
 
 export type PeriodYm = { year: number; month: number; label: string };
 
+const TELEMETRY_TOLERANCE_H = 0.5;
+export const MONTHLY_OVERTIME_LIMIT_H = 48;
+
+export type ServiceAudit = {
+  tripId: string;
+  code: string;
+  origin: string;
+  destination: string;
+  totalAmount: number;
+  vehiclePlate: string | null;
+  telemetryHours: number | null;
+  claimedHours: number;
+  telemetryValid: boolean;
+  telemetryAlert: boolean;
+};
+
 export type DayBreakdown = {
   date: string;
   ordinaryHours: number;
@@ -19,13 +35,9 @@ export type DayBreakdown = {
   rodFestHours: number;
   rnfHours: number;
   extrasAmount: number;
-  services: Array<{
-    tripId: string;
-    code: string;
-    origin: string;
-    destination: string;
-    totalAmount: number;
-  }>;
+  telemetryMatchPct: number;
+  hasTelemetryAlert: boolean;
+  services: ServiceAudit[];
   novelties: Array<{ kind: string; notes: string | null }>;
 };
 
@@ -47,7 +59,12 @@ export type EmpleadoReporte = {
   noveltyCount: number;
   totalExtrasHours: number;
   totalExtrasAmount: number;
+  nocturnoAmount: number;
+  diurnoExtrasAmount: number;
   totalPay: number;
+  telemetryAlerts: number;
+  telemetryMatchPct: number;
+  overtimeLimitExceeded: boolean;
   daily: DayBreakdown[];
   novelties: Array<{
     id: string;
@@ -69,6 +86,9 @@ export type ReporteGeneral = {
     totalExtrasHours: number;
     totalExtrasAmount: number;
     totalNovelties: number;
+    totalPayrollBudget: number;
+    telemetryAlerts: number;
+    employeesOverLimit: number;
     topEmployee: {
       empleadoId: string;
       name: string;
@@ -116,6 +136,96 @@ function dateKey(d: Date) {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
+}
+
+function telemetryHoursFromTrip(trip: {
+  startedAt: Date | null;
+  completedAt: Date | null;
+}): number | null {
+  if (!trip.startedAt || !trip.completedAt) return null;
+  const ms = trip.completedAt.getTime() - trip.startedAt.getTime();
+  if (ms <= 0) return null;
+  return round2(ms / 3_600_000);
+}
+
+function claimedHoursFromLine(line: {
+  ordinaryHours: number;
+  hedHours: number;
+  henHours: number;
+  rnHours: number;
+  hedfHours: number;
+  henfHours: number;
+  rodFestHours: number;
+  rnfHours: number;
+}) {
+  return round2(
+    line.ordinaryHours +
+      line.hedHours +
+      line.henHours +
+      line.rnHours +
+      line.hedfHours +
+      line.henfHours +
+      line.rodFestHours +
+      line.rnfHours,
+  );
+}
+
+function auditService(
+  line: {
+    ordinaryHours: number;
+    hedHours: number;
+    henHours: number;
+    rnHours: number;
+    hedfHours: number;
+    henfHours: number;
+    rodFestHours: number;
+    rnfHours: number;
+  },
+  trip: {
+    id: string;
+    code: string;
+    origin: string;
+    destination: string;
+    startedAt: Date | null;
+    completedAt: Date | null;
+    vehicle: { plate: string } | null;
+  },
+  totalAmount: number,
+): ServiceAudit {
+  const claimedHours = claimedHoursFromLine(line);
+  const telemetryHours = telemetryHoursFromTrip(trip);
+  const telemetryValid =
+    telemetryHours != null &&
+    Math.abs(claimedHours - telemetryHours) <= TELEMETRY_TOLERANCE_H;
+  const telemetryAlert =
+    claimedHours > 0 &&
+    (telemetryHours == null ||
+      Math.abs(claimedHours - telemetryHours) > TELEMETRY_TOLERANCE_H);
+  return {
+    tripId: trip.id,
+    code: trip.code,
+    origin: trip.origin,
+    destination: trip.destination,
+    totalAmount,
+    vehiclePlate: trip.vehicle?.plate ?? null,
+    telemetryHours,
+    claimedHours,
+    telemetryValid,
+    telemetryAlert,
+  };
+}
+
+function dayTelemetryStats(services: ServiceAudit[]) {
+  const withData = services.filter((s) => s.claimedHours > 0);
+  if (!withData.length) {
+    return { telemetryMatchPct: 100, hasTelemetryAlert: false };
+  }
+  const valid = withData.filter((s) => s.telemetryValid).length;
+  const alerts = withData.filter((s) => s.telemetryAlert).length;
+  return {
+    telemetryMatchPct: round2((valid / withData.length) * 100),
+    hasTelemetryAlert: alerts > 0,
+  };
 }
 
 @Injectable()
@@ -213,6 +323,9 @@ export class NominaReportService {
               code: true,
               origin: true,
               destination: true,
+              startedAt: true,
+              completedAt: true,
+              vehicle: { select: { plate: true } },
             },
           },
         },
@@ -246,6 +359,8 @@ export class NominaReportService {
           rodFestHours: 0,
           rnfHours: 0,
           extrasAmount: 0,
+          telemetryMatchPct: 100,
+          hasTelemetryAlert: false,
           services: [],
           novelties: [],
         };
@@ -260,13 +375,19 @@ export class NominaReportService {
       day.rodFestHours = round2(day.rodFestHours + line.rodFestHours);
       day.rnfHours = round2(day.rnfHours + line.rnfHours);
       day.extrasAmount = round2(day.extrasAmount + num(line.totalAmount));
-      day.services.push({
-        tripId: line.trip.id,
-        code: line.trip.code,
-        origin: line.trip.origin,
-        destination: line.trip.destination,
-        totalAmount: num(line.totalAmount),
-      });
+      day.services.push(
+        auditService(line, line.trip, num(line.totalAmount)),
+      );
+    }
+
+    for (const day of byDay.values()) {
+      const stats = dayTelemetryStats(day.services);
+      day.telemetryMatchPct = stats.telemetryMatchPct;
+      day.hasTelemetryAlert =
+        stats.hasTelemetryAlert ||
+        (day.novelties.length > 0 &&
+          day.extrasAmount > 0 &&
+          day.services.length === 0);
     }
 
     for (const n of novelties) {
@@ -291,6 +412,8 @@ export class NominaReportService {
             rodFestHours: 0,
             rnfHours: 0,
             extrasAmount: 0,
+            telemetryMatchPct: 100,
+            hasTelemetryAlert: false,
             services: [],
             novelties: [],
           };
@@ -298,6 +421,16 @@ export class NominaReportService {
         }
         day.novelties.push({ kind: n.kind, notes: n.notes });
       }
+    }
+
+    for (const day of byDay.values()) {
+      const stats = dayTelemetryStats(day.services);
+      day.telemetryMatchPct = stats.telemetryMatchPct;
+      day.hasTelemetryAlert =
+        stats.hasTelemetryAlert ||
+        (day.novelties.length > 0 &&
+          day.extrasAmount > 0 &&
+          day.services.length === 0);
     }
 
     const daily = [...byDay.values()].sort((a, b) =>
@@ -318,6 +451,41 @@ export class NominaReportService {
         d.rnfHours,
     );
     const totalExtrasAmount = sum((d) => d.extrasAmount);
+    const nocturnoAmount = round2(
+      lines.reduce(
+        (s, l) =>
+          s +
+          num(l.rnAmount) +
+          num(l.henAmount) +
+          num(l.henfAmount) +
+          num(l.rnfAmount),
+        0,
+      ),
+    );
+    const diurnoExtrasAmount = round2(totalExtrasAmount - nocturnoAmount);
+    const alertServices = lines.filter((l) => {
+      const svc = auditService(l, l.trip, num(l.totalAmount));
+      return svc.telemetryAlert;
+    }).length;
+    const manualNoveltyAlerts = daily.filter(
+      (d) =>
+        d.novelties.length > 0 && d.extrasAmount > 0 && d.services.length === 0,
+    ).length;
+    const totalAlerts = alertServices + manualNoveltyAlerts;
+    const validServices = lines.filter((l) => {
+      const svc = auditService(l, l.trip, num(l.totalAmount));
+      return l.hedHours + l.henHours + l.rnHours + l.hedfHours + l.henfHours > 0
+        ? svc.telemetryValid
+        : true;
+    }).length;
+    const auditedServices = lines.filter(
+      (l) =>
+        l.hedHours + l.henHours + l.rnHours + l.hedfHours + l.henfHours > 0,
+    ).length;
+    const telemetryMatchPct =
+      auditedServices > 0
+        ? round2((validServices / auditedServices) * 100)
+        : 100;
     const daysWorked = daily.filter(
       (d) => d.ordinaryHours > 0 || d.services.length > 0,
     ).length;
@@ -340,7 +508,12 @@ export class NominaReportService {
       noveltyCount: novelties.length,
       totalExtrasHours,
       totalExtrasAmount,
+      nocturnoAmount,
+      diurnoExtrasAmount,
       totalPay: round2(pay.baseSalary + totalExtrasAmount),
+      telemetryAlerts: totalAlerts,
+      telemetryMatchPct,
+      overtimeLimitExceeded: totalExtrasHours > MONTHLY_OVERTIME_LIMIT_H,
       daily,
       novelties: novelties.map((n) => ({
         id: n.id,
@@ -383,6 +556,11 @@ export class NominaReportService {
       rows.reduce((s, r) => s + r.totalExtrasAmount, 0),
     );
     const totalNovelties = rows.reduce((s, r) => s + r.noveltyCount, 0);
+    const totalPayrollBudget = round2(
+      rows.reduce((s, r) => s + r.totalPay, 0),
+    );
+    const telemetryAlerts = rows.reduce((s, r) => s + r.telemetryAlerts, 0);
+    const employeesOverLimit = rows.filter((r) => r.overtimeLimitExceeded).length;
     const top = [...rows].sort(
       (a, b) => b.totalExtrasAmount - a.totalExtrasAmount,
     )[0];
@@ -406,6 +584,9 @@ export class NominaReportService {
         totalExtrasHours,
         totalExtrasAmount,
         totalNovelties,
+        totalPayrollBudget,
+        telemetryAlerts,
+        employeesOverLimit,
         topEmployee: top
           ? {
               empleadoId: top.empleadoId,

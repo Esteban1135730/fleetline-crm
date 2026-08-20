@@ -2,9 +2,10 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
-import { AlertTriangle, ClipboardList, Plus, Star } from "lucide-react";
+import { AlertTriangle, ClipboardList, Download, Plus, ShieldAlert, Star } from "lucide-react";
 import { api } from "@/lib/api";
 import { statusEs } from "@fsg/shared";
+import { PageIntro } from "@/components/page-intro";
 import {
   EmptyState,
   EvidenceDropzone,
@@ -106,21 +107,31 @@ export default function CalidadPage() {
 
   return (
     <div className="fade-in mx-auto max-w-[1600px] space-y-6">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="page-title text-3xl md:text-4xl">Calidad, SST y satisfacción</h2>
-          <p className="page-sub">Calidad, seguridad y satisfacción</p>
+      <PageIntro
+        module="qhse"
+        title="Safety Command Center"
+        subtitle="PESV · telemetría forense · CAPA automático"
+        action={
+          <Button type="button" variant="ghost" className="w-auto border border-[var(--brand-line)]">
+            <Download className="mr-1.5 inline h-4 w-4" aria-hidden />
+            Exportar auditoría PESV
+          </Button>
+        }
+      />
+
+      {summary && summary.incidents > 0 ? (
+        <div className="flex items-start gap-3 rounded-lg border border-[var(--accent-alert)]/40 bg-[var(--accent-alert)]/10 px-4 py-3">
+          <ShieldAlert className="mt-0.5 h-5 w-5 text-[var(--accent-alert)]" aria-hidden />
+          <div>
+            <p className="text-sm font-semibold">
+              {summary.incidents} incidente{summary.incidents !== 1 ? "s" : ""} abiertos · telemetría activa
+            </p>
+            <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
+              Frenadas bruscas y excesos de velocidad generan reportes automáticos con evidencia GPS.
+            </p>
+          </div>
         </div>
-        <Button
-          type="button"
-          variant="primary"
-          className="w-auto px-4 py-2"
-          onClick={openForm}
-        >
-          <Plus className="mr-1.5 inline h-4 w-4" aria-hidden />
-          Nuevo Reporte QHSE
-        </Button>
-      </header>
+      ) : null}
 
       {summary ? (
         <div className="stagger grid grid-cols-1 gap-4 md:grid-cols-4">
@@ -150,6 +161,13 @@ export default function CalidadPage() {
           />
         </div>
       ) : null}
+
+      <div className="flex justify-end">
+        <Button type="button" variant="primary" className="w-auto px-4 py-2" onClick={openForm}>
+          <Plus className="mr-1.5 inline h-4 w-4" aria-hidden />
+          Nuevo reporte QHSE
+        </Button>
+      </div>
 
       {!rows.length ? (
         <EmptyState

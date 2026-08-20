@@ -1,14 +1,24 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
-import { FolderOpen, Plus, RefreshCw, Scan, Search } from "lucide-react";
+import {
+  FolderOpen,
+  Lock,
+  Plus,
+  RefreshCw,
+  Scan,
+  ScanLine,
+  Search,
+  ShieldCheck,
+} from "lucide-react";
 import { api, API_URL } from "@/lib/api";
 import { PageIntro } from "@/components/page-intro";
 import {
   EmptyState,
   EvidenceDropzone,
-  Modal,
+  KpiCard,
+  SlideOver,
   StatusPulseBadge,
 } from "@/components/audit";
 
@@ -37,6 +47,13 @@ type AuditRow = {
   user?: { name: string; email: string } | null;
 };
 
+type VaultMetrics = {
+  ocrPrecisionPct: number;
+  habeasShreddedToday: number;
+  totalDocuments: number;
+  storageMb: number;
+};
+
 function shortHash(h?: string | null) {
   if (!h) return "N/A";
   return `${h.slice(0, 12)}…${h.slice(-8)}`;
@@ -55,18 +72,29 @@ export default function ArchivoPage() {
   const [q, setQ] = useState("");
   const [searchDraft, setSearchDraft] = useState("");
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [metrics, setMetrics] = useState<VaultMetrics | null>(null);
+  const [ocrBusy, setOcrBusy] = useState<string | null>(null);
+
+  const sealedCount = useMemo(
+    () => rows.filter((r) => r.contentHash).length,
+    [rows],
+  );
 
   const load = useCallback(async () => {
     const params = new URLSearchParams();
     if (categoryFilter) params.set("category", categoryFilter);
     if (q.trim()) params.set("q", q.trim());
     const qs = params.toString();
-    const [docs, logs] = await Promise.all([
+    const [docs, logs, dash] = await Promise.all([
       api<Doc[]>(`/archivo/documents${qs ? `?${qs}` : ""}`),
       api<AuditRow[]>("/archivo/audit?take=40"),
+      api<{ vaultMetrics: VaultMetrics }>("/api/v1/archivo/dashboard").catch(
+        () => null,
+      ),
     ]);
     setRows(docs);
     setAudit(logs);
+    setMetrics(dash?.vaultMetrics ?? null);
   }, [categoryFilter, q]);
 
   useEffect(() => {
@@ -114,11 +142,29 @@ export default function ArchivoPage() {
     setQ(searchDraft);
   }
 
+  async function runOcr(documentId: string) {
+    setOcrBusy(documentId);
+    setError("");
+    try {
+      await api("/archivo/ocr/process", {
+        method: "POST",
+        body: JSON.stringify({ documentId }),
+      });
+      setStatusMsg("OCR COGNITIVO · documento indexado y enrutado");
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "OCR fallido");
+    } finally {
+      setOcrBusy(null);
+    }
+  }
+
   return (
     <div className="fade-in mx-auto max-w-[1600px] space-y-6">
       <PageIntro
         module="archivo"
-        title="Archivo / Sala documental"
+        title="Sala documental · Quantum Vault"
+        subtitle="Sello SHA-256 · cadena de custodia inmutable"
         action={
           <Button
             type="button"
@@ -133,13 +179,40 @@ export default function ArchivoPage() {
         }
       />
 
+      {metrics ? (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <KpiCard
+            label="Documentos en bóveda"
+            value={metrics.totalDocuments}
+            delta={`${sealedCount} sellados SHA-256`}
+            icon={<ShieldCheck className="h-5 w-5 text-[var(--accent-primary)]" aria-hidden />}
+          />
+          <KpiCard
+            label="Precisión OCR"
+            value={`${metrics.ocrPrecisionPct}%`}
+            delta="Auto-indexado cognitivo"
+            tone="ok"
+            icon={<ScanLine className="h-5 w-5 text-indigo-400" aria-hidden />}
+          />
+          <KpiCard
+            label="Almacenamiento"
+            value={`${metrics.storageMb} MB`}
+            delta="Cifrado en reposo"
+            icon={<Lock className="h-5 w-5 text-[var(--brand-muted)]" aria-hidden />}
+          />
+          <KpiCard
+            label="Habeas Data hoy"
+            value={String(metrics.habeasShreddedToday)}
+            delta="Destrucción por retención legal"
+            tone="warn"
+          />
+        </div>
+      ) : null}
+
       {statusMsg ? (
-        <p
-          className="font-data text-xs text-[var(--brand-primary)]"
-          data-testid="archivo-status"
-        >
+        <div className="rounded-lg border border-[var(--accent-primary)]/30 bg-[var(--accent-primary)]/10 px-4 py-2 font-data text-xs text-[var(--accent-primary)]">
           {statusMsg}
-        </p>
+        </div>
       ) : null}
       {error ? (
         <p
@@ -266,6 +339,17 @@ export default function ArchivoPage() {
                   </td>
                   <td className="px-4 py-2.5">
                     <div className="flex flex-wrap gap-1">
+                      {!r.contentHash ? (
+                        <Button
+                          variant="ghost"
+                          className="w-auto px-2 py-1 text-[10px]"
+                          loading={ocrBusy === r.id}
+                          onClick={() => void runOcr(r.id)}
+                        >
+                          <ScanLine className="mr-1 inline h-3 w-3" aria-hidden />
+                          OCR
+                        </Button>
+                      ) : null}
                       <Button
                         variant="ghost"
                         className="w-auto px-2 py-1"
@@ -370,11 +454,11 @@ export default function ArchivoPage() {
         )}
       </div>
 
-      <Modal
+      <SlideOver
         open={uploadOpen}
         onClose={() => setUploadOpen(false)}
         title="Indexar documento"
-        description="Sello SHA-256 en bóveda local."
+        description="Sello SHA-256 en bóveda · enrutamiento OCR automático"
         footer={
           <>
             <Button
@@ -462,7 +546,7 @@ export default function ArchivoPage() {
             />
           </div>
         </form>
-      </Modal>
+      </SlideOver>
     </div>
   );
 }

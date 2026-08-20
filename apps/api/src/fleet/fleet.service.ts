@@ -138,6 +138,7 @@ export class FleetService {
         code: `OT-${500 + count + 1}`,
         description: data.description,
         vehicleId: data.vehicleId,
+        organizationId,
         cost: data.cost,
         status: WorkOrderStatus.OPEN,
       },

@@ -3,7 +3,18 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { Button } from "@fsg/ui";
-import { Bell, MapPin, Plus, Radio } from "lucide-react";
+import {
+  AlertOctagon,
+  Bell,
+  FileText,
+  Fuel,
+  Gauge,
+  MapPin,
+  MessageSquare,
+  Plus,
+  Radio,
+  ShieldAlert,
+} from "lucide-react";
 import { api } from "@/lib/api";
 import { statusEs } from "@fsg/shared";
 import { PageIntro } from "@/components/page-intro";
@@ -62,6 +73,42 @@ type CreateResult = Servicio & {
   dispatchNotes?: string[];
 };
 
+function blockerLabel(code: string) {
+  return code
+    .replace(/_/g, " ")
+    .replace(/\bSOAT\b/i, "SOAT")
+    .replace(/\bTECNOMECANICA\b/i, "Tecnomecánica");
+}
+
+function KillSwitchCard({ blockers }: { blockers: string[] }) {
+  if (!blockers.length) return null;
+  return (
+    <div
+      className="rounded-lg border border-[var(--accent-alert)]/50 bg-[color-mix(in_srgb,var(--accent-alert)_12%,transparent)] p-3"
+      data-testid="kill-switch-card"
+    >
+      <div className="mb-2 flex items-center gap-2">
+        <ShieldAlert className="h-4 w-4 animate-pulse text-[var(--accent-alert)]" />
+        <h4 className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--accent-alert)]">
+          Despacho bloqueado · Kill-Switch
+        </h4>
+      </div>
+      <p className="mb-2 text-xs text-[var(--text-secondary)]">
+        La validación normativa denegó la asignación. Corrija el expediente
+        antes de despachar.
+      </p>
+      <ul className="space-y-1 rounded-md bg-[color-mix(in_srgb,var(--accent-alert)_8%,transparent)] p-2 font-data text-[10px] text-[var(--accent-alert)]">
+        {blockers.map((b) => (
+          <li key={b} className="flex items-center gap-1.5">
+            <AlertOctagon className="h-3 w-3 shrink-0" />
+            {blockerLabel(b)}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export default function LogisticaServiciosPage() {
   const [servicios, setServicios] = useState<Servicio[]>([]);
   const [drivers, setDrivers] = useState<PoolDriver[]>([]);
@@ -81,6 +128,11 @@ export default function LogisticaServiciosPage() {
   const [listLoaded, setListLoaded] = useState(false);
   const [deviationsOpen, setDeviationsOpen] = useState(false);
   const [deviationCount, setDeviationCount] = useState(0);
+  const [commsOpen, setCommsOpen] = useState(false);
+  const [geoQuery, setGeoQuery] = useState("");
+  const [geoHits, setGeoHits] = useState<PlacePin[]>([]);
+  const [geoMode, setGeoMode] = useState<"origin" | "dest">("origin");
+  const [geoBusy, setGeoBusy] = useState(false);
   const [form, setForm] = useState({
     departAt: "",
     arriveAt: "",
@@ -97,6 +149,52 @@ export default function LogisticaServiciosPage() {
 
   const selectedDriver = drivers.find((d) => d.id === form.driverId);
   const selectedVehicle = vehicles.find((v) => v.id === form.vehicleId);
+  const assignDriver = drivers.find((d) => d.id === assignDriverId);
+  const assignVehicle = vehicles.find((v) => v.id === assignVehicleId);
+
+  const suggestedDispatch = useMemo(() => {
+    const driver = [...drivers]
+      .filter((d) => d.ready)
+      .sort((a, b) => a.fatigueScore - b.fatigueScore)[0];
+    const vehicle = vehicles.find((v) => v.ready);
+    return { driver, vehicle };
+  }, [drivers, vehicles]);
+
+  const liveSpeed = useMemo(() => {
+    const pts = tracking?.history ?? [];
+    for (let i = pts.length - 1; i >= 0; i--) {
+      const s = pts[i]?.speedKph;
+      if (s != null && Number(s) > 0) return Number(s);
+    }
+    return null;
+  }, [tracking]);
+
+  const tickerEvents = useMemo(() => {
+    const fromAudit = (tracking?.audit ?? [])
+      .slice(0, 8)
+      .map((a) => a.message);
+    if (statusMsg) return [statusMsg, ...fromAudit];
+    return fromAudit;
+  }, [tracking, statusMsg]);
+
+  const createBlockers = useMemo(() => {
+    const list: string[] = [];
+    if (selectedDriver && !selectedDriver.ready) {
+      list.push(...selectedDriver.blockers);
+    }
+    if (selectedVehicle && !selectedVehicle.ready) {
+      list.push(...selectedVehicle.blockers);
+    }
+    return list;
+  }, [selectedDriver, selectedVehicle]);
+
+  const assignBlockers = useMemo(() => {
+    const list: string[] = [];
+    if (assignDriver && !assignDriver.ready) list.push(...assignDriver.blockers);
+    if (assignVehicle && !assignVehicle.ready)
+      list.push(...assignVehicle.blockers);
+    return list;
+  }, [assignDriver, assignVehicle]);
 
   const loadServicios = useCallback(async () => {
     const rows = await api<Servicio[]>("/logistica/servicios");
@@ -257,7 +355,9 @@ export default function LogisticaServiciosPage() {
           vehicleId: assignVehicleId,
         }),
       });
-      setStatusMsg("Servicio asignado — lista normativa correcta");
+      setStatusMsg(
+        "Servicio asignado — FUEC digital emitido a la App del conductor",
+      );
       setAssignDriverId("");
       setAssignVehicleId("");
       await loadServicios();
@@ -292,7 +392,9 @@ export default function LogisticaServiciosPage() {
     }
   }
 
-  const canConfirm = Boolean(originPin && destPin && form.departAt);
+  const canConfirm =
+    Boolean(originPin && destPin && form.departAt) &&
+    createBlockers.length === 0;
   const step1 = Boolean(originPin && destPin);
   const step2 = Boolean(form.departAt);
   const step3Ready =
@@ -304,6 +406,43 @@ export default function LogisticaServiciosPage() {
     setError("");
   }
 
+  function applySmartAssign(target: "create" | "pending") {
+    if (!suggestedDispatch.driver || !suggestedDispatch.vehicle) {
+      setError(
+        "Sin recursos aptos — Kill-Switch: revise fatiga, SOAT y tecnomecánica",
+      );
+      return;
+    }
+    if (target === "create") {
+      setForm((f) => ({
+        ...f,
+        driverId: suggestedDispatch.driver!.id,
+        vehicleId: suggestedDispatch.vehicle!.id,
+      }));
+    } else {
+      setAssignDriverId(suggestedDispatch.driver.id);
+      setAssignVehicleId(suggestedDispatch.vehicle.id);
+    }
+    setStatusMsg(
+      `Sugerido: ${suggestedDispatch.driver.name} · ${suggestedDispatch.vehicle.plate} (menor fatiga + cumplimiento 100%)`,
+    );
+  }
+
+  async function runGeoSearch() {
+    if (geoQuery.trim().length < 3) return;
+    setGeoBusy(true);
+    try {
+      const rows = await api<PlacePin[]>(
+        `/logistica/servicios/geocode?q=${encodeURIComponent(geoQuery.trim())}`,
+      );
+      setGeoHits(rows);
+    } catch {
+      setGeoHits([]);
+    } finally {
+      setGeoBusy(false);
+    }
+  }
+
   return (
     <div
       className="fade-in flex h-[calc(100vh-5.5rem)] min-h-[560px] flex-col gap-3"
@@ -311,10 +450,18 @@ export default function LogisticaServiciosPage() {
     >
       <PageIntro
         module="logistica"
-        title="Programación de servicios y seguimiento GPS"
+        title="Torre de control · GPS en vivo"
         action={
           <div className="flex items-center gap-2">
             <ServerClockBadge clock={clock} />
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-auto px-3"
+              onClick={() => setCommsOpen(true)}
+            >
+              <MessageSquare className="h-4 w-4" />
+            </Button>
             <Button
               type="button"
               variant="ghost"
@@ -457,6 +604,18 @@ export default function LogisticaServiciosPage() {
                           </p>
                         ) : null}
                         <div className="mt-2 flex flex-wrap gap-1">
+                          <Button
+                            variant="ghost"
+                            className="w-auto px-2 py-1 text-xs"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedId(s.id);
+                              setCommsOpen(true);
+                            }}
+                          >
+                            <MessageSquare className="mr-1 h-3 w-3" />
+                            Chat
+                          </Button>
                           {s.status !== "IN_TRANSIT" &&
                           s.status !== "COMPLETED" ? (
                             <Button
@@ -532,9 +691,81 @@ export default function LogisticaServiciosPage() {
               </ol>
 
               <p className="text-xs text-[var(--text-secondary)]">
-                Marca origen (A) y destino (B) en el mapa, o búscalo en las
-                pestañas A / B.
+                Marca A/B en el mapa o busca la dirección aquí (el mapa queda
+                despejado).
               </p>
+              <div className="flex gap-1">
+                <button
+                  type="button"
+                  className={`rounded-md px-2 py-1 text-[10px] font-semibold ${
+                    geoMode === "origin"
+                      ? "bg-[var(--brand-amber)] text-[#1a1200]"
+                      : "border border-[var(--border-subtle)] text-[var(--text-secondary)]"
+                  }`}
+                  onClick={() => setGeoMode("origin")}
+                >
+                  A
+                </button>
+                <button
+                  type="button"
+                  className={`rounded-md px-2 py-1 text-[10px] font-semibold ${
+                    geoMode === "dest"
+                      ? "bg-[var(--brand-signal)] text-white"
+                      : "border border-[var(--border-subtle)] text-[var(--text-secondary)]"
+                  }`}
+                  onClick={() => setGeoMode("dest")}
+                >
+                  B
+                </button>
+                <input
+                  className="field flex-1"
+                  placeholder={
+                    geoMode === "origin"
+                      ? "Buscar origen…"
+                      : "Buscar destino…"
+                  }
+                  value={geoQuery}
+                  onChange={(e) => setGeoQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      void runGeoSearch();
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-auto px-2"
+                  onClick={() => void runGeoSearch()}
+                >
+                  {geoBusy ? "…" : "Ir"}
+                </Button>
+              </div>
+              {geoHits.length ? (
+                <ul className="max-h-28 overflow-auto rounded-md border border-[var(--border-subtle)]">
+                  {geoHits.map((h, i) => (
+                    <li key={`${h.lat}-${h.lng}-${i}`}>
+                      <button
+                        type="button"
+                        className="w-full px-2 py-1.5 text-left text-[11px] hover:bg-[color-mix(in_srgb,var(--accent-primary)_8%,transparent)]"
+                        onClick={() => {
+                          if (geoMode === "origin") {
+                            setOriginPin(h);
+                            setGeoMode("dest");
+                          } else {
+                            setDestPin(h);
+                          }
+                          setGeoHits([]);
+                          setGeoQuery("");
+                        }}
+                      >
+                        {h.label}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
               <div className="grid gap-1.5 text-xs">
                 <div className="rounded-md border border-[var(--border-subtle)] px-2 py-1.5">
                   <span className="font-data text-[10px] uppercase tracking-[0.1em] text-[var(--brand-amber,#D97706)]">
@@ -596,14 +827,14 @@ export default function LogisticaServiciosPage() {
                   {drivers.map((d) => (
                     <option key={d.id} value={d.id}>
                       {d.ready ? "✓ " : "⚠ "}
-                      {d.name}
+                      {d.name} · fatiga {d.fatigueScore}
                       {!d.ready ? ` · ${d.blockers[0] ?? "revisar"}` : ""}
                     </option>
                   ))}
                 </select>
                 {selectedDriver && !selectedDriver.ready ? (
-                  <p className="mt-1 text-[11px] text-[var(--brand-amber,#D97706)]">
-                    No se asignará aún: {selectedDriver.blockers.join(" · ")}.
+                  <p className="mt-1 text-[11px] text-[var(--accent-alert)]">
+                    Kill-Switch conductor.
                   </p>
                 ) : null}
               </label>
@@ -628,8 +859,8 @@ export default function LogisticaServiciosPage() {
                   ))}
                 </select>
                 {selectedVehicle && !selectedVehicle.ready ? (
-                  <p className="mt-1 text-[11px] text-[var(--brand-amber,#D97706)]">
-                    No se asignará aún: {selectedVehicle.blockers.join(" · ")}.
+                  <p className="mt-1 text-[11px] text-[var(--accent-alert)]">
+                    Kill-Switch vehículo.
                   </p>
                 ) : null}
               </label>
@@ -653,16 +884,28 @@ export default function LogisticaServiciosPage() {
                 />
               </div>
 
-              <div className="flex justify-end">
+              <KillSwitchCard blockers={createBlockers} />
+
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-auto"
+                  onClick={() => applySmartAssign("create")}
+                >
+                  Sugerir asignación
+                </Button>
                 <Button
                   type="submit"
                   variant="primary"
                   className="w-auto"
                   disabled={!canConfirm}
                 >
-                  {form.driverId || form.vehicleId
-                    ? "Crear (asigna si la lista normativa está correcta)"
-                    : "Crear sin asignación"}
+                  {createBlockers.length
+                    ? "Asignación restringida"
+                    : form.driverId || form.vehicleId
+                      ? "Crear y emitir FUEC"
+                      : "Crear sin asignación"}
                 </Button>
               </div>
             </form>
@@ -681,51 +924,69 @@ export default function LogisticaServiciosPage() {
                   value={assignDriverId}
                   onChange={(e) => setAssignDriverId(e.target.value)}
                 >
-                  <option value="">Conductor apto…</option>
-                  {drivers
-                    .filter((d) => d.ready)
-                    .map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.name}
-                      </option>
-                    ))}
+                  <option value="">Conductor…</option>
+                  {drivers.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.ready ? "✓ " : "⚠ "}
+                      {d.name} · fatiga {d.fatigueScore}
+                    </option>
+                  ))}
                 </select>
                 <select
                   className="field"
                   value={assignVehicleId}
                   onChange={(e) => setAssignVehicleId(e.target.value)}
                 >
-                  <option value="">Placa apta…</option>
-                  {vehicles
-                    .filter((v) => v.ready)
-                    .map((v) => (
-                      <option key={v.id} value={v.id}>
-                        {v.plate}
-                      </option>
-                    ))}
+                  <option value="">Placa…</option>
+                  {vehicles.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.ready ? "✓ " : "⚠ "}
+                      {v.plate}
+                    </option>
+                  ))}
                 </select>
               </div>
-              <div className="flex justify-end">
+              <KillSwitchCard blockers={assignBlockers} />
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-auto"
+                  onClick={() => applySmartAssign("pending")}
+                >
+                  Sugerir
+                </Button>
                 <Button
                   type="button"
                   variant="primary"
                   className="w-auto"
+                  disabled={assignBlockers.length > 0 || !assignDriverId || !assignVehicleId}
                   onClick={() => void asignarPendiente()}
                 >
-                  Asignar ahora
+                  {assignBlockers.length ? (
+                    <>
+                      <AlertOctagon className="mr-1 h-3.5 w-3.5" />
+                      Restringida
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="mr-1 h-3.5 w-3.5" />
+                      Asignar y emitir FUEC
+                    </>
+                  )}
                 </Button>
               </div>
             </div>
           ) : null}
 
           {tracking && !createOpen ? (
-            <div className="fsg-panel max-h-[120px] shrink-0 overflow-auto p-3">
+            <div className="fsg-panel max-h-[100px] shrink-0 overflow-auto p-3">
               <p className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--brand-muted)]">
                 <Radio className="h-3 w-3" />
-                Bitácora de seguimiento
+                Bitácora
               </p>
               <ul className="space-y-1 font-data text-[11px]">
-                {tracking.audit.map((a) => (
+                {tracking.audit.slice(0, 4).map((a) => (
                   <li key={a.id}>
                     <span className="text-[var(--brand-muted)]">
                       {new Date(a.serverTime).toLocaleTimeString("es-CO")}
@@ -734,17 +995,6 @@ export default function LogisticaServiciosPage() {
                   </li>
                 ))}
               </ul>
-            </div>
-          ) : null}
-
-          {!createOpen ? (
-            <div className="grid shrink-0 gap-2">
-              <OpsChatPanel
-                mode="trip"
-                tripId={selectedId}
-                tripCode={selected?.code}
-              />
-              <OpsChatPanel mode="support" />
             </div>
           ) : null}
         </aside>
@@ -768,10 +1018,78 @@ export default function LogisticaServiciosPage() {
               onOriginChange={setOriginPin}
               onDestChange={setDestPin}
               fillHeight
+              showChrome={false}
             />
           )}
+          {selected && tracking && !createOpen ? (
+            <aside className="pointer-events-auto absolute right-3 top-3 z-20 w-[220px] rounded-xl border border-[var(--border-subtle)] bg-[color-mix(in_srgb,var(--bg-surface-1)_92%,transparent)] p-3 shadow-lg backdrop-blur">
+              <p className="font-data text-[10px] uppercase tracking-[0.12em] text-[var(--accent-primary)]">
+                {selected.vehicle?.plate ?? "Unidad"}
+              </p>
+              <div className="mt-2 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-1 text-[10px] text-[var(--text-secondary)]">
+                    <Gauge className="h-3 w-3" /> Velocidad
+                  </span>
+                  <span className="font-data text-sm font-bold tabular-nums">
+                    {liveSpeed != null ? `${Math.round(liveSpeed)} km/h` : "—"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-1 text-[10px] text-[var(--text-secondary)]">
+                    <Fuel className="h-3 w-3" /> Combustible
+                  </span>
+                  <span className="font-data text-sm tabular-nums">
+                    {selected.status === "IN_TRANSIT" ? "Telemetría" : "N/A"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-[var(--text-secondary)]">
+                    Fatiga
+                  </span>
+                  <span className="font-data text-sm tabular-nums">
+                    {selected.driver?.fatigueScore ?? "—"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-[var(--text-secondary)]">
+                    Uplink
+                  </span>
+                  <span className="font-data text-[10px] text-[var(--accent-primary)]">
+                    {tracking.mode === "LIVE_GPS" ? "LIVE GPS" : tracking.mode}
+                  </span>
+                </div>
+              </div>
+            </aside>
+          ) : null}
         </section>
       </div>
+
+      {tickerEvents.length ? (
+        <div className="overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] px-3 py-1.5">
+          <p className="animate-pulse truncate font-data text-[11px] text-[var(--text-secondary)]">
+            {tickerEvents.join("  ·  ")}
+          </p>
+        </div>
+      ) : null}
+
+      <SlideOver
+        open={commsOpen}
+        onClose={() => setCommsOpen(false)}
+        title="Comunicaciones operativas"
+        description="Chat del servicio y soporte flota · canal App"
+        widthClass="max-w-lg"
+      >
+        <div className="space-y-3">
+          <OpsChatPanel
+            mode="trip"
+            tripId={selectedId}
+            tripCode={selected?.code}
+            heightClass="h-[280px]"
+          />
+          <OpsChatPanel mode="support" heightClass="h-[240px]" />
+        </div>
+      </SlideOver>
 
       <SlideOver
         open={deviationsOpen}

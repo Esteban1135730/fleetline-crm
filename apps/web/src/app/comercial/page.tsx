@@ -15,10 +15,14 @@ import {
   FileText,
   Plus,
   Users,
+  ShieldCheck,
+  AlertTriangle,
+  TrendingUp,
+  Target,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { PageIntro } from "@/components/page-intro";
-import { EmptyState, Modal, StatusPulseBadge } from "@/components/audit";
+import { EmptyState, KpiCard, Modal, SlideOver, StatusPulseBadge } from "@/components/audit";
 import { useShell } from "@/lib/shell-context";
 
 type Customer = {
@@ -28,8 +32,35 @@ type Customer = {
   segment: string;
   email?: string | null;
   phone?: string | null;
+  sarlaftBlocked?: boolean;
+  sarlaftRiskScore?: number;
   _count?: { quotes: number; trips: number; contracts: number };
 };
+
+const PIPELINE_COLUMNS = [
+  { key: "DRAFT", label: "Borrador" },
+  { key: "SENT", label: "Enviada" },
+  { key: "APPROVED", label: "Negociación" },
+] as const;
+
+function sarlaftTrust(c: Customer): {
+  label: string;
+  tone: "active" | "fatiga" | "danger";
+} {
+  if (c.sarlaftBlocked) {
+    return { label: "SARLAFT bloqueado", tone: "danger" };
+  }
+  const score = c.sarlaftRiskScore ?? 0;
+  if (score <= 25) return { label: "Confianza alta", tone: "active" };
+  if (score <= 60) return { label: "Riesgo medio", tone: "fatiga" };
+  return { label: "Riesgo elevado", tone: "danger" };
+}
+
+function marginTone(pct: number): string {
+  if (pct >= 25) return "text-[var(--brand-primary)]";
+  if (pct >= 15) return "text-[var(--brand-amber)]";
+  return "text-[var(--brand-signal)]";
+}
 
 type Quote = {
   id: string;
@@ -161,6 +192,10 @@ export default function ComercialPage() {
   const [breakdown, setBreakdown] = useState<QuoteCostBreakdown | null>(null);
   const [calcBusy, setCalcBusy] = useState(false);
   const [calcError, setCalcError] = useState("");
+  const [quoteView, setQuoteView] = useState<"pipeline" | "historial">("pipeline");
+  const [conversionOpen, setConversionOpen] = useState(false);
+  const [conversionQuote, setConversionQuote] = useState<Quote | null>(null);
+  const [conversionTripCode, setConversionTripCode] = useState<string | null>(null);
 
   async function load() {
     const [c, q, ctr] = await Promise.all([
@@ -193,6 +228,47 @@ export default function ComercialPage() {
     }),
     [calcForm],
   );
+
+  const marginPct = useMemo(
+    () => Number(calcForm.margenDeseado) || QUOTE_DEFAULT_MARGIN_PCT,
+    [calcForm.margenDeseado],
+  );
+
+  const pipelineQuotes = useMemo(
+    () =>
+      quotes.filter((q) =>
+        PIPELINE_COLUMNS.some((col) => col.key === q.status),
+      ),
+    [quotes],
+  );
+
+  const historyQuotes = useMemo(
+    () =>
+      quotes.filter(
+        (q) => !PIPELINE_COLUMNS.some((col) => col.key === q.status),
+      ),
+    [quotes],
+  );
+
+  const pipelineStats = useMemo(() => {
+    const negociacion = quotes.filter((q) => q.status === "APPROVED").length;
+    const ganado = quotes.filter((q) => q.status === "WON").length;
+    const pipelineValue = pipelineQuotes.reduce(
+      (sum, q) => sum + Number(q.amount),
+      0,
+    );
+    const mrr = contracts
+      .filter((c) => c.status === "ACTIVE")
+      .reduce((sum, c) => sum + Number(c.monthlyValue ?? 0), 0);
+    return {
+      negociacion,
+      ganado,
+      pipelineValue,
+      mrr,
+      activas: pipelineQuotes.length,
+      contratosActivos: contracts.filter((c) => c.status === "ACTIVE").length,
+    };
+  }, [quotes, pipelineQuotes, contracts]);
 
   async function runCalculate() {
     setCalcBusy(true);
@@ -377,40 +453,106 @@ export default function ComercialPage() {
       body: JSON.stringify({ status: "WON" }),
     });
     await load();
-    const tripCode = res.draftTrip?.code;
-    openInspector(
-      `${q.code} · convertida`,
-      <div className="space-y-3 text-sm">
-        <p className="font-semibold text-[var(--accent-primary)]">
-          Cotización ganada — viaje borrador generado
-        </p>
-        {res.tripError ? (
-          <p role="alert" className="text-[var(--brand-signal)]">
-            {res.tripError}
-          </p>
+    setConversionQuote({ ...q, ...res });
+    setConversionTripCode(res.draftTrip?.code ?? null);
+    setConversionOpen(true);
+    if (res.tripError) setCalcError(res.tripError);
+  }
+
+  function renderQuoteActions(q: Quote, compact?: boolean) {
+    return (
+      <div
+        className={`flex flex-wrap gap-1 ${compact ? "" : "justify-end"}`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <Button
+          variant="ghost"
+          className="w-auto"
+          onClick={() => openQuoteInspector(q)}
+        >
+          Detalle
+        </Button>
+        {q.draftTrip ? (
+          <Link
+            href={`/logistica/servicios?code=${encodeURIComponent(q.draftTrip.code)}`}
+            className="inline-flex w-auto items-center rounded-md px-3 py-1.5 text-xs font-semibold text-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/10"
+          >
+            {q.draftTrip.code}
+          </Link>
+        ) : q.status === "DRAFT" ||
+          q.status === "SENT" ||
+          q.status === "APPROVED" ? (
+          <Button
+            variant="primary"
+            className="w-auto"
+            onClick={() => void approveAndConvert(q)}
+          >
+            {q.status === "APPROVED" ? "Ganar → Viaje" : "Aprobar → Viaje"}
+          </Button>
         ) : null}
-        {tripCode ? (
-          <>
-            <p className="font-data text-xs text-[var(--text-primary)]">
-              Viaje {tripCode} · Pendiente
-            </p>
-            <p className="text-xs text-[var(--text-secondary)]">
-              Llega a Logística → Programación de servicios y seguimiento GPS.
-              Queda sin conductor ni placa hasta que despacho lo asigne.
-            </p>
-            <Link
-              href={`/logistica/servicios?code=${encodeURIComponent(tripCode)}`}
-              className="inline-flex w-auto items-center rounded-md bg-[var(--brand-primary)] px-3 py-2 text-xs font-semibold text-[#04110c]"
-            >
-              Abrir en programación
-            </Link>
-          </>
-        ) : (
-          <p className="text-[var(--text-secondary)]">
-            No se indexó el viaje. Vuelva a convertir o revise la conexión.
-          </p>
-        )}
-      </div>,
+        {q.status === "DRAFT" ? (
+          <Button
+            variant="ghost"
+            className="w-auto"
+            onClick={async () => {
+              await api(`/comercial/quotes/${q.id}/status`, {
+                method: "PATCH",
+                body: JSON.stringify({ status: "SENT" }),
+              });
+              await load();
+            }}
+          >
+            Enviar
+          </Button>
+        ) : null}
+        {q.status === "SENT" ? (
+          <Button
+            variant="ghost"
+            className="w-auto"
+            onClick={async () => {
+              await api(`/comercial/quotes/${q.id}/status`, {
+                method: "PATCH",
+                body: JSON.stringify({ status: "APPROVED" }),
+              });
+              await load();
+            }}
+          >
+            Negociar
+          </Button>
+        ) : null}
+        {q.status === "DRAFT" || q.status === "SENT" ? (
+          <Button
+            variant="ghost"
+            className="w-auto"
+            onClick={async () => {
+              await api(`/comercial/quotes/${q.id}/status`, {
+                method: "PATCH",
+                body: JSON.stringify({ status: "REJECTED" }),
+              });
+              await load();
+            }}
+          >
+            Rechazar
+          </Button>
+        ) : null}
+        {q.status === "APPROVED" ||
+        q.status === "SENT" ||
+        q.status === "DRAFT" ||
+        q.status === "WON" ? (
+          <Button
+            variant="ghost"
+            className="w-auto"
+            onClick={async () => {
+              await api(`/comercial/quotes/${q.id}/to-contract`, {
+                method: "POST",
+              });
+              await load();
+            }}
+          >
+            → Contrato
+          </Button>
+        ) : null}
+      </div>
     );
   }
 
@@ -558,6 +700,34 @@ export default function ComercialPage() {
 
       {tab === "cotizador" ? (
         <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <KpiCard
+              label="Pipeline activo"
+              value={pipelineStats.activas}
+              delta={`${money(pipelineStats.pipelineValue)} en juego`}
+              icon={<Target className="h-10 w-10" />}
+            />
+            <KpiCard
+              label="En negociación"
+              value={pipelineStats.negociacion}
+              tone="warn"
+              icon={<TrendingUp className="h-10 w-10" />}
+            />
+            <KpiCard
+              label="Ganadas"
+              value={pipelineStats.ganado}
+              tone="ok"
+              icon={<ShieldCheck className="h-10 w-10" />}
+            />
+            <KpiCard
+              label="MRR contratos"
+              value={money(pipelineStats.mrr)}
+              delta={`${pipelineStats.contratosActivos} activo${pipelineStats.contratosActivos === 1 ? "" : "s"}`}
+              tone="ok"
+              icon={<FileText className="h-10 w-10" />}
+            />
+          </div>
+
           <section className="fsg-panel space-y-4 p-4">
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
@@ -679,20 +849,52 @@ export default function ComercialPage() {
                   title="Número de peajes en la ruta"
                 />
               </label>
-              <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
-                Porcentaje de rentabilidad
-                <input
-                  className="field font-data"
-                  type="number"
-                  min={1}
-                  max={80}
-                  placeholder="%"
-                  value={calcForm.margenDeseado}
-                  onChange={(e) =>
-                    setCalcForm({ ...calcForm, margenDeseado: e.target.value })
-                  }
-                  title={MARGIN_TIP}
-                />
+              <label className="flex flex-col gap-2 text-[11px] uppercase tracking-wide text-[var(--text-secondary)] md:col-span-2">
+                Margen objetivo
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range"
+                    min={5}
+                    max={50}
+                    step={1}
+                    value={marginPct}
+                    onChange={(e) =>
+                      setCalcForm({
+                        ...calcForm,
+                        margenDeseado: e.target.value,
+                      })
+                    }
+                    title={MARGIN_TIP}
+                    className="h-2 w-full cursor-pointer appearance-none rounded-full bg-[var(--border-subtle)] accent-[var(--brand-primary)] [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--brand-primary)]"
+                    style={{
+                      background: `linear-gradient(to right, ${
+                        marginPct >= 25
+                          ? "var(--brand-primary)"
+                          : marginPct >= 15
+                            ? "var(--brand-amber)"
+                            : "var(--brand-signal)"
+                      } 0%, ${
+                        marginPct >= 25
+                          ? "var(--brand-primary)"
+                          : marginPct >= 15
+                            ? "var(--brand-amber)"
+                            : "var(--brand-signal)"
+                      } ${((marginPct - 5) / 45) * 100}%, var(--border-subtle) ${((marginPct - 5) / 45) * 100}%)`,
+                    }}
+                  />
+                  <span
+                    className={`min-w-[3.5rem] font-data text-lg font-bold tabular-nums ${marginTone(marginPct)}`}
+                  >
+                    {marginPct}%
+                  </span>
+                </div>
+                <span className="normal-case text-[10px] text-[var(--text-secondary)]">
+                  {marginPct >= 25
+                    ? "Zona verde — margen saludable"
+                    : marginPct >= 15
+                      ? "Zona ámbar — revisar costos"
+                      : "Zona roja — rentabilidad crítica"}
+                </span>
               </label>
               <div className="flex items-end justify-end md:col-span-3 lg:col-span-1">
                 <Button
@@ -766,16 +968,115 @@ export default function ComercialPage() {
             )}
           </section>
 
-          <div className="fsg-panel data-shell overflow-hidden">
-            <div className="border-b border-[var(--brand-line)] px-4 py-3 font-display text-sm font-semibold">
-              Cotizaciones ({quotes.length})
+          <div className="fsg-panel overflow-hidden">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--brand-line)] px-4 py-3">
+              <span className="font-display text-sm font-semibold">
+                Deal Desk · Cotizaciones ({quotes.length})
+              </span>
+              <div className="flex gap-1">
+                <Button
+                  type="button"
+                  variant={quoteView === "pipeline" ? "primary" : "ghost"}
+                  className="w-auto"
+                  onClick={() => setQuoteView("pipeline")}
+                >
+                  Pipeline
+                </Button>
+                <Button
+                  type="button"
+                  variant={quoteView === "historial" ? "primary" : "ghost"}
+                  className="w-auto"
+                  onClick={() => setQuoteView("historial")}
+                >
+                  Historial
+                </Button>
+              </div>
             </div>
-            {!quotes.length ? (
+
+            {quoteView === "pipeline" ? (
+              !pipelineQuotes.length ? (
+                <div className="p-6">
+                  <EmptyState
+                    icon={<Calculator className="h-7 w-7" />}
+                    title="Pipeline vacío"
+                    description="Calcule una tarifa y guarde la cotización en borrador."
+                  />
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-4 p-4 md:grid-cols-3">
+                  {PIPELINE_COLUMNS.map((col) => {
+                    const colQuotes = pipelineQuotes.filter(
+                      (q) => q.status === col.key,
+                    );
+                    return (
+                      <div
+                        key={col.key}
+                        className="flex min-h-[12rem] flex-col rounded-lg border border-[var(--border-subtle)] bg-[color-mix(in_srgb,var(--bg-surface-2)_60%,transparent)]"
+                      >
+                        <div className="flex items-center justify-between border-b border-[var(--border-subtle)] px-3 py-2">
+                          <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
+                            {col.label}
+                          </span>
+                          <Badge tone="info">{colQuotes.length}</Badge>
+                        </div>
+                        <div className="flex flex-1 flex-col gap-2 p-2">
+                          {!colQuotes.length ? (
+                            <p className="px-2 py-4 text-center text-xs text-[var(--text-secondary)]">
+                              Sin cotizaciones
+                            </p>
+                          ) : (
+                            colQuotes.map((q) => (
+                              <article
+                                key={q.id}
+                                className="cursor-pointer rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-3 transition-colors duration-150 hover:border-[color-mix(in_srgb,var(--accent-primary)_35%,transparent)]"
+                                onClick={() => openQuoteInspector(q)}
+                                title="Abrir desglose en el inspector"
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <p className="font-data text-[10px] text-[var(--accent-primary)]">
+                                    {q.code}
+                                  </p>
+                                  <Badge
+                                    tone={
+                                      q.status === "APPROVED"
+                                        ? "emerald"
+                                        : q.status === "SENT"
+                                          ? "info"
+                                          : "neutral"
+                                    }
+                                  >
+                                    {statusEs(q.status)}
+                                  </Badge>
+                                </div>
+                                <p className="mt-1 text-sm font-medium text-[var(--text-primary)]">
+                                  {q.customer.name}
+                                </p>
+                                <p className="mt-1 font-data text-base font-bold tabular-nums text-[var(--text-primary)]">
+                                  {money(Number(q.amount))}
+                                </p>
+                                {q.calcJson ? (
+                                  <p className="mt-1 text-[10px] text-[var(--text-secondary)]">
+                                    {q.calcJson.origen} → {q.calcJson.destino}
+                                  </p>
+                                ) : null}
+                                <div className="mt-2 border-t border-[var(--border-subtle)] pt-2">
+                                  {renderQuoteActions(q, true)}
+                                </div>
+                              </article>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )
+            ) : !historyQuotes.length ? (
               <div className="p-6">
                 <EmptyState
-                  icon={<Calculator className="h-7 w-7" />}
-                  title="Sin cotizaciones"
-                  description="Calcule una tarifa y guarde la cotización en borrador."
+                  icon={<FileText className="h-7 w-7" />}
+                  title="Sin historial"
+                  description="Las cotizaciones ganadas, rechazadas o vencidas aparecerán aquí."
                 />
               </div>
             ) : (
@@ -790,7 +1091,7 @@ export default function ComercialPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {quotes.map((q) => (
+                  {historyQuotes.map((q) => (
                     <tr
                       key={q.id}
                       className="cursor-pointer border-t border-[var(--brand-line)] hover:bg-[color-mix(in_srgb,var(--accent-primary)_6%,transparent)]"
@@ -807,7 +1108,7 @@ export default function ComercialPage() {
                       <td className="px-4 py-2.5">
                         <Badge
                           tone={
-                            q.status === "WON" || q.status === "APPROVED"
+                            q.status === "WON"
                               ? "emerald"
                               : q.status === "REJECTED"
                                 ? "rose"
@@ -817,88 +1118,8 @@ export default function ComercialPage() {
                           {statusEs(q.status)}
                         </Badge>
                       </td>
-                      <td
-                        className="px-4 py-2.5"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <div className="flex flex-wrap justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            className="w-auto"
-                            onClick={() => openQuoteInspector(q)}
-                          >
-                            Detalle
-                          </Button>
-                          {q.draftTrip ? (
-                            <Link
-                              href={`/logistica/servicios?code=${encodeURIComponent(q.draftTrip.code)}`}
-                              className="inline-flex w-auto items-center rounded-md px-3 py-1.5 text-xs font-semibold text-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/10"
-                            >
-                              {q.draftTrip.code}
-                            </Link>
-                          ) : q.status === "DRAFT" ||
-                            q.status === "SENT" ||
-                            q.status === "WON" ||
-                            q.status === "APPROVED" ? (
-                            <Button
-                              variant="primary"
-                              className="w-auto"
-                              onClick={() => void approveAndConvert(q)}
-                            >
-                              {q.status === "WON" || q.status === "APPROVED"
-                                ? "Generar viaje"
-                                : "Aprobar → Viaje"}
-                            </Button>
-                          ) : null}
-                          {q.status === "DRAFT" ? (
-                            <Button
-                              variant="ghost"
-                              className="w-auto"
-                              onClick={async () => {
-                                await api(`/comercial/quotes/${q.id}/status`, {
-                                  method: "PATCH",
-                                  body: JSON.stringify({ status: "SENT" }),
-                                });
-                                await load();
-                              }}
-                            >
-                              Enviar
-                            </Button>
-                          ) : null}
-                          {q.status === "DRAFT" || q.status === "SENT" ? (
-                            <Button
-                              variant="ghost"
-                              className="w-auto"
-                              onClick={async () => {
-                                await api(`/comercial/quotes/${q.id}/status`, {
-                                  method: "PATCH",
-                                  body: JSON.stringify({ status: "REJECTED" }),
-                                });
-                                await load();
-                              }}
-                            >
-                              Rechazar
-                            </Button>
-                          ) : null}
-                          {q.status === "APPROVED" ||
-                          q.status === "SENT" ||
-                          q.status === "DRAFT" ||
-                          q.status === "WON" ? (
-                            <Button
-                              variant="ghost"
-                              className="w-auto"
-                              onClick={async () => {
-                                await api(
-                                  `/comercial/quotes/${q.id}/to-contract`,
-                                  { method: "POST" },
-                                );
-                                await load();
-                              }}
-                            >
-                              → Contrato
-                            </Button>
-                          ) : null}
-                        </div>
+                      <td className="px-4 py-2.5">
+                        {renderQuoteActions(q)}
                       </td>
                     </tr>
                   ))}
@@ -911,6 +1132,33 @@ export default function ComercialPage() {
 
       {tab === "contratos" ? (
         <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <KpiCard
+              label="Contratos activos"
+              value={pipelineStats.contratosActivos}
+              tone="ok"
+              icon={<FileText className="h-10 w-10" />}
+            />
+            <KpiCard
+              label="MRR total"
+              value={money(pipelineStats.mrr)}
+              delta="Ingreso recurrente mensual"
+              tone="ok"
+              icon={<TrendingUp className="h-10 w-10" />}
+            />
+            <KpiCard
+              label="Contratos totales"
+              value={contracts.length}
+              icon={<Target className="h-10 w-10" />}
+            />
+            <KpiCard
+              label="Cotizaciones ganadas"
+              value={pipelineStats.ganado}
+              tone="warn"
+              icon={<ShieldCheck className="h-10 w-10" />}
+            />
+          </div>
+
           <form
             onSubmit={onCreateContract}
             className="fsg-panel grid grid-cols-1 gap-3 p-4 md:grid-cols-3 lg:grid-cols-4"
@@ -1249,6 +1497,7 @@ export default function ComercialPage() {
               <thead>
                 <tr>
                     <th className="px-4 py-2">Nombre</th>
+                    <th className="px-4 py-2">Confianza SARLAFT</th>
                     <th className="px-4 py-2">Vínculo</th>
                     <th className="px-4 py-2">Segmento</th>
                     <th className="px-4 py-2" />
@@ -1257,6 +1506,7 @@ export default function ComercialPage() {
               <tbody>
                 {customers.map((c) => {
                   const origin = customerOrigin(c);
+                  const trust = sarlaftTrust(c);
                   return (
                   <tr
                     key={c.id}
@@ -1270,6 +1520,19 @@ export default function ComercialPage() {
                       {c.email || c.phone ? (
                         <div className="text-[10px] text-[var(--brand-muted)]">
                           {[c.email, c.phone].filter(Boolean).join(" · ")}
+                        </div>
+                      ) : null}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <StatusPulseBadge
+                        tone={trust.tone}
+                        pulse={trust.tone === "danger"}
+                      >
+                        {trust.label}
+                      </StatusPulseBadge>
+                      {c.sarlaftRiskScore != null ? (
+                        <div className="mt-1 font-data text-[10px] text-[var(--brand-muted)]">
+                          Score {c.sarlaftRiskScore}/100
                         </div>
                       ) : null}
                     </td>
@@ -1425,6 +1688,90 @@ export default function ComercialPage() {
           ) : null}
         </form>
       </Modal>
+
+      <SlideOver
+        open={conversionOpen}
+        onClose={() => {
+          setConversionOpen(false);
+          setConversionQuote(null);
+          setConversionTripCode(null);
+        }}
+        title="Quote-to-Cash · Cotización ganada"
+        description="Conversión comercial completada. Continúe el flujo operativo."
+        widthClass="max-w-lg"
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-auto"
+              onClick={() => {
+                setConversionOpen(false);
+                setConversionQuote(null);
+                setConversionTripCode(null);
+              }}
+            >
+              Cerrar
+            </Button>
+            {conversionTripCode ? (
+              <Link
+                href={`/logistica/servicios?code=${encodeURIComponent(conversionTripCode)}`}
+              >
+                <Button type="button" variant="primary" className="w-auto">
+                  Abrir viaje en Logística
+                </Button>
+              </Link>
+            ) : null}
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-auto"
+              onClick={() => {
+                setConversionOpen(false);
+                setTab("contratos");
+              }}
+            >
+              Ir a contratos
+            </Button>
+          </>
+        }
+      >
+        {conversionQuote ? (
+          <div className="space-y-4">
+            <div>
+              <p className="font-data text-xs uppercase tracking-[0.12em] text-[var(--text-secondary)]">
+                {conversionQuote.code}
+              </p>
+              <p className="mt-1 text-lg font-semibold text-[var(--text-primary)]">
+                {conversionQuote.customer.name}
+              </p>
+              <p className="mt-2 font-data text-2xl font-bold tabular-nums text-[var(--accent-primary)]">
+                {money(Number(conversionQuote.amount))}
+              </p>
+            </div>
+            {conversionTripCode ? (
+              <div className="rounded-lg border border-[var(--border-subtle)] p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
+                  Viaje borrador generado
+                </p>
+                <p className="mt-1 font-data text-lg font-bold text-[var(--accent-primary)]">
+                  {conversionTripCode}
+                </p>
+              </div>
+            ) : (
+              <div className="flex items-start gap-2 rounded-lg border border-[color-mix(in_srgb,var(--accent-metric)_35%,transparent)] bg-[color-mix(in_srgb,var(--accent-metric)_8%,transparent)] p-3 text-sm text-[var(--accent-metric)]">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                Viaje en cola — verifique Logística si no aparece en unos segundos.
+              </div>
+            )}
+            <ol className="list-decimal space-y-2 pl-4 text-sm text-[var(--text-secondary)]">
+              <li>Confirmar despacho y asignación de unidad en Logística</li>
+              <li>Formalizar contrato operativo si el servicio es recurrente</li>
+              <li>Activar facturación y seguimiento de MRR en Tesorería</li>
+            </ol>
+          </div>
+        ) : null}
+      </SlideOver>
     </div>
   );
 }

@@ -37,13 +37,97 @@ export class FinanceService {
         .filter((i) => i.status === InvoiceStatus.PAID)
         .reduce((a, b) => a + Number(b.amount), 0);
 
+    const bankBalance = await this.bankBalanceCop(organizationId);
+    const cashFlowForecast = this.buildCashFlowForecast(invoices);
+
     return {
       cxcOpen: sumOpen(cxc),
       cxcPaid: sumPaid(cxc),
       cxpOpen: sumOpen(cxp),
       cxpPaid: sumPaid(cxp),
       overdue: invoices.filter((i) => i.status === InvoiceStatus.OVERDUE).length,
+      bankBalance,
+      netLiquidity: bankBalance + sumOpen(cxc) - sumOpen(cxp),
+      cashFlowForecast,
     };
+  }
+
+  private async bankBalanceCop(organizationId: string): Promise<number> {
+    const bank = await this.prisma.account.findFirst({
+      where: { organizationId, code: "1110" },
+      select: { id: true },
+    });
+    if (!bank) {
+      const paid = await this.prisma.invoice.findMany({
+        where: { organizationId, status: InvoiceStatus.PAID },
+        select: { type: true, amount: true },
+      });
+      const inflow = paid
+        .filter((i) => i.type === InvoiceType.RECEIVABLE)
+        .reduce((s, i) => s + Number(i.amount), 0);
+      const outflow = paid
+        .filter((i) => i.type === InvoiceType.PAYABLE)
+        .reduce((s, i) => s + Number(i.amount), 0);
+      return Math.max(0, inflow - outflow);
+    }
+    const lines = await this.prisma.journalLine.findMany({
+      where: {
+        entry: { organizationId, status: JournalEntryStatus.POSTED },
+        OR: [{ debitAccountId: bank.id }, { creditAccountId: bank.id }],
+      },
+      select: {
+        amount: true,
+        debitAccountId: true,
+        creditAccountId: true,
+      },
+    });
+    const balance = lines.reduce((sum, l) => {
+      const amt = Number(l.amount);
+      if (l.debitAccountId === bank.id) return sum + amt;
+      if (l.creditAccountId === bank.id) return sum - amt;
+      return sum;
+    }, 0);
+    return Math.max(0, balance);
+  }
+
+  private buildCashFlowForecast(
+    invoices: Array<{
+      type: InvoiceType;
+      status: InvoiceStatus;
+      amount: { toString(): string } | number | string;
+      dueDate: Date | null;
+    }>,
+  ) {
+    const now = new Date();
+    const weeks = Array.from({ length: 4 }, (_, i) => {
+      const start = new Date(now);
+      start.setDate(start.getDate() + i * 7);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 7);
+      return { start, end, label: `Sem ${i + 1}` };
+    });
+
+    return weeks.map((w) => {
+      const open = invoices.filter(
+        (inv) =>
+          (inv.status === InvoiceStatus.ISSUED ||
+            inv.status === InvoiceStatus.OVERDUE) &&
+          inv.dueDate &&
+          inv.dueDate >= w.start &&
+          inv.dueDate < w.end,
+      );
+      const ingresos = open
+        .filter((inv) => inv.type === InvoiceType.RECEIVABLE)
+        .reduce((s, inv) => s + Number(inv.amount), 0);
+      const egresos = open
+        .filter((inv) => inv.type === InvoiceType.PAYABLE)
+        .reduce((s, inv) => s + Number(inv.amount), 0);
+      return {
+        semana: w.label,
+        ingresos: Math.round(ingresos / 1_000_000),
+        egresos: Math.round(egresos / 1_000_000),
+      };
+    });
   }
 
   async listInvoices(organizationId: string, type?: "RECEIVABLE" | "PAYABLE") {

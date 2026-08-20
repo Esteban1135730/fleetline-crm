@@ -269,18 +269,32 @@ export function DriverMonthCalendar({
           const events = eventsByKey.get(key) ?? [];
           const visible = events.slice(0, 4);
           const more = events.length - visible.length;
+          const tripCount = events.filter((e) => e.kind === "trip").length;
           const isFestivo =
             cell.inMonth &&
             colombianHolidayName(cell.year, cell.month, cell.day) != null;
 
+          const heatBg =
+            !cell.inMonth || isFestivo
+              ? ""
+              : tripCount >= 3
+                ? "bg-[color-mix(in_srgb,var(--brand-primary)_28%,transparent)]"
+                : tripCount === 2
+                  ? "bg-[color-mix(in_srgb,var(--brand-primary)_18%,transparent)]"
+                  : tripCount === 1
+                    ? "bg-[color-mix(in_srgb,var(--brand-primary)_10%,transparent)]"
+                    : events.some((e) => e.kind !== "trip")
+                      ? "bg-[color-mix(in_srgb,var(--brand-amber)_8%,transparent)]"
+                      : "";
+
           return (
             <div
               key={cell.key}
-              className={`min-h-[110px] border-b border-r border-[var(--brand-line)] p-1.5 ${
+              className={`min-h-[110px] border-b border-r border-[var(--brand-line)] p-1.5 ${heatBg} ${
                 isFestivo
                   ? "bg-[var(--brand-amber)]"
                   : cell.inMonth
-                    ? "bg-[var(--brand-canvas,#0A0D14)]"
+                    ? heatBg || "bg-[var(--brand-canvas,#0A0D14)]"
                     : "bg-[var(--brand-surface,#121722)]/50"
               }`}
             >
@@ -352,6 +366,9 @@ export function DriverMonthCalendar({
         </span>
         <span className={`rounded px-2 py-0.5 ${chipClass("REST")}`}>
           Descanso
+        </span>
+        <span className="text-[var(--text-secondary)]">
+          Intensidad verde = horas de conducción (telemetría/GPS)
         </span>
       </div>
     </div>

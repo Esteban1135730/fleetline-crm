@@ -3,10 +3,10 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@fsg/ui";
 import { EMPLOYEE_AREA_GROUPS, EMPLOYEE_AREAS, EMPLOYEE_TITLES, statusEs, systemStatusEs } from "@fsg/shared";
-import { Users } from "lucide-react";
+import { Users, ShieldAlert } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
-import { EmptyState, KpiCard, SlideOver } from "@/components/audit";
+import { EmptyState, KpiCard, SlideOver, StatusPulseBadge } from "@/components/audit";
 
 type Semaphore = "GREEN" | "AMBER" | "RED" | "N_A";
 
@@ -109,6 +109,15 @@ const EMPTY_FORM = {
   driverId: "",
 };
 
+function semPulseTone(
+  s: Semaphore,
+): "active" | "fatiga" | "danger" | "neutral" {
+  if (s === "GREEN") return "active";
+  if (s === "AMBER") return "fatiga";
+  if (s === "RED") return "danger";
+  return "neutral";
+}
+
 function semClass(s: Semaphore) {
   if (s === "GREEN") return "text-[var(--brand-primary)]";
   if (s === "AMBER") return "text-[var(--brand-amber)]";
@@ -154,7 +163,13 @@ export default function RrhhPage() {
   const [trainings, setTrainings] = useState<Training[]>([]);
   const [error, setError] = useState("");
   const [statusMsg, setStatusMsg] = useState("");
+  const [auditStats, setAuditStats] = useState<{
+    newlyBlocked: number;
+    expiredFound: number;
+    expiringSoon: number;
+  } | null>(null);
   const [altaOpen, setAltaOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({
     name: "",
@@ -204,6 +219,14 @@ export default function RrhhPage() {
     [rows],
   );
 
+  const pesvCompliance = useMemo(() => {
+    if (!drivers.length) return 0;
+    const trained = new Set(
+      trainings.map((t) => t.driver?.id).filter(Boolean) as string[],
+    );
+    return Math.round((trained.size / drivers.length) * 100);
+  }, [drivers, trainings]);
+
   async function onCreate(e: FormEvent) {
     e.preventDefault();
     setError("");
@@ -237,6 +260,12 @@ export default function RrhhPage() {
       phone: r.phone ?? "",
       email: r.email ?? "",
     });
+    setEditOpen(true);
+  }
+
+  function closeEdit() {
+    setEditOpen(false);
+    setEditingId(null);
   }
 
   async function saveEdit(id: string) {
@@ -268,6 +297,7 @@ export default function RrhhPage() {
         },
       });
       setEditingId(null);
+      setEditOpen(false);
       await loadAll();
     } catch (err) {
       if ((err as { name?: string })?.name === "MutationCancelled") return;
@@ -298,6 +328,7 @@ export default function RrhhPage() {
         },
       });
       setEditingId(null);
+      setEditOpen(false);
       setStatusMsg("Expediente eliminado");
       await loadAll();
     } catch (err) {
@@ -324,9 +355,12 @@ export default function RrhhPage() {
         expiredFound: number;
         expiringSoon: number;
       }>("/rrhh/licenses/audit", { method: "POST", body: "{}" });
-      setStatusMsg(
-        `Auditoría licencias · bloqueados=${res.newlyBlocked} vencidas=${res.expiredFound} por vencer=${res.expiringSoon}`,
-      );
+      setAuditStats({
+        newlyBlocked: res.newlyBlocked,
+        expiredFound: res.expiredFound,
+        expiringSoon: res.expiringSoon,
+      });
+      setStatusMsg("Auditoría de licencias completada");
       await loadAll();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Auditoría fallida");
@@ -460,6 +494,28 @@ export default function RrhhPage() {
         </div>
       ) : null}
 
+      <div
+        className="fsg-panel flex flex-wrap items-center gap-3 border border-[color-mix(in_srgb,var(--accent-primary)_25%,transparent)] bg-[color-mix(in_srgb,var(--accent-primary)_6%,transparent)] p-3"
+        data-testid="rrhh-audit-banner"
+      >
+        <ShieldAlert className="h-5 w-5 shrink-0 text-[var(--accent-primary)]" />
+        <span className="text-sm font-semibold text-[var(--text-primary)]">
+          Auditoría de licencias y documentos
+        </span>
+        <div className="flex flex-wrap gap-2 text-xs font-medium">
+          <span className="rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] px-2 py-0.5 font-data tabular-nums">
+            Bloqueados: {auditStats?.newlyBlocked ?? overview?.fatigaAlta ?? 0}
+          </span>
+          <span className="rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] px-2 py-0.5 font-data tabular-nums">
+            Vencidas: {auditStats?.expiredFound ?? 0}
+          </span>
+          <span className="rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] px-2 py-0.5 font-data tabular-nums">
+            Por vencer:{" "}
+            {auditStats?.expiringSoon ?? overview?.licenciasPorVencer ?? 0}
+          </span>
+        </div>
+      </div>
+
       <div className="flex flex-wrap gap-2 border-b border-[var(--brand-line)] pb-2">
         {TABS.map((t) => (
           <button
@@ -479,7 +535,12 @@ export default function RrhhPage() {
       </div>
 
       {statusMsg ? (
-        <p className="font-data text-xs text-[var(--brand-primary)]">{statusMsg}</p>
+        <p
+          role="status"
+          className="rounded-lg border border-[color-mix(in_srgb,var(--accent-primary)_30%,transparent)] bg-[color-mix(in_srgb,var(--accent-primary)_8%,transparent)] px-3 py-2 text-sm text-[var(--accent-primary)]"
+        >
+          {statusMsg}
+        </p>
       ) : null}
       {error ? (
         <p role="alert" className="text-sm text-[var(--brand-signal)]">
@@ -519,114 +580,23 @@ export default function RrhhPage() {
                         className="border-t border-[var(--brand-line)]"
                       >
                         <td className="px-4 py-2.5">
-                          {editingId === r.id ? (
-                            <div className="space-y-1">
-                              <input
-                                className="field py-1 text-xs"
-                                value={editForm.name}
-                                onChange={(e) =>
-                                  setEditForm({
-                                    ...editForm,
-                                    name: e.target.value,
-                                  })
-                                }
-                                aria-label="Nombre"
-                              />
-                              {canManageIdentity ? (
-                                <input
-                                  className="field py-1 font-data text-xs"
-                                  value={editForm.document}
-                                  onChange={(e) =>
-                                    setEditForm({
-                                      ...editForm,
-                                      document: e.target.value,
-                                    })
-                                  }
-                                  placeholder="Documento / cédula"
-                                  aria-label="Número de documento"
-                                />
-                              ) : (
-                                <div className="text-sm text-[var(--text-secondary)]">
-                                  {r.document}
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <>
-                              <div className="font-bold text-[var(--text-primary)]">{r.name}</div>
-                              <div className="text-sm text-[var(--text-secondary)]">
-                                {r.document}
-                              </div>
-                            </>
-                          )}
+                          <div className="font-bold text-[var(--text-primary)]">{r.name}</div>
+                          <div className="text-sm text-[var(--text-secondary)]">
+                            {r.document}
+                          </div>
                         </td>
                         <td className="px-4 py-2.5">
-                          {editingId === r.id ? (
-                            <div className="space-y-1">
-                              <select
-                                className="field py-1 text-xs"
-                                value={editForm.title}
-                                onChange={(e) =>
-                                  setEditForm({
-                                    ...editForm,
-                                    title: e.target.value,
-                                  })
-                                }
-                              >
-                                {!EMPLOYEE_TITLES.includes(
-                                  editForm.title as (typeof EMPLOYEE_TITLES)[number],
-                                ) && editForm.title ? (
-                                  <option value={editForm.title}>
-                                    {editForm.title}
-                                  </option>
-                                ) : null}
-                                {EMPLOYEE_TITLES.map((t) => (
-                                  <option key={t} value={t}>
-                                    {t}
-                                  </option>
-                                ))}
-                              </select>
-                              <select
-                                className="field py-1 text-xs"
-                                value={editForm.area}
-                                onChange={(e) =>
-                                  setEditForm({
-                                    ...editForm,
-                                    area: e.target.value,
-                                  })
-                                }
-                              >
-                                {!EMPLOYEE_AREAS.includes(
-                                  editForm.area as (typeof EMPLOYEE_AREAS)[number],
-                                ) && editForm.area ? (
-                                  <option value={editForm.area}>
-                                    {editForm.area}
-                                  </option>
-                                ) : null}
-                                {EMPLOYEE_AREA_GROUPS.map((g) => (
-                                  <optgroup key={g.label} label={g.label}>
-                                    {g.areas.map((a) => (
-                                      <option key={a} value={a}>
-                                        {a}
-                                      </option>
-                                    ))}
-                                  </optgroup>
-                                ))}
-                              </select>
-                            </div>
-                          ) : (
-                            `${r.title || r.position} · ${r.area}`
-                          )}
+                          {`${r.title || r.position} · ${r.area}`}
                         </td>
                         <td className="px-4 py-2.5">
-                          <span
-                            data-testid="rrhh-license-badge"
-                            className={`font-data text-xs font-semibold ${semClass(r.licenseSemaphore)}`}
+                          <StatusPulseBadge
+                            tone={semPulseTone(r.licenseSemaphore)}
+                            pulse={r.licenseSemaphore === "RED"}
                           >
                             {semLabel(r.licenseSemaphore)}
-                          </span>
+                          </StatusPulseBadge>
                           {r.driver ? (
-                            <div className="font-data text-[10px] text-[var(--brand-muted)]">
+                            <div className="mt-1 font-data text-[10px] text-[var(--brand-muted)]">
                               {r.driver.licenseCategory || "—"} ·{" "}
                               {licExp
                                 ? new Date(licExp).toLocaleDateString("es-CO")
@@ -635,14 +605,14 @@ export default function RrhhPage() {
                           ) : null}
                         </td>
                         <td className="px-4 py-2.5">
-                          <span
-                            data-testid="rrhh-fatigue-badge"
-                            className={`font-data text-xs font-semibold ${semClass(r.fatigueSemaphore)}`}
+                          <StatusPulseBadge
+                            tone={semPulseTone(r.fatigueSemaphore)}
+                            pulse={r.fatigueSemaphore === "RED"}
                           >
                             {fatLabel(r.fatigueSemaphore)} {r.fatigueScore}
-                          </span>
+                          </StatusPulseBadge>
                           {r.dispatchBlocked ? (
-                            <div className="text-[10px] text-[var(--brand-signal)]">
+                            <div className="mt-1 text-[10px] text-[var(--brand-signal)]">
                               {r.blockReason ? statusEs(r.blockReason) : "Despacho bloqueado"}
                             </div>
                           ) : null}
@@ -663,43 +633,13 @@ export default function RrhhPage() {
                           </select>
                         </td>
                         <td className="px-4 py-2.5">
-                          {editingId === r.id ? (
-                            <div className="flex flex-wrap gap-1">
-                              <Button
-                                variant="primary"
-                                className="w-auto"
-                                onClick={() => void saveEdit(r.id)}
-                              >
-                                Guardar
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                className="w-auto"
-                                onClick={() => setEditingId(null)}
-                              >
-                                Cancelar
-                              </Button>
-                              {canManageIdentity ? (
-                                <Button
-                                  variant="danger"
-                                  className="w-auto"
-                                  onClick={() =>
-                                    void deleteEmployee(r.id, r.name)
-                                  }
-                                >
-                                  Eliminar
-                                </Button>
-                              ) : null}
-                            </div>
-                          ) : (
-                            <Button
-                              variant="ghost"
-                              className="w-auto"
-                              onClick={() => startEdit(r)}
-                            >
-                              Editar ficha
-                            </Button>
-                          )}
+                          <Button
+                            variant="ghost"
+                            className="w-auto"
+                            onClick={() => startEdit(r)}
+                          >
+                            Editar ficha
+                          </Button>
                         </td>
                       </tr>
                     );
@@ -785,26 +725,34 @@ export default function RrhhPage() {
                         </div>
                       </td>
                       <td className="px-4 py-2.5 font-data">{r.fatigueScore}</td>
-                      <td
-                        className={`px-4 py-2.5 font-data text-xs ${semClass(r.fatigueSemaphore)}`}
-                      >
-                        {fatLabel(r.fatigueSemaphore)}
+                      <td className="px-4 py-2.5">
+                        <StatusPulseBadge tone={semPulseTone(r.fatigueSemaphore)}>
+                          {fatLabel(r.fatigueSemaphore)}
+                        </StatusPulseBadge>
                       </td>
-                      <td
-                        className={`px-4 py-2.5 font-data text-xs ${semClass(r.licenseSemaphore)}`}
-                      >
-                        {semLabel(r.licenseSemaphore)}
+                      <td className="px-4 py-2.5">
+                        <StatusPulseBadge
+                          tone={semPulseTone(r.licenseSemaphore)}
+                          pulse={r.licenseSemaphore === "RED"}
+                        >
+                          {semLabel(r.licenseSemaphore)}
+                        </StatusPulseBadge>
                       </td>
-                      <td className="px-4 py-2.5 font-data text-xs">
+                      <td className="px-4 py-2.5">
                         {r.dispatchBlocked ? (
-                          <span className="text-[var(--brand-signal)]">
-                            Bloqueo operativo · {r.blockReason ? statusEs(r.blockReason) : "Bloqueado"}
-                          </span>
+                          <StatusPulseBadge tone="danger" pulse>
+                            Bloqueo operativo
+                          </StatusPulseBadge>
                         ) : (
-                          <span className="text-[var(--brand-primary)]">
+                          <StatusPulseBadge tone="active" pulse={false}>
                             Liberado
-                          </span>
+                          </StatusPulseBadge>
                         )}
+                        {r.dispatchBlocked && r.blockReason ? (
+                          <div className="mt-1 text-[10px] text-[var(--text-secondary)]">
+                            {statusEs(r.blockReason)}
+                          </div>
+                        ) : null}
                       </td>
                     </tr>
                   ))}
@@ -911,6 +859,34 @@ export default function RrhhPage() {
 
       {tab === "capacitaciones" ? (
         <section className="space-y-4" data-testid="rrhh-panel-capacitaciones">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <KpiCard
+              label="Cumplimiento PESV"
+              value={`${pesvCompliance}%`}
+              delta={`${trainings.length} registro${trainings.length === 1 ? "" : "s"} indexados`}
+              tone={pesvCompliance >= 80 ? "ok" : pesvCompliance >= 50 ? "warn" : "danger"}
+            />
+            <KpiCard
+              label="Conductores capacitados"
+              value={
+                new Set(
+                  trainings.map((t) => t.driver?.id).filter(Boolean),
+                ).size
+              }
+              delta={`de ${drivers.length} en flota`}
+            />
+            <KpiCard
+              label="Licencias ≤30d"
+              value={overview?.licenciasPorVencer ?? 0}
+              tone={(overview?.licenciasPorVencer ?? 0) > 0 ? "warn" : "ok"}
+            />
+            <KpiCard
+              label="Fatiga alta"
+              value={overview?.fatigaAlta ?? 0}
+              tone={(overview?.fatigaAlta ?? 0) > 0 ? "danger" : "ok"}
+            />
+          </div>
+
           <form
             onSubmit={createTraining}
             className="fsg-panel flex flex-wrap items-end justify-end gap-3 p-4"
@@ -1098,6 +1074,138 @@ export default function RrhhPage() {
                 </option>
               ))}
             </select>
+          </label>
+        </form>
+      </SlideOver>
+
+      <SlideOver
+        open={editOpen}
+        onClose={closeEdit}
+        title="Editar expediente"
+        description="Ficha de capital humano · cambios auditados"
+        widthClass="max-w-lg"
+        footer={
+          <div className="flex flex-wrap justify-end gap-2">
+            {canManageIdentity && editingId ? (
+              <Button
+                type="button"
+                variant="danger"
+                className="w-auto px-4 py-2"
+                onClick={() => {
+                  const row = rows.find((r) => r.id === editingId);
+                  if (row) void deleteEmployee(row.id, row.name);
+                }}
+              >
+                Eliminar
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-auto px-4 py-2"
+              onClick={closeEdit}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              form="rrhh-edit-form"
+              variant="primary"
+              className="w-auto px-4 py-2"
+              disabled={!editingId}
+            >
+              Guardar ficha
+            </Button>
+          </div>
+        }
+      >
+        <form
+          id="rrhh-edit-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (editingId) void saveEdit(editingId);
+          }}
+          className="grid grid-cols-1 gap-3"
+        >
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+            Nombre
+            <input
+              className="field"
+              value={editForm.name}
+              onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+              required
+            />
+          </label>
+          {canManageIdentity ? (
+            <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+              Documento
+              <input
+                className="field font-data"
+                value={editForm.document}
+                onChange={(e) =>
+                  setEditForm({ ...editForm, document: e.target.value })
+                }
+              />
+            </label>
+          ) : null}
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+            Cargo
+            <select
+              className="field"
+              value={editForm.title}
+              onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+            >
+              {!EMPLOYEE_TITLES.includes(
+                editForm.title as (typeof EMPLOYEE_TITLES)[number],
+              ) && editForm.title ? (
+                <option value={editForm.title}>{editForm.title}</option>
+              ) : null}
+              {EMPLOYEE_TITLES.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+            Área
+            <select
+              className="field"
+              value={editForm.area}
+              onChange={(e) => setEditForm({ ...editForm, area: e.target.value })}
+            >
+              {!EMPLOYEE_AREAS.includes(
+                editForm.area as (typeof EMPLOYEE_AREAS)[number],
+              ) && editForm.area ? (
+                <option value={editForm.area}>{editForm.area}</option>
+              ) : null}
+              {EMPLOYEE_AREA_GROUPS.map((g) => (
+                <optgroup key={g.label} label={g.label}>
+                  {g.areas.map((a) => (
+                    <option key={a} value={a}>
+                      {a}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+            Teléfono
+            <input
+              className="field"
+              value={editForm.phone}
+              onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+            Correo
+            <input
+              className="field"
+              type="email"
+              value={editForm.email}
+              onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+            />
           </label>
         </form>
       </SlideOver>

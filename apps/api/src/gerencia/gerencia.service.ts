@@ -9,9 +9,12 @@ import {
   ContractStatus,
   ExecutiveApprovalKind,
   ExecutiveApprovalStatus,
+  InvoiceStatus,
+  InvoiceType,
   ManagerialOverrideStatus,
   SalesPipelineStage,
   TripStatus,
+  VehicleStatus,
   WorkOrderStatus,
 } from "@fsg/db";
 import { PrismaService } from "../prisma/prisma.service";
@@ -116,7 +119,8 @@ export class GerenciaService {
   }
 
   async dashboard(organizationId: string) {
-    const [scorecard, approvals, overrides, warRooms] = await Promise.all([
+    const [scorecard, approvals, overrides, warRooms, tacticalPanel] =
+      await Promise.all([
       this.balanceScorecard(organizationId),
       this.prisma.executiveApproval.findMany({
         where: {
@@ -139,6 +143,7 @@ export class GerenciaService {
         orderBy: { createdAt: "desc" },
         take: 8,
       }),
+      this.buildTacticalPanel(organizationId),
     ]);
 
     const directors = [
@@ -183,6 +188,153 @@ export class GerenciaService {
       warRooms,
       commandDirectory: directors,
       riskRadar: scorecard.riskRadar,
+      tacticalPanel,
+    };
+  }
+
+  /** Panel táctico COO — PDF Gerencia General. */
+  async buildTacticalPanel(organizationId: string) {
+    const threeDaysAgo = new Date();
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+
+    const activeStatuses = [
+      TripStatus.IN_TRANSIT,
+      TripStatus.ASSIGNED,
+      TripStatus.AWAITING_PREOP,
+      TripStatus.AWAITING_FUEC,
+    ] as const;
+
+    const [
+      tripsInFlight,
+      openWorkOrders,
+      delayedWorkOrders,
+      dispatchBlocks,
+      openInvoices,
+      activeTrips,
+      vehicles,
+    ] = await Promise.all([
+      this.prisma.trip.count({
+        where: { organizationId, status: { in: [...activeStatuses] } },
+      }),
+      this.prisma.workOrder.count({
+        where: {
+          organizationId,
+          status: {
+            in: [
+              WorkOrderStatus.OPEN,
+              WorkOrderStatus.IN_PROGRESS,
+              WorkOrderStatus.WAITING_PARTS,
+            ],
+          },
+        },
+      }),
+      this.prisma.workOrder.count({
+        where: {
+          organizationId,
+          status: WorkOrderStatus.WAITING_PARTS,
+          openedAt: { lt: threeDaysAgo },
+        },
+      }),
+      this.prisma.trip.count({
+        where: {
+          organizationId,
+          status: { in: [TripStatus.AWAITING_FUEC, TripStatus.AWAITING_PREOP] },
+        },
+      }),
+      this.prisma.invoice.findMany({
+        where: {
+          organizationId,
+          status: {
+            in: [
+              InvoiceStatus.ISSUED,
+              InvoiceStatus.PENDING_MATCH,
+              InvoiceStatus.CLEARED_FOR_PAYMENT,
+              InvoiceStatus.CAUSED,
+              InvoiceStatus.OVERDUE,
+            ],
+          },
+        },
+        select: { type: true, amount: true, dueDate: true },
+      }),
+      this.prisma.trip.findMany({
+        where: { organizationId, status: { in: [...activeStatuses] } },
+        select: { departAt: true },
+      }),
+      this.prisma.vehicle.findMany({
+        where: { organizationId },
+        select: { capacity: true, status: true, complianceBlocked: true },
+      }),
+    ]);
+
+    let cxcOpen = 0;
+    let cxpOpen = 0;
+    const now = new Date();
+    const agingBuckets = [
+      { rango: "0-15 Días", cxc: 0, cxp: 0 },
+      { rango: "16-30 Días", cxc: 0, cxp: 0 },
+      { rango: "31-60 Días", cxc: 0, cxp: 0 },
+      { rango: "+60 Días", cxc: 0, cxp: 0 },
+    ];
+
+    for (const inv of openInvoices) {
+      const amt = Number(inv.amount);
+      const due = inv.dueDate ? new Date(inv.dueDate) : now;
+      const days = Math.max(
+        0,
+        Math.ceil((now.getTime() - due.getTime()) / (86400000)),
+      );
+      let bucket = 3;
+      if (days <= 15) bucket = 0;
+      else if (days <= 30) bucket = 1;
+      else if (days <= 60) bucket = 2;
+      if (inv.type === InvoiceType.RECEIVABLE) {
+        cxcOpen += amt;
+        agingBuckets[bucket].cxc += Math.round(amt / 1_000_000);
+      } else {
+        cxpOpen += amt;
+        agingBuckets[bucket].cxp += Math.round(amt / 1_000_000);
+      }
+    }
+
+    const hourSlots = ["04:00", "06:00", "08:00", "10:00", "12:00", "14:00", "16:00", "18:00"];
+    const hourlyActivity = hourSlots.map((hora) => {
+      const h = parseInt(hora.slice(0, 2), 10);
+      const viajes = activeTrips.filter((t) => t.departAt.getHours() === h).length;
+      return { hora, viajes };
+    });
+
+    const fleetByType = [
+      { tipo: "Buses", operativo: 0, taller: 0, bloqueado: 0 },
+      { tipo: "Vans", operativo: 0, taller: 0, bloqueado: 0 },
+      { tipo: "Camionetas", operativo: 0, taller: 0, bloqueado: 0 },
+    ];
+
+    for (const v of vehicles) {
+      const idx = v.capacity >= 30 ? 0 : v.capacity >= 15 ? 1 : 2;
+      if (v.complianceBlocked || v.status === VehicleStatus.COMPLIANCE_BLOCKED) {
+        fleetByType[idx].bloqueado += 1;
+      } else if (
+        v.status === VehicleStatus.MAINTENANCE ||
+        v.status === VehicleStatus.OUT_OF_SERVICE
+      ) {
+        fleetByType[idx].taller += 1;
+      } else {
+        fleetByType[idx].operativo += 1;
+      }
+    }
+
+    return {
+      kpis: {
+        tripsInFlight,
+        openWorkOrders,
+        delayedWorkOrders,
+        cxcOpenMillions: Math.round(cxcOpen / 1_000_000),
+        cxpOpenMillions: Math.round(cxpOpen / 1_000_000),
+        dispatchBlocks,
+      },
+      hourlyActivity,
+      fleetByType,
+      cashAging: agingBuckets,
     };
   }
 

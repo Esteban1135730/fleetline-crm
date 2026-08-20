@@ -51,7 +51,15 @@ export class CustomersService {
     return this.prisma.customer.findMany({
       where: { organizationId },
       orderBy: { name: "asc" },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        nit: true,
+        email: true,
+        phone: true,
+        segment: true,
+        sarlaftBlocked: true,
+        sarlaftRiskScore: true,
         _count: { select: { quotes: true, trips: true, contracts: true } },
       },
     });

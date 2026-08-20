@@ -83,6 +83,12 @@ export class PresidenciaController {
     );
   }
 
+  @Get("forensic-export")
+  @Permissions("founders_canvas", "READ")
+  forensicExport(@Req() req: AuthReq) {
+    return this.presidencia.forensicExport(req.user.organizationId);
+  }
+
   @Post("ask-ai")
   @AllowDirectiveQuery()
   @Permissions("jarvis_ai", "CREATE")

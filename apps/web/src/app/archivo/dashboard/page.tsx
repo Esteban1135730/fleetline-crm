@@ -2,10 +2,23 @@
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
-import { FileArchive, Search } from "lucide-react";
+import {
+  Box,
+  CheckCircle2,
+  Cpu,
+  Database,
+  FileArchive,
+  Lock,
+  ScanLine,
+  Search,
+  ShieldCheck,
+  Smartphone,
+  Trash2,
+  UserX,
+} from "lucide-react";
 import { api } from "@/lib/api";
 import { PageIntro } from "@/components/page-intro";
-import { EmptyState } from "@/components/audit";
+import { EmptyState, KpiCard, StatusPulseBadge } from "@/components/audit";
 
 type SearchHit = {
   kind?: "document" | "vehicle" | "driver" | "employee" | "customer";
@@ -20,7 +33,49 @@ type SearchHit = {
   docType: string;
 };
 
+type VaultMetrics = {
+  ocrPrecisionPct: number;
+  habeasShreddedToday: number;
+  operationalAssets: number;
+  liquidationBlocks: number;
+  totalDocuments: number;
+  storageMb: number;
+};
+
+type IngestionItem = {
+  id: string;
+  title: string;
+  docType: string;
+  status: "processing" | "pending" | "validated";
+  confidence?: number;
+  contentHash?: string | null;
+  routedTo?: string;
+  updatedAt: string;
+};
+
+type AssetAlert = {
+  employeeId: string;
+  name: string;
+  role: string;
+  pendingAssets: string[];
+  liquidationBlocked: boolean;
+  detectedAt: string;
+};
+
+type AccessLogRow = {
+  id: string;
+  action: string;
+  title?: string;
+  contentHash?: string;
+  userName: string;
+  createdAt: string;
+};
+
 type Dashboard = {
+  vaultMetrics: VaultMetrics;
+  ingestionQueue: IngestionItem[];
+  assetAlerts: AssetAlert[];
+  accessLog: AccessLogRow[];
   pendingDigitization: Array<{
     id: string;
     title: string;
@@ -49,6 +104,7 @@ type Dashboard = {
     minStock: number;
     critical: boolean;
   }>;
+  overdueLoanCount: number;
 };
 
 const KIND_LABEL: Record<NonNullable<SearchHit["kind"]>, string> = {
@@ -61,6 +117,23 @@ const KIND_LABEL: Record<NonNullable<SearchHit["kind"]>, string> = {
 
 function hitKind(h: SearchHit): NonNullable<SearchHit["kind"]> {
   return h.kind || "document";
+}
+
+function shortHash(h?: string | null) {
+  if (!h) return "—";
+  return `${h.slice(0, 8)}…`;
+}
+
+function ingestionTone(status: IngestionItem["status"]) {
+  if (status === "validated") return "active" as const;
+  if (status === "processing") return "fatiga" as const;
+  return "neutral" as const;
+}
+
+function ingestionLabel(status: IngestionItem["status"]) {
+  if (status === "validated") return "Indexado";
+  if (status === "processing") return "Procesando OCR";
+  return "Pendiente";
 }
 
 export default function ArchivoDashboardPage() {
@@ -146,49 +219,111 @@ export default function ArchivoDashboardPage() {
     setOpen(false);
   }
 
+  const metrics = dash?.vaultMetrics;
+
   return (
-    <div className="fade-in mx-auto max-w-[1600px] space-y-5">
-      <PageIntro module="archivo" title="Archivo y Papelería" />
+    <div className="fade-in mx-auto max-w-[1600px] space-y-6">
+      <PageIntro
+        module="archivo"
+        title="Quantum Vault & Assets"
+        subtitle="OCR cognitivo activo · cero-knowledge encryption"
+        action={
+          <div className="flex flex-wrap items-center gap-3">
+            {metrics ? (
+              <div className="rounded-lg border border-[var(--brand-line)] bg-[var(--brand-surface)] px-3 py-2 text-right">
+                <p className="text-[10px] uppercase tracking-wider text-[var(--brand-muted)]">
+                  Almacenamiento global
+                </p>
+                <p className="font-data text-sm font-bold text-[var(--brand-primary)]">
+                  {metrics.storageMb} MB · {metrics.totalDocuments.toLocaleString("es-CO")} docs
+                </p>
+              </div>
+            ) : null}
+            <Button type="button" variant="primary" className="w-auto">
+              <ScanLine className="mr-1.5 inline h-4 w-4" aria-hidden />
+              Ingesta masiva (AI)
+            </Button>
+          </div>
+        }
+      />
 
       {error ? (
-        <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-600 dark:text-rose-300">
+        <p role="alert" className="text-sm text-[var(--brand-signal)]">
           {error}
         </p>
       ) : null}
 
-      <form onSubmit={onSearch} className="space-y-3">
+      {metrics ? (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <KpiCard
+            label="Precisión OCR (auto-indexado)"
+            value={`${metrics.ocrPrecisionPct}%`}
+            delta="Cero intervención humana"
+            tone="ok"
+            icon={<Cpu className="h-5 w-5 text-indigo-400" aria-hidden />}
+          />
+          <KpiCard
+            label="Habeas Data (auto-shred)"
+            value={String(metrics.habeasShreddedToday)}
+            delta="Docs destruidos hoy (fin retención)"
+            tone="neutral"
+            icon={<Trash2 className="h-5 w-5 text-[var(--brand-muted)]" aria-hidden />}
+          />
+          <KpiCard
+            label="Activos operativos"
+            value={metrics.operationalAssets.toLocaleString("es-CO")}
+            delta="Tablets, dotación, papelería"
+            tone="ok"
+            icon={<Smartphone className="h-5 w-5 text-[var(--accent-primary)]" aria-hidden />}
+          />
+          <KpiCard
+            label="Bloqueos de liquidación"
+            value={String(metrics.liquidationBlocks)}
+            delta="Activos pendientes por devolver"
+            tone={metrics.liquidationBlocks > 0 ? "danger" : "ok"}
+            icon={<UserX className="h-5 w-5 text-[var(--accent-alert)]" aria-hidden />}
+          />
+        </div>
+      ) : null}
+
+      <form onSubmit={onSearch} className="relative z-10">
         <div ref={boxRef} className="relative">
           <label className="sr-only" htmlFor="archivo-search">
-            Búsqueda universal por placa o cédula
+            Búsqueda profunda
           </label>
-          <input
-            id="archivo-search"
-            type="search"
-            data-field="skip"
-            autoComplete="off"
-            data-testid="archivo-universal-search"
-            className="w-full rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-5 py-4 text-lg text-[var(--text-primary)] shadow-[0_10px_30px_rgba(0,0,0,0.04)] outline-none ring-[var(--brand-accent)] placeholder:text-[var(--text-secondary)] focus:ring-2"
-            placeholder="Placa · Cédula · Contrato…"
-            value={q}
-            onChange={(e) => onQueryChange(e.target.value)}
-            onFocus={() => {
-              if (hits.length || searched) setOpen(true);
-            }}
-          />
+          <div className="fsg-panel flex items-center gap-2 p-2 shadow-lg">
+            <Search className="ml-2 h-5 w-5 shrink-0 text-[var(--brand-muted)]" aria-hidden />
+            <input
+              id="archivo-search"
+              type="search"
+              data-field="skip"
+              autoComplete="off"
+              data-testid="archivo-universal-search"
+              className="field flex-1 border-0 bg-transparent text-sm shadow-none focus:ring-0"
+              placeholder="Búsqueda profunda: contrato, placa, cédula, serial tablet…"
+              value={q}
+              onChange={(e) => onQueryChange(e.target.value)}
+              onFocus={() => {
+                if (hits.length || searched) setOpen(true);
+              }}
+            />
+            <StatusPulseBadge tone="active" pulse={false}>
+              NLP Search
+            </StatusPulseBadge>
+          </div>
           {open && q.trim().length >= 2 ? (
             <ul
-              className="absolute z-40 mt-1 max-h-80 w-full overflow-auto rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1,#121722)] shadow-[0_16px_40px_rgba(0,0,0,0.35)]"
+              className="absolute z-40 mt-1 max-h-80 w-full overflow-auto rounded-xl border border-[var(--brand-line)] bg-[var(--brand-surface)] shadow-xl"
               role="listbox"
             >
               {searching ? (
-                <li className="px-4 py-3 text-sm text-[var(--text-secondary)]">
+                <li className="px-4 py-3 text-sm text-[var(--brand-muted)]">
                   Buscando en flota, personal y bóveda…
                 </li>
               ) : null}
               {!searching && searched && hits.length === 0 ? (
-                <li className="px-4 py-3 text-sm text-[var(--text-secondary)]">
-                  Sin coincidencias para «{q.trim()}». Revise placa o cédula en
-                  Taller / RRHH.
+                <li className="px-4 py-3 text-sm text-[var(--brand-muted)]">
+                  Sin coincidencias para «{q.trim()}».
                 </li>
               ) : null}
               {!searching
@@ -197,14 +332,12 @@ export default function ArchivoDashboardPage() {
                       <button
                         type="button"
                         role="option"
-                        className="flex w-full items-start justify-between gap-3 px-4 py-2.5 text-left hover:bg-[var(--accent-primary)]/10"
+                        className="flex w-full items-start justify-between gap-3 px-4 py-2.5 text-left hover:bg-[var(--brand-primary)]/10"
                         onClick={() => pickHit(h)}
                       >
                         <span>
-                          <span className="block text-sm font-medium text-[var(--text-primary)]">
-                            {h.title}
-                          </span>
-                          <span className="mt-0.5 block font-data text-[11px] text-[var(--text-secondary)]">
+                          <span className="block text-sm font-medium">{h.title}</span>
+                          <span className="mt-0.5 block font-data text-[11px] text-[var(--brand-muted)]">
                             {KIND_LABEL[hitKind(h)]} ·{" "}
                             {h.plate || h.documentNumber || h.docType}
                             {h.locationLabel ? ` · ${h.locationLabel}` : ""}
@@ -222,176 +355,274 @@ export default function ArchivoDashboardPage() {
             </ul>
           ) : null}
         </div>
-        <div className="flex justify-end gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            className="w-auto px-4 py-2"
-            onClick={() => void loadDash()}
-          >
-            Refrescar bandejas
-          </Button>
-          <Button
-            type="submit"
-            className="w-auto px-4 py-2"
-            disabled={searching}
-          >
-            <Search className="mr-1.5 inline h-4 w-4" aria-hidden />
-            {searching ? "Buscando…" : "Buscar"}
-          </Button>
-        </div>
       </form>
 
-      {searched && !open ? (
-        hits.length > 0 ? (
-          <section className="space-y-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4">
-            <h2 className="text-sm font-semibold text-[var(--text-primary)]">
-              Resultados ({hits.length})
-            </h2>
-            <ul className="divide-y divide-[var(--border-subtle)]">
-              {hits.map((h) => (
-                <li
-                  key={`${hitKind(h)}-${h.id}`}
-                  className="flex flex-wrap items-start justify-between gap-3 py-3"
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+        <section className="fsg-panel flex flex-col overflow-hidden lg:col-span-7">
+          <header className="flex items-center justify-between border-b border-[var(--brand-line)] px-4 py-3">
+            <div className="flex items-center gap-2">
+              <ScanLine className="h-4 w-4 text-indigo-400" aria-hidden />
+              <h2 className="text-sm font-semibold uppercase tracking-wider">
+                Cognitive Ingestion Pipeline
+              </h2>
+            </div>
+            <StatusPulseBadge tone="fatiga" pulse>
+              Procesando
+            </StatusPulseBadge>
+          </header>
+          <div className="flex-1 space-y-3 overflow-y-auto p-4">
+            {(dash?.ingestionQueue ?? []).length === 0 ? (
+              <EmptyState
+                icon={<Database className="h-7 w-7" aria-hidden />}
+                title="Cola vacía"
+                description="Suba documentos para activar el enrutador OCR."
+              />
+            ) : (
+              dash!.ingestionQueue.map((item) => (
+                <article
+                  key={item.id}
+                  className={`rounded-lg border p-4 ${
+                    item.status === "validated"
+                      ? "border-[var(--accent-primary)]/30 bg-[var(--accent-primary)]/5 opacity-80"
+                      : "border-[var(--brand-line)]"
+                  }`}
                 >
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
-                      {KIND_LABEL[hitKind(h)]}
-                    </p>
-                    <p className="font-medium text-[var(--text-primary)]">
-                      {h.title}
-                    </p>
-                    <p className="mt-1 font-data text-xs text-[var(--text-secondary)]">
-                      {h.plate || "—"} · {h.documentNumber || "—"} · {h.docType}
-                    </p>
-                    <p className="mt-1 font-data text-xs text-[var(--text-primary)]">
-                      {h.locationLabel || "Sin ubicación física"}
-                    </p>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      {item.status === "validated" ? (
+                        <CheckCircle2 className="mt-0.5 h-5 w-5 text-[var(--accent-primary)]" aria-hidden />
+                      ) : (
+                        <ScanLine className="mt-0.5 h-5 w-5 animate-pulse text-indigo-400" aria-hidden />
+                      )}
+                      <div>
+                        <h3 className="text-sm font-semibold">{item.title}</h3>
+                        <p className="mt-0.5 text-[10px] font-mono text-[var(--brand-muted)]">
+                          {item.docType}
+                          {item.routedTo ? ` → ${item.routedTo}` : ""}
+                        </p>
+                        {item.status === "processing" ? (
+                          <p className="mt-2 text-[10px] text-indigo-400">
+                            Clasificando y enrutando…
+                          </p>
+                        ) : item.status === "validated" ? (
+                          <p className="mt-2 text-[10px] font-semibold text-[var(--accent-primary)]">
+                            Indexado
+                            {item.confidence
+                              ? ` · confianza ${Math.round(item.confidence * 100)}%`
+                              : ""}
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <StatusPulseBadge tone={ingestionTone(item.status)} pulse={item.status === "processing"}>
+                        {ingestionLabel(item.status)}
+                      </StatusPulseBadge>
+                      {item.contentHash ? (
+                        <p className="mt-1 flex items-center justify-end gap-1 font-data text-[10px] text-[var(--brand-muted)]">
+                          <Lock className="h-3 w-3" aria-hidden />
+                          {shortHash(item.contentHash)}
+                        </p>
+                      ) : null}
+                    </div>
                   </div>
-                  <div className="flex flex-col items-end gap-1">
-                    {h.digitalPdf ? (
-                      <Badge tone="emerald">Documento indexado</Badge>
-                    ) : hitKind(h) === "document" ? (
-                      <Badge tone="amber">Sin PDF</Badge>
-                    ) : (
-                      <Badge tone="neutral">Registro operativo</Badge>
-                    )}
-                    {h.custodyStatus === "ON_LOAN" ? (
-                      <Badge tone="rose">En préstamo</Badge>
+                </article>
+              ))
+            )}
+          </div>
+        </section>
+
+        <section className="flex flex-col gap-4 lg:col-span-5">
+          <div className="fsg-panel flex flex-1 flex-col overflow-hidden">
+            <header className="flex items-center justify-between border-b border-[var(--brand-line)] px-4 py-3">
+              <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider">
+                <Box className="h-4 w-4 text-[var(--accent-primary)]" aria-hidden />
+                Asset Control (HR Sync)
+              </h2>
+              {(dash?.assetAlerts.length ?? 0) > 0 ? (
+                <StatusPulseBadge tone="danger" pulse>
+                  {dash!.assetAlerts.length} alertas
+                </StatusPulseBadge>
+              ) : null}
+            </header>
+            <div className="flex-1 space-y-3 overflow-y-auto p-4">
+              {(dash?.assetAlerts ?? []).length === 0 ? (
+                <EmptyState
+                  icon={<ShieldCheck className="h-7 w-7" aria-hidden />}
+                  title="Sin bloqueos activos"
+                  description="No hay activos pendientes vinculados a bajas de personal."
+                />
+              ) : (
+                dash!.assetAlerts.map((a) => (
+                  <article
+                    key={a.employeeId}
+                    className="rounded-lg border border-[var(--accent-alert)]/40 bg-[var(--accent-alert)]/5 p-4"
+                  >
+                    <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[var(--accent-alert)]">
+                      <UserX className="h-3 w-3" aria-hidden />
+                      Baja de personal detectada
+                    </p>
+                    <h3 className="mt-1 text-sm font-semibold">
+                      {a.name}{" "}
+                      <span className="text-xs font-normal text-[var(--brand-muted)]">
+                        ({a.role})
+                      </span>
+                    </h3>
+                    <ul className="mt-2 space-y-1 rounded-md border border-[var(--accent-alert)]/20 bg-[var(--brand-surface)]/50 p-2 font-mono text-[11px] text-[var(--accent-alert)]">
+                      {a.pendingAssets.map((asset) => (
+                        <li key={asset}>· {asset}</li>
+                      ))}
+                    </ul>
+                    {a.liquidationBlocked ? (
+                      <p className="mt-2 flex items-center gap-1 text-[9px] font-bold text-[var(--accent-alert)]">
+                        <Lock className="h-3 w-3" aria-hidden />
+                        Pago de liquidación bloqueado en Tesorería
+                      </p>
                     ) : null}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ) : (
-          <EmptyState
-            icon={<FileArchive className="h-7 w-7" />}
-            title="Sin coincidencias"
-            description="No hay unidad, conductor, personal ni expediente con esa placa o cédula."
-          />
-        )
-      ) : null}
-
-      <div className="grid gap-5 lg:grid-cols-[1fr_340px]">
-        <div className="space-y-5">
-          <section id="pendientes" className="space-y-2">
-            <h2 className="font-display text-sm font-semibold text-[var(--text-primary)]">
-              Documentos pendientes de digitalizar
-            </h2>
-            <div className="space-y-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-3">
-              {(dash?.pendingDigitization || []).map((p) => (
-                <article
-                  key={p.id}
-                  className="rounded-lg border border-[var(--border-subtle)]/70 px-3 py-2"
-                >
-                  <p className="text-sm text-[var(--text-primary)]">{p.title}</p>
-                  <p className="font-data text-[10px] text-[var(--text-secondary)]">
-                    {p.plate || p.documentNumber || "—"} ·{" "}
-                    {p.locationLabel || "Sin ubicación"}
-                  </p>
-                </article>
-              ))}
-              {!dash?.pendingDigitization?.length ? (
-                <EmptyState
-                  icon={<FileArchive className="h-7 w-7" />}
-                  title="Bandeja vacía"
-                  description="No hay pendientes de digitalizar."
-                />
-              ) : null}
+                  </article>
+                ))
+              )}
             </div>
-          </section>
+          </div>
+        </section>
+      </div>
 
-          <section id="prestamos" className="space-y-2">
-            <h2 className="font-display text-sm font-semibold text-[var(--text-primary)]">
-              Carpetas en préstamo
-            </h2>
-            <div className="space-y-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-3">
-              {(dash?.loansOnHand || []).map((l) => (
-                <article
-                  key={l.loanId}
-                  className="rounded-lg border border-[var(--border-subtle)]/70 px-3 py-2"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="text-sm text-[var(--text-primary)]">
-                      {l.title}
-                    </p>
-                    {l.overdue ? (
-                      <Badge tone="rose">{l.daysOut}d</Badge>
-                    ) : (
-                      <Badge tone="amber">{l.daysOut}d</Badge>
-                    )}
-                  </div>
-                  <p className="mt-1 text-xs text-[var(--text-secondary)]">
-                    {l.borrowerName || "Solicitante"} ·{" "}
-                    {l.locationLabel || "Sin ubicación"}
-                  </p>
-                </article>
-              ))}
-              {!dash?.loansOnHand?.length ? (
-                <EmptyState
-                  icon={<FileArchive className="h-7 w-7" />}
-                  title="Sin préstamos activos"
-                  description="No hay carpetas en custodia externa."
-                />
-              ) : null}
-            </div>
-          </section>
-        </div>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <section className="fsg-panel p-4 lg:col-span-1">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--brand-muted)]">
+            Pendientes de digitalizar
+          </h2>
+          <div className="space-y-2">
+            {(dash?.pendingDigitization ?? []).slice(0, 6).map((p) => (
+              <article
+                key={p.id}
+                className="rounded-md border border-[var(--brand-line)] px-3 py-2"
+              >
+                <p className="text-sm">{p.title}</p>
+                <p className="font-data text-[10px] text-[var(--brand-muted)]">
+                  {p.plate || p.documentNumber || "—"} · {p.locationLabel || "Sin ubicación"}
+                </p>
+              </article>
+            ))}
+            {!dash?.pendingDigitization?.length ? (
+              <p className="text-xs text-[var(--brand-muted)]">Bandeja vacía.</p>
+            ) : null}
+          </div>
+        </section>
 
-        <section id="inventario" className="space-y-2">
-          <h2 className="font-display text-sm font-semibold text-[var(--text-primary)]">
+        <section className="fsg-panel p-4 lg:col-span-1">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--brand-muted)]">
+            Carpetas en préstamo
+            {(dash?.overdueLoanCount ?? 0) > 0 ? (
+              <span className="ml-2 text-[var(--accent-alert)]">
+                ({dash!.overdueLoanCount} vencidas)
+              </span>
+            ) : null}
+          </h2>
+          <div className="space-y-2">
+            {(dash?.loansOnHand ?? []).slice(0, 6).map((l) => (
+              <article
+                key={l.loanId}
+                className="rounded-md border border-[var(--brand-line)] px-3 py-2"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-sm">{l.title}</p>
+                  <Badge tone={l.overdue ? "rose" : "amber"}>{l.daysOut}d</Badge>
+                </div>
+                <p className="text-xs text-[var(--brand-muted)]">
+                  {l.borrowerName || "Solicitante"}
+                </p>
+              </article>
+            ))}
+            {!dash?.loansOnHand?.length ? (
+              <p className="text-xs text-[var(--brand-muted)]">Sin préstamos activos.</p>
+            ) : null}
+          </div>
+        </section>
+
+        <section className="fsg-panel p-4 lg:col-span-1">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--brand-muted)]">
             Inventario administrativo
           </h2>
-          <div className="space-y-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-3">
-            {(dash?.inventory || []).map((i) => (
+          <div className="space-y-2">
+            {(dash?.inventory ?? []).slice(0, 6).map((i) => (
               <article
                 key={i.id}
-                className={`rounded-lg border px-3 py-2 ${
-                  i.critical
-                    ? "border-rose-500/40 bg-rose-500/10"
-                    : "border-[var(--border-subtle)]/70"
+                className={`rounded-md border px-3 py-2 ${
+                  i.critical ? "border-[var(--accent-alert)]/40 bg-[var(--accent-alert)]/5" : "border-[var(--brand-line)]"
                 }`}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm text-[var(--text-primary)]">{i.name}</p>
+                  <p className="text-sm">{i.name}</p>
                   {i.critical ? <Badge tone="rose">Crítico</Badge> : null}
                 </div>
-                <p className="mt-1 font-data text-xs text-[var(--text-secondary)]">
+                <p className="font-data text-xs text-[var(--brand-muted)]">
                   {i.sku} · {i.quantity}/{i.minStock} {i.unit}
                 </p>
               </article>
             ))}
             {!dash?.inventory?.length ? (
-              <EmptyState
-                icon={<FileArchive className="h-7 w-7" />}
-                title="Sin ítems cargados"
-                description="El inventario de papelería está vacío."
-              />
+              <p className="text-xs text-[var(--brand-muted)]">Sin ítems cargados.</p>
             ) : null}
           </div>
         </section>
       </div>
+
+      <section className="fsg-panel overflow-hidden">
+        <header className="border-b border-[var(--brand-line)] px-4 py-3">
+          <h2 className="text-sm font-semibold">Cadena de custodia inmutable</h2>
+          <p className="text-xs text-[var(--brand-muted)]">
+            Descargas, sellados e indexaciones · trazabilidad legal
+          </p>
+        </header>
+        {!dash?.accessLog?.length ? (
+          <div className="p-4">
+            <EmptyState
+              icon={<FileArchive className="h-7 w-7" aria-hidden />}
+              title="Sin eventos"
+              description="Los accesos a la bóveda aparecerán aquí."
+            />
+          </div>
+        ) : (
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="text-[11px] uppercase tracking-wider text-[var(--brand-muted)]">
+                <th className="px-4 py-2">Acción</th>
+                <th className="px-4 py-2">Documento</th>
+                <th className="px-4 py-2">Hash</th>
+                <th className="px-4 py-2">Operador</th>
+                <th className="px-4 py-2">Timestamp</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dash.accessLog.map((a) => (
+                <tr key={a.id} className="border-t border-[var(--brand-line)]">
+                  <td className="px-4 py-2">
+                    <StatusPulseBadge
+                      tone={
+                        a.action.includes("DELETE")
+                          ? "danger"
+                          : a.action.includes("OCR") || a.action.includes("UPLOAD")
+                            ? "active"
+                            : "neutral"
+                      }
+                      pulse={false}
+                    >
+                      {a.action}
+                    </StatusPulseBadge>
+                  </td>
+                  <td className="px-4 py-2 text-xs">{a.title || "—"}</td>
+                  <td className="px-4 py-2 font-data text-xs">{shortHash(a.contentHash)}</td>
+                  <td className="px-4 py-2 text-xs">{a.userName}</td>
+                  <td className="px-4 py-2 font-data text-xs">
+                    {new Date(a.createdAt).toLocaleString("es-CO")}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
     </div>
   );
 }

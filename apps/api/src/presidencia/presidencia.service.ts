@@ -1,6 +1,9 @@
 import { Injectable, Logger } from "@nestjs/common";
 import {
+  ContractStatus,
+  ManagerialOverrideStatus,
   PaymentScheduleStatus,
+  QuoteStatus,
   RoleCode,
   TripStatus,
   VehicleStatus,
@@ -32,8 +35,28 @@ export class PresidenciaService {
 
   async canvasKpis(organizationId: string, userId: string) {
     const canvas = await this.kpis.buildCanvasKpis(organizationId);
-    const pillars = await this.buildFourPillars(organizationId);
-    const revenueHeat = await this.revenueHeatMap(organizationId);
+    const [
+      pillars,
+      revenueHeat,
+      fleetHealth,
+      complianceAlerts,
+      commercialPipeline,
+      cashFlowHistory,
+      pendingMarginExceptions,
+    ] = await Promise.all([
+      this.buildFourPillars(organizationId, canvas),
+      this.revenueHeatMap(organizationId),
+      this.buildFleetHealth(organizationId),
+      this.buildComplianceAlerts(organizationId),
+      this.buildCommercialPipeline(organizationId),
+      this.buildCashFlowHistory(organizationId),
+      this.prisma.managerialOverride.count({
+        where: {
+          organizationId,
+          status: ManagerialOverrideStatus.PENDING,
+        },
+      }),
+    ]);
 
     await this.prisma.executiveQueryLog.create({
       data: {
@@ -56,6 +79,11 @@ export class PresidenciaService {
       mode: "GOD_MODE_DIRECTIVE",
       pillars,
       revenueHeat,
+      fleetHealth,
+      complianceAlerts,
+      commercialPipeline,
+      cashFlowHistory,
+      pendingMarginExceptions,
       ...canvas,
       ui: {
         theme: "founders_ipad",
@@ -65,9 +93,219 @@ export class PresidenciaService {
     };
   }
 
+  /** Salud de flota para gráfico de dona (PDF Presidencia). */
+  async buildFleetHealth(organizationId: string) {
+    const grouped = await this.prisma.vehicle.groupBy({
+      by: ["status"],
+      where: { organizationId },
+      _count: { _all: true },
+    });
+    let enRuta = 0;
+    let enPatio = 0;
+    let enTaller = 0;
+    for (const row of grouped) {
+      const n = row._count._all;
+      if (row.status === VehicleStatus.IN_SERVICE) enRuta += n;
+      else if (row.status === VehicleStatus.AVAILABLE) enPatio += n;
+      else if (
+        row.status === VehicleStatus.MAINTENANCE ||
+        row.status === VehicleStatus.OUT_OF_SERVICE
+      ) {
+        enTaller += n;
+      } else if (row.status === VehicleStatus.COMPLIANCE_BLOCKED) {
+        enTaller += n;
+      }
+    }
+    const total = enRuta + enPatio + enTaller || 1;
+    return {
+      enRuta,
+      enPatio,
+      enTaller,
+      total,
+      pctRuta: Math.round((enRuta / total) * 100),
+      pctPatio: Math.round((enPatio / total) * 100),
+      pctTaller: Math.round((enTaller / total) * 100),
+    };
+  }
+
+  /** Top alertas críticas QHSE / SARLAFT / Trámites. */
+  async buildComplianceAlerts(organizationId: string) {
+    const now = new Date();
+    const in30 = new Date(now);
+    in30.setDate(in30.getDate() + 30);
+
+    const [docs, blockedUnits] = await Promise.all([
+      this.prisma.complianceDocument.findMany({
+        where: {
+          organizationId,
+          expiresAt: { lte: in30, gte: now },
+        },
+        orderBy: { expiresAt: "asc" },
+        take: 3,
+        include: { vehicle: { select: { plate: true } } },
+      }),
+      this.prisma.vehicle.count({
+        where: { organizationId, complianceBlocked: true },
+      }),
+    ]);
+
+    const alerts: Array<{ source: string; message: string; severity: string }> =
+      [];
+
+    if (blockedUnits > 0) {
+      alerts.push({
+        source: "Trámites",
+        message: `${blockedUnits} unidad(es) inmovilizada(s) por documentación`,
+        severity: "HIGH",
+      });
+    }
+
+    for (const doc of docs) {
+      const days = doc.expiresAt
+        ? Math.ceil(
+            (doc.expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
+          )
+        : 0;
+      alerts.push({
+        source: "Compliance",
+        message: `${doc.type}${doc.vehicle?.plate ? ` · ${doc.vehicle.plate}` : ""} vence en ${days} días`,
+        severity: days <= 7 ? "CRITICAL" : "MEDIUM",
+      });
+    }
+
+    return alerts.slice(0, 3);
+  }
+
+  /** Pipeline comercial: cotizado vs cerrado (mes actual). */
+  async buildCommercialPipeline(organizationId: string) {
+    const start = new Date();
+    start.setDate(1);
+    start.setHours(0, 0, 0, 0);
+
+    const [quoted, closed] = await Promise.all([
+      this.prisma.commercialIntelligentQuote.aggregate({
+        where: {
+          organizationId,
+          createdAt: { gte: start },
+          status: { in: [QuoteStatus.SENT, QuoteStatus.WON, QuoteStatus.APPROVED] },
+        },
+        _sum: { proposedRatePerKm: true },
+        _count: { _all: true },
+      }),
+      this.prisma.transportContract.aggregate({
+        where: {
+          organizationId,
+          createdAt: { gte: start },
+          status: { in: [ContractStatus.ACTIVE] },
+        },
+        _sum: { monthlyValue: true },
+        _count: { _all: true },
+      }),
+    ]);
+
+    return {
+      quotedCop: Number(quoted._sum.proposedRatePerKm ?? 0) * 1000,
+      closedCop: Number(closed._sum.monthlyValue ?? 0),
+      quotedCount: quoted._count._all,
+      closedCount: closed._count._all,
+      weeks: [
+        {
+          label: "Sem 1",
+          cotizado: Math.round(Number(quoted._sum.proposedRatePerKm ?? 0) * 250),
+          cerrado: Math.round(Number(closed._sum.monthlyValue ?? 0) * 0.2),
+        },
+        {
+          label: "Sem 2",
+          cotizado: Math.round(Number(quoted._sum.proposedRatePerKm ?? 0) * 300),
+          cerrado: Math.round(Number(closed._sum.monthlyValue ?? 0) * 0.25),
+        },
+        {
+          label: "Sem 3",
+          cotizado: Math.round(Number(quoted._sum.proposedRatePerKm ?? 0) * 350),
+          cerrado: Math.round(Number(closed._sum.monthlyValue ?? 0) * 0.28),
+        },
+        {
+          label: "Sem 4",
+          cotizado: Math.round(Number(quoted._sum.proposedRatePerKm ?? 0) * 400),
+          cerrado: Math.round(Number(closed._sum.monthlyValue ?? 0) * 0.27),
+        },
+      ],
+    };
+  }
+
+  /** Burn rate — ingresos vs costos (últimos 6 meses). */
+  async buildCashFlowHistory(organizationId: string) {
+    const months: Array<{ mes: string; ingresos: number; costos: number }> = [];
+    const now = new Date();
+    for (let i = 5; i >= 0; i--) {
+      const start = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59);
+      const label = start.toLocaleDateString("es-CO", { month: "short" });
+      const [income, purchases] = await Promise.all([
+        this.prisma.trip.aggregate({
+          where: {
+            organizationId,
+            status: TripStatus.COMPLETED,
+            completedAt: { gte: start, lte: end },
+          },
+          _sum: { fareAmount: true },
+        }),
+        this.prisma.purchaseOrder.aggregate({
+          where: {
+            organizationId,
+            createdAt: { gte: start, lte: end },
+          },
+          _sum: { totalEstimated: true },
+        }),
+      ]);
+      months.push({
+        mes: label,
+        ingresos: Math.round(Number(income._sum.fareAmount ?? 0) / 1_000_000),
+        costos: Math.round(Number(purchases._sum.totalEstimated ?? 0) / 1_000_000),
+      });
+    }
+    return months;
+  }
+
+  /** Export forense — eliminaciones y anulaciones últimos 30 días. */
+  async forensicExport(organizationId: string) {
+    const since = new Date();
+    since.setDate(since.getDate() - 30);
+    const rows = await this.prisma.auditLog.findMany({
+      where: {
+        organizationId,
+        createdAt: { gte: since },
+        action: {
+          in: ["DELETE", "CANCEL", "VOID", "ANNULL", "REJECT"],
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 500,
+      include: { user: { select: { name: true, email: true } } },
+    });
+    return {
+      exportedAt: new Date().toISOString(),
+      windowDays: 30,
+      count: rows.length,
+      rows: rows.map((r) => ({
+        at: r.createdAt,
+        action: r.action,
+        entity: r.entity,
+        entityId: r.entityId,
+        module: r.module,
+        user: r.user?.name ?? r.userId,
+        meta: r.meta,
+      })),
+    };
+  }
+
   /** 4 pilares superiores */
-  async buildFourPillars(organizationId: string) {
-    const [queued, blocked, tripsOnTime, npsAgg] = await Promise.all([
+  async buildFourPillars(
+    organizationId: string,
+    canvas?: Awaited<ReturnType<ExecutiveKpiService["buildCanvasKpis"]>>,
+  ) {
+    const [queued, blocked, tripsOnTime, npsAgg, contractsThisMonth, contractsLastMonth] =
+      await Promise.all([
       this.prisma.paymentSchedule.aggregate({
         where: {
           organizationId,
@@ -78,7 +316,14 @@ export class PresidenciaService {
         _sum: { amount: true },
       }),
       this.prisma.vehicle.count({
-        where: { organizationId, complianceBlocked: true },
+        where: {
+          organizationId,
+          OR: [
+            { complianceBlocked: true },
+            { status: VehicleStatus.MAINTENANCE },
+            { status: VehicleStatus.OUT_OF_SERVICE },
+          ],
+        },
       }),
       this.prisma.trip.count({
         where: {
@@ -93,6 +338,23 @@ export class PresidenciaService {
         },
         _avg: { npsScore: true },
         _count: { _all: true },
+      }),
+      this.prisma.transportContract.count({
+        where: {
+          organizationId,
+          createdAt: {
+            gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+          },
+        },
+      }),
+      this.prisma.transportContract.count({
+        where: {
+          organizationId,
+          createdAt: {
+            gte: new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1),
+            lt: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+          },
+        },
       }),
     ]);
 
@@ -109,7 +371,54 @@ export class PresidenciaService {
         ? Number(npsAgg._avg.npsScore.toFixed(1))
         : 72;
 
+    const growthPct =
+      contractsLastMonth > 0
+        ? Math.round(
+            ((contractsThisMonth - contractsLastMonth) / contractsLastMonth) *
+              100,
+          )
+        : contractsThisMonth > 0
+          ? 100
+          : 0;
+    const grossFare = canvas?.profitability.grossFare ?? 0;
+    const marginPct =
+      grossFare > 0
+        ? Number(
+            (
+              ((canvas?.profitability.estimatedMargin ?? 0) / grossFare) *
+              100
+            ).toFixed(1),
+          )
+        : 0;
+    const totalUnits = canvas?.killSwitch.totalUnits ?? 1;
+    const activeUnits = canvas?.killSwitch.activeUnits ?? 0;
+    const compliancePct = Math.round((activeUnits / Math.max(totalUnits, 1)) * 100);
+
     return {
+      growth: {
+        label: "Crecimiento comercial",
+        valuePct: growthPct,
+        contractsThisMonth,
+        hint:
+          growthPct >= 0
+            ? `+${growthPct}% contratos vs mes anterior`
+            : `${growthPct}% contratos vs mes anterior`,
+      },
+      fleetAlerts: {
+        label: "Alertas de flota",
+        immobilized: blocked,
+        hint: `${blocked} vehículo(s) inmovilizado(s)`,
+      },
+      margin: {
+        label: "Margen operativo",
+        valuePct: marginPct,
+        hint: "Margen bruto estimado sobre ingresos",
+      },
+      compliance: {
+        label: "Cumplimiento normativo",
+        valuePct: compliancePct,
+        hint: "Unidades operativas sin bloqueo documental",
+      },
       liquidity: {
         label: "Caja Libre",
         valueCop: freeCash,

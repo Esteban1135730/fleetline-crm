@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Button } from "@fsg/ui";
 import { FileText, FolderOpen, Plus, ShieldAlert } from "lucide-react";
 import { api, API_URL } from "@/lib/api";
+import { PageIntro } from "@/components/page-intro";
 import {
   EmptyState,
   EvidenceDropzone,
@@ -32,6 +33,16 @@ type Check = {
   createdAt?: string;
   evidenceCount?: number;
   evidences?: Evidence[];
+};
+
+type Alert = {
+  id: string;
+  subjectName: string;
+  subjectDoc: string;
+  risk: string;
+  status: string;
+  listsMatched?: string[];
+  createdAt: string;
 };
 
 const EMPTY_FORM = {
@@ -87,9 +98,15 @@ export default function SarlaftPage() {
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [dossierError, setDossierError] = useState("");
   const [dossierBusy, setDossierBusy] = useState(false);
+  const [alerts, setAlerts] = useState<Alert[]>([]);
 
   async function load() {
-    setRows(await api<Check[]>("/sarlaft/checks"));
+    const [checks, alertRows] = await Promise.all([
+      api<Check[]>("/sarlaft/checks"),
+      api<Alert[]>("/sarlaft/alerts?status=OPEN").catch(() => []),
+    ]);
+    setRows(checks);
+    setAlerts(Array.isArray(alertRows) ? alertRows : []);
   }
   useEffect(() => {
     void load().catch(console.error);
@@ -123,6 +140,14 @@ export default function SarlaftPage() {
         method: "POST",
         body: JSON.stringify(form),
       });
+      await api("/sarlaft/screen", {
+        method: "POST",
+        body: JSON.stringify({
+          subjectName: form.subjectName,
+          subjectDoc: form.subjectDoc,
+          entityType: "SUPPLIER",
+        }),
+      }).catch(() => undefined);
       setForm(EMPTY_FORM);
       setFormOpen(false);
       await load();
@@ -182,24 +207,39 @@ export default function SarlaftPage() {
 
   return (
     <div className="fade-in mx-auto max-w-[1600px] space-y-6">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="page-title text-3xl md:text-4xl">SARLAFT</h2>
-          <p className="page-sub">Debida diligencia y clasificación de riesgo</p>
+      <PageIntro
+        module="sarlaft"
+        title="AML / KYC Defense Grid"
+        subtitle="Escaneo global · monitoreo nocturno · kill-switch automático"
+        action={
+          <Button
+            type="button"
+            variant="primary"
+            className="w-auto px-4 py-2"
+            onClick={() => {
+              setFormError("");
+              setFormOpen(true);
+            }}
+          >
+            <Plus className="mr-1.5 inline h-4 w-4" aria-hidden />
+            Nueva consulta
+          </Button>
+        }
+      />
+
+      {alerts.length > 0 ? (
+        <div className="flex items-start gap-3 rounded-lg border border-[var(--accent-alert)]/40 bg-[var(--accent-alert)]/10 px-4 py-3">
+          <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-[var(--accent-alert)]" aria-hidden />
+          <div>
+            <p className="text-sm font-semibold">
+              {alerts.length} alerta{alerts.length !== 1 ? "s" : ""} de listas restrictivas · cuarentena activa
+            </p>
+            <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
+              Pagos y operaciones bloqueados en Compras, Logística y Tesorería hasta resolución del Oficial de Cumplimiento.
+            </p>
+          </div>
         </div>
-        <Button
-          type="button"
-          variant="primary"
-          className="w-auto px-4 py-2"
-          onClick={() => {
-            setFormError("");
-            setFormOpen(true);
-          }}
-        >
-          <Plus className="mr-1.5 inline h-4 w-4" aria-hidden />
-          Nueva consulta
-        </Button>
-      </header>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <KpiCard

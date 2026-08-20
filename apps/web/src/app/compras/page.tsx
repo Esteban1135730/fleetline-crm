@@ -7,6 +7,7 @@ import {
   Package,
   Plus,
   ShoppingCart,
+  ShieldAlert,
   Wallet,
 } from "lucide-react";
 import { api } from "@/lib/api";
@@ -17,6 +18,17 @@ import {
   SlideOver,
   StatusPulseBadge,
 } from "@/components/audit";
+
+/** Cupo mensual operativo (Compras · PDF segundas). */
+const MONTHLY_BUDGET_COP = 15_000_000;
+
+type SupplierOpt = {
+  id: string;
+  name: string;
+  nit: string;
+  rating: number;
+  sarlaftBlocked?: boolean;
+};
 
 type Purchase = {
   id: string;
@@ -41,7 +53,7 @@ const STATUS_ES: Record<string, string> = {
 
 const emptyForm = {
   description: "",
-  supplier: "",
+  supplierId: "",
   amount: "",
   quantity: "1",
   category: "GENERAL",
@@ -60,13 +72,21 @@ function formatCop(n: number) {
 
 export default function ComprasPage() {
   const [rows, setRows] = useState<Purchase[]>([]);
+  const [suppliers, setSuppliers] = useState<SupplierOpt[]>([]);
   const [slideOpen, setSlideOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [formError, setFormError] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function load() {
-    setRows(await api<Purchase[]>("/compras/orders"));
+    const [orders, dash] = await Promise.all([
+      api<Purchase[]>("/compras/orders"),
+      api<{ savings?: { suppliers?: SupplierOpt[] } }>(
+        "/compras/dashboard",
+      ).catch(() => ({ savings: { suppliers: [] } })),
+    ]);
+    setRows(orders);
+    setSuppliers(dash.savings?.suppliers ?? []);
   }
 
   useEffect(() => {
@@ -86,9 +106,23 @@ export default function ComprasPage() {
         );
       })
       .reduce((s, r) => s + Number(r.amount), 0);
-    const presupuestoDisponible = 0;
+    const presupuestoDisponible = Math.max(0, MONTHLY_BUDGET_COP - monthSpend);
     return { pending, monthSpend, presupuestoDisponible };
   }, [rows]);
+
+  const draftAmount = Number(form.amount.replace(/\D/g, "") || 0);
+  const budgetImpactPct = useMemo(() => {
+    if (!draftAmount || !MONTHLY_BUDGET_COP) return 0;
+    return Math.min(100, Math.round((draftAmount / MONTHLY_BUDGET_COP) * 100));
+  }, [draftAmount]);
+
+  const selectedSupplier = useMemo(
+    () => suppliers.find((s) => s.id === form.supplierId),
+    [suppliers, form.supplierId],
+  );
+
+  const overBudget =
+    draftAmount > Math.max(0, MONTHLY_BUDGET_COP - kpis.monthSpend);
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
@@ -99,12 +133,25 @@ export default function ComprasPage() {
       setFormError("Indique la descripción de la compra");
       return;
     }
-    if (!form.supplier.trim()) {
-      setFormError("Indique el proveedor");
+    if (!form.supplierId) {
+      setFormError("Seleccione un proveedor homologado del directorio");
+      return;
+    }
+    if (selectedSupplier?.sarlaftBlocked) {
+      setFormError(
+        "Hard lock SARLAFT: proveedor bloqueado — no puede emitir OC",
+      );
       return;
     }
     if (!Number.isFinite(amount) || amount <= 0) {
       setFormError("Indique el valor en COP");
+      return;
+    }
+    const disponible = Math.max(0, MONTHLY_BUDGET_COP - kpis.monthSpend);
+    if (amount > disponible) {
+      setFormError(
+        `Hard lock presupuestal: excede el cupo disponible (${formatCop(disponible)}).`,
+      );
       return;
     }
     const desc =
@@ -117,7 +164,7 @@ export default function ComprasPage() {
         method: "POST",
         body: JSON.stringify({
           description: desc,
-          supplier: form.supplier.trim(),
+          supplier: selectedSupplier?.name ?? "",
           amount,
           category: form.category,
           requestedBy: form.requestedBy.trim() || undefined,
@@ -178,9 +225,15 @@ export default function ComprasPage() {
         />
         <KpiCard
           label="Presupuesto Disponible"
-          value={`$${kpis.presupuestoDisponible.toLocaleString("es-CO")}`}
-          tone="neutral"
-          delta="Sin cupo configurado"
+          value={formatCop(kpis.presupuestoDisponible)}
+          tone={
+            kpis.presupuestoDisponible <= MONTHLY_BUDGET_COP * 0.15
+              ? "danger"
+              : kpis.presupuestoDisponible <= MONTHLY_BUDGET_COP * 0.35
+                ? "warn"
+                : "ok"
+          }
+          delta={`Cupo mensual ${formatCop(MONTHLY_BUDGET_COP)}`}
           icon={<Wallet />}
         />
       </div>
@@ -267,6 +320,11 @@ export default function ComprasPage() {
                     </td>
                     <td className="px-4 py-2.5">
                       <div className="flex flex-wrap justify-end gap-1">
+                        {next === "RECEIVED" ? (
+                          <span className="mr-2 text-[10px] text-[var(--text-secondary)]">
+                            3-Way → CxP
+                          </span>
+                        ) : null}
                         {next ? (
                           <Button
                             variant="ghost"
@@ -312,7 +370,7 @@ export default function ComprasPage() {
         open={slideOpen}
         onClose={() => setSlideOpen(false)}
         title="Solicitud de compra"
-        description="Al recibir, se genera factura CxP en Finanzas."
+        description="3-Way Matching · Hard lock presupuestal activo"
         footer={
           <>
             <Button
@@ -329,9 +387,9 @@ export default function ComprasPage() {
               variant="primary"
               className="w-auto"
               data-testid="compras-submit"
-              disabled={busy}
+              disabled={busy || overBudget || selectedSupplier?.sarlaftBlocked}
             >
-              Crear solicitud
+              {overBudget ? "Cupo excedido" : "Crear solicitud"}
             </Button>
           </>
         }
@@ -341,6 +399,35 @@ export default function ComprasPage() {
           onSubmit={onCreate}
           className="grid gap-3"
         >
+          <div className="rounded-lg border border-[var(--border-subtle)] p-3">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+                Impacto presupuestal
+              </span>
+              <span
+                className={`font-data tabular-nums ${overBudget ? "text-[var(--accent-alert)]" : "text-[var(--accent-primary)]"}`}
+              >
+                {budgetImpactPct}%
+              </span>
+            </div>
+            <div className="mt-2 h-2 overflow-hidden rounded-full bg-[var(--border-subtle)]">
+              <div
+                className={`h-full transition-all duration-150 ${overBudget ? "bg-[var(--accent-alert)]" : budgetImpactPct >= 70 ? "bg-[var(--accent-metric)]" : "bg-[var(--accent-primary)]"}`}
+                style={{ width: `${Math.min(100, budgetImpactPct)}%` }}
+              />
+            </div>
+            <p className="mt-2 text-[11px] text-[var(--text-secondary)]">
+              Disponible: {formatCop(kpis.presupuestoDisponible)} · Cupo{" "}
+              {formatCop(MONTHLY_BUDGET_COP)}
+            </p>
+            {overBudget ? (
+              <p className="mt-1 flex items-center gap-1 text-xs text-[var(--accent-alert)]">
+                <ShieldAlert className="h-3.5 w-3.5" />
+                Hard lock — requiere aprobación financiera
+              </p>
+            ) : null}
+          </div>
+
           {formError ? (
             <p
               role="alert"
@@ -363,17 +450,43 @@ export default function ComprasPage() {
               required
             />
           </label>
-          <label className="text-xs text-slate-400">
-            Proveedor
-            <input
+          <label className="text-xs text-[var(--text-secondary)]">
+            Proveedor homologado
+            <select
               className="field mt-1 w-full"
-              data-field="legalName"
-              placeholder="Razón social"
               data-testid="compras-supplier"
-              value={form.supplier}
-              onChange={(e) => setForm({ ...form, supplier: e.target.value })}
+              value={form.supplierId}
+              onChange={(e) =>
+                setForm({ ...form, supplierId: e.target.value })
+              }
               required
-            />
+            >
+              <option value="">Seleccionar proveedor…</option>
+              {suppliers.map((s) => (
+                <option
+                  key={s.id}
+                  value={s.id}
+                  disabled={Boolean(s.sarlaftBlocked)}
+                >
+                  {s.name} · NIT {s.nit}
+                  {s.sarlaftBlocked ? " · SARLAFT bloqueado" : ""}
+                </option>
+              ))}
+            </select>
+            {selectedSupplier?.sarlaftBlocked ? (
+              <p className="mt-1 flex items-center gap-1 text-xs text-[var(--accent-alert)]">
+                <ShieldAlert className="h-3.5 w-3.5" />
+                Proveedor sin auditoría SARLAFT — OC bloqueada
+              </p>
+            ) : selectedSupplier ? (
+              <p className="mt-1 text-[10px] text-[var(--text-secondary)]">
+                Rating {selectedSupplier.rating.toFixed(1)}/5 · homologado
+              </p>
+            ) : suppliers.length === 0 ? (
+              <p className="mt-1 text-[10px] text-[var(--accent-metric)]">
+                Sin proveedores en directorio — indexe en Vendor Hub
+              </p>
+            ) : null}
           </label>
           <div className="grid grid-cols-2 gap-3">
             <label className="text-xs text-slate-400">

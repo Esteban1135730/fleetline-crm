@@ -65,7 +65,12 @@ export type Tracking = {
   mode: "SUGGESTED" | "LIVE_GPS" | "HISTORY";
   suggestedRoute: Array<{ lat: number; lng: number }>;
   live: { lat: number; lng: number } | null;
-  history: Array<{ lat: number; lng: number; recordedAt: string }>;
+  history: Array<{
+    lat: number;
+    lng: number;
+    recordedAt: string;
+    speedKph?: number | null;
+  }>;
   audit: Array<{
     id: string;
     message: string;

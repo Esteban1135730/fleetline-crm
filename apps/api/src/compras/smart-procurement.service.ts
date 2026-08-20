@@ -540,6 +540,7 @@ export class SmartProcurementService {
           rating: true,
           totalSavings: true,
           productTags: true,
+          sarlaftBlocked: true,
         },
       }),
       this.prisma.inventoryItem.findMany({
@@ -624,6 +625,7 @@ export class SmartProcurementService {
           rating: s.rating,
           totalSavings: Number(s.totalSavings),
           tags: s.productTags,
+          sarlaftBlocked: s.sarlaftBlocked,
         })),
         criticalStockCount: criticalStock.length,
         cfoThreshold: this.cfoThreshold(),

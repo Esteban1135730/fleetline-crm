@@ -9,7 +9,12 @@ import {
   HeartPulse,
   LineChart as LineChartIcon,
   Flame,
+  TrendingUp,
+  Truck,
+  FileSearch,
+  Gavel,
 } from "lucide-react";
+import Link from "next/link";
 import {
   LineChart,
   Line,
@@ -21,11 +26,20 @@ import {
   BarChart,
   Bar,
   Cell,
+  PieChart,
+  Pie,
+  AreaChart,
+  Area,
+  Legend,
 } from "recharts";
 import { api } from "@/lib/api";
 import { EmptyState, KpiCard, Modal, SlideOver } from "@/components/audit";
 
 type Pillars = {
+  growth?: { label: string; valuePct: number; hint: string };
+  fleetAlerts?: { label: string; immobilized: number; hint: string };
+  margin?: { label: string; valuePct: number; hint: string };
+  compliance?: { label: string; valuePct: number; hint: string };
   liquidity: { label: string; valueCop: number; hint: string };
   sla: { label: string; valuePct: number; hint: string };
   legalPesv: { label: string; level: string; blockedUnits: number; hint: string };
@@ -41,6 +55,22 @@ type Dash = {
     trips: number;
     heat: number;
   }>;
+  fleetHealth?: {
+    enRuta: number;
+    enPatio: number;
+    enTaller: number;
+    pctRuta: number;
+    pctPatio: number;
+    pctTaller: number;
+  };
+  complianceAlerts?: Array<{ source: string; message: string; severity: string }>;
+  commercialPipeline?: {
+    quotedCop: number;
+    closedCop: number;
+    weeks: Array<{ label: string; cotizado: number; cerrado: number }>;
+  };
+  cashFlowHistory?: Array<{ mes: string; ingresos: number; costos: number }>;
+  pendingMarginExceptions?: number;
   killSwitch?: { blockedPct: number; blockedUnits: number };
   cashFlow?: { atRiskAmount: number };
 };
@@ -175,6 +205,31 @@ export default function PresidenciaDashboardPage() {
     }
   }
 
+  async function exportForensic() {
+    setBusy(true);
+    setError(null);
+    try {
+      const data = await api<{
+        exportedAt: string;
+        count: number;
+        rows: unknown[];
+      }>("/api/v1/presidencia/forensic-export");
+      const blob = new Blob([JSON.stringify(data, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `auditoria-forense-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError((e as Error).message || "Export forense fallida");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function activarDefcon() {
     setBusy(true);
     setDefconOut(null);
@@ -210,6 +265,24 @@ export default function PresidenciaDashboardPage() {
 
   const p = dash?.pillars;
 
+  const fleetDonut = useMemo(() => {
+    const f = dash?.fleetHealth;
+    if (!f) return [];
+    return [
+      { name: "En ruta", value: f.enRuta, color: "#10B981" },
+      { name: "En patio", value: f.enPatio, color: "#64748B" },
+      { name: "En taller", value: f.enTaller, color: "#FF2A5F" },
+    ].filter((d) => d.value > 0);
+  }, [dash?.fleetHealth]);
+
+  const burnRateSeries = dash?.cashFlowHistory?.length
+    ? dash.cashFlowHistory
+    : cashFlowSeries.map((d) => ({
+        mes: d.name,
+        ingresos: d.ingreso,
+        costos: Math.max(0, d.flujo - d.ingreso),
+      }));
+
   return (
     <div
       className={`fade-in relative mx-auto min-h-[100dvh] max-w-[1400px] space-y-5 p-4 md:p-6 ${
@@ -237,6 +310,25 @@ export default function PresidenciaDashboardPage() {
           </div>
         </div>
         <div className="flex w-auto flex-wrap justify-end gap-2">
+          <Link href="/gerencia/dashboard">
+            <Button type="button" variant="secondary" className="w-auto px-4 py-2">
+              <Gavel className="mr-1.5 inline h-4 w-4" aria-hidden />
+              Excepciones margen
+              {(dash?.pendingMarginExceptions ?? 0) > 0
+                ? ` (${dash?.pendingMarginExceptions})`
+                : ""}
+            </Button>
+          </Link>
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-auto px-4 py-2"
+            disabled={busy}
+            onClick={() => void exportForensic()}
+          >
+            <FileSearch className="mr-1.5 inline h-4 w-4" aria-hidden />
+            Auditoría forense
+          </Button>
           <Button
             type="button"
             variant="secondary"
@@ -261,6 +353,37 @@ export default function PresidenciaDashboardPage() {
           {error}
         </p>
       ) : null}
+
+      <section className="relative z-10 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCard
+          label={p?.growth?.label || "Crecimiento comercial"}
+          value={p?.growth ? `${p.growth.valuePct >= 0 ? "+" : ""}${p.growth.valuePct}%` : "—"}
+          delta={p?.growth?.hint}
+          tone={(p?.growth?.valuePct ?? 0) >= 0 ? "ok" : "danger"}
+          icon={<TrendingUp />}
+        />
+        <KpiCard
+          label={p?.fleetAlerts?.label || "Alertas de flota"}
+          value={p?.fleetAlerts?.immobilized ?? "—"}
+          delta={p?.fleetAlerts?.hint}
+          tone={(p?.fleetAlerts?.immobilized ?? 0) > 0 ? "danger" : "ok"}
+          icon={<Truck />}
+        />
+        <KpiCard
+          label={p?.margin?.label || "Margen operativo"}
+          value={p?.margin ? `${p.margin.valuePct}%` : "—"}
+          delta={p?.margin?.hint}
+          tone="ok"
+          icon={<Wallet />}
+        />
+        <KpiCard
+          label={p?.compliance?.label || "Cumplimiento normativo"}
+          value={p?.compliance ? `${p.compliance.valuePct}%` : "—"}
+          delta={p?.compliance?.hint}
+          tone={(p?.compliance?.valuePct ?? 100) < 95 ? "warn" : "ok"}
+          icon={<ShieldAlert />}
+        />
+      </section>
 
       <section className="relative z-10 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
@@ -295,6 +418,176 @@ export default function PresidenciaDashboardPage() {
           icon={<HeartPulse />}
         />
       </section>
+
+      <div className="relative z-10 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <section className="rounded-xl border border-slate-800 bg-zinc-900/80 p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <LineChartIcon className="h-4 w-4 text-emerald-500/70" aria-hidden />
+            <h3 className="text-sm font-semibold text-slate-100">
+              Burn rate · ingresos vs costos (M COP)
+            </h3>
+          </div>
+          {burnRateSeries.length > 0 ? (
+            <div className="h-56 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={burnRateSeries}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                  <XAxis dataKey="mes" tick={{ fill: "#94A3B8", fontSize: 11 }} />
+                  <YAxis tick={{ fill: "#94A3B8", fontSize: 11 }} width={48} />
+                  <Tooltip
+                    contentStyle={{
+                      background: "#121722",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      borderRadius: 8,
+                      fontSize: 12,
+                    }}
+                  />
+                  <Legend />
+                  <Area
+                    type="monotone"
+                    dataKey="ingresos"
+                    name="Ingresos"
+                    stackId="1"
+                    stroke="#10B981"
+                    fill="#10B981"
+                    fillOpacity={0.35}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="costos"
+                    name="Costos"
+                    stackId="2"
+                    stroke="#FF2A5F"
+                    fill="#FF2A5F"
+                    fillOpacity={0.25}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <EmptyState title="Sin serie financiera" description="Sin datos de burn rate." />
+          )}
+        </section>
+
+        <section className="rounded-xl border border-slate-800 bg-zinc-900/80 p-4">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Truck className="h-4 w-4 text-emerald-500/70" aria-hidden />
+              <h3 className="text-sm font-semibold text-slate-100">
+                Salud de flota
+              </h3>
+            </div>
+            <Link
+              href="/taller"
+              className="text-xs font-semibold text-emerald-500 hover:underline"
+            >
+              Ir a taller →
+            </Link>
+          </div>
+          {fleetDonut.length > 0 ? (
+            <div className="h-56 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={fleetDonut}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={52}
+                    outerRadius={78}
+                    paddingAngle={2}
+                  >
+                    {fleetDonut.map((entry) => (
+                      <Cell key={entry.name} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      background: "#121722",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      borderRadius: 8,
+                      fontSize: 12,
+                    }}
+                  />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <EmptyState title="Sin flota indexada" description="Registre unidades en Taller." />
+          )}
+        </section>
+
+        <section className="rounded-xl border border-slate-800 bg-zinc-900/80 p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <ShieldAlert className="h-4 w-4 text-amber-500/70" aria-hidden />
+            <h3 className="text-sm font-semibold text-slate-100">
+              Termómetro de cumplimiento
+            </h3>
+          </div>
+          {(dash?.complianceAlerts?.length ?? 0) > 0 ? (
+            <ul className="space-y-2">
+              {dash!.complianceAlerts!.map((a, i) => (
+                <li
+                  key={`${a.source}-${i}`}
+                  className={`rounded-lg border px-3 py-2 text-sm ${
+                    a.severity === "CRITICAL" || a.severity === "HIGH"
+                      ? "border-[#FF2A5F]/40 bg-[#FF2A5F]/10 text-[#FECDD3]"
+                      : "border-amber-500/30 bg-amber-500/10 text-amber-100"
+                  }`}
+                >
+                  <span className="font-mono text-[10px] uppercase tracking-wider opacity-80">
+                    {a.source}
+                  </span>
+                  <p className="mt-0.5 font-medium">{a.message}</p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <EmptyState
+              title="Sin alertas críticas"
+              description="Normatividad al día en QHSE, SARLAFT y Trámites."
+            />
+          )}
+        </section>
+
+        <section className="rounded-xl border border-slate-800 bg-zinc-900/80 p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-emerald-500/70" aria-hidden />
+            <h3 className="text-sm font-semibold text-slate-100">
+              Pipeline comercial
+            </h3>
+          </div>
+          {(dash?.commercialPipeline?.weeks?.length ?? 0) > 0 ? (
+            <div className="h-56 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={dash!.commercialPipeline!.weeks}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                  <XAxis dataKey="label" tick={{ fill: "#94A3B8", fontSize: 11 }} />
+                  <YAxis tick={{ fill: "#94A3B8", fontSize: 11 }} width={48} />
+                  <Tooltip
+                    contentStyle={{
+                      background: "#121722",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      borderRadius: 8,
+                      fontSize: 12,
+                    }}
+                  />
+                  <Legend />
+                  <Bar dataKey="cotizado" name="Cotizado" fill="#64748B" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="cerrado" name="Cerrado" fill="#10B981" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <EmptyState
+              title="Sin pipeline comercial"
+              description="Cotizaciones y contratos del mes aparecerán aquí."
+            />
+          )}
+        </section>
+      </div>
 
       <div className="relative z-10 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <section className="rounded-xl border border-slate-800 bg-zinc-900/80 p-4">

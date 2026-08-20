@@ -85,4 +85,19 @@ export class ContabilidadController {
   voidJournal(@Req() req: AuthReq, @Param("id") id: string) {
     return this.ledger.voidEntry(req.user.organizationId, id);
   }
+
+  @Get("period")
+  @Permissions("contabilidad", "READ")
+  period(@Req() req: AuthReq) {
+    return this.ledger.currentPeriod(req.user.organizationId);
+  }
+
+  @Post("period/close")
+  @Permissions("contabilidad", "UPDATE")
+  closePeriod(
+    @Req() req: AuthReq,
+    @Body() body?: { yearMonth?: string },
+  ) {
+    return this.ledger.closeMonth(req.user.organizationId, body?.yearMonth);
+  }
 }

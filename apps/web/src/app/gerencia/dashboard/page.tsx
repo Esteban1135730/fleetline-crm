@@ -3,8 +3,21 @@
 import { useCallback, useEffect, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
 import { GERENTE_DEMO_EXECUTIVE_PIN } from "@fsg/shared";
+import Link from "next/link";
+import { Map, Wrench, Wallet, ShieldAlert, Clock } from "lucide-react";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
 import { api } from "@/lib/api";
-import { HowToBox, PageIntro } from "@/components/page-intro";
+import { KpiCard } from "@/components/audit";
+import { PageIntro } from "@/components/page-intro";
 
 type Approval = {
   id: string;
@@ -46,6 +59,25 @@ type Scorecard = {
   };
 };
 
+type TacticalPanel = {
+  kpis: {
+    tripsInFlight: number;
+    openWorkOrders: number;
+    delayedWorkOrders: number;
+    cxcOpenMillions: number;
+    cxpOpenMillions: number;
+    dispatchBlocks: number;
+  };
+  hourlyActivity: Array<{ hora: string; viajes: number }>;
+  fleetByType: Array<{
+    tipo: string;
+    operativo: number;
+    taller: number;
+    bloqueado: number;
+  }>;
+  cashAging: Array<{ rango: string; cxc: number; cxp: number }>;
+};
+
 type Dash = {
   scorecard: Scorecard;
   approvalsInbox: Approval[];
@@ -57,6 +89,7 @@ type Dash = {
     video: string;
   }>;
   riskRadar: Scorecard["riskRadar"];
+  tacticalPanel?: TacticalPanel;
 };
 
 function money(n: number) {
@@ -176,15 +209,7 @@ export default function GerenciaDashboardPage() {
 
   return (
     <div className="space-y-8">
-      <PageIntro module="gerencia" title="Puente de Decisiones" />
-
-      <HowToBox
-        steps={[
-          "Balance Scorecard cruza Ventas, Operaciones y Finanzas en tiempo real.",
-          "Overrides: el árbitro elige el trade-off óptimo (penalidad vs ganancia VIP).",
-          `Firma ejecutiva exige PIN de ${GERENTE_DEMO_EXECUTIVE_PIN.length} dígitos (demo: ${GERENTE_DEMO_EXECUTIVE_PIN}).`,
-        ]}
-      />
+      <PageIntro module="gerencia" title="Tablero de Gerencia General" />
 
       {error && (
         <p className="font-mono text-sm text-[var(--fl-critical)]">{error}</p>
@@ -192,6 +217,139 @@ export default function GerenciaDashboardPage() {
       {msg && (
         <p className="font-mono text-sm text-[var(--fl-accent)]">{msg}</p>
       )}
+
+      {dash?.tacticalPanel ? (
+        <>
+          <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <KpiCard
+              label="Viajes en curso"
+              value={dash.tacticalPanel.kpis.tripsInFlight}
+              delta="Telemetría en vivo"
+              tone="ok"
+              icon={<Map />}
+            />
+            <KpiCard
+              label="OT abiertas (Taller)"
+              value={dash.tacticalPanel.kpis.openWorkOrders}
+              delta={
+                dash.tacticalPanel.kpis.delayedWorkOrders > 0
+                  ? `${dash.tacticalPanel.kpis.delayedWorkOrders} con retraso de entrega`
+                  : "Sin retrasos críticos"
+              }
+              tone={
+                dash.tacticalPanel.kpis.delayedWorkOrders > 0 ? "warn" : "neutral"
+              }
+              icon={<Wrench />}
+            />
+            <KpiCard
+              label="CxC / CxP"
+              value={`$${dash.tacticalPanel.kpis.cxcOpenMillions}M / $${dash.tacticalPanel.kpis.cxpOpenMillions}M`}
+              delta="Liquidez inmediata abierta"
+              tone="neutral"
+              icon={<Wallet />}
+            />
+            <KpiCard
+              label="Bloqueos despacho"
+              value={dash.tacticalPanel.kpis.dispatchBlocks}
+              delta="Trámites · SARLAFT · FUEC"
+              tone={dash.tacticalPanel.kpis.dispatchBlocks > 0 ? "danger" : "ok"}
+              icon={<ShieldAlert />}
+            />
+          </section>
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <section className="rounded-xl border border-[var(--fl-border)] bg-[var(--fl-surface)] p-4">
+              <h3 className="mb-3 text-sm font-semibold">Picos de operación</h3>
+              <div className="h-52">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={dash.tacticalPanel.hourlyActivity}>
+                    <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                    <XAxis dataKey="hora" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11 }} width={32} />
+                    <Tooltip />
+                    <Bar dataKey="viajes" name="Viajes activos" fill="#0D9488" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </section>
+
+            <section className="rounded-xl border border-[var(--fl-border)] bg-[var(--fl-surface)] p-4">
+              <h3 className="mb-3 text-sm font-semibold">Disponibilidad de flota</h3>
+              <div className="h-52">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={dash.tacticalPanel.fleetByType}>
+                    <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                    <XAxis dataKey="tipo" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11 }} width={32} />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="operativo" stackId="a" name="Operativo" fill="#10B981" />
+                    <Bar dataKey="taller" stackId="a" name="Taller" fill="#D97706" />
+                    <Bar dataKey="bloqueado" stackId="a" name="Bloqueado" fill="#DC2626" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </section>
+
+            <section className="rounded-xl border border-[var(--fl-border)] bg-[var(--fl-surface)] p-4">
+              <h3 className="mb-3 text-sm font-semibold">Flujo de caja a corto plazo</h3>
+              <div className="h-52">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={dash.tacticalPanel.cashAging}>
+                    <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                    <XAxis dataKey="rango" tick={{ fontSize: 10 }} />
+                    <YAxis tick={{ fontSize: 11 }} width={32} />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="cxc" name="Por cobrar (M)" fill="#10B981" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="cxp" name="Por pagar (M)" fill="#64748B" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </section>
+
+            <section className="rounded-xl border border-[var(--fl-border)] bg-[var(--fl-surface)] p-4">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold">Cuellos de botella</h3>
+                <Link href="/logistica/servicios">
+                  <Button variant="primary" className="w-auto px-3 py-1.5 text-xs">
+                    Resolver bloqueos
+                  </Button>
+                </Link>
+              </div>
+              {(dash.scorecard.bottlenecks ?? []).length > 0 ? (
+                <ul className="space-y-2">
+                  {dash.scorecard.bottlenecks.map((b) => (
+                    <li
+                      key={b.area + b.message}
+                      className="rounded-lg border border-[var(--fl-border)] px-3 py-2 text-sm"
+                    >
+                      <Badge tone={b.severity === "RED" ? "rose" : "amber"}>
+                        {b.area}
+                      </Badge>
+                      <p className="mt-1 text-[var(--fl-text)]">{b.message}</p>
+                      <p className="mt-1 text-xs text-[var(--fl-subtext)]">
+                        {b.warRoomHint}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-[var(--fl-subtext)]">
+                  Sin cuellos de botella detectados — operación fluida.
+                </p>
+              )}
+            </section>
+          </div>
+        </>
+      ) : null}
+
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button variant="ghost" className="w-auto px-4 py-2">
+          <Clock className="mr-1.5 inline h-4 w-4" aria-hidden />
+          Reporte de turno
+        </Button>
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
         {/* Top Left — Aprobaciones */}

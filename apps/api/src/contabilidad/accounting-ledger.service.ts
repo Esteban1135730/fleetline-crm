@@ -1,10 +1,16 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
 } from "@nestjs/common";
-import { AccountType, FleetModule, JournalEntryStatus } from "@fsg/db";
+import {
+  AccountingPeriodStatus,
+  AccountType,
+  FleetModule,
+  JournalEntryStatus,
+} from "@fsg/db";
 import { PrismaService } from "../prisma/prisma.service";
 
 export type DoubleEntryInput = {
@@ -204,8 +210,8 @@ export class AccountingLedgerService {
   }
 
   /**
-   * Asiento manual desde CRM: líneas con debit/credit por cuenta
-   * → una JournalLine NIIF (débito / crédito / monto).
+   * Asiento manual desde CRM: N líneas T (débito o crédito por cuenta)
+   * → pares NIIF JournalLine (debitAccount / creditAccount / amount).
    */
   async createManualEntry(
     organizationId: string,
@@ -215,38 +221,41 @@ export class AccountingLedgerService {
       lines: { accountId: string; debit?: number; credit?: number }[];
     },
   ) {
+    await this.assertPeriodWritable(organizationId);
     const memo = (data.memo || data.description || "").trim();
     if (!memo) throw new BadRequestException("Descripción del asiento requerida");
     if (!data.lines?.length) {
       throw new BadRequestException("El asiento requiere líneas");
     }
 
-    const debitLine = data.lines.find((l) => Number(l.debit || 0) > 0);
-    const creditLine = data.lines.find((l) => Number(l.credit || 0) > 0);
-    if (!debitLine || !creditLine) {
-      throw new BadRequestException(
-        "Se requiere una línea débito y una línea crédito",
-      );
+    const legs = data.lines.map((l) => ({
+      accountId: l.accountId,
+      debit: Number(l.debit || 0),
+      credit: Number(l.credit || 0),
+    }));
+    for (const l of legs) {
+      if (!l.accountId) {
+        throw new BadRequestException("Cada línea debe tener cuenta PUC");
+      }
+      if (l.debit > 0 && l.credit > 0) {
+        throw new BadRequestException(
+          "Una línea no puede tener débito y crédito a la vez",
+        );
+      }
     }
 
-    const debitAmt = Number(debitLine.debit || 0);
-    const creditAmt = Number(creditLine.credit || 0);
-    if (Math.abs(debitAmt - creditAmt) > 0.01) {
+    const totalDebit = legs.reduce((s, l) => s + l.debit, 0);
+    const totalCredit = legs.reduce((s, l) => s + l.credit, 0);
+    if (totalDebit <= 0 || Math.abs(totalDebit - totalCredit) > 0.01) {
       throw new BadRequestException("El asiento no cuadra (débito ≠ crédito)");
     }
-    if (debitLine.accountId === creditLine.accountId) {
-      throw new BadRequestException("Débito y crédito deben ser cuentas distintas");
-    }
 
-    const [debitAcc, creditAcc] = await Promise.all([
-      this.prisma.account.findFirst({
-        where: { id: debitLine.accountId, organizationId },
-      }),
-      this.prisma.account.findFirst({
-        where: { id: creditLine.accountId, organizationId },
-      }),
-    ]);
-    if (!debitAcc || !creditAcc) {
+    const pairs = pairDoubleEntry(legs);
+    const accountIds = [...new Set(pairs.flatMap((p) => [p.debitAccountId, p.creditAccountId]))];
+    const accounts = await this.prisma.account.findMany({
+      where: { organizationId, id: { in: accountIds } },
+    });
+    if (accounts.length !== accountIds.length) {
       throw new NotFoundException("Cuenta contable no encontrada");
     }
 
@@ -257,13 +266,11 @@ export class AccountingLedgerService {
         status: JournalEntryStatus.POSTED,
         postedAt: new Date(),
         lines: {
-          create: [
-            {
-              debitAccountId: debitAcc.id,
-              creditAccountId: creditAcc.id,
-              amount: debitAmt,
-            },
-          ],
+          create: pairs.map((p) => ({
+            debitAccountId: p.debitAccountId,
+            creditAccountId: p.creditAccountId,
+            amount: p.amount,
+          })),
         },
       },
       include: {
@@ -280,7 +287,7 @@ export class AccountingLedgerService {
         entity: "JournalEntry",
         entityId: entry.id,
         module: FleetModule.CONTABILIDAD,
-        meta: { sourceEvent: "manual.ui", amount: debitAmt },
+        meta: { sourceEvent: "manual.ui", amount: totalDebit, pairs: pairs.length },
       },
     });
 
@@ -290,7 +297,79 @@ export class AccountingLedgerService {
     return mapped ?? entry;
   }
 
+  async closeMonth(organizationId: string, yearMonth?: string) {
+    const ym =
+      yearMonth ||
+      `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
+    if (!/^\d{4}-\d{2}$/.test(ym)) {
+      throw new BadRequestException("Periodo inválido (YYYY-MM)");
+    }
+    const existing = await this.prisma.accountingPeriod.findUnique({
+      where: { organizationId_yearMonth: { organizationId, yearMonth: ym } },
+    });
+    if (existing?.status === AccountingPeriodStatus.HARD_LOCKED) {
+      throw new ForbiddenException(
+        `Periodo ${ym} bajo Hard Lock de Revisoría — no se puede reabrir ni recerrar`,
+      );
+    }
+    const period = await this.prisma.accountingPeriod.upsert({
+      where: { organizationId_yearMonth: { organizationId, yearMonth: ym } },
+      create: {
+        organizationId,
+        yearMonth: ym,
+        status: AccountingPeriodStatus.SOFT_CLOSED,
+      },
+      update: { status: AccountingPeriodStatus.SOFT_CLOSED },
+    });
+    await this.prisma.auditLog.create({
+      data: {
+        organizationId,
+        action: "ACCOUNTING_PERIOD_SOFT_CLOSED",
+        entity: "AccountingPeriod",
+        entityId: period.id,
+        module: FleetModule.CONTABILIDAD,
+        meta: { yearMonth: ym },
+      },
+    });
+    return {
+      yearMonth: ym,
+      status: period.status,
+      message: `Periodo ${ym} cerrado — asientos del mes bloqueados`,
+    };
+  }
+
+  async currentPeriod(organizationId: string) {
+    const yearMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
+    const period = await this.prisma.accountingPeriod.findUnique({
+      where: { organizationId_yearMonth: { organizationId, yearMonth } },
+    });
+    return {
+      yearMonth,
+      status: period?.status ?? AccountingPeriodStatus.OPEN,
+      hardLockedAt: period?.hardLockedAt ?? null,
+    };
+  }
+
+  private async assertPeriodWritable(organizationId: string, at = new Date()) {
+    const yearMonth = `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, "0")}`;
+    const period = await this.prisma.accountingPeriod.findUnique({
+      where: { organizationId_yearMonth: { organizationId, yearMonth } },
+    });
+    if (!period) return;
+    if (period.status === AccountingPeriodStatus.HARD_LOCKED) {
+      throw new ForbiddenException(
+        `Periodo ${yearMonth} bajo Hard Lock de Revisoría`,
+      );
+    }
+    if (period.status === AccountingPeriodStatus.SOFT_CLOSED) {
+      throw new ForbiddenException(
+        `Periodo ${yearMonth} cerrado — no se publican ni anulan asientos`,
+      );
+    }
+  }
+
   async voidEntry(organizationId: string, id: string) {
+    await this.assertPeriodWritable(organizationId);
     const e = await this.prisma.journalEntry.findFirst({
       where: { id, organizationId },
     });
@@ -344,4 +423,47 @@ export class AccountingLedgerService {
       };
     });
   }
+}
+
+function pairDoubleEntry(
+  legs: Array<{ accountId: string; debit: number; credit: number }>,
+): Array<{ debitAccountId: string; creditAccountId: string; amount: number }> {
+  const debits = legs
+    .filter((l) => l.debit > 0)
+    .map((l) => ({ accountId: l.accountId, remaining: l.debit }));
+  const credits = legs
+    .filter((l) => l.credit > 0)
+    .map((l) => ({ accountId: l.accountId, remaining: l.credit }));
+  if (!debits.length || !credits.length) {
+    throw new BadRequestException(
+      "Se requiere al menos una línea débito y una crédito",
+    );
+  }
+  const pairs: Array<{
+    debitAccountId: string;
+    creditAccountId: string;
+    amount: number;
+  }> = [];
+  let i = 0;
+  let j = 0;
+  while (i < debits.length && j < credits.length) {
+    const d = debits[i];
+    const c = credits[j];
+    const amount = Math.min(d.remaining, c.remaining);
+    if (amount > 0.009) {
+      pairs.push({
+        debitAccountId: d.accountId,
+        creditAccountId: c.accountId,
+        amount: Math.round(amount * 100) / 100,
+      });
+    }
+    d.remaining = Math.round((d.remaining - amount) * 100) / 100;
+    c.remaining = Math.round((c.remaining - amount) * 100) / 100;
+    if (d.remaining <= 0.009) i += 1;
+    if (c.remaining <= 0.009) j += 1;
+  }
+  if (!pairs.length) {
+    throw new BadRequestException("No se pudieron armar pares de partida doble");
+  }
+  return pairs;
 }
