@@ -81,6 +81,8 @@ html.light {
 html,
 body {
   height: 100%;
+  overflow-x: hidden;
+  max-width: 100%;
 }
 
 body {
@@ -622,6 +624,8 @@ html.dark .login-card {
 /* ── Forms ── */
 .field {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   height: 40px;
   border: 1px solid var(--border-subtle);
   background: var(--brand-field);
@@ -1114,7 +1118,10 @@ html.dark .flt-sidebar {
   position: relative;
   flex: 1;
   min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior: contain;
   background: var(--bg-canvas);
   padding: 1.25rem 1.25rem 2rem;
 }

@@ -1,4 +1,3 @@
-import { Platform } from "react-native";
 import Constants from "expo-constants";
 import * as SecureStore from "expo-secure-store";
 import * as Location from "expo-location";
@@ -10,33 +9,18 @@ const USER_KEY = "fsg_user_json";
 let memoryToken: string | null = null;
 let memoryUser: AuthUser | null = null;
 
-/** Host LAN del Metro (ej. 192.168.1.10:8081) — sirve para celular físico. */
-function lanHostFromExpo(): string | null {
-  const hostUri =
-    Constants.expoConfig?.hostUri ??
-    (Constants as { manifest2?: { extra?: { expoClient?: { hostUri?: string } } } })
-      .manifest2?.extra?.expoClient?.hostUri ??
-    (
-      Constants as { manifest?: { debuggerHost?: string; hostUri?: string } }
-    ).manifest?.debuggerHost ??
-    (
-      Constants as { manifest?: { hostUri?: string } }
-    ).manifest?.hostUri ??
-    Constants.linkingUri?.replace(/^[a-z]+:\/\//i, "") ??
-    null;
-  if (!hostUri) return null;
-  const host = String(hostUri).split("/")[0]?.split(":")[0];
-  if (!host || host === "localhost" || host === "127.0.0.1") return null;
-  return host;
+const VPS_API = "http://76.13.101.203:4010";
+
+function extraApiUrl(): string | null {
+  const extra = Constants.expoConfig?.extra as { apiUrl?: string } | undefined;
+  const url = extra?.apiUrl?.trim();
+  return url ? url.replace(/\/$/, "") : null;
 }
 
 export function getApiUrl(): string {
-  const fromEnv = process.env.EXPO_PUBLIC_API_URL;
+  const fromEnv = process.env.EXPO_PUBLIC_API_URL?.trim();
   if (fromEnv) return fromEnv.replace(/\/$/, "");
-  const lan = lanHostFromExpo();
-  if (lan) return `http://${lan}:4000`;
-  if (Platform.OS === "android") return "http://10.0.2.2:4000";
-  return "http://localhost:4000";
+  return extraApiUrl() || VPS_API;
 }
 
 export const API_URL = getApiUrl();
@@ -185,7 +169,7 @@ export async function apiFetch<T>(
     res = await fetch(`${base}${path}`, { ...options, headers });
   } catch {
     throw new Error(
-      `Sin uplink a la API (${base}). Arranca pnpm --filter @fsg/api dev y usa la misma Wi‑Fi.`,
+      `Sin uplink a la API (${base}). Verifica datos móviles/Wi‑Fi y el VPS :4010.`,
     );
   }
   if (!res.ok) {

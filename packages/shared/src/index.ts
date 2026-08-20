@@ -155,7 +155,7 @@ export const ORG_ASSIGNABLE_ROLE_GROUPS: ReadonlyArray<{
   roles: readonly Role[];
 }> = [
   {
-    label: "Gobierno",
+    label: "Alta dirección",
     roles: [
       "org_admin",
       "presidente",
@@ -877,6 +877,7 @@ export function modulesForRole(role: string | Role): ModuleId[] {
 
 export * from "./rbac";
 export * from "./departments";
+export * from "./hr-documents";
 export * from "./nav-departments";
 export * from "./labels-es";
 export type { FieldKind } from "./validation";

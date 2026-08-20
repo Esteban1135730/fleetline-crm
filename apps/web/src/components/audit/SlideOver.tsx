@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useId, type ReactNode } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "@fsg/ui";
+import { useScrollLock } from "@/lib/use-scroll-lock";
 
 type SlideOverProps = {
   open: boolean;
@@ -24,6 +26,12 @@ export function SlideOver({
   widthClass = "max-w-md",
 }: SlideOverProps) {
   const titleId = useId();
+  const [mounted, setMounted] = useState(false);
+  useScrollLock(open);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -34,9 +42,9 @@ export function SlideOver({
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  if (!open) return null;
+  if (!open || !mounted) return null;
 
-  return (
+  const panel = (
     <div className="fixed inset-0 z-[85]" role="presentation">
       <button
         type="button"
@@ -48,33 +56,44 @@ export function SlideOver({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className={`absolute right-0 top-0 flex max-h-screen w-full ${widthClass} flex-col border-l border-[var(--border-subtle)] bg-[var(--bg-surface-1)] shadow-2xl`}
+        className={`absolute top-0 right-0 bottom-0 flex w-full ${widthClass} flex-col border-l border-[var(--border-subtle)] bg-[var(--bg-surface-1)] shadow-2xl`}
       >
         <header className="flex shrink-0 items-start justify-between gap-3 border-b border-[var(--border-subtle)] px-5 py-4">
-          <div>
-            <h2 id={titleId} className="text-lg font-semibold text-[var(--text-primary)]">
+          <div className="min-w-0 pr-2">
+            <h2
+              id={titleId}
+              className="text-lg font-semibold text-[var(--text-primary)]"
+            >
               {title}
             </h2>
             {description ? (
-              <p className="mt-1 text-sm text-[var(--text-secondary)]">{description}</p>
+              <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                {description}
+              </p>
             ) : null}
           </div>
           <Button
             type="button"
             variant="ghost"
-            className="w-auto px-2 py-1"
+            className="w-auto shrink-0 px-2 py-1"
             onClick={onClose}
           >
             Esc
           </Button>
         </header>
-        <div className="overflow-y-auto px-5 py-4">{children}</div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4 pb-8">
+          {children}
+        </div>
+
         {footer ? (
-          <footer className="flex shrink-0 justify-end gap-2 border-t border-[var(--border-subtle)] px-5 py-4">
+          <footer className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-[var(--border-subtle)] bg-[var(--bg-surface-1)] px-5 py-4">
             {footer}
           </footer>
         ) : null}
       </aside>
     </div>
   );
+
+  return createPortal(panel, document.body);
 }

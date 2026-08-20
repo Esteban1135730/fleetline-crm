@@ -125,8 +125,104 @@ export const DEPARTMENTS: Department[] = [
   },
 ];
 
-/** Áreas de empleado — alineadas a módulos Fleetline / organigrama operativo */
-export const EMPLOYEE_AREAS = [
+/**
+ * Catálogo RRHH: Área (grupo organigrama) → Cargos (títulos laborales).
+ * El formulario de alta usa Área arriba y Cargo abajo (dependiente).
+ */
+export const EMPLOYEE_AREA_CATALOG: ReadonlyArray<{
+  area: string;
+  cargos: readonly string[];
+}> = [
+  {
+    area: "Alta dirección",
+    cargos: ["Presidente", "Gerente general", "Subgerente"],
+  },
+  {
+    area: "Soporte corporativo",
+    cargos: [
+      "Recepcionista",
+      "Líder de tecnología",
+      "Gestor documental",
+      "Director de recursos humanos",
+      "Analista de vinculaciones",
+      "Gestor de trámites",
+    ],
+  },
+  {
+    area: "Finanzas",
+    cargos: [
+      "Auxiliar contable",
+      "Gestor contable",
+      "Tesorero",
+      "Director financiero",
+    ],
+  },
+  {
+    area: "Calidad & Abastecimiento",
+    cargos: ["Líder de calidad y SST", "Líder de compras"],
+  },
+  {
+    area: "Operaciones",
+    cargos: [
+      "Director operativo",
+      "Gestor operativo",
+      "Coordinador de campo",
+      "Operador centro de control",
+      "Auditor control interno",
+      "Conductor",
+      "Monitora escolar",
+    ],
+  },
+  {
+    area: "Comercial y jurídico",
+    cargos: [
+      "Director comercial",
+      "Gestor comercial",
+      "Ejecutivo de ventas",
+      "Coordinador comercial",
+      "Director jurídico",
+      "Revisor fiscal",
+    ],
+  },
+  {
+    area: "Mantenimiento y patio",
+    cargos: [
+      "Coordinador de taller",
+      "Mecánico",
+      "Auxiliar de almacén",
+      "Coordinador de patio",
+      "Auxiliar de patio",
+    ],
+  },
+];
+
+/** Valores del desplegable Área (grupos organigrama) */
+export const EMPLOYEE_AREAS = EMPLOYEE_AREA_CATALOG.map(
+  (entry) => entry.area,
+) as unknown as readonly [
+  "Alta dirección",
+  "Soporte corporativo",
+  "Finanzas",
+  "Calidad & Abastecimiento",
+  "Operaciones",
+  "Comercial y jurídico",
+  "Mantenimiento y patio",
+];
+
+export type EmployeeArea = (typeof EMPLOYEE_AREAS)[number];
+
+/** Todos los cargos tipificados (derivado del catálogo) */
+export const EMPLOYEE_TITLES = [
+  ...EMPLOYEE_AREA_CATALOG.flatMap((entry) => entry.cargos),
+  "Aprendiz SENA",
+  "Auxiliar administrativo",
+  "Otro",
+] as const;
+
+export type EmployeeTitle = (typeof EMPLOYEE_TITLES)[number];
+
+/** Sub-áreas legadas — expedientes indexados antes del catálogo Área→Cargo */
+export const LEGACY_EMPLOYEE_AREAS = [
   "Presidencia",
   "Gerencia",
   "Subgerencia",
@@ -152,7 +248,6 @@ export const EMPLOYEE_AREAS = [
   "Parqueadero / Patio",
   "Conductores / Flota",
   "Trámites",
-  // Legado (expedientes históricos)
   "Operaciones",
   "Centro de llamadas",
   "HSQE / Calidad",
@@ -160,107 +255,80 @@ export const EMPLOYEE_AREAS = [
   "Parqueadero",
 ] as const;
 
-export type EmployeeArea = (typeof EMPLOYEE_AREAS)[number];
-
-/** Cargos tipificados para alta de expediente (campo Cargo) */
-export const EMPLOYEE_TITLES = [
-  "Recepcionista",
-  "Líder TI",
-  "Gestor documental",
-  "Auxiliar contable",
-  "Gestor contable",
-  "Tesorero",
-  "Director financiero",
-  "Líder de calidad y SST",
-  "Líder Compras",
-  "Director operativo",
-  "Gestor operativo / Despacho",
-  "Coordinador de campo",
-  "Operador centro de control",
-  "Auditor control interno",
-  "Presidente",
-  "Gestor vinculaciones",
-  "Director de recursos humanos",
-  "Director comercial",
-  "Gestor comercial",
-  "Ejecutivo de ventas",
-  "Coordinador comercial",
-  "Gerente general",
-  "Subgerente",
-  "Director jurídico",
-  "Revisor fiscal",
-  "Coordinador taller",
-  "Auxiliar almacén taller",
-  "Mecánico",
-  "Coordinador patio",
-  "Auxiliar patio",
-  "Conductor",
-  "Monitora escolar",
-  "Analista",
-  "Auxiliar administrativo",
-  "Aprendiz SENA",
-  "Otro",
-] as const;
-
-export type EmployeeTitle = (typeof EMPLOYEE_TITLES)[number];
-
-/** Grupos UI del desplegable de área */
+/** @deprecated Usar EMPLOYEE_AREA_CATALOG — conservado para expedientes legados */
 export const EMPLOYEE_AREA_GROUPS: ReadonlyArray<{
   label: string;
-  areas: readonly EmployeeArea[];
+  areas: readonly string[];
 }> = [
   {
-    label: "Gobierno",
-    areas: ["Presidencia", "Gerencia", "Subgerencia"],
-  },
-  {
-    label: "Soporte corporativo",
-    areas: [
-      "Recepción / Centro de llamadas",
-      "Tecnología / TI",
-      "Archivo",
-      "Vinculaciones / RRHH",
-      "Trámites",
-    ],
-  },
-  {
-    label: "Finanzas",
-    areas: ["Contabilidad", "Tesorería", "Dirección Financiera"],
-  },
-  {
-    label: "Calidad & Abastecimiento",
-    areas: ["QHSE / PESV", "Compras"],
-  },
-  {
-    label: "Operaciones",
-    areas: [
-      "Dirección Operativa",
-      "Despacho / Logística",
-      "Coordinación de Campo",
-      "Centro de Control",
-      "Control Interno",
-      "Conductores / Flota",
-    ],
-  },
-  {
-    label: "Comercial y jurídico",
-    areas: ["Comercial", "Jurídico", "Revisoría Fiscal"],
-  },
-  {
-    label: "Mantenimiento y patio",
-    areas: ["Taller", "Almacén Taller", "Parqueadero / Patio"],
-  },
-  {
     label: "Legado (expedientes previos)",
-    areas: [
-      "Operaciones",
-      "Centro de llamadas",
-      "HSQE / Calidad",
-      "Recursos Humanos",
-      "Parqueadero",
-    ],
+    areas: [...LEGACY_EMPLOYEE_AREAS],
   },
 ];
+
+export function cargosForEmployeeArea(area: string): readonly string[] {
+  return (
+    EMPLOYEE_AREA_CATALOG.find((entry) => entry.area === area)?.cargos ?? []
+  );
+}
+
+export function employeeAreaForCargo(cargo: string): string | undefined {
+  for (const entry of EMPLOYEE_AREA_CATALOG) {
+    if (entry.cargos.includes(cargo)) return entry.area;
+  }
+  return undefined;
+}
+
+export function isKnownEmployeeArea(area: string): boolean {
+  return EMPLOYEE_AREA_CATALOG.some((entry) => entry.area === area);
+}
+
+/**
+ * Mapa cargo laboral → rol de acceso Fleetline.
+ * El alta RRHH deriva el rol del cargo (sin select aparte).
+ */
+export const EMPLOYEE_CARGO_ROLE: Readonly<Record<string, string>> = {
+  Presidente: "presidente",
+  "Gerente general": "gerente_general",
+  Subgerente: "sub_gerente",
+  Recepcionista: "recepcionista",
+  "Líder de tecnología": "lider_ti",
+  "Gestor documental": "gestor_documental",
+  "Director de recursos humanos": "gestor_vinculaciones",
+  "Analista de vinculaciones": "gestor_vinculaciones",
+  "Gestor de trámites": "juridico",
+  "Auxiliar contable": "auxiliar_contable",
+  "Gestor contable": "gestor_contable",
+  Tesorero: "tesoreria",
+  "Director financiero": "director_financiero",
+  "Líder de calidad y SST": "lider_qhse",
+  "Líder de compras": "lider_compras",
+  "Director operativo": "director_operativo",
+  "Gestor operativo": "gestor_operativo",
+  "Coordinador de campo": "coordinador_campo",
+  "Operador centro de control": "operador_centro_control",
+  "Auditor control interno": "auditor_control_interno",
+  Conductor: "conductor",
+  "Monitora escolar": "monitora",
+  "Director comercial": "director_comercial",
+  "Gestor comercial": "gestor_comercial",
+  "Ejecutivo de ventas": "gestor_comercial",
+  "Coordinador comercial": "coordinador_comercial",
+  "Director jurídico": "director_juridico",
+  "Revisor fiscal": "revisor_fiscal",
+  "Coordinador de taller": "coordinador_taller",
+  Mecánico: "mecanico",
+  "Auxiliar de almacén": "auxiliar_almacen_taller",
+  "Coordinador de patio": "coordinador_patio",
+  "Auxiliar de patio": "auxiliar_patio",
+  "Aprendiz SENA": "auxiliar_contable",
+  "Auxiliar administrativo": "recepcionista",
+  Otro: "gestor_operativo",
+};
+
+export function roleForEmployeeCargo(cargo: string): string {
+  return EMPLOYEE_CARGO_ROLE[cargo] ?? "gestor_operativo";
+}
 
 export function departmentForModule(module: ModuleId): Department | undefined {
   return DEPARTMENTS.find((d) => d.modules.includes(module));

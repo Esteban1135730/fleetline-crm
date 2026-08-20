@@ -2,11 +2,26 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@fsg/ui";
-import { EMPLOYEE_AREA_GROUPS, EMPLOYEE_AREAS, EMPLOYEE_TITLES, statusEs, systemStatusEs } from "@fsg/shared";
+import {
+  cargosForEmployeeArea,
+  employeeAreaForCargo,
+  isKnownEmployeeArea,
+  roleForEmployeeCargo,
+  statusEs,
+  systemStatusEs,
+  type Role,
+} from "@fsg/shared";
 import { Users, ShieldAlert } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
-import { EmptyState, KpiCard, SlideOver, StatusPulseBadge } from "@/components/audit";
+import { EmptyState, KpiCard, Modal, SlideOver, StatusPulseBadge } from "@/components/audit";
+import {
+  EMPTY_EMPLOYEE_FORM,
+  EmployeeFormFields,
+  employeeFormToPayload,
+  type EmployeeFormValues,
+} from "@/components/rrhh/employee-form-fields";
+import { EmployeeDocumentsPanel } from "@/components/rrhh/employee-documents-panel";
 
 type Semaphore = "GREEN" | "AMBER" | "RED" | "N_A";
 
@@ -20,6 +35,14 @@ type DriverLink = {
   fatigueScore: number;
   dispatchBlocked: boolean;
   blockReason?: string | null;
+};
+
+type EmpUser = {
+  id: string;
+  email: string;
+  role: Role;
+  active: boolean;
+  status?: string;
 };
 
 type Emp = {
@@ -37,6 +60,21 @@ type Emp = {
   hourlyRate?: number | string;
   driverId?: string | null;
   driver?: DriverLink | null;
+  user?: EmpUser | null;
+  address?: string | null;
+  city?: string | null;
+  contractType?: string | null;
+  hireDate?: string | null;
+  eps?: string | null;
+  arl?: string | null;
+  pensionFund?: string | null;
+  compensationFund?: string | null;
+  bankName?: string | null;
+  bankAccountType?: string | null;
+  bankAccountNumber?: string | null;
+  emergencyContactName?: string | null;
+  emergencyContactPhone?: string | null;
+  emergencyContactRelation?: string | null;
   licenseSemaphore: Semaphore;
   fatigueSemaphore: Semaphore;
   dispatchBlocked: boolean;
@@ -101,13 +139,52 @@ const TABS: Array<{ id: TabId; label: string; testId: string }> = [
   },
 ];
 
-const EMPTY_FORM = {
-  name: "",
-  document: "",
-  title: "Conductor",
-  area: "Conductores / Flota",
-  driverId: "",
-};
+const DEFAULT_AREA = "Operaciones";
+
+function resolveAreaForForm(area: string, title: string): string {
+  if (isKnownEmployeeArea(area)) return area;
+  return employeeAreaForCargo(title) ?? DEFAULT_AREA;
+}
+
+function resolveCargoForArea(area: string, title: string): string {
+  const cargos = cargosForEmployeeArea(area);
+  if (cargos.includes(title)) return title;
+  return cargos[0] ?? title;
+}
+
+function empToForm(r: Emp): EmployeeFormValues {
+  const title = r.title || r.position;
+  const area = resolveAreaForForm(r.area, title);
+  return {
+    ...EMPTY_EMPLOYEE_FORM,
+    name: r.name,
+    document: r.document,
+    email: r.email ?? r.user?.email ?? "",
+    phone: r.phone ?? "",
+    area,
+    title: resolveCargoForArea(area, title),
+    role: roleForEmployeeCargo(title) as Role,
+    contractType: r.contractType ?? EMPTY_EMPLOYEE_FORM.contractType,
+    hireDate: r.hireDate
+      ? new Date(r.hireDate).toISOString().slice(0, 10)
+      : EMPTY_EMPLOYEE_FORM.hireDate,
+    baseSalary: r.baseSalary ? String(r.baseSalary) : "",
+    hourlyRate: r.hourlyRate ? String(r.hourlyRate) : "",
+    address: r.address ?? "",
+    city: r.city ?? "",
+    eps: r.eps ?? "",
+    arl: r.arl ?? "",
+    pensionFund: r.pensionFund ?? "",
+    compensationFund: r.compensationFund ?? "",
+    bankName: r.bankName ?? "",
+    bankAccountType: r.bankAccountType ?? EMPTY_EMPLOYEE_FORM.bankAccountType,
+    bankAccountNumber: r.bankAccountNumber ?? "",
+    emergencyContactName: r.emergencyContactName ?? "",
+    emergencyContactPhone: r.emergencyContactPhone ?? "",
+    emergencyContactRelation: r.emergencyContactRelation ?? "",
+    driverId: r.driverId ?? "",
+  };
+}
 
 function semPulseTone(
   s: Semaphore,
@@ -154,7 +231,9 @@ function isoDate(d: Date) {
 export default function RrhhPage() {
   const { user } = useAuth();
   const canManageIdentity =
-    user?.role === "platform_master" || user?.role === "org_admin";
+    user?.role === "platform_master" ||
+    user?.role === "org_admin" ||
+    user?.role === "vinculaciones";
   const [tab, setTab] = useState<TabId>("personal");
   const [overview, setOverview] = useState<Overview | null>(null);
   const [rows, setRows] = useState<Emp[]>([]);
@@ -170,16 +249,18 @@ export default function RrhhPage() {
   } | null>(null);
   const [altaOpen, setAltaOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [docsOpen, setDocsOpen] = useState(false);
+  const [docsEmployee, setDocsEmployee] = useState<Emp | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({
-    name: "",
-    document: "",
-    title: "",
-    area: "",
-    phone: "",
-    email: "",
-  });
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [editingUserActive, setEditingUserActive] = useState(true);
+  const [form, setForm] = useState<EmployeeFormValues>(EMPTY_EMPLOYEE_FORM);
+  const [editForm, setEditForm] = useState<EmployeeFormValues>(EMPTY_EMPLOYEE_FORM);
+  const [provisionResult, setProvisionResult] = useState<{
+    name: string;
+    email: string;
+    tempPassword?: string;
+    pending?: boolean;
+  } | null>(null);
   const [shiftDriverId, setShiftDriverId] = useState("");
   const [payrollForm, setPayrollForm] = useState(() => {
     const end = new Date();
@@ -231,35 +312,33 @@ export default function RrhhPage() {
     e.preventDefault();
     setError("");
     try {
-      await api("/rrhh/employees", {
+      const res = await api<{
+        tempPassword?: string;
+        pendingAuthorization?: boolean;
+        message?: string;
+      }>("/rrhh/employees/provision", {
         method: "POST",
-        body: JSON.stringify({
-          name: form.name,
-          document: form.document,
-          title: form.title,
-          area: form.area,
-          driverId: form.driverId || undefined,
-        }),
+        body: JSON.stringify(employeeFormToPayload(form)),
       });
-      setForm(EMPTY_FORM);
+      setProvisionResult({
+        name: form.name,
+        email: form.email,
+        tempPassword: res.tempPassword,
+        pending: res.pendingAuthorization,
+      });
+      setForm(EMPTY_EMPLOYEE_FORM);
       setAltaOpen(false);
-      setStatusMsg("Expediente indexado");
+      setStatusMsg(res.message ?? "Expediente y acceso provisionados");
       await loadAll();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo crear expediente");
+      setError(err instanceof Error ? err.message : "No se pudo provisionar expediente");
     }
   }
 
   function startEdit(r: Emp) {
     setEditingId(r.id);
-    setEditForm({
-      name: r.name,
-      document: r.document,
-      title: r.title || r.position,
-      area: r.area,
-      phone: r.phone ?? "",
-      email: r.email ?? "",
-    });
+    setEditingUserActive(r.user?.active ?? true);
+    setEditForm(empToForm(r));
     setEditOpen(true);
   }
 
@@ -275,11 +354,7 @@ export default function RrhhPage() {
       await api(`/rrhh/employees/${id}`, {
         method: "PATCH",
         body: JSON.stringify({
-          name: editForm.name,
-          title: editForm.title,
-          area: editForm.area,
-          phone: editForm.phone || null,
-          email: editForm.email || null,
+          ...employeeFormToPayload(editForm),
           ...(canManageIdentity ? { document: editForm.document.trim() } : {}),
         }),
         confirm: {
@@ -310,10 +385,11 @@ export default function RrhhPage() {
     const prev = rows.find((r) => r.id === id);
     setError("");
     try {
-      await api(`/rrhh/employees/${id}`, {
-        method: "DELETE",
+      await api(`/rrhh/employees/${id}/terminate`, {
+        method: "POST",
+        body: JSON.stringify({ reason: "Salida de empresa" }),
         confirm: {
-          title: `Eliminar expediente · ${name}`,
+          title: `Dar de baja · ${name}`,
           record: prev
             ? {
                 name: prev.name,
@@ -321,21 +397,57 @@ export default function RrhhPage() {
                 title: prev.title || prev.position,
                 area: prev.area,
                 status: prev.status,
-                phone: prev.phone,
-                email: prev.email,
+                email: prev.email ?? prev.user?.email,
               }
             : { name },
         },
       });
       setEditingId(null);
       setEditOpen(false);
-      setStatusMsg("Expediente eliminado");
+      setStatusMsg("Expediente dado de baja — acceso inactivo");
       await loadAll();
     } catch (err) {
       if ((err as { name?: string })?.name === "MutationCancelled") return;
       setError(
-        err instanceof Error ? err.message : "No se pudo eliminar el expediente",
+        err instanceof Error ? err.message : "No se pudo dar de baja el expediente",
       );
+    }
+  }
+
+  async function toggleAccess(id: string, suspend: boolean) {
+    setError("");
+    try {
+      await api(`/rrhh/employees/${id}/access/${suspend ? "suspend" : "restore"}`, {
+        method: "POST",
+        body: "{}",
+      });
+      setStatusMsg(suspend ? "Acceso suspendido" : "Acceso restaurado");
+      await loadAll();
+      const row = rows.find((r) => r.id === id);
+      if (row) {
+        setEditingUserActive(!suspend);
+        setEditForm(empToForm({ ...row, user: row.user ? { ...row.user, active: !suspend } : null }));
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo actualizar acceso");
+    }
+  }
+
+  async function resetPassword(id: string) {
+    setError("");
+    try {
+      const res = await api<{ tempPassword: string }>(
+        `/rrhh/employees/${id}/reset-password`,
+        { method: "POST", body: "{}" },
+      );
+      const row = rows.find((r) => r.id === id);
+      setProvisionResult({
+        name: row?.name ?? "Empleado",
+        email: row?.email ?? row?.user?.email ?? "",
+        tempPassword: res.tempPassword,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo resetear clave");
     }
   }
 
@@ -452,7 +564,7 @@ export default function RrhhPage() {
             data-testid="rrhh-alta-open"
             onClick={() => setAltaOpen(true)}
           >
-            + Alta expediente
+            + Nuevo empleado
           </Button>
         ) : null}
       </header>
@@ -555,16 +667,17 @@ export default function RrhhPage() {
               icon={<Users className="h-7 w-7" />}
               title="Sin expedientes"
               description="Indexa el primer expediente de capital humano."
-              actionLabel="+ Alta expediente"
+              actionLabel="+ Nuevo empleado"
               onAction={() => setAltaOpen(true)}
             />
           ) : (
-            <div className="fsg-panel data-shell overflow-x-auto">
-              <table className="w-full text-left text-sm">
+            <div className="fsg-panel data-shell max-w-full overflow-x-auto">
+              <table className="w-full min-w-[640px] text-left text-sm">
                 <thead>
                   <tr>
                     <th className="px-4 py-2">Nombre</th>
                     <th className="px-4 py-2">Cargo</th>
+                    <th className="px-4 py-2">Acceso</th>
                     <th className="px-4 py-2">Licencia</th>
                     <th className="px-4 py-2">Fatiga</th>
                     <th className="px-4 py-2">Estado</th>
@@ -587,6 +700,25 @@ export default function RrhhPage() {
                         </td>
                         <td className="px-4 py-2.5">
                           {`${r.title || r.position} · ${r.area}`}
+                        </td>
+                        <td className="px-4 py-2.5">
+                          {r.user ? (
+                            <>
+                              <div className="font-data text-xs text-[var(--text-primary)]">
+                                {r.user.email}
+                              </div>
+                              <StatusPulseBadge
+                                tone={r.user.active ? "active" : "neutral"}
+                                pulse={false}
+                              >
+                                {r.user.active ? "ACTIVO" : "SUSPENDIDO"}
+                              </StatusPulseBadge>
+                            </>
+                          ) : (
+                            <span className="text-xs text-[var(--brand-muted)]">
+                              Sin usuario
+                            </span>
+                          )}
                         </td>
                         <td className="px-4 py-2.5">
                           <StatusPulseBadge
@@ -633,13 +765,25 @@ export default function RrhhPage() {
                           </select>
                         </td>
                         <td className="px-4 py-2.5">
-                          <Button
-                            variant="ghost"
-                            className="w-auto"
-                            onClick={() => startEdit(r)}
-                          >
-                            Editar ficha
-                          </Button>
+                          <div className="flex flex-wrap gap-1">
+                            <Button
+                              variant="ghost"
+                              className="w-auto"
+                              onClick={() => startEdit(r)}
+                            >
+                              Editar
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              className="w-auto"
+                              onClick={() => {
+                                setDocsEmployee(r);
+                                setDocsOpen(true);
+                              }}
+                            >
+                              Documentos
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -701,7 +845,7 @@ export default function RrhhPage() {
               description="Vincula expedientes a flota para monitorear fatiga."
             />
           ) : (
-            <div className="fsg-panel data-shell overflow-x-auto">
+            <div className="fsg-panel data-shell max-w-full overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead>
                   <tr>
@@ -811,7 +955,7 @@ export default function RrhhPage() {
               description="Calcula un periodo para indexar liquidación."
             />
           ) : (
-            <div className="fsg-panel data-shell overflow-x-auto">
+            <div className="fsg-panel data-shell max-w-full overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead>
                   <tr>
@@ -934,7 +1078,7 @@ export default function RrhhPage() {
               description="Registra la primera capacitación."
             />
           ) : (
-            <div className="fsg-panel data-shell overflow-x-auto">
+            <div className="fsg-panel data-shell max-w-full overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead>
                   <tr>
@@ -985,9 +1129,9 @@ export default function RrhhPage() {
       <SlideOver
         open={altaOpen}
         onClose={() => setAltaOpen(false)}
-        title="Alta expediente"
-        description="Capital humano · vínculo flota opcional"
-        widthClass="max-w-lg"
+        title="Nuevo empleado"
+        description="Registra la persona, su contrato y el acceso al sistema"
+        widthClass="max-w-3xl"
         footer={
           <Button
             type="submit"
@@ -995,86 +1139,17 @@ export default function RrhhPage() {
             variant="primary"
             className="w-auto px-4 py-2"
           >
-            Indexar expediente
+            Crear empleado y acceso
           </Button>
         }
       >
-        <form
-          id="rrhh-alta-form"
-          onSubmit={onCreate}
-          className="grid grid-cols-1 gap-3"
-        >
-          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
-            Nombre
-            <input
-              className="field"
-              placeholder="Nombre completo"
-              data-field="personName"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              required
-              autoComplete="name"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
-            Documento
-            <input
-              className="field font-data"
-              placeholder="Cédula / documento"
-              data-field="document"
-              inputMode="numeric"
-              value={form.document}
-              onChange={(e) => setForm({ ...form, document: e.target.value })}
-              required
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
-            Cargo
-            <select
-              className="field"
-              value={form.title}
-              onChange={(e) => setForm({ ...form, title: e.target.value })}
-            >
-              {EMPLOYEE_TITLES.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
-            Área / departamento
-            <select
-              className="field"
-              value={form.area}
-              onChange={(e) => setForm({ ...form, area: e.target.value })}
-            >
-              {EMPLOYEE_AREA_GROUPS.map((g) => (
-                <optgroup key={g.label} label={g.label}>
-                  {g.areas.map((a) => (
-                    <option key={a} value={a}>
-                      {a}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
-            Vínculo flota
-            <select
-              className="field"
-              value={form.driverId}
-              onChange={(e) => setForm({ ...form, driverId: e.target.value })}
-            >
-              <option value="">Sin vínculo conductor</option>
-              {drivers.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name} · {d.document}
-                </option>
-              ))}
-            </select>
-          </label>
+        <form id="rrhh-alta-form" onSubmit={onCreate} className="pb-2">
+          <EmployeeFormFields
+            form={form}
+            onChange={setForm}
+            mode="create"
+            drivers={drivers}
+          />
         </form>
       </SlideOver>
 
@@ -1083,21 +1158,55 @@ export default function RrhhPage() {
         onClose={closeEdit}
         title="Editar expediente"
         description="Ficha de capital humano · cambios auditados"
-        widthClass="max-w-lg"
+        widthClass="max-w-3xl"
         footer={
           <div className="flex flex-wrap justify-end gap-2">
             {canManageIdentity && editingId ? (
-              <Button
-                type="button"
-                variant="danger"
-                className="w-auto px-4 py-2"
-                onClick={() => {
-                  const row = rows.find((r) => r.id === editingId);
-                  if (row) void deleteEmployee(row.id, row.name);
-                }}
-              >
-                Eliminar
-              </Button>
+              <>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-auto px-4 py-2"
+                  onClick={() => {
+                    const row = rows.find((r) => r.id === editingId);
+                    if (row) {
+                      setDocsEmployee(row);
+                      setDocsOpen(true);
+                    }
+                  }}
+                >
+                  Documentos
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-auto px-4 py-2"
+                  onClick={() => void resetPassword(editingId)}
+                >
+                  Resetear clave
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-auto px-4 py-2"
+                  onClick={() =>
+                    void toggleAccess(editingId, editingUserActive)
+                  }
+                >
+                  {editingUserActive ? "Suspender acceso" : "Restaurar acceso"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="danger"
+                  className="w-auto px-4 py-2"
+                  onClick={() => {
+                    const row = rows.find((r) => r.id === editingId);
+                    if (row) void deleteEmployee(row.id, row.name);
+                  }}
+                >
+                  Dar de baja
+                </Button>
+              </>
             ) : null}
             <Button
               type="button"
@@ -1125,90 +1234,104 @@ export default function RrhhPage() {
             e.preventDefault();
             if (editingId) void saveEdit(editingId);
           }}
-          className="grid grid-cols-1 gap-3"
         >
-          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
-            Nombre
-            <input
-              className="field"
-              value={editForm.name}
-              onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-              required
-            />
-          </label>
-          {canManageIdentity ? (
-            <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
-              Documento
-              <input
-                className="field font-data"
-                value={editForm.document}
-                onChange={(e) =>
-                  setEditForm({ ...editForm, document: e.target.value })
-                }
-              />
-            </label>
-          ) : null}
-          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
-            Cargo
-            <select
-              className="field"
-              value={editForm.title}
-              onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
-            >
-              {!EMPLOYEE_TITLES.includes(
-                editForm.title as (typeof EMPLOYEE_TITLES)[number],
-              ) && editForm.title ? (
-                <option value={editForm.title}>{editForm.title}</option>
-              ) : null}
-              {EMPLOYEE_TITLES.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
-            Área
-            <select
-              className="field"
-              value={editForm.area}
-              onChange={(e) => setEditForm({ ...editForm, area: e.target.value })}
-            >
-              {!EMPLOYEE_AREAS.includes(
-                editForm.area as (typeof EMPLOYEE_AREAS)[number],
-              ) && editForm.area ? (
-                <option value={editForm.area}>{editForm.area}</option>
-              ) : null}
-              {EMPLOYEE_AREA_GROUPS.map((g) => (
-                <optgroup key={g.label} label={g.label}>
-                  {g.areas.map((a) => (
-                    <option key={a} value={a}>
-                      {a}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
-            Teléfono
-            <input
-              className="field"
-              value={editForm.phone}
-              onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
-            Correo
-            <input
-              className="field"
-              type="email"
-              value={editForm.email}
-              onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-            />
-          </label>
+          <EmployeeFormFields
+            form={editForm}
+            onChange={setEditForm}
+            mode="edit"
+            canManageIdentity={canManageIdentity}
+            drivers={drivers}
+            legacyArea={!isKnownEmployeeArea(editForm.area)}
+            legacyTitle={
+              !cargosForEmployeeArea(editForm.area).includes(editForm.title)
+            }
+          />
         </form>
       </SlideOver>
+
+      <SlideOver
+        open={docsOpen}
+        onClose={() => {
+          setDocsOpen(false);
+          setDocsEmployee(null);
+        }}
+        title={
+          docsEmployee
+            ? `Documentos · ${docsEmployee.name}`
+            : "Documentos del empleado"
+        }
+        description="Checklist según el cargo · sube PDF o imagen aquí mismo"
+        widthClass="max-w-xl"
+        footer={
+          <Button
+            type="button"
+            variant="ghost"
+            className="w-auto px-4 py-2"
+            onClick={() => {
+              setDocsOpen(false);
+              setDocsEmployee(null);
+            }}
+          >
+            Cerrar
+          </Button>
+        }
+      >
+        {docsEmployee ? (
+          <EmployeeDocumentsPanel
+            employeeId={docsEmployee.id}
+            onError={(msg) => setError(msg)}
+            onStatus={(msg) => setStatusMsg(msg)}
+            onLicenseUpdated={() => {
+              void loadAll();
+            }}
+          />
+        ) : null}
+      </SlideOver>
+
+      <Modal
+        open={!!provisionResult}
+        onClose={() => setProvisionResult(null)}
+        title="Acceso provisionado"
+        description="Entregue estas credenciales al colaborador"
+        footer={
+          <Button
+            type="button"
+            variant="primary"
+            className="w-auto px-4 py-2"
+            onClick={() => setProvisionResult(null)}
+          >
+            Cerrar
+          </Button>
+        }
+      >
+        {provisionResult ? (
+          <div className="space-y-3 text-sm">
+            <p>
+              <span className="text-[var(--text-secondary)]">Colaborador:</span>{" "}
+              {provisionResult.name}
+            </p>
+            <p>
+              <span className="text-[var(--text-secondary)]">Correo:</span>{" "}
+              <span className="font-data">{provisionResult.email}</span>
+            </p>
+            {provisionResult.pending ? (
+              <p className="text-[var(--brand-amber)]">
+                Usuario en PENDING — requiere autorización de mando antes del
+                ingreso.
+              </p>
+            ) : provisionResult.tempPassword ? (
+              <div className="rounded-lg border border-[var(--brand-line)] bg-[var(--bg-surface-2)] p-3">
+                <div className="text-[10px] uppercase tracking-wide text-[var(--text-secondary)]">
+                  Contraseña temporal
+                </div>
+                <div className="mt-1 font-data text-lg text-[var(--brand-primary)]">
+                  {provisionResult.tempPassword}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </Modal>
     </div>
   );
 }

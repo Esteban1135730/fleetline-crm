@@ -53,6 +53,7 @@ export function isFleetDriverRole(title: string, area?: string | null): boolean 
   const a = fold(area || "");
   return (
     t.includes("conductor") ||
+    t.includes("monitora") ||
     a.includes("conductor") ||
     a.includes("flota")
   );

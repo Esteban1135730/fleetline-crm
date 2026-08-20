@@ -13,17 +13,34 @@
     "splash": {
       "backgroundColor": "#1e3a5f"
     },
+    "extra": {
+      "apiUrl": "http://76.13.101.203:4010"
+    },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "co.fsg.conductor"
+      "bundleIdentifier": "co.fsg.conductor",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        }
+      }
     },
     "android": {
+      "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "backgroundColor": "#1e3a5f"
       },
       "package": "co.fsg.conductor"
     },
     "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ],
       [
         "expo-location",
         {

@@ -9,6 +9,7 @@ import {
   type MutationConfirmInput,
   type MutationRow,
 } from "@/lib/mutation-confirm";
+import { useScrollLock } from "@/lib/use-scroll-lock";
 
 type Pending = {
   kind: "edit" | "delete";
@@ -63,12 +64,17 @@ export function ConfirmMutationHost() {
     return () => window.removeEventListener("keydown", onKey);
   }, [pending, close]);
 
+  useScrollLock(!!pending);
+
   if (!pending) return null;
 
   const isDelete = pending.kind === "delete";
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4" role="presentation">
+    <div
+      className="fixed inset-0 z-[120] flex items-center justify-center overflow-hidden p-4"
+      role="presentation"
+    >
       <button
         type="button"
         className="absolute inset-0 bg-black/70"
@@ -79,69 +85,76 @@ export function ConfirmMutationHost() {
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="confirm-mutation-title"
-        className="relative z-[1] w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-5 shadow-2xl"
+        className="relative z-[1] flex max-h-[min(90dvh,90vh)] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] shadow-2xl"
       >
-        <h2
-          id="confirm-mutation-title"
-          className="text-lg font-semibold text-[var(--text-primary)]"
-        >
-          {pending.title}
-        </h2>
-        <p className="mt-1 text-sm text-[var(--text-secondary)]">
-          {isDelete
-            ? "Revisa los datos que se van a eliminar. Esta acción no se puede deshacer."
-            : "Revisa los valores anteriores y los nuevos antes de guardar."}
-        </p>
-
-        {pending.rows.length === 0 ? (
-          <p className="mt-4 text-sm text-[var(--text-secondary)]">
-            No hay campos para mostrar. Confirma solo si estás seguro.
+        <div className="shrink-0 px-5 pt-5">
+          <h2
+            id="confirm-mutation-title"
+            className="text-lg font-semibold text-[var(--text-primary)]"
+          >
+            {pending.title}
+          </h2>
+          <p className="mt-1 text-sm text-[var(--text-secondary)]">
+            {isDelete
+              ? "Revisa los datos que se van a eliminar. Esta acción no se puede deshacer."
+              : "Revisa los valores anteriores y los nuevos antes de guardar."}
           </p>
-        ) : (
-          <div className="mt-4 overflow-x-auto rounded-lg border border-[var(--border-subtle)]">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="text-xs uppercase tracking-wide text-[var(--text-secondary)]">
-                  <th className="px-3 py-2">Campo</th>
-                  <th className="px-3 py-2">
-                    {isDelete ? "Dato actual" : "Anterior"}
-                  </th>
-                  {!isDelete ? (
-                    <th className="px-3 py-2">Nuevo</th>
-                  ) : null}
-                </tr>
-              </thead>
-              <tbody>
-                {pending.rows.map((row) => (
-                  <tr
-                    key={row.key}
-                    className={`border-t border-[var(--border-subtle)] ${
-                      row.changed
-                        ? "bg-[color-mix(in_srgb,var(--accent-metric)_10%,transparent)]"
-                        : ""
-                    }`}
-                  >
-                    <td className="px-3 py-2 font-medium">{row.label}</td>
-                    <td className="px-3 py-2 font-data text-xs">{row.before}</td>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-5 py-4">
+          {pending.rows.length === 0 ? (
+            <p className="text-sm text-[var(--text-secondary)]">
+              No hay campos para mostrar. Confirma solo si estás seguro.
+            </p>
+          ) : (
+            <div className="overflow-x-auto rounded-lg border border-[var(--border-subtle)]">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="text-xs uppercase tracking-wide text-[var(--text-secondary)]">
+                    <th className="px-3 py-2">Campo</th>
+                    <th className="px-3 py-2">
+                      {isDelete ? "Dato actual" : "Anterior"}
+                    </th>
                     {!isDelete ? (
-                      <td className="px-3 py-2 font-data text-xs text-[var(--accent-primary)]">
-                        {row.after}
-                      </td>
+                      <th className="px-3 py-2">Nuevo</th>
                     ) : null}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                </thead>
+                <tbody>
+                  {pending.rows.map((row) => (
+                    <tr
+                      key={row.key}
+                      className={`border-t border-[var(--border-subtle)] ${
+                        row.changed
+                          ? "bg-[color-mix(in_srgb,var(--accent-metric)_10%,transparent)]"
+                          : ""
+                      }`}
+                    >
+                      <td className="px-3 py-2 font-medium">{row.label}</td>
+                      <td className="px-3 py-2 font-data text-xs">
+                        {row.before}
+                      </td>
+                      {!isDelete ? (
+                        <td className="px-3 py-2 font-data text-xs text-[var(--accent-primary)]">
+                          {row.after}
+                        </td>
+                      ) : null}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
-        {!isDelete && changed.length === 0 ? (
-          <p className="mt-3 text-xs text-[var(--text-secondary)]">
-            No hay diferencias detectadas. Aun así puedes cancelar si fue un clic accidental.
-          </p>
-        ) : null}
+          {!isDelete && changed.length === 0 ? (
+            <p className="mt-3 text-xs text-[var(--text-secondary)]">
+              No hay diferencias detectadas. Aun así puedes cancelar si fue un
+              clic accidental.
+            </p>
+          ) : null}
+        </div>
 
-        <div className="mt-5 flex justify-end gap-2 border-t border-[var(--border-subtle)] pt-4">
+        <div className="flex shrink-0 justify-end gap-2 border-t border-[var(--border-subtle)] px-5 py-4">
           <Button
             type="button"
             variant="ghost"

@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useId, type ReactNode } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "@fsg/ui";
+import { useScrollLock } from "@/lib/use-scroll-lock";
 
 type ModalProps = {
   open: boolean;
@@ -31,6 +33,12 @@ export function Modal({
   size = "md",
 }: ModalProps) {
   const titleId = useId();
+  const [mounted, setMounted] = useState(false);
+  useScrollLock(open);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -41,10 +49,13 @@ export function Modal({
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  if (!open) return null;
+  if (!open || !mounted) return null;
 
-  return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center p-4" role="presentation">
+  const panel = (
+    <div
+      className="fixed inset-0 z-[90] flex items-center justify-center p-4"
+      role="presentation"
+    >
       <button
         type="button"
         className="absolute inset-0 bg-black/60"
@@ -55,28 +66,42 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className={`relative z-[1] w-full ${sizeClass[size]} max-h-[90vh] overflow-y-auto rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-5 shadow-2xl`}
+        className={`relative z-[1] flex max-h-[min(92dvh,92vh)] w-full ${sizeClass[size]} flex-col overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] shadow-2xl`}
       >
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <div>
-            <h2 id={titleId} className="text-lg font-semibold text-[var(--text-primary)]">
+        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[var(--border-subtle)] px-5 py-4">
+          <div className="min-w-0">
+            <h2
+              id={titleId}
+              className="text-lg font-semibold text-[var(--text-primary)]"
+            >
               {title}
             </h2>
             {description ? (
-              <p className="mt-1 text-sm text-[var(--text-secondary)]">{description}</p>
+              <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                {description}
+              </p>
             ) : null}
           </div>
-          <Button type="button" variant="ghost" className="w-auto px-2 py-1" onClick={onClose}>
+          <Button
+            type="button"
+            variant="ghost"
+            className="w-auto shrink-0 px-2 py-1"
+            onClick={onClose}
+          >
             ✕
           </Button>
         </div>
-        <div>{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4 pb-8">
+          {children}
+        </div>
         {footer ? (
-          <div className="mt-5 flex justify-end gap-2 border-t border-[var(--border-subtle)] pt-4">
+          <div className="flex shrink-0 justify-end gap-2 border-t border-[var(--border-subtle)] px-5 py-4">
             {footer}
           </div>
         ) : null}
       </div>
     </div>
   );
+
+  return createPortal(panel, document.body);
 }

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -8,8 +9,15 @@ import {
   Post,
   Query,
   Req,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from "@nestjs/common";
+import { FileInterceptor } from "@nestjs/platform-express";
+import { diskStorage } from "multer";
+import { extname, join, resolve } from "path";
+import { randomUUID } from "crypto";
+import { existsSync, mkdirSync } from "fs";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { ModulesGuard, RequireModule } from "../auth/modules.guard";
 import { Roles, RolesGuard } from "../auth/roles.guard";
@@ -21,10 +29,15 @@ import {
   CreateTrainingSchema,
   PatchEmployeeSchema,
   PayrollCalculateSchema,
+  ProvisionEmployeeSchema,
   ShiftCheckInSchema,
   ShiftCheckOutSchema,
+  TerminateEmployeeSchema,
   UpsertEmployeeSchema,
 } from "./dto/rrhh.dto";
+
+const UPLOADS_DIR = resolve(__dirname, "../../../../uploads");
+if (!existsSync(UPLOADS_DIR)) mkdirSync(UPLOADS_DIR, { recursive: true });
 
 type AuthReq = {
   user: { organizationId: string; userId: string; role: string };
@@ -59,6 +72,13 @@ export class RrhhController {
     return this.rrhh.listEmployees(req.user.organizationId);
   }
 
+  @Post("employees/provision")
+  @Permissions("personal", "CREATE")
+  provisionEmployee(@Req() req: AuthReq, @Body() body: unknown) {
+    const dto = ProvisionEmployeeSchema.parse(body ?? {});
+    return this.rrhh.provisionEmployee(req.user.organizationId, req.user, dto);
+  }
+
   @Post("employees")
   @Permissions("personal", "CREATE")
   upsertEmployee(@Req() req: AuthReq, @Body() body: unknown) {
@@ -83,13 +103,109 @@ export class RrhhController {
   }
 
   @Delete("employees/:id")
-  @Roles("platform_master", "org_admin")
+  @Roles(
+    "platform_master",
+    "org_admin",
+    "rrhh",
+    "vinculaciones",
+  )
   @Permissions("personal", "DELETE")
   deleteEmployee(@Req() req: AuthReq, @Param("id") id: string) {
     return this.rrhh.deleteEmployee(
       req.user.organizationId,
       id,
       req.user.role,
+    );
+  }
+
+  @Post("employees/:id/access/suspend")
+  @Permissions("personal", "UPDATE")
+  suspendAccess(@Req() req: AuthReq, @Param("id") id: string) {
+    return this.rrhh.suspendAccess(req.user.organizationId, id);
+  }
+
+  @Post("employees/:id/access/restore")
+  @Permissions("personal", "UPDATE")
+  restoreAccess(@Req() req: AuthReq, @Param("id") id: string) {
+    return this.rrhh.restoreAccess(req.user.organizationId, id);
+  }
+
+  @Post("employees/:id/terminate")
+  @Permissions("personal", "UPDATE")
+  terminateEmployee(
+    @Req() req: AuthReq,
+    @Param("id") id: string,
+    @Body() body: unknown,
+  ) {
+    const dto = TerminateEmployeeSchema.parse(body ?? {});
+    return this.rrhh.terminateEmployee(req.user.organizationId, id, dto);
+  }
+
+  @Post("employees/:id/reset-password")
+  @Roles("platform_master", "org_admin", "rrhh", "vinculaciones")
+  @Permissions("personal", "UPDATE")
+  resetPassword(@Req() req: AuthReq, @Param("id") id: string) {
+    return this.rrhh.resetUserPassword(
+      req.user.organizationId,
+      id,
+      req.user,
+    );
+  }
+
+  @Get("employees/:id/documents")
+  @Permissions("personal", "READ")
+  employeeDocuments(@Req() req: AuthReq, @Param("id") id: string) {
+    return this.rrhh.getEmployeeDocuments(req.user.organizationId, id);
+  }
+
+  @Post("employees/:id/documents")
+  @Permissions("personal", "UPDATE")
+  @UseInterceptors(
+    FileInterceptor("file", {
+      storage: diskStorage({
+        destination: UPLOADS_DIR,
+        filename: (_req, file, cb) => {
+          const safe = extname(file.originalname).toLowerCase().slice(0, 10);
+          cb(null, `${randomUUID()}${safe}`);
+        },
+      }),
+      limits: { fileSize: 20 * 1024 * 1024 },
+    }),
+  )
+  uploadEmployeeDocument(
+    @Req() req: AuthReq,
+    @Param("id") id: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Body()
+    body: {
+      slotKey?: string;
+      title?: string;
+      licenseNumber?: string;
+      licenseCategory?: string;
+      licenseExpiresAt?: string;
+    },
+  ) {
+    if (!file) throw new BadRequestException("Archivo requerido (campo file)");
+    const slotKey = String(body?.slotKey || "").trim();
+    if (!slotKey) throw new BadRequestException("slotKey requerido");
+    return this.rrhh.uploadEmployeeDocument(
+      req.user.organizationId,
+      id,
+      req.user.userId,
+      {
+        storedName: file.filename,
+        originalName: file.originalname,
+        absolutePath: join(UPLOADS_DIR, file.filename),
+        byteSize: file.size,
+        mimeType: file.mimetype,
+      },
+      {
+        slotKey,
+        title: body?.title,
+        licenseNumber: body?.licenseNumber,
+        licenseCategory: body?.licenseCategory,
+        licenseExpiresAt: body?.licenseExpiresAt,
+      },
     );
   }
 

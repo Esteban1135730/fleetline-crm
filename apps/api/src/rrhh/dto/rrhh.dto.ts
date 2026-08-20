@@ -1,6 +1,63 @@
 import { z } from "zod";
 import { Field, FieldOptional } from "@fsg/shared";
 
+const contractTypes = [
+  "INDEFINIDO",
+  "TERMINO_FIJO",
+  "OBRA_LABOR",
+  "APRENDIZAJE",
+  "PRESTACION_SERVICIOS",
+] as const;
+
+const bankAccountTypes = ["AHORROS", "CORRIENTE"] as const;
+
+const hrFields = {
+  address: z.string().max(200).optional().nullable(),
+  city: z.string().max(80).optional().nullable(),
+  contractType: z.enum(contractTypes).optional().nullable(),
+  hireDate: z.coerce.date().optional().nullable(),
+  eps: z.string().max(120).optional().nullable(),
+  arl: z.string().max(120).optional().nullable(),
+  pensionFund: z.string().max(120).optional().nullable(),
+  compensationFund: z.string().max(120).optional().nullable(),
+  bankName: z.string().max(120).optional().nullable(),
+  bankAccountType: z.enum(bankAccountTypes).optional().nullable(),
+  bankAccountNumber: z.string().max(40).optional().nullable(),
+  emergencyContactName: z.string().max(120).optional().nullable(),
+  emergencyContactPhone: FieldOptional.phone.nullable().optional(),
+  emergencyContactRelation: z.string().max(80).optional().nullable(),
+};
+
+export const ProvisionEmployeeSchema = z
+  .object({
+    name: Field.personName,
+    document: Field.document,
+    email: Field.email,
+    phone: FieldOptional.phone,
+    role: z.string().min(1),
+    title: z.string().min(1).optional(),
+    position: z.string().min(1).optional(),
+    area: z.string().min(1),
+    baseSalary: Field.money.optional(),
+    hourlyRate: Field.money.optional(),
+    driverId: z.string().min(1).optional().nullable(),
+    ...hrFields,
+  })
+  .transform((v) => ({
+    ...v,
+    title: (v.title || v.position || "").trim(),
+  }))
+  .superRefine((v, ctx) => {
+    if (!v.title) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "title o position requerido",
+        path: ["title"],
+      });
+    }
+  });
+export type ProvisionEmployeeDto = z.infer<typeof ProvisionEmployeeSchema>;
+
 export const UpsertEmployeeSchema = z
   .object({
     id: z.string().min(1).optional(),
@@ -47,12 +104,19 @@ export const PatchEmployeeSchema = z
     driverId: z.string().min(1).optional().nullable(),
     fatigueScore: Field.integer.nonnegative().optional(),
     document: Field.document.optional(),
+    role: z.string().min(1).optional(),
+    ...hrFields,
   })
   .transform((v) => ({
     ...v,
     title: v.title ?? v.position,
   }));
 export type PatchEmployeeDto = z.infer<typeof PatchEmployeeSchema>;
+
+export const TerminateEmployeeSchema = z.object({
+  reason: z.string().max(500).optional().nullable(),
+});
+export type TerminateEmployeeDto = z.infer<typeof TerminateEmployeeSchema>;
 
 export const ShiftCheckInSchema = z.object({
   driverId: z.string().min(1),

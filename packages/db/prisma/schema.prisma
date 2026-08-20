@@ -1011,6 +1011,7 @@ model User {
   tickets            Ticket[]             @relation("TicketAssignee")
   driverProfile      Driver?
   monitorProfile     MonitorProfile?
+  employeeProfile    Employee?
   approvedPayments   Invoice[]            @relation("InvoicePaymentApprover")
   archiveUploads     ArchiveDocument[]    @relation("ArchiveUploader")
   purchaseApprovals  PurchaseOrder[]      @relation("PurchaseApprover")
@@ -3516,6 +3517,25 @@ model Employee {
   hourlyRate     Decimal        @db.Decimal(14, 2) @default(0)
   email          String?
   phone          String?
+  /// Cuenta de acceso Fleetline vinculada al expediente
+  userId         String?        @unique
+  user           User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  address        String?
+  city           String?
+  contractType   String?
+  hireDate       DateTime?
+  eps            String?
+  arl            String?
+  pensionFund    String?
+  compensationFund String?
+  bankName       String?
+  bankAccountType String?
+  bankAccountNumber String?
+  emergencyContactName     String?
+  emergencyContactPhone    String?
+  emergencyContactRelation String?
+  terminatedAt   DateTime?
+  terminationReason String?
   /// Vínculo opcional a perfil conductor (fatiga / comisiones)
   driverId       String?        @unique
   driver         Driver?        @relation(fields: [driverId], references: [id], onDelete: SetNull)

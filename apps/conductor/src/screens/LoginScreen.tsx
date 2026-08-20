@@ -12,15 +12,15 @@ import {
 } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../App";
-import { login } from "../api";
+import { getApiUrl, login } from "../api";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Login"> & {
   onLoggedIn: () => void;
 };
 
 export default function LoginScreen({ onLoggedIn }: Props) {
-  const [email, setEmail] = useState("conductor@fsg.co");
-  const [password, setPassword] = useState("fsg2026");
+  const [email, setEmail] = useState("conductor@inretrans.com");
+  const [password, setPassword] = useState("Inretrans2026*");
   const [loading, setLoading] = useState(false);
 
   async function handleLogin() {
@@ -61,7 +61,7 @@ export default function LoginScreen({ onLoggedIn }: Props) {
           keyboardType="email-address"
           value={email}
           onChangeText={setEmail}
-          placeholder="conductor@fsg.co"
+          placeholder="conductor@inretrans.com"
         />
 
         <Text style={styles.label}>Contraseña</Text>
@@ -73,6 +73,7 @@ export default function LoginScreen({ onLoggedIn }: Props) {
           placeholder="••••••••"
         />
 
+        <Text style={styles.apiHint}>API · {getApiUrl()}</Text>
         <Pressable
           style={[styles.button, loading && styles.buttonDisabled]}
           onPress={() => void handleLogin()}
@@ -147,5 +148,11 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
+  },
+  apiHint: {
+    marginBottom: 8,
+    fontSize: 11,
+    color: "#64748b",
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
   },
 });

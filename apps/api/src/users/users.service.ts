@@ -10,7 +10,7 @@ import { normalizeRole, roleRank } from "@fsg/shared";
 import { PrismaService } from "../prisma/prisma.service";
 
 /** Mapa flexible string → RoleCode Prisma */
-const roleMap: Record<string, Role> = {
+export const roleMap: Record<string, Role> = {
   PLATFORM_MASTER: Role.PLATFORM_MASTER,
   ORG_ADMIN: Role.ORG_ADMIN,
   TECNOLOGIA: Role.LIDER_TI,
@@ -165,9 +165,17 @@ export class UsersService {
   }
 
   private parseRole(raw: string): Role {
+    return UsersService.resolveRole(raw);
+  }
+
+  static resolveRole(raw: string): Role {
     const role = roleMap[raw] ?? roleMap[raw.toLowerCase()];
     if (!role) throw new BadRequestException("Rol inválido");
     return role;
+  }
+
+  static async hashPassword(password: string): Promise<string> {
+    return bcrypt.hash(password, 10);
   }
 
   private isPlatformMaster(role: string) {

@@ -10,14 +10,21 @@
     "splash": {
       "backgroundColor": "#0A0D14"
     },
+    "extra": {
+      "apiUrl": "http://76.13.101.203:4010"
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "co.fleetline.mobile",
       "infoPlist": {
-        "UIBackgroundModes": ["location"]
+        "UIBackgroundModes": ["location"],
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        }
       }
     },
     "android": {
+      "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "backgroundColor": "#0A0D14"
       },
