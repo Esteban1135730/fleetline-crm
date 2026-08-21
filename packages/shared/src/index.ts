@@ -897,7 +897,7 @@ export {
 
 export const LoginSchema = z.object({
   email: Field.email,
-  password: z.string().min(4).max(128),
+  password: z.string().min(8).max(128),
 });
 export type LoginInput = z.infer<typeof LoginSchema>;
 

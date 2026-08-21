@@ -13,13 +13,12 @@ import {
   BadRequestException,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
-import { diskStorage } from "multer";
-import { extname, join, resolve } from "path";
-import { randomUUID } from "crypto";
+import { join, resolve } from "path";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { ModulesGuard, RequireModule } from "../auth/modules.guard";
 import { ModulesService } from "./modules.service";
 import { ComplianceService } from "../logistics/compliance.service";
+import { uploadMulterOptions } from "../security/upload-security";
 
 const UPLOADS_DIR = resolve(__dirname, "../../../../uploads");
 
@@ -158,16 +157,10 @@ export class ModulesController {
   @Post("sarlaft/checks/:id/evidence")
   @RequireModule("sarlaft")
   @UseInterceptors(
-    FileInterceptor("file", {
-      storage: diskStorage({
-        destination: UPLOADS_DIR,
-        filename: (_req, file, cb) => {
-          const safe = extname(file.originalname).toLowerCase().slice(0, 10);
-          cb(null, `${randomUUID()}${safe}`);
-        },
-      }),
-      limits: { fileSize: 15 * 1024 * 1024 },
-    }),
+    FileInterceptor(
+      "file",
+      uploadMulterOptions(UPLOADS_DIR, { maxBytes: 5 * 1024 * 1024 }),
+    ),
   )
   uploadSarlaftEvidence(
     @Req() req: { user: { organizationId: string; userId: string } },
@@ -239,16 +232,10 @@ export class ModulesController {
   @Post("archivo/upload")
   @RequireModule("archivo")
   @UseInterceptors(
-    FileInterceptor("file", {
-      storage: diskStorage({
-        destination: UPLOADS_DIR,
-        filename: (_req, file, cb) => {
-          const safe = extname(file.originalname).toLowerCase().slice(0, 10);
-          cb(null, `${randomUUID()}${safe}`);
-        },
-      }),
-      limits: { fileSize: 15 * 1024 * 1024 },
-    }),
+    FileInterceptor(
+      "file",
+      uploadMulterOptions(UPLOADS_DIR, { maxBytes: 5 * 1024 * 1024 }),
+    ),
   )
   uploadArchive(
     @Req() req: { user: { organizationId: string; userId: string } },

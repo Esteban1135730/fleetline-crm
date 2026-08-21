@@ -1,9 +1,8 @@
-import { Injectable } from "@nestjs/common";
+import { ForbiddenException, Injectable } from "@nestjs/common";
 
 /**
- * Validación MFA Tesorería (OTP / TOTP simulado).
- * - Umbral: TREASURY_MFA_THRESHOLD_COP (default 5_000_000)
- * - Token demo: TREASURY_MFA_STATIC_OTP (default 000000) o TOTP real si se integra después
+ * Validación MFA Tesorería (OTP).
+ * En producción exige TREASURY_MFA_STATIC_OTP (≥6 dígitos) — nunca el default 000000.
  */
 @Injectable()
 export class MfaService {
@@ -17,8 +16,24 @@ export class MfaService {
     return Number(amount) > this.thresholdCop();
   }
 
+  private expectedOtp(): string {
+    const isProd =
+      process.env.NODE_ENV === "production" ||
+      process.env.FLEETLINE_ENV === "production";
+    const fromEnv = (process.env.TREASURY_MFA_STATIC_OTP || "").trim();
+    if (isProd) {
+      if (!fromEnv || fromEnv === "000000" || !/^\d{6}$/.test(fromEnv)) {
+        throw new ForbiddenException(
+          "MFA de tesorería no configurado (TREASURY_MFA_STATIC_OTP)",
+        );
+      }
+      return fromEnv;
+    }
+    return fromEnv || "000000";
+  }
+
   validateToken(token: string, _userEmail?: string): boolean {
-    const expected = (process.env.TREASURY_MFA_STATIC_OTP || "000000").trim();
+    const expected = this.expectedOtp();
     const clean = String(token || "").replace(/\s/g, "");
     if (clean.length !== 6 || !/^\d{6}$/.test(clean)) return false;
     return clean === expected;

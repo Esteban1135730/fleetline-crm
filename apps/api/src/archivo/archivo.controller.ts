@@ -12,9 +12,7 @@ import {
   BadRequestException,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
-import { diskStorage } from "multer";
-import { extname, join, resolve } from "path";
-import { randomUUID } from "crypto";
+import { join, resolve } from "path";
 import { existsSync, mkdirSync } from "fs";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { ModulesGuard, RequireModule } from "../auth/modules.guard";
@@ -32,6 +30,7 @@ import {
   UploadArchiveSchema,
 } from "./dto/archivo.dto";
 import { ArchiveDocType } from "@fsg/db";
+import { uploadMulterOptions } from "../security/upload-security";
 
 const UPLOADS_DIR = resolve(__dirname, "../../../../uploads");
 if (!existsSync(UPLOADS_DIR)) mkdirSync(UPLOADS_DIR, { recursive: true });
@@ -112,16 +111,10 @@ export class ArchivoController {
   @Post("upload")
   @Permissions("archivo_digital", "CREATE")
   @UseInterceptors(
-    FileInterceptor("file", {
-      storage: diskStorage({
-        destination: UPLOADS_DIR,
-        filename: (_req, file, cb) => {
-          const safe = extname(file.originalname).toLowerCase().slice(0, 10);
-          cb(null, `${randomUUID()}${safe}`);
-        },
-      }),
-      limits: { fileSize: 20 * 1024 * 1024 },
-    }),
+    FileInterceptor(
+      "file",
+      uploadMulterOptions(UPLOADS_DIR, { maxBytes: 5 * 1024 * 1024 }),
+    ),
   )
   upload(
     @Req() req: AuthReq,

@@ -115,7 +115,7 @@ export class PlatformController {
       throw new ConflictException("El email del admin ya está registrado");
     }
 
-    const passwordHash = await bcrypt.hash(dto.adminPassword, 10);
+    const passwordHash = await bcrypt.hash(dto.adminPassword, 12);
     const result = await this.prisma.$transaction(async (tx) => {
       const org = await tx.organization.create({
         data: {

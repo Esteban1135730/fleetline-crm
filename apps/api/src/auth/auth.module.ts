@@ -7,13 +7,18 @@ import { JwtStrategy } from "./jwt.strategy";
 import { RolesGuard } from "./roles.guard";
 import { PermissionsGuard } from "./permissions.guard";
 import { ModulesGuard } from "./modules.guard";
+import { resolveJwtSecret } from "../security/jwt-secret";
 
 @Module({
   imports: [
     PassportModule.register({ defaultStrategy: "jwt" }),
-    JwtModule.register({
-      secret: process.env.JWT_SECRET || "dev-secret-fsg-mega-os-2026",
-      signOptions: { expiresIn: "7d" },
+    JwtModule.registerAsync({
+      useFactory: (): import("@nestjs/jwt").JwtModuleOptions => ({
+        secret: resolveJwtSecret(),
+        signOptions: {
+          expiresIn: (process.env.JWT_EXPIRES_IN || "8h") as `${number}h`,
+        },
+      }),
     }),
   ],
   controllers: [AuthController],

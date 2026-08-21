@@ -63,7 +63,7 @@ export class LogisticsGateway
         role: string;
         organizationId: string;
       }>(token, {
-        secret: process.env.JWT_SECRET || "dev-secret-fsg-mega-os-2026",
+        secret: process.env.JWT_SECRET!,
       });
 
       const user: SocketUser = {

@@ -3,8 +3,9 @@ node_modules
 dist
 .next
 .env
-.env.local
-.env.production
+.env.*
+!.env.example
+!.env.production.example
 *.log
 .DS_Store
 coverage
@@ -36,3 +37,12 @@ apps/web/tsconfig.tsbuildinfo
 # Expo
 **/.expo/
 apps/api/Modulo_Horas_extras_Proyecto_CRM.csv
+# Claves y certificados
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+*.apk
+FSG-Conductor-VPS.apk

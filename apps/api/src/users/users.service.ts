@@ -175,7 +175,7 @@ export class UsersService {
   }
 
   static async hashPassword(password: string): Promise<string> {
-    return bcrypt.hash(password, 10);
+    return bcrypt.hash(password, 12);
   }
 
   private isPlatformMaster(role: string) {
@@ -253,7 +253,7 @@ export class UsersService {
       data: {
         name: data.name,
         email: data.email.toLowerCase(),
-        passwordHash: await bcrypt.hash(data.password, 10),
+        passwordHash: await bcrypt.hash(data.password, 12),
         role: targetRole,
         active: data.active ?? true,
         status,
@@ -341,7 +341,7 @@ export class UsersService {
         active: data.active,
         status,
         ...(data.password
-          ? { passwordHash: await bcrypt.hash(data.password, 10) }
+          ? { passwordHash: await bcrypt.hash(data.password, 12) }
           : {}),
       },
       include: {

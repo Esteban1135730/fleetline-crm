@@ -692,7 +692,7 @@ async function main() {
       status: "ACTIVE",
     },
   });
-  const masterHash = await bcrypt.hash(MASTER_PASSWORD, 10);
+  const masterHash = await bcrypt.hash(MASTER_PASSWORD, 12);
   await prisma.user.create({
     data: {
       email: "superadmin@inretrans.com",
@@ -719,7 +719,7 @@ async function main() {
   const permCount = await seedRoleMatrix(org.id);
   console.log(`[seed] RBAC: ${permCount} RolePermission`);
 
-  const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 10);
+  const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 12);
 
   const orgAdmin = await prisma.user.create({
     data: {
@@ -1109,7 +1109,7 @@ async function main() {
     },
   });
 
-  const executivePinHash = await bcrypt.hash("258014", 10);
+  const executivePinHash = await bcrypt.hash("258014", 12);
   const mauricioGerente = await prisma.user.create({
     data: {
       email: "gerenciageneral@inretrans.com",

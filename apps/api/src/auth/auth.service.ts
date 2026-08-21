@@ -6,10 +6,11 @@ import {
   UnauthorizedException,
 } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
-import * as bcrypt from "bcryptjs";
 import { AccountType, Role, UserAccountStatus } from "@fsg/db";
 import { normalizeRole } from "@fsg/shared";
 import { PrismaService } from "../prisma/prisma.service";
+import { hashPassword, verifyPassword } from "../security/password-hash";
+import type { PageParams } from "../security/pagination";
 
 @Injectable()
 export class AuthService {
@@ -64,7 +65,7 @@ export class AuthService {
     if (user.status === UserAccountStatus.REJECTED) {
       throw new UnauthorizedException("Cuenta rechazada — contacta al admin de empresa");
     }
-    const ok = await bcrypt.compare(password, user.passwordHash);
+    const ok = await verifyPassword(password, user.passwordHash);
     if (!ok) throw new UnauthorizedException("Credenciales inválidas");
 
     await this.prisma.user.update({
@@ -143,12 +144,12 @@ export class AuthService {
     }
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user || !user.active) throw new UnauthorizedException();
-    const ok = await bcrypt.compare(currentPassword, user.passwordHash);
+    const ok = await verifyPassword(currentPassword, user.passwordHash);
     if (!ok) throw new UnauthorizedException("Contraseña actual incorrecta");
 
     await this.prisma.user.update({
       where: { id: userId },
-      data: { passwordHash: await bcrypt.hash(newPassword, 10) },
+      data: { passwordHash: await hashPassword(newPassword) },
     });
     return { ok: true };
   }
@@ -194,7 +195,7 @@ export class AuthService {
     const existingUser = await this.prisma.user.findUnique({ where: { email } });
     if (existingUser) throw new ConflictException("El email ya está registrado");
 
-    const passwordHash = await bcrypt.hash(data.adminPassword, 10);
+    const passwordHash = await hashPassword(data.adminPassword);
 
     const result = await this.prisma.$transaction(async (tx) => {
       const org = await tx.organization.create({
@@ -250,21 +251,40 @@ export class AuthService {
   }
 
   async listUsers(organizationId: string) {
-    const users = await this.prisma.user.findMany({
-      where: { organizationId },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        active: true,
-        status: true,
-      },
+    const { items } = await this.listUsersPaged(organizationId, {
+      take: 100,
+      skip: 0,
+      page: 1,
     });
-    return users.map((u) => ({
-      ...u,
-      role: normalizeRole(u.role),
-      status: String(u.status).toLowerCase(),
-    }));
+    return items;
+  }
+
+  async listUsersPaged(organizationId: string, page: PageParams) {
+    const where = { organizationId };
+    const [users, total] = await Promise.all([
+      this.prisma.user.findMany({
+        where,
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          active: true,
+          status: true,
+        },
+        orderBy: { name: "asc" },
+        take: page.take,
+        skip: page.skip,
+      }),
+      this.prisma.user.count({ where }),
+    ]);
+    return {
+      total,
+      items: users.map((u) => ({
+        ...u,
+        role: normalizeRole(u.role),
+        status: String(u.status).toLowerCase(),
+      })),
+    };
   }
 }

@@ -5,14 +5,22 @@ import { Request } from "express";
 import { UserAccountStatus } from "@fsg/db";
 import { normalizeRole } from "@fsg/shared";
 import { PrismaService } from "../prisma/prisma.service";
+import { resolveJwtSecret } from "../security/jwt-secret";
+import { ACCESS_COOKIE } from "../security/session-cookie";
+
+function jwtFromCookieOrBearer(req: Request): string | null {
+  const fromCookie = req?.cookies?.[ACCESS_COOKIE];
+  if (typeof fromCookie === "string" && fromCookie.length > 0) return fromCookie;
+  return ExtractJwt.fromAuthHeaderAsBearerToken()(req);
+}
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(private prisma: PrismaService) {
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      jwtFromRequest: jwtFromCookieOrBearer,
       ignoreExpiration: false,
-      secretOrKey: process.env.JWT_SECRET || "dev-secret-fsg-mega-os-2026",
+      secretOrKey: resolveJwtSecret(),
       passReqToCallback: true,
     });
   }

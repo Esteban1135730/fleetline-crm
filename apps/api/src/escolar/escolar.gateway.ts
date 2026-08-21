@@ -49,7 +49,7 @@ export class EscolarGateway
         organizationId: string;
         familyId?: string;
       }>(token, {
-        secret: process.env.JWT_SECRET || "dev-secret-fsg-mega-os-2026",
+        secret: process.env.JWT_SECRET!,
       });
 
       client.data.organizationId = payload.organizationId;

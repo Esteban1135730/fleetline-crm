@@ -46,11 +46,13 @@ import { RecepcionModule } from "./recepcion/recepcion.module";
 import { ModulesModule } from "./modules/modules.module";
 import { HealthController } from "./health.controller";
 import { PrismaModule } from "./prisma/prisma.module";
+import { SecurityModule } from "./security/security.module";
 
 @Module({
   imports: [
     EventEmitterModule.forRoot(),
     ScheduleModule.forRoot(),
+    SecurityModule,
     PrismaModule,
     AuthModule,
     DashboardModule,

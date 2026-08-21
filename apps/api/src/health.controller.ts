@@ -1,10 +1,14 @@
 import { Controller, Get } from "@nestjs/common";
+import { SkipThrottle } from "@nestjs/throttler";
 import { PrismaService } from "./prisma/prisma.service";
+import { Public } from "./security/public.decorator";
 
 @Controller("health")
 export class HealthController {
   constructor(private prisma: PrismaService) {}
 
+  @Public()
+  @SkipThrottle()
   @Get()
   async check() {
     let db: "ok" | "error" = "ok";

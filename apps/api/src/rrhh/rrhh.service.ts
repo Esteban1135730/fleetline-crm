@@ -24,6 +24,7 @@ import { randomBytes } from "crypto";
 import ExcelJS from "exceljs";
 import { PrismaService } from "../prisma/prisma.service";
 import { UsersService } from "../users/users.service";
+import { decryptField, encryptField } from "../security/field-crypto";
 import { FatigueManagementService } from "./fatigue-management.service";
 import {
   isFleetDriverRole,
@@ -111,7 +112,11 @@ function hrDataFromDto(
       ? { bankAccountType: dto.bankAccountType }
       : {}),
     ...(dto.bankAccountNumber !== undefined
-      ? { bankAccountNumber: dto.bankAccountNumber }
+      ? {
+          bankAccountNumber: dto.bankAccountNumber
+            ? encryptField(dto.bankAccountNumber)
+            : null,
+        }
       : {}),
     ...(dto.emergencyContactName !== undefined
       ? { emergencyContactName: dto.emergencyContactName }
@@ -271,7 +276,7 @@ export class RrhhService {
         compensationFund: row.compensationFund ?? "",
         bankName: row.bankName ?? "",
         bankAccountType: row.bankAccountType ?? "",
-        bankAccountNumber: row.bankAccountNumber ?? "",
+        bankAccountNumber: decryptField(row.bankAccountNumber) ?? "",
         emergencyContactName: row.emergencyContactName ?? "",
         emergencyContactPhone: row.emergencyContactPhone ?? "",
         emergencyContactRelation: row.emergencyContactRelation ?? "",
@@ -688,7 +693,9 @@ export class RrhhService {
           compensationFund: dto.compensationFund ?? null,
           bankName: dto.bankName ?? null,
           bankAccountType: dto.bankAccountType ?? null,
-          bankAccountNumber: dto.bankAccountNumber ?? null,
+          bankAccountNumber: dto.bankAccountNumber
+            ? encryptField(dto.bankAccountNumber)
+            : null,
           emergencyContactName: dto.emergencyContactName ?? null,
           emergencyContactPhone: dto.emergencyContactPhone ?? null,
           emergencyContactRelation: dto.emergencyContactRelation ?? null,

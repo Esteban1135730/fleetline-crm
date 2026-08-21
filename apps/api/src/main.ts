@@ -4,18 +4,54 @@ import { NestFactory } from "@nestjs/core";
 import { ValidationPipe } from "@nestjs/common";
 import { NestExpressApplication } from "@nestjs/platform-express";
 import { existsSync, mkdirSync } from "fs";
+import helmet from "helmet";
+import cookieParser from "cookie-parser";
 import { AppModule } from "./app.module";
 import { sanitizeBodyMiddleware } from "./common/sanitize-body.middleware";
 import { ZodExceptionFilter } from "./common/zod-exception.filter";
+import { resolveJwtSecret } from "./security/jwt-secret";
 
 config({ path: resolve(__dirname, "../../../.env") });
 
 async function bootstrap() {
+  // Pilar 1/9 — fallar temprano si falta JWT
+  resolveJwtSecret();
+
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const isProd =
+    process.env.NODE_ENV === "production" ||
+    process.env.FLEETLINE_ENV === "production";
 
   const uploadsDir = resolve(__dirname, "../../../uploads");
   if (!existsSync(uploadsDir)) mkdirSync(uploadsDir, { recursive: true });
-  app.useStaticAssets(uploadsDir, { prefix: "/uploads/" });
+
+  // Pilar 16 — en prod solo vía /uploads autenticado (SecureUploadsController)
+  if (!isProd && process.env.UPLOADS_PUBLIC !== "false") {
+    app.useStaticAssets(uploadsDir, { prefix: "/uploads/" });
+  }
+
+  app.use(
+    helmet({
+      contentSecurityPolicy: isProd
+        ? {
+            useDefaults: true,
+            directives: {
+              defaultSrc: ["'self'"],
+              frameAncestors: ["'none'"],
+              objectSrc: ["'none'"],
+              upgradeInsecureRequests: [],
+            },
+          }
+        : false,
+      frameguard: { action: "deny" },
+      noSniff: true,
+      hsts: isProd
+        ? { maxAge: 31536000, includeSubDomains: true, preload: true }
+        : false,
+      referrerPolicy: { policy: "no-referrer" },
+    }),
+  );
+  app.use(cookieParser());
 
   const origins = (
     process.env.CORS_ORIGINS ||
@@ -26,18 +62,17 @@ async function bootstrap() {
     .filter(Boolean);
 
   app.enableCors({
-    // Expo Go / celular físico envían Origin variable; permitir LAN + lista fija
     origin: (
       origin: string | undefined,
       callback: (err: Error | null, allow?: boolean) => void,
     ) => {
       if (!origin) return callback(null, true);
       if (origins.includes(origin)) return callback(null, true);
-      if (/^exp:\/\//i.test(origin)) return callback(null, true);
-      if (/^http:\/\/192\.168\.\d+\.\d+(:\d+)?$/i.test(origin)) {
+      if (!isProd && /^exp:\/\//i.test(origin)) return callback(null, true);
+      if (!isProd && /^http:\/\/192\.168\.\d+\.\d+(:\d+)?$/i.test(origin)) {
         return callback(null, true);
       }
-      return callback(null, origins.length === 0);
+      return callback(null, false);
     },
     credentials: true,
     allowedHeaders: [
@@ -45,6 +80,7 @@ async function bootstrap() {
       "Content-Type",
       "X-Organization-Id",
       "Accept",
+      "X-Turnstile-Token",
     ],
   });
 
@@ -59,10 +95,15 @@ async function bootstrap() {
     }),
   );
 
-  if (!process.env.JWT_SECRET) {
-    console.warn(
-      "[WARN] JWT_SECRET no definido — usando secreto de desarrollo. Defínelo en producción.",
-    );
+  if (isProd && process.env.FORCE_HTTPS === "true") {
+    app.use((req, res, next) => {
+      const proto = req.headers["x-forwarded-proto"];
+      if (proto === "http") {
+        const host = req.headers.host || "localhost";
+        return res.redirect(301, `https://${host}${req.url}`);
+      }
+      return next();
+    });
   }
 
   const port = Number(process.env.API_PORT || 4000);
