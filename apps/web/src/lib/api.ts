@@ -161,7 +161,7 @@ async function confirmMutationIfNeeded(
   if (!ok) throw new MutationCancelled();
 }
 
-export async function api<T>(
+export async function apiRequest<T>(
   path: string,
   options: ApiOptions = {},
 ): Promise<T> {
@@ -213,16 +213,25 @@ export async function api<T>(
   }
 }
 
-export namespace api {
-  export function get<T>(path: string, options?: ApiOptions): Promise<T> {
-    return api<T>(path, { ...options, method: "GET" });
-  }
-  export function post<T>(
+type ApiClient = {
+  <T>(path: string, options?: ApiOptions): Promise<T>;
+  get<T>(path: string, options?: ApiOptions): Promise<T>;
+  post<T>(path: string, body?: unknown, options?: ApiOptions): Promise<T>;
+  patch<T>(path: string, body?: unknown, options?: ApiOptions): Promise<T>;
+  delete<T>(path: string, options?: ApiOptions): Promise<T>;
+};
+
+/** Cliente HTTP callable + helpers (SWC/Next no soporta `export namespace`). */
+export const api: ApiClient = Object.assign(apiRequest, {
+  get<T>(path: string, options?: ApiOptions): Promise<T> {
+    return apiRequest<T>(path, { ...options, method: "GET" });
+  },
+  post<T>(
     path: string,
     body?: unknown,
     options?: ApiOptions,
   ): Promise<T> {
-    return api<T>(path, {
+    return apiRequest<T>(path, {
       ...options,
       method: "POST",
       body:
@@ -232,13 +241,13 @@ export namespace api {
             ? body
             : JSON.stringify(body),
     });
-  }
-  export function patch<T>(
+  },
+  patch<T>(
     path: string,
     body?: unknown,
     options?: ApiOptions,
   ): Promise<T> {
-    return api<T>(path, {
+    return apiRequest<T>(path, {
       ...options,
       method: "PATCH",
       body:
@@ -248,11 +257,11 @@ export namespace api {
             ? body
             : JSON.stringify(body),
     });
-  }
-  export function delete<T>(path: string, options?: ApiOptions): Promise<T> {
-    return api<T>(path, { ...options, method: "DELETE" });
-  }
-}
+  },
+  delete<T>(path: string, options?: ApiOptions): Promise<T> {
+    return apiRequest<T>(path, { ...options, method: "DELETE" });
+  },
+});
 
 export async function apiDownload(
   path: string,
