@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
 import { api } from "@/lib/api";
-import { HowToBox, PageIntro } from "@/components/page-intro";
+import { PageIntro } from "@/components/page-intro";
 
 type Item = {
   id: string;
@@ -91,13 +91,10 @@ export default function AlmacenTallerDashboard() {
   return (
     <div className="space-y-8">
       <PageIntro module="taller" title="Almacén del taller" />
-      <HowToBox
-        steps={[
-          "Busque por QR/SKU y despache al mecánico en un toque.",
-          "El costo se imputa al centro de costos de la placa.",
-          "Stock se descuenta en tiempo real (antifraude QR).",
-        ]}
-      />
+      <p className="rounded-lg border border-[var(--accent-metric)]/40 bg-[color-mix(in_srgb,var(--accent-metric)_8%,transparent)] px-3 py-2 text-sm text-[var(--text-primary)]">
+        Hard lock antifraude: el despacho exige <strong>QR/serial</strong> de
+        la pieza. Sin escaneo válido el API rechaza el movimiento.
+      </p>
 
       {error && (
         <p className="font-mono text-sm text-[var(--fl-critical)]">{error}</p>

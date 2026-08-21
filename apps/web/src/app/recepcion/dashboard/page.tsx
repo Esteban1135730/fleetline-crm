@@ -16,7 +16,7 @@ import { PageIntro } from "@/components/page-intro";
 import {
   EmptyState,
   KpiCard,
-  Modal,
+  SlideOver,
   StatusPulseBadge,
 } from "@/components/audit";
 
@@ -56,6 +56,23 @@ type RadarItem = {
 };
 
 type Metrics = { visitors: number; leadsConverted: number; pqrsQuick: number };
+
+const DEFCON_KEYWORDS = [
+  "accidente",
+  "abogado",
+  "demanda",
+  "peligro",
+  "herido",
+  "muerte",
+  "choque",
+  "fiscalía",
+  "denuncia",
+];
+
+function isDefcon1(text: string) {
+  const n = text.toLowerCase();
+  return DEFCON_KEYWORDS.some((k) => n.includes(k));
+}
 
 const VISIT_CLASS_LABEL: Record<string, string> = {
   DRIVER_CANDIDATE: "Candidato conductor",
@@ -297,6 +314,16 @@ export default function RecepcionDashboardPage() {
     [visitors],
   );
 
+  const defconCount = useMemo(
+    () =>
+      inbox.filter(
+        (i) => isDefcon1(`${i.subject} ${i.message}`) || isDefcon1(i.tagLabel),
+      ).length,
+    [inbox],
+  );
+
+  const pqrsDefcon = isDefcon1(pqrsForm.message);
+
   return (
     <div className="fade-in mx-auto max-w-[1800px] space-y-4">
       <PageIntro
@@ -357,7 +384,7 @@ export default function RecepcionDashboardPage() {
         </p>
       ) : null}
 
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           label="Visitas hoy"
           value={metrics?.visitors ?? "—"}
@@ -378,6 +405,13 @@ export default function RecepcionDashboardPage() {
           tone="danger"
           icon={<AlertTriangle />}
           delta="Destino: QHSE"
+        />
+        <KpiCard
+          label="DEFCON 1 (bandeja)"
+          value={defconCount}
+          tone={defconCount > 0 ? "danger" : "ok"}
+          icon={<AlertTriangle />}
+          delta="accidente · abogado · peligro"
         />
       </section>
 
@@ -605,7 +639,7 @@ export default function RecepcionDashboardPage() {
         </section>
       </div>
 
-      <Modal
+      <SlideOver
         open={panel === "visit"}
         onClose={() => setPanel("none")}
         title="Nuevo visitante"
@@ -690,9 +724,9 @@ export default function RecepcionDashboardPage() {
             }
           />
         </form>
-      </Modal>
+      </SlideOver>
 
-      <Modal
+      <SlideOver
         open={panel === "lead"}
         onClose={() => setPanel("none")}
         title="Nuevo prospecto"
@@ -759,13 +793,17 @@ export default function RecepcionDashboardPage() {
             }
           />
         </form>
-      </Modal>
+      </SlideOver>
 
-      <Modal
+      <SlideOver
         open={panel === "pqrs"}
         onClose={() => setPanel("none")}
         title="Nueva PQRS"
-        description="Radicación rápida hacia Torre de Control / QHSE."
+        description={
+          pqrsDefcon
+            ? "DEFCON 1 — lenguaje crítico detectado. Escala inmediata a QHSE."
+            : "Radicación rápida hacia Torre de Control / QHSE."
+        }
         footer={
           <>
             <Button
@@ -821,8 +859,16 @@ export default function RecepcionDashboardPage() {
             }
             required
           />
+          {pqrsDefcon ? (
+            <p
+              role="alert"
+              className="rounded-md border border-[var(--accent-alert)]/40 bg-[color-mix(in_srgb,var(--accent-alert)_12%,transparent)] px-3 py-2 text-xs font-medium text-[var(--accent-alert)]"
+            >
+              DEFCON 1 — keywords críticas. Priorizar escalamiento a QHSE.
+            </p>
+          ) : null}
         </form>
-      </Modal>
+      </SlideOver>
     </div>
   );
 }

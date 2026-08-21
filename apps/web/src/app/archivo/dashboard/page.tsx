@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { PageIntro } from "@/components/page-intro";
-import { EmptyState, KpiCard, StatusPulseBadge } from "@/components/audit";
+import { EmptyState, KpiCard, SlideOver, StatusPulseBadge } from "@/components/audit";
 
 type SearchHit = {
   kind?: "document" | "vehicle" | "driver" | "employee" | "customer";
@@ -144,6 +144,23 @@ export default function ArchivoDashboardPage() {
   const [searching, setSearching] = useState(false);
   const [searched, setSearched] = useState(false);
   const [open, setOpen] = useState(false);
+  const [opsPanel, setOpsPanel] = useState<"none" | "despacho" | "prestamo">(
+    "none",
+  );
+  const [opsBusy, setOpsBusy] = useState(false);
+  const [opsMsg, setOpsMsg] = useState("");
+  const [despachoForm, setDespachoForm] = useState({
+    itemId: "",
+    quantity: "1",
+    ticketRef: "",
+    notes: "",
+  });
+  const [prestamoForm, setPrestamoForm] = useState({
+    documentId: "",
+    borrowerUserId: "",
+    purpose: "",
+    dueDays: "7",
+  });
   const boxRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -221,6 +238,65 @@ export default function ArchivoDashboardPage() {
 
   const metrics = dash?.vaultMetrics;
 
+  async function submitDespacho(e: FormEvent) {
+    e.preventDefault();
+    if (!despachoForm.itemId) return;
+    setOpsBusy(true);
+    setOpsMsg("");
+    setError("");
+    try {
+      await api("/api/v1/archivo/suministros/despachar", {
+        method: "POST",
+        body: JSON.stringify({
+          itemId: despachoForm.itemId,
+          quantity: Number(despachoForm.quantity) || 1,
+          ticketRef: despachoForm.ticketRef || undefined,
+          notes: despachoForm.notes || undefined,
+        }),
+      });
+      setOpsMsg("Despacho de papelería registrado");
+      setOpsPanel("none");
+      setDespachoForm({ itemId: "", quantity: "1", ticketRef: "", notes: "" });
+      await loadDash();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Despacho fallido");
+    } finally {
+      setOpsBusy(false);
+    }
+  }
+
+  async function submitPrestamo(e: FormEvent) {
+    e.preventDefault();
+    if (!prestamoForm.documentId || !prestamoForm.borrowerUserId) return;
+    setOpsBusy(true);
+    setOpsMsg("");
+    setError("");
+    try {
+      await api("/api/v1/archivo/prestamos/check-out", {
+        method: "POST",
+        body: JSON.stringify({
+          documentId: prestamoForm.documentId,
+          borrowerUserId: prestamoForm.borrowerUserId,
+          purpose: prestamoForm.purpose || undefined,
+          dueDays: Number(prestamoForm.dueDays) || 7,
+        }),
+      });
+      setOpsMsg("Préstamo de carpeta registrado");
+      setOpsPanel("none");
+      setPrestamoForm({
+        documentId: "",
+        borrowerUserId: "",
+        purpose: "",
+        dueDays: "7",
+      });
+      await loadDash();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Préstamo fallido");
+    } finally {
+      setOpsBusy(false);
+    }
+  }
+
   return (
     <div className="fade-in mx-auto max-w-[1600px] space-y-6">
       <PageIntro
@@ -228,7 +304,23 @@ export default function ArchivoDashboardPage() {
         title="Quantum Vault & Assets"
         subtitle="OCR cognitivo activo · cero-knowledge encryption"
         action={
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-auto px-3 py-2"
+              onClick={() => setOpsPanel("despacho")}
+            >
+              Despachar papelería
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-auto px-3 py-2"
+              onClick={() => setOpsPanel("prestamo")}
+            >
+              Préstamo carpeta
+            </Button>
             {metrics ? (
               <div className="rounded-lg border border-[var(--brand-line)] bg-[var(--brand-surface)] px-3 py-2 text-right">
                 <p className="text-[10px] uppercase tracking-wider text-[var(--brand-muted)]">
@@ -535,7 +627,13 @@ export default function ArchivoDashboardPage() {
               </article>
             ))}
             {!dash?.loansOnHand?.length ? (
-              <p className="text-xs text-[var(--brand-muted)]">Sin préstamos activos.</p>
+              <EmptyState
+                icon={<Lock className="h-6 w-6" aria-hidden />}
+                title="Sin préstamos activos"
+                description="Registre el check-out de una carpeta física."
+                actionLabel="Préstamo carpeta"
+                onAction={() => setOpsPanel("prestamo")}
+              />
             ) : null}
           </div>
         </section>
@@ -562,7 +660,13 @@ export default function ArchivoDashboardPage() {
               </article>
             ))}
             {!dash?.inventory?.length ? (
-              <p className="text-xs text-[var(--brand-muted)]">Sin ítems cargados.</p>
+              <EmptyState
+                icon={<Box className="h-6 w-6" aria-hidden />}
+                title="Sin ítems de papelería"
+                description="Cargue el inventario administrativo para despachar."
+                actionLabel="Despachar papelería"
+                onAction={() => setOpsPanel("despacho")}
+              />
             ) : null}
           </div>
         </section>
@@ -623,6 +727,180 @@ export default function ArchivoDashboardPage() {
           </table>
         )}
       </section>
+
+      {opsMsg ? (
+        <p className="text-sm text-[var(--accent-primary)]">{opsMsg}</p>
+      ) : null}
+
+      <SlideOver
+        open={opsPanel === "despacho"}
+        onClose={() => setOpsPanel("none")}
+        title="Despachar papelería"
+        description="Salida de stock con ticket y hard lock si cantidad inválida."
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-auto px-4 py-2"
+              onClick={() => setOpsPanel("none")}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              form="archivo-despacho-form"
+              variant="primary"
+              className="w-auto px-4 py-2"
+              loading={opsBusy}
+            >
+              Despachar
+            </Button>
+          </>
+        }
+      >
+        <form
+          id="archivo-despacho-form"
+          onSubmit={(e) => void submitDespacho(e)}
+          className="space-y-3"
+        >
+          <label className="flex flex-col gap-1 text-xs uppercase text-[var(--text-secondary)]">
+            Ítem
+            <select
+              className="field"
+              value={despachoForm.itemId}
+              onChange={(e) =>
+                setDespachoForm((f) => ({ ...f, itemId: e.target.value }))
+              }
+              required
+            >
+              <option value="">Seleccione…</option>
+              {(dash?.inventory ?? []).map((i) => (
+                <option key={i.id} value={i.id}>
+                  {i.name} · {i.sku} ({i.quantity})
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-xs uppercase text-[var(--text-secondary)]">
+            Cantidad
+            <input
+              className="field font-mono"
+              type="number"
+              min={1}
+              value={despachoForm.quantity}
+              onChange={(e) =>
+                setDespachoForm((f) => ({ ...f, quantity: e.target.value }))
+              }
+              required
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-xs uppercase text-[var(--text-secondary)]">
+            Ticket / referencia
+            <input
+              className="field"
+              value={despachoForm.ticketRef}
+              onChange={(e) =>
+                setDespachoForm((f) => ({ ...f, ticketRef: e.target.value }))
+              }
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-xs uppercase text-[var(--text-secondary)]">
+            Notas
+            <textarea
+              className="field min-h-[72px]"
+              value={despachoForm.notes}
+              onChange={(e) =>
+                setDespachoForm((f) => ({ ...f, notes: e.target.value }))
+              }
+            />
+          </label>
+        </form>
+      </SlideOver>
+
+      <SlideOver
+        open={opsPanel === "prestamo"}
+        onClose={() => setOpsPanel("none")}
+        title="Préstamo de carpeta"
+        description="Hard lock si el expediente ya está en custodia de otro usuario."
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-auto px-4 py-2"
+              onClick={() => setOpsPanel("none")}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              form="archivo-prestamo-form"
+              variant="primary"
+              className="w-auto px-4 py-2"
+              loading={opsBusy}
+            >
+              Registrar préstamo
+            </Button>
+          </>
+        }
+      >
+        <form
+          id="archivo-prestamo-form"
+          onSubmit={(e) => void submitPrestamo(e)}
+          className="space-y-3"
+        >
+          <label className="flex flex-col gap-1 text-xs uppercase text-[var(--text-secondary)]">
+            ID documento
+            <input
+              className="field font-mono"
+              value={prestamoForm.documentId}
+              onChange={(e) =>
+                setPrestamoForm((f) => ({ ...f, documentId: e.target.value }))
+              }
+              placeholder="cuid del expediente"
+              required
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-xs uppercase text-[var(--text-secondary)]">
+            ID usuario solicitante
+            <input
+              className="field font-mono"
+              value={prestamoForm.borrowerUserId}
+              onChange={(e) =>
+                setPrestamoForm((f) => ({
+                  ...f,
+                  borrowerUserId: e.target.value,
+                }))
+              }
+              required
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-xs uppercase text-[var(--text-secondary)]">
+            Días de préstamo
+            <input
+              className="field font-mono"
+              type="number"
+              min={1}
+              max={90}
+              value={prestamoForm.dueDays}
+              onChange={(e) =>
+                setPrestamoForm((f) => ({ ...f, dueDays: e.target.value }))
+              }
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-xs uppercase text-[var(--text-secondary)]">
+            Propósito
+            <textarea
+              className="field min-h-[72px]"
+              value={prestamoForm.purpose}
+              onChange={(e) =>
+                setPrestamoForm((f) => ({ ...f, purpose: e.target.value }))
+              }
+            />
+          </label>
+        </form>
+      </SlideOver>
     </div>
   );
 }

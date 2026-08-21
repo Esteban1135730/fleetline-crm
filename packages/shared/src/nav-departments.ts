@@ -154,13 +154,13 @@ export const NAV_DEPARTMENTS: NavDepartment[] = [
   ),
   AREA(
     "taller",
-    "/taller",
+    "/taller/coordinador/dashboard",
     "Taller",
     "Órdenes de trabajo y estado de mantenimiento de flota.",
   ),
   AREA(
     "parqueadero",
-    "/parqueadero",
+    "/patio/dashboard",
     "Parqueadero",
     "Ingreso y salida de vehículos en patio.",
   ),
