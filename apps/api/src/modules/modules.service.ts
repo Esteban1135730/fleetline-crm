@@ -1122,13 +1122,53 @@ export class ModulesService {
     organizationId: string,
     data: {
       description: string;
-      supplier: string;
+      supplier?: string;
+      supplierId?: string;
       amount: number;
       category?: string;
       requestedBy?: string;
       quantity?: number;
     },
   ) {
+    let supplierId = data.supplierId?.trim() || undefined;
+    let supplierName = (data.supplier || "").trim();
+
+    if (supplierId) {
+      const supplier = await this.prisma.supplier.findFirst({
+        where: { id: supplierId, organizationId, active: true },
+      });
+      if (!supplier) {
+        throw new NotFoundException("Proveedor no encontrado en el directorio");
+      }
+      if (supplier.sarlaftBlocked) {
+        throw new BadRequestException(
+          "Hard lock SARLAFT: proveedor bloqueado — no puede emitir OC",
+        );
+      }
+      supplierName = supplier.name;
+    } else if (supplierName) {
+      const byName = await this.prisma.supplier.findFirst({
+        where: {
+          organizationId,
+          active: true,
+          name: { equals: supplierName, mode: "insensitive" },
+        },
+      });
+      if (byName) {
+        if (byName.sarlaftBlocked) {
+          throw new BadRequestException(
+            "Hard lock SARLAFT: proveedor bloqueado — no puede emitir OC",
+          );
+        }
+        supplierId = byName.id;
+        supplierName = byName.name;
+      }
+    }
+
+    if (!supplierId && !supplierName) {
+      throw new BadRequestException("Seleccione un proveedor del directorio");
+    }
+
     const count = await this.prisma.purchaseOrder.count({
       where: { organizationId },
     });
@@ -1151,8 +1191,9 @@ export class ModulesService {
         status: PurchaseStatus.REQUESTED,
         totalEstimated: amount,
         currency: "COP",
+        supplierId: supplierId ?? null,
         meta: {
-          supplierName: data.supplier,
+          supplierName,
           category: data.category || "GENERAL",
           requestedBy: data.requestedBy ?? null,
         },

@@ -11,6 +11,8 @@ export const YardAccessLogSchema = z.object({
   lprConfidence: z.coerce.number().min(0).max(1).optional(),
   guardName: z.string().optional(),
   driverName: z.string().optional(),
+  /** Salida programada para parqueo LIFO al hacer CHECK_IN */
+  scheduledDepartAt: z.coerce.date().optional(),
 });
 export type YardAccessLogDto = z.infer<typeof YardAccessLogSchema>;
 

@@ -56,6 +56,8 @@ type PoolDriver = {
   dispatchBlocked: boolean;
   ready: boolean;
   blockers: string[];
+  authorizedVehicleIds?: string[];
+  primaryVehicleId?: string | null;
 };
 
 type PoolVehicle = {
@@ -65,6 +67,7 @@ type PoolVehicle = {
   complianceBlocked: boolean;
   ready: boolean;
   blockers: string[];
+  authorizedDriverIds?: string[];
 };
 
 type CreateResult = Servicio & {
@@ -156,9 +159,32 @@ export default function LogisticaServiciosPage() {
     const driver = [...drivers]
       .filter((d) => d.ready)
       .sort((a, b) => a.fatigueScore - b.fatigueScore)[0];
-    const vehicle = vehicles.find((v) => v.ready);
+    if (!driver) return { driver: undefined, vehicle: undefined };
+    const authIds = driver.authorizedVehicleIds ?? [];
+    const vehicle =
+      (driver.primaryVehicleId
+        ? vehicles.find((v) => v.id === driver.primaryVehicleId && v.ready)
+        : undefined) ||
+      vehicles.find(
+        (v) =>
+          v.ready && (authIds.length === 0 || authIds.includes(v.id)),
+      ) ||
+      vehicles.find((v) => v.ready);
     return { driver, vehicle };
   }, [drivers, vehicles]);
+
+  const vehiclesForAssign = useMemo(() => {
+    const authIds = assignDriver?.authorizedVehicleIds ?? [];
+    if (!assignDriver || authIds.length === 0) return vehicles;
+    return vehicles.filter((v) => authIds.includes(v.id));
+  }, [vehicles, assignDriver]);
+
+  const vehiclesForCreate = useMemo(() => {
+    const d = drivers.find((x) => x.id === form.driverId);
+    const authIds = d?.authorizedVehicleIds ?? [];
+    if (!d || authIds.length === 0) return vehicles;
+    return vehicles.filter((v) => authIds.includes(v.id));
+  }, [vehicles, drivers, form.driverId]);
 
   const liveSpeed = useMemo(() => {
     const pts = tracking?.history ?? [];
@@ -850,7 +876,7 @@ export default function LogisticaServiciosPage() {
                   }
                 >
                   <option value="">Sin asignar ahora…</option>
-                  {vehicles.map((v) => (
+                  {vehiclesForCreate.map((v) => (
                     <option key={v.id} value={v.id}>
                       {v.ready ? "✓ " : "⚠ "}
                       {v.plate}
@@ -922,7 +948,10 @@ export default function LogisticaServiciosPage() {
                 <select
                   className="field"
                   value={assignDriverId}
-                  onChange={(e) => setAssignDriverId(e.target.value)}
+                  onChange={(e) => {
+                    setAssignDriverId(e.target.value);
+                    setAssignVehicleId("");
+                  }}
                 >
                   <option value="">Conductor…</option>
                   {drivers.map((d) => (
@@ -938,13 +967,21 @@ export default function LogisticaServiciosPage() {
                   onChange={(e) => setAssignVehicleId(e.target.value)}
                 >
                   <option value="">Placa…</option>
-                  {vehicles.map((v) => (
+                  {vehiclesForAssign.map((v) => (
                     <option key={v.id} value={v.id}>
                       {v.ready ? "✓ " : "⚠ "}
                       {v.plate}
                     </option>
                   ))}
                 </select>
+                {assignDriver &&
+                (assignDriver.authorizedVehicleIds?.length ?? 0) > 0 &&
+                vehiclesForAssign.length === 0 ? (
+                  <p className="text-[11px] text-[var(--accent-alert)]">
+                    Sin placas autorizadas para este conductor. Vincule en
+                    Unidades autorizadas.
+                  </p>
+                ) : null}
               </div>
               <KillSwitchCard blockers={assignBlockers} />
               <div className="flex flex-wrap justify-end gap-2">

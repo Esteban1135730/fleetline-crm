@@ -15,6 +15,7 @@ import { SmartProcurementService } from "./smart-procurement.service";
 import {
   CreateGoodsReceiptDto,
   CreatePurchaseOrderDto,
+  CreateSupplierSchema,
   ProcessThreeWayDto,
 } from "./dto/compras.dto";
 import {
@@ -57,6 +58,20 @@ export class ComprasController {
   @Permissions("compras_oc", "READ")
   dashboard(@Req() req: AuthReq) {
     return this.smart.dashboard(req.user.organizationId);
+  }
+
+  /** Directorio de proveedores (no crea usuarios). */
+  @Get("proveedores")
+  @Permissions("compras_proveedores", "READ")
+  listProveedores(@Req() req: AuthReq) {
+    return this.service.listSuppliers(req.user.organizationId);
+  }
+
+  @Post("proveedores")
+  @Permissions("compras_proveedores", "CREATE")
+  createProveedor(@Req() req: AuthReq, @Body() body: unknown) {
+    const dto = CreateSupplierSchema.parse(body ?? {});
+    return this.service.createSupplier(req.user.organizationId, dto);
   }
 
   @Get("purchase-orders")

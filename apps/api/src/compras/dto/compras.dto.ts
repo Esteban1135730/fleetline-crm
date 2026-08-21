@@ -9,6 +9,37 @@ import {
   MinLength,
   ValidateNested,
 } from "class-validator";
+import { z } from "zod";
+
+export const CreateSupplierSchema = z.object({
+  name: z.string().trim().min(2).max(160),
+  nit: z
+    .string()
+    .trim()
+    .min(5)
+    .max(20)
+    .regex(/^[0-9.\-]+$/, "NIT inválido"),
+  email: z.string().trim().email().optional().or(z.literal("")),
+  phone: z.string().trim().max(40).optional().or(z.literal("")),
+  productTags: z
+    .union([z.array(z.string()), z.string()])
+    .optional()
+    .transform((v) => {
+      if (!v) return [] as string[];
+      if (Array.isArray(v)) {
+        return v.map((t) => String(t).trim()).filter(Boolean).slice(0, 12);
+      }
+      return String(v)
+        .split(/[,;]/)
+        .map((t) => t.trim())
+        .filter(Boolean)
+        .slice(0, 12);
+    }),
+  rating: z.coerce.number().min(1).max(5).optional(),
+  bankName: z.string().trim().max(80).optional().or(z.literal("")),
+  bankAccountNumber: z.string().trim().max(40).optional().or(z.literal("")),
+});
+export type CreateSupplierDto = z.infer<typeof CreateSupplierSchema>;
 
 export class PurchaseOrderLineDto {
   @IsString()

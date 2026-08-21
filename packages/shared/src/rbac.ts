@@ -194,6 +194,8 @@ export const ROLE_PERMISSIONS: Record<string, RolePermissionMap> = {
     balance_scorecard: ["READ", "ANALYZE"],
     gerencia_override: ["CREATE", "READ", "UPDATE"],
     gerencia_approvals: ["CREATE", "READ", "UPDATE"],
+    compras_oc: ["CREATE", "READ", "UPDATE", "DELETE"],
+    compras_proveedores: ["CREATE", "READ", "UPDATE", "DELETE"],
   },
 
   /** Módulo 16 — Gerente General / Executive Operations Hub (Mauricio) */
@@ -212,8 +214,8 @@ export const ROLE_PERMISSIONS: Record<string, RolePermissionMap> = {
     taller_ot: ["READ", "UPDATE"],
     taller_qc: ["CREATE", "READ", "UPDATE"],
     nomina: ["READ", "UPDATE"],
-    compras_oc: ["READ", "UPDATE"],
-    compras_proveedores: ["READ", "UPDATE"],
+    compras_oc: ["CREATE", "READ", "UPDATE"],
+    compras_proveedores: ["CREATE", "READ", "UPDATE"],
     hallazgos_ci: ["READ", "AUDIT"],
     audit_forense: ["READ", "AUDIT"],
     torre_rutas: ["READ", "MONITOR"],
@@ -569,7 +571,7 @@ export const ROLE_PERMISSIONS: Record<string, RolePermissionMap> = {
     cxp_proveedores: ["READ"],
     gastos_ruta: ["READ"],
     compras_oc: ["CREATE", "READ", "UPDATE"],
-    compras_proveedores: ["READ"],
+    compras_proveedores: ["CREATE", "READ", "UPDATE"],
   },
   gestor_contable: {
     contabilidad: ["CREATE", "READ", "UPDATE", "DELETE"],

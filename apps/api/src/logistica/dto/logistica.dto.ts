@@ -49,3 +49,12 @@ export const ReassignServicioSchema = z.object({
   newDriverId: z.string().min(1),
 });
 export type ReassignServicioDto = z.infer<typeof ReassignServicioSchema>;
+
+/** Autorizar conductor ↔ vehículo (matriz N:N) */
+export const LinkDriverVehicleSchema = z.object({
+  driverId: z.string().min(1),
+  vehicleId: z.string().min(1),
+  isPrimary: z.boolean().optional().default(false),
+  notes: z.string().max(500).optional(),
+});
+export type LinkDriverVehicleDto = z.infer<typeof LinkDriverVehicleSchema>;

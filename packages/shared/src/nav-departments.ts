@@ -97,6 +97,12 @@ export const NAV_DEPARTMENTS: NavDepartment[] = [
         tip: "Calendario de disponibilidad, relevos PESV y liquidación de extras.",
       },
       {
+        href: "/logistica/asignaciones",
+        view: "logistica",
+        label: "Unidades autorizadas",
+        tip: "Matriz N:N — qué conductores pueden operar qué vehículos.",
+      },
+      {
         href: "/logistica/conductores/reporte-nomina",
         view: "logistica",
         label: "Nómina extras",

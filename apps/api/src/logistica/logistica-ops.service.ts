@@ -28,6 +28,7 @@ import {
 import type {
   CreateServicioDto,
   DriverNoveltyDto,
+  LinkDriverVehicleDto,
   ReassignServicioDto,
 } from "./dto/logistica.dto";
 import { KafkaEventsService } from "../logistics/kafka-events.service";
@@ -180,6 +181,22 @@ export class LogisticaOpsService {
         dispatchNotes.push(
           `Vehículo ${v.plate} no asignado — ${v.complianceReason || "COMPLIANCE_BLOCKED"}`,
         );
+        vehicleId = undefined;
+      }
+    }
+
+    if (vehicleId && driverId) {
+      try {
+        await this.assertDriverVehicleAuthorized(
+          organizationId,
+          driverId,
+          vehicleId,
+        );
+      } catch {
+        dispatchNotes.push(
+          "Asignación omitida — pareja no autorizada en matriz conductor/vehículo",
+        );
+        driverId = undefined;
         vehicleId = undefined;
       }
     }
@@ -928,6 +945,11 @@ export class LogisticaOpsService {
     }
 
     if (trip.vehicleId) {
+      await this.assertDriverVehicleAuthorized(
+        organizationId,
+        neu.id,
+        trip.vehicleId,
+      );
       const gate = await this.gate.evaluate({
         organizationId,
         vehicleId: trip.vehicleId,
@@ -1001,9 +1023,9 @@ export class LogisticaOpsService {
     };
   }
 
-  /** Pool de despacho: conductores + vehículos con checklist normativo */
+  /** Pool de despacho: conductores + vehículos con checklist normativo + matriz N:N */
   async listDispatchPool(organizationId: string) {
-    const [drivers, vehicles] = await Promise.all([
+    const [drivers, vehicles, auths] = await Promise.all([
       this.prisma.driver.findMany({
         where: { organizationId, active: true },
         include: { complianceDocs: true },
@@ -1014,7 +1036,28 @@ export class LogisticaOpsService {
         include: { complianceDocs: true },
         orderBy: { plate: "asc" },
       }),
+      this.prisma.driverVehicleAuth.findMany({
+        where: { organizationId, active: true },
+        select: {
+          driverId: true,
+          vehicleId: true,
+          isPrimary: true,
+        },
+      }),
     ]);
+
+    const vehicleIdsByDriver = new Map<string, string[]>();
+    const driverIdsByVehicle = new Map<string, string[]>();
+    const primaryVehicleByDriver = new Map<string, string>();
+    for (const a of auths) {
+      const vd = vehicleIdsByDriver.get(a.driverId) ?? [];
+      vd.push(a.vehicleId);
+      vehicleIdsByDriver.set(a.driverId, vd);
+      const dv = driverIdsByVehicle.get(a.vehicleId) ?? [];
+      dv.push(a.driverId);
+      driverIdsByVehicle.set(a.vehicleId, dv);
+      if (a.isPrimary) primaryVehicleByDriver.set(a.driverId, a.vehicleId);
+    }
 
     const now = new Date();
     const docOk = (
@@ -1053,6 +1096,7 @@ export class LogisticaOpsService {
           blockers.push(d.blockReason || "Conductor bloqueado");
         if (!fatigueOk) blockers.push(`Fatiga ${d.fatigueScore}`);
         if (!licenseOk) blockers.push(licDoc.label || "Licencia faltante");
+        const authorizedVehicleIds = vehicleIdsByDriver.get(d.id) ?? [];
         return {
           id: d.id,
           name: d.name,
@@ -1061,6 +1105,8 @@ export class LogisticaOpsService {
           dispatchBlocked: d.dispatchBlocked,
           ready: blockers.length === 0,
           blockers,
+          authorizedVehicleIds,
+          primaryVehicleId: primaryVehicleByDriver.get(d.id) ?? null,
         };
       }),
       vehicles: vehicles.map((v) => {
@@ -1075,6 +1121,7 @@ export class LogisticaOpsService {
         }
         if (!soat.ok) blockers.push(soat.label);
         if (!tecno.ok) blockers.push(tecno.label);
+        const authorizedDriverIds = driverIdsByVehicle.get(v.id) ?? [];
         return {
           id: v.id,
           plate: v.plate,
@@ -1082,9 +1129,235 @@ export class LogisticaOpsService {
           complianceBlocked: v.complianceBlocked,
           ready: blockers.length === 0,
           blockers,
+          authorizedDriverIds,
         };
       }),
+      authLinks: auths,
     };
+  }
+
+  /**
+   * Si el conductor o el vehículo ya tienen roster, la pareja debe estar autorizada.
+   * Si ninguno tiene vínculos aún → permite (migración gradual).
+   */
+  async assertDriverVehicleAuthorized(
+    organizationId: string,
+    driverId: string,
+    vehicleId: string,
+  ) {
+    const [forDriver, forVehicle, pair] = await Promise.all([
+      this.prisma.driverVehicleAuth.count({
+        where: { organizationId, driverId, active: true },
+      }),
+      this.prisma.driverVehicleAuth.count({
+        where: { organizationId, vehicleId, active: true },
+      }),
+      this.prisma.driverVehicleAuth.findFirst({
+        where: {
+          organizationId,
+          driverId,
+          vehicleId,
+          active: true,
+        },
+      }),
+    ]);
+
+    if (forDriver === 0 && forVehicle === 0) return { ok: true as const };
+    if (pair) return { ok: true as const, authId: pair.id };
+
+    throw new UnprocessableEntityException({
+      error: "DRIVER_VEHICLE_NOT_AUTHORIZED",
+      message:
+        "Esta pareja conductor/vehículo no está en la matriz de autorización. Vincúlela en Logística → Unidades autorizadas.",
+      driverId,
+      vehicleId,
+    });
+  }
+
+  async listDriverVehicleAuths(
+    organizationId: string,
+    filter?: { driverId?: string; vehicleId?: string },
+  ) {
+    return this.prisma.driverVehicleAuth.findMany({
+      where: {
+        organizationId,
+        active: true,
+        ...(filter?.driverId ? { driverId: filter.driverId } : {}),
+        ...(filter?.vehicleId ? { vehicleId: filter.vehicleId } : {}),
+      },
+      include: {
+        driver: {
+          select: {
+            id: true,
+            name: true,
+            document: true,
+            active: true,
+            fatigueScore: true,
+          },
+        },
+        vehicle: {
+          select: {
+            id: true,
+            plate: true,
+            brand: true,
+            model: true,
+            status: true,
+          },
+        },
+      },
+      orderBy: [{ isPrimary: "desc" }, { assignedAt: "desc" }],
+    });
+  }
+
+  async driverVehicleAuthMatrix(organizationId: string) {
+    const [drivers, vehicles, links] = await Promise.all([
+      this.prisma.driver.findMany({
+        where: { organizationId, active: true },
+        select: {
+          id: true,
+          name: true,
+          document: true,
+          fatigueScore: true,
+          dispatchBlocked: true,
+        },
+        orderBy: { name: "asc" },
+      }),
+      this.prisma.vehicle.findMany({
+        where: { organizationId },
+        select: {
+          id: true,
+          plate: true,
+          brand: true,
+          model: true,
+          status: true,
+          complianceBlocked: true,
+        },
+        orderBy: { plate: "asc" },
+      }),
+      this.listDriverVehicleAuths(organizationId),
+    ]);
+
+    return {
+      drivers,
+      vehicles,
+      links,
+      byDriver: drivers.map((d) => ({
+        ...d,
+        vehicles: links
+          .filter((l) => l.driverId === d.id)
+          .map((l) => ({
+            linkId: l.id,
+            isPrimary: l.isPrimary,
+            notes: l.notes,
+            vehicle: l.vehicle,
+          })),
+      })),
+      byVehicle: vehicles.map((v) => ({
+        ...v,
+        drivers: links
+          .filter((l) => l.vehicleId === v.id)
+          .map((l) => ({
+            linkId: l.id,
+            isPrimary: l.isPrimary,
+            notes: l.notes,
+            driver: l.driver,
+          })),
+      })),
+    };
+  }
+
+  async linkDriverVehicle(
+    organizationId: string,
+    dto: LinkDriverVehicleDto,
+    actorUserId?: string,
+  ) {
+    const [driver, vehicle] = await Promise.all([
+      this.prisma.driver.findFirst({
+        where: { id: dto.driverId, organizationId },
+      }),
+      this.prisma.vehicle.findFirst({
+        where: { id: dto.vehicleId, organizationId },
+      }),
+    ]);
+    if (!driver) throw new NotFoundException("Conductor no encontrado");
+    if (!vehicle) throw new NotFoundException("Vehículo no encontrado");
+
+    if (dto.isPrimary) {
+      await this.prisma.driverVehicleAuth.updateMany({
+        where: { organizationId, driverId: dto.driverId, active: true },
+        data: { isPrimary: false },
+      });
+    }
+
+    const link = await this.prisma.driverVehicleAuth.upsert({
+      where: {
+        organizationId_driverId_vehicleId: {
+          organizationId,
+          driverId: dto.driverId,
+          vehicleId: dto.vehicleId,
+        },
+      },
+      create: {
+        organizationId,
+        driverId: dto.driverId,
+        vehicleId: dto.vehicleId,
+        isPrimary: dto.isPrimary ?? false,
+        notes: dto.notes,
+        assignedById: actorUserId,
+        active: true,
+      },
+      update: {
+        active: true,
+        isPrimary: dto.isPrimary ?? false,
+        notes: dto.notes,
+        assignedById: actorUserId,
+        assignedAt: new Date(),
+      },
+      include: {
+        driver: { select: { id: true, name: true } },
+        vehicle: { select: { id: true, plate: true } },
+      },
+    });
+
+    return {
+      ...link,
+      message: `${link.driver.name} autorizado en ${link.vehicle.plate}`,
+    };
+  }
+
+  async setPrimaryDriverVehicle(organizationId: string, linkId: string) {
+    const link = await this.prisma.driverVehicleAuth.findFirst({
+      where: { id: linkId, organizationId, active: true },
+    });
+    if (!link) throw new NotFoundException("Vínculo no encontrado");
+
+    await this.prisma.driverVehicleAuth.updateMany({
+      where: {
+        organizationId,
+        driverId: link.driverId,
+        active: true,
+      },
+      data: { isPrimary: false },
+    });
+
+    return this.prisma.driverVehicleAuth.update({
+      where: { id: link.id },
+      data: { isPrimary: true },
+    });
+  }
+
+  async unlinkDriverVehicle(organizationId: string, linkId: string) {
+    const link = await this.prisma.driverVehicleAuth.findFirst({
+      where: { id: linkId, organizationId },
+    });
+    if (!link) throw new NotFoundException("Vínculo no encontrado");
+
+    await this.prisma.driverVehicleAuth.update({
+      where: { id: link.id },
+      data: { active: false, isPrimary: false },
+    });
+
+    return { ok: true, id: link.id };
   }
 
   async assignServicio(
@@ -1103,6 +1376,12 @@ export class LogisticaOpsService {
     ) {
       throw new BadRequestException("No se puede asignar un servicio cerrado");
     }
+
+    await this.assertDriverVehicleAuthorized(
+      organizationId,
+      input.driverId,
+      input.vehicleId,
+    );
 
     const gate = await this.gate.evaluate({
       organizationId,

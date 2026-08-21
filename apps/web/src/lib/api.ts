@@ -81,11 +81,14 @@ function formatApiError(err: unknown, fallback: string): string {
   if (!err || typeof err !== "object") return fallback;
   const e = err as {
     message?: unknown;
+    blocks?: string[];
+    error?: string;
     violations?: Array<{ message?: string }>;
   };
-  if (typeof e.message === "string" && e.message.trim()) return e.message;
-  if (Array.isArray(e.message)) {
-    return e.message
+  let base = fallback;
+  if (typeof e.message === "string" && e.message.trim()) base = e.message;
+  else if (Array.isArray(e.message)) {
+    base = e.message
       .map((m) =>
         typeof m === "string"
           ? m
@@ -94,8 +97,7 @@ function formatApiError(err: unknown, fallback: string): string {
             : JSON.stringify(m),
       )
       .join(" · ");
-  }
-  if (e.message && typeof e.message === "object") {
+  } else if (e.message && typeof e.message === "object") {
     const nested = e.message as {
       message?: unknown;
       violations?: Array<{ message?: string }>;
@@ -105,13 +107,20 @@ function formatApiError(err: unknown, fallback: string): string {
         ?.map((v) => v.message)
         .filter(Boolean)
         .join(" · ");
-      return extras ? `${nested.message} (${extras})` : nested.message;
+      base = extras ? `${nested.message} (${extras})` : nested.message;
     }
+  } else if (e.violations?.length) {
+    base = e.violations.map((v) => v.message).filter(Boolean).join(" · ") || fallback;
   }
-  if (e.violations?.length) {
-    return e.violations.map((v) => v.message).filter(Boolean).join(" · ");
+
+  const blocks = Array.isArray(e.blocks) ? e.blocks.filter(Boolean) : [];
+  if (typeof e.error === "string" && e.error && !blocks.includes(e.error)) {
+    blocks.unshift(e.error);
   }
-  return fallback;
+  if (blocks.length) {
+    return `${base} [${blocks.join(", ")}]`;
+  }
+  return base;
 }
 
 export type MutationConfirmOptions = {
@@ -223,6 +232,25 @@ export namespace api {
             ? body
             : JSON.stringify(body),
     });
+  }
+  export function patch<T>(
+    path: string,
+    body?: unknown,
+    options?: ApiOptions,
+  ): Promise<T> {
+    return api<T>(path, {
+      ...options,
+      method: "PATCH",
+      body:
+        body === undefined
+          ? options?.body
+          : typeof body === "string"
+            ? body
+            : JSON.stringify(body),
+    });
+  }
+  export function delete<T>(path: string, options?: ApiOptions): Promise<T> {
+    return api<T>(path, { ...options, method: "DELETE" });
   }
 }
 

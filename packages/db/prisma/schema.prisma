@@ -858,6 +858,7 @@ model Organization {
   customers          Customer[]
   vehicles           Vehicle[]
   drivers            Driver[]
+  driverVehicleAuths DriverVehicleAuth[]
   routes             Route[]
   trips              Trip[]
   planillas          Planilla[]
@@ -1433,6 +1434,7 @@ model Vehicle {
   hqseIncidents    HqseIncident[]
   pqrsTickets      Ticket[]
   schoolRoutes     SchoolRoute[]
+  driverAuths      DriverVehicleAuth[]
 
   @@unique([organizationId, plate])
   @@index([organizationId, status])
@@ -1508,12 +1510,38 @@ model Driver {
   pqrsTickets      Ticket[]
   schoolRoutes     SchoolRoute[]
   novelties        DriverNovelty[]
+  vehicleAuths     DriverVehicleAuth[]
 
   @@unique([organizationId, document])
   @@index([organizationId, active])
   @@index([organizationId, dispatchBlocked])
   @@index([licenseExpiresAt])
   @@index([fatigueScore])
+}
+
+/// Matriz N:N — qué conductores están autorizados a operar qué vehículos (roster operativo).
+/// Independiente del Trip: un conductor puede tener muchas placas; una placa muchos conductores.
+model DriverVehicleAuth {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  driverId       String
+  driver         Driver       @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  vehicleId      String
+  vehicle        Vehicle      @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  /// Preferida para sugerencias de despacho
+  isPrimary      Boolean      @default(false)
+  active         Boolean      @default(true)
+  notes          String?
+  assignedById   String?
+  assignedAt     DateTime     @default(now())
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, driverId, vehicleId])
+  @@index([organizationId, active])
+  @@index([driverId, active])
+  @@index([vehicleId, active])
 }
 
 /// Documentos de compliance (vehículo o conductor) — SOAT, RUNT, licencias, etc.

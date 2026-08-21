@@ -354,7 +354,8 @@ export class ModulesController {
     @Body()
     body: {
       description: string;
-      supplier: string;
+      supplier?: string;
+      supplierId?: string;
       amount: number;
       category?: string;
       requestedBy?: string;

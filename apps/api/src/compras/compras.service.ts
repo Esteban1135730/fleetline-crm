@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
@@ -14,6 +15,7 @@ import { SarlaftComplianceGuard } from "../sarlaft/sarlaft-compliance.guard";
 import type {
   CreateGoodsReceiptDto,
   CreatePurchaseOrderDto,
+  CreateSupplierDto,
   ProcessThreeWayDto,
 } from "./dto/compras.dto";
 
@@ -24,6 +26,73 @@ export class ComprasService {
     private threeWay: ThreeWayMatchingService,
     private sarlaft: SarlaftComplianceGuard,
   ) {}
+
+  listSuppliers(organizationId: string) {
+    return this.prisma.supplier.findMany({
+      where: { organizationId },
+      orderBy: [{ active: "desc" }, { name: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        nit: true,
+        email: true,
+        phone: true,
+        active: true,
+        rating: true,
+        productTags: true,
+        sarlaftBlocked: true,
+        paymentHardBlocked: true,
+        totalSavings: true,
+        createdAt: true,
+      },
+    });
+  }
+
+  async createSupplier(organizationId: string, dto: CreateSupplierDto) {
+    const nit = dto.nit.replace(/\s/g, "");
+    const existing = await this.prisma.supplier.findFirst({
+      where: { organizationId, nit },
+      select: { id: true },
+    });
+    if (existing) {
+      throw new ConflictException("Ya existe un proveedor con ese NIT");
+    }
+
+    const email = dto.email?.trim() || null;
+    const phone = dto.phone?.trim() || null;
+    const bankName = dto.bankName?.trim() || null;
+    const bankAccountNumber = dto.bankAccountNumber?.trim() || null;
+
+    return this.prisma.supplier.create({
+      data: {
+        organizationId,
+        name: dto.name.trim(),
+        nit,
+        email,
+        phone,
+        productTags: dto.productTags ?? [],
+        rating: dto.rating ?? 4,
+        bankName,
+        bankAccountNumber,
+        active: true,
+        sarlaftBlocked: false,
+      },
+      select: {
+        id: true,
+        name: true,
+        nit: true,
+        email: true,
+        phone: true,
+        active: true,
+        rating: true,
+        productTags: true,
+        sarlaftBlocked: true,
+        paymentHardBlocked: true,
+        totalSavings: true,
+        createdAt: true,
+      },
+    });
+  }
 
   listOrders(organizationId: string) {
     return this.prisma.purchaseOrder.findMany({

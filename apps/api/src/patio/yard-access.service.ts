@@ -120,13 +120,34 @@ export class YardAccessService {
     }
 
     if (kind === YardAccessKind.CHECK_IN) {
-      return this.checkIn(organizationId, {
+      const result = await this.checkIn(organizationId, {
         vehicle,
         plate,
         driver,
         dto,
         actorUserId,
       });
+      let lifo: Awaited<
+        ReturnType<YardAccessService["assignParkingLifo"]>
+      > | null = null;
+      try {
+        const depart =
+          dto.scheduledDepartAt ?? new Date(Date.now() + 2 * 3600_000);
+        lifo = await this.assignParkingLifo(
+          organizationId,
+          plate,
+          new Date(depart),
+        );
+      } catch {
+        lifo = null;
+      }
+      return {
+        ...result,
+        lifo,
+        message: lifo
+          ? `Ingreso OK · ${lifo.message}`
+          : "Ingreso OK — asigne bahía LIFO manualmente",
+      };
     }
 
     return this.checkOut(organizationId, {
@@ -456,14 +477,25 @@ export class YardAccessService {
       inventory,
       yardMap: slots,
       washQueue,
-      talanquera: recentAccess.map((a) => ({
-        id: a.id,
-        plate: a.plate,
-        gateOpened: a.gateOpened,
-        denied: a.denied,
-        denyReason: a.denyReason,
-        createdAt: a.createdAt,
-      })),
+      talanquera: recentAccess.map((a) => {
+        const meta = (a.meta ?? {}) as {
+          blocks?: string[];
+          tripCode?: string;
+          mode?: string;
+        };
+        return {
+          id: a.id,
+          plate: a.plate,
+          kind: a.kind,
+          gateOpened: a.gateOpened,
+          denied: a.denied,
+          denyReason: a.denyReason,
+          blocks: Array.isArray(meta.blocks) ? meta.blocks : [],
+          tripCode: meta.tripCode ?? null,
+          mode: meta.mode ?? null,
+          createdAt: a.createdAt,
+        };
+      }),
     };
   }
 

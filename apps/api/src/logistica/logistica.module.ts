@@ -5,6 +5,7 @@ import { ComercialModule } from "../comercial/comercial.module";
 import { LogisticaOpsService } from "./logistica-ops.service";
 import { ServiciosController } from "./servicios/servicios.controller";
 import { ConductoresController } from "./conductores/conductores.controller";
+import { AsignacionesUnidadController } from "./asignaciones/asignaciones-unidad.controller";
 import { LogisticaRelojController } from "./logistica-reloj.controller";
 
 /**
@@ -24,6 +25,7 @@ import { LogisticaRelojController } from "./logistica-reloj.controller";
     LogisticaRelojController,
     ServiciosController,
     ConductoresController,
+    AsignacionesUnidadController,
   ],
   providers: [LogisticaOpsService],
   exports: [LogisticaOpsService],
