@@ -19,6 +19,8 @@ export type AuthUser = {
   organizationName?: string;
   directiveReadOnly?: boolean;
   status?: string;
+  /** Login con clave genérica — exige cambio antes de operar */
+  mustChangePassword?: boolean;
 };
 
 const ACTIVE_ORG_KEY = "fsg_active_org";

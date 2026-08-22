@@ -4,6 +4,7 @@ import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
 import { ThemeProvider } from "@/lib/theme";
 import { AppShell } from "@/components/app-shell";
+import { ForcePasswordGate } from "@/components/force-password-gate";
 import { brand } from "@/lib/brand";
 
 const display = Plus_Jakarta_Sans({
@@ -112,7 +113,9 @@ export default function RootLayout({
       <body className="antialiased" suppressHydrationWarning>
         <ThemeProvider>
           <AuthProvider>
-            <AppShell>{children}</AppShell>
+            <ForcePasswordGate>
+              <AppShell>{children}</AppShell>
+            </ForcePasswordGate>
           </AuthProvider>
         </ThemeProvider>
       </body>

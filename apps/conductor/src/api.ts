@@ -61,6 +61,7 @@ export type AuthUser = {
   name: string;
   role: string;
   organizationId: string;
+  mustChangePassword?: boolean;
 };
 
 export type PreoperationalPayload = {
@@ -210,6 +211,24 @@ export async function login(
   }
   await setSession(data.accessToken, data.user);
   return data;
+}
+
+export async function fetchMe(): Promise<AuthUser> {
+  const me = await apiRequest<AuthUser>("/auth/me");
+  const token = await getToken();
+  if (token) await setSession(token, me);
+  return me;
+}
+
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<void> {
+  await apiRequest("/auth/password", {
+    method: "PATCH",
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+  await fetchMe();
 }
 
 export async function fetchMyTrips(): Promise<MyTripsResponse> {

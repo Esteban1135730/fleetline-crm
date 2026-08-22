@@ -661,6 +661,7 @@ export class RrhhService {
           role: targetRole,
           active: true,
           status,
+          mustChangePassword: true,
           organizationId,
           ...(canActivate
             ? { approvedById: actor.userId, approvedAt: new Date() }
@@ -1056,7 +1057,10 @@ export class RrhhService {
     const tempPassword = generateTempPassword();
     await this.prisma.user.update({
       where: { id: employee.userId },
-      data: { passwordHash: await UsersService.hashPassword(tempPassword) },
+      data: {
+        passwordHash: await UsersService.hashPassword(tempPassword),
+        mustChangePassword: true,
+      },
     });
     return { ok: true as const, tempPassword };
   }

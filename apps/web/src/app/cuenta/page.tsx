@@ -1,9 +1,10 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@fsg/ui";
-import { User, Shield } from "lucide-react";
-import { api } from "@/lib/api";
+import { ShieldAlert, User, Shield } from "lucide-react";
+import { api, setSession, getTokenPublic } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 
 function initials(name?: string) {
@@ -15,12 +16,22 @@ function initials(name?: string) {
 }
 
 export default function CuentaPage() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const router = useRouter();
+  const [force, setForce] = useState(Boolean(user?.mustChangePassword));
   const [currentPassword, setCurrent] = useState("");
   const [newPassword, setNew] = useState("");
   const [confirmPassword, setConfirm] = useState("");
   const [msg, setMsg] = useState("");
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    const q =
+      typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).get("force") === "1";
+    setForce(q || Boolean(user?.mustChangePassword));
+  }, [user?.mustChangePassword]);
 
   const passwordsMatch = useMemo(
     () => newPassword.length > 0 && newPassword === confirmPassword,
@@ -30,24 +41,32 @@ export default function CuentaPage() {
   const canSave =
     currentPassword.length > 0 &&
     newPassword.length >= 8 &&
-    passwordsMatch;
+    passwordsMatch &&
+    newPassword !== currentPassword;
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (!canSave) return;
     setMsg("");
     setError("");
+    setBusy(true);
     try {
       await api("/auth/password", {
         method: "PATCH",
         body: JSON.stringify({ currentPassword, newPassword }),
       });
+      const me = await api<NonNullable<typeof user>>("/auth/me");
+      const token = getTokenPublic();
+      if (token) setSession(token, me);
       setCurrent("");
       setNew("");
       setConfirm("");
-      setMsg("Contraseña actualizada");
+      setMsg("Contraseña actualizada — uplink nominal");
+      window.location.href = "/";
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -59,6 +78,22 @@ export default function CuentaPage() {
         </p>
         <h2 className="page-title mt-1 text-3xl">Mi cuenta</h2>
       </div>
+
+      {force ? (
+        <div
+          role="alert"
+          className="flex items-start gap-3 rounded-lg border border-[var(--accent-metric)]/40 bg-[color-mix(in_srgb,var(--accent-metric)_12%,transparent)] px-4 py-3"
+        >
+          <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-[var(--accent-metric)]" />
+          <div>
+            <p className="text-sm font-semibold">Cambio de contraseña obligatorio</p>
+            <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
+              Entraste con la clave genérica de flota ({`Inretrans2026*`}). Define
+              una contraseña personal (≥8 caracteres) para continuar.
+            </p>
+          </div>
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <article className="fsg-panel flex flex-col items-start gap-4 p-5">
@@ -81,6 +116,17 @@ export default function CuentaPage() {
             </p>
             <p className="mt-2 text-sm text-slate-400">{user?.email || "—"}</p>
           </div>
+          <Button
+            type="button"
+            variant="secondary"
+            className="mt-auto w-auto px-4 py-2"
+            onClick={() => {
+              logout();
+              router.replace("/login");
+            }}
+          >
+            Cerrar sesión
+          </Button>
         </article>
 
         <article className="fsg-panel p-5">
@@ -92,11 +138,16 @@ export default function CuentaPage() {
             <input
               className="field h-11 min-h-[44px]"
               type="password"
-              placeholder="Contraseña actual"
+              placeholder={
+                force
+                  ? "Contraseña actual (genérica de flota)"
+                  : "Contraseña actual"
+              }
               value={currentPassword}
               onChange={(e) => setCurrent(e.target.value)}
               required
               autoComplete="current-password"
+              autoFocus={force}
             />
             <div>
               <input
@@ -111,7 +162,7 @@ export default function CuentaPage() {
                 autoComplete="new-password"
               />
               <p className="mt-1.5 text-xs text-gray-400">
-                Mínimo 8 caracteres. Usa una clave distinta a la actual.
+                Mínimo 8 caracteres. Distinta a la genérica / actual.
               </p>
             </div>
             <div>
@@ -137,9 +188,10 @@ export default function CuentaPage() {
                 type="submit"
                 variant="primary"
                 className="w-auto px-4 py-2"
-                disabled={!canSave}
+                disabled={!canSave || busy}
+                loading={busy}
               >
-                Guardar contraseña
+                {force ? "Guardar y entrar" : "Guardar contraseña"}
               </Button>
             </div>
             {msg ? <p className="text-sm text-emerald-600">{msg}</p> : null}

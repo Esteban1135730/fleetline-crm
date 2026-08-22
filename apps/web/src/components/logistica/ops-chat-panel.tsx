@@ -18,12 +18,12 @@ export function OpsChatPanel({
   mode,
   tripId,
   tripCode,
-  heightClass = "h-[160px]",
+  heightClass = "h-[280px] max-h-[40vh]",
 }: {
   mode: "trip" | "support";
   tripId?: string | null;
   tripCode?: string;
-  /** Alto del panel; por defecto compacto para no tapar la lista de servicios. */
+  /** Alto del panel; por defecto visible sin tapar la lista de servicios. */
   heightClass?: string;
 }) {
   const [messages, setMessages] = useState<ChatMsg[]>([]);
@@ -150,22 +150,24 @@ export function OpsChatPanel({
               messages.map((m) => (
                 <li
                   key={m.id}
-                  className="rounded border border-[var(--brand-line)] bg-black/10 px-2 py-1.5"
+                  className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-canvas)] px-3 py-2"
                 >
                   <div className="flex items-baseline justify-between gap-2">
-                    <span className="text-xs font-semibold text-[var(--brand-primary)]">
+                    <span className="text-xs font-semibold text-[var(--accent-primary)]">
                       {m.authorName}
-                      <span className="ml-1 font-data text-[10px] text-[var(--brand-muted)]">
+                      <span className="ml-1 font-mono text-[10px] text-[var(--text-secondary)]">
                         {m.authorRole}
                       </span>
                     </span>
-                    <span className="font-data text-[10px] text-[var(--brand-muted)]">
+                    <span className="font-mono text-[10px] text-[var(--text-secondary)]">
                       {new Date(
                         m.serverTime || m.createdAt || Date.now(),
                       ).toLocaleTimeString("es-CO", { hour12: false })}
                     </span>
                   </div>
-                  <p className="mt-0.5 text-sm text-[var(--brand-fg)]">{m.body}</p>
+                  <p className="mt-1 text-sm leading-snug text-[var(--text-primary)]">
+                    {m.body}
+                  </p>
                 </li>
               ))
             )}

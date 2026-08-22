@@ -27,6 +27,7 @@ export class AuthService {
     organizationId: string;
     directiveReadOnly?: boolean;
     status?: UserAccountStatus;
+    mustChangePassword?: boolean;
     organization?: { name: string } | null;
   }) {
     return {
@@ -41,6 +42,7 @@ export class AuthService {
       organizationName: user.organization?.name,
       directiveReadOnly: Boolean(user.directiveReadOnly),
       status: String(user.status ?? UserAccountStatus.ACTIVE).toLowerCase(),
+      mustChangePassword: Boolean(user.mustChangePassword),
     };
   }
 
@@ -149,9 +151,12 @@ export class AuthService {
 
     await this.prisma.user.update({
       where: { id: userId },
-      data: { passwordHash: await hashPassword(newPassword) },
+      data: {
+        passwordHash: await hashPassword(newPassword),
+        mustChangePassword: false,
+      },
     });
-    return { ok: true };
+    return { ok: true, mustChangePassword: false };
   }
 
   /**

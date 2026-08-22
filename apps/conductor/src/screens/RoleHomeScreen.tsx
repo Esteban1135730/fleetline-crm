@@ -60,6 +60,13 @@ export default function RoleHomeScreen({ navigation, user, onLogout }: Props) {
         <Text style={styles.btnText}>Chat soporte general</Text>
       </Pressable>
 
+      <Pressable
+        style={[styles.btn, styles.secondary]}
+        onPress={() => navigation.navigate("Profile")}
+      >
+        <Text style={styles.btnText}>Mi perfil</Text>
+      </Pressable>
+
       <Pressable style={styles.logout} onPress={() => void logout()}>
         <Text style={styles.logoutText}>Cerrar sesión</Text>
       </Pressable>

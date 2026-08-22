@@ -986,6 +986,8 @@ model User {
   id             String       @id @default(cuid())
   email          String       @unique
   passwordHash   String
+  /// Obliga cambio de clave tras login con contraseña genérica / reset
+  mustChangePassword Boolean @default(true)
   /// PIN de 6 dígitos para firma ejecutiva (Gerencia / CFO)
   executivePinHash String?
   name           String

@@ -210,12 +210,12 @@ export default function TripsScreen({ navigation, onLogout }: Props) {
       navigation.setOptions({
         title: u ? `Viajes · ${u.name.split(" ")[0]}` : "Mis viajes",
         headerRight: () => (
-          <View style={{ flexDirection: "row", gap: 12, marginRight: 8 }}>
+          <View style={{ flexDirection: "row", gap: 14, marginRight: 4 }}>
             <Pressable onPress={() => navigation.navigate("SupportChat")}>
-              <Text style={{ color: "#10B981", fontWeight: "700" }}>Soporte</Text>
+              <Text style={{ color: "#10B981", fontWeight: "700" }}>Chat</Text>
             </Pressable>
-            <Pressable onPress={() => void handleLogout()}>
-              <Text style={{ color: "#F8FAFC", fontWeight: "600" }}>Salir</Text>
+            <Pressable onPress={() => navigation.navigate("Profile")}>
+              <Text style={{ color: "#F8FAFC", fontWeight: "600" }}>Perfil</Text>
             </Pressable>
           </View>
         ),
@@ -241,7 +241,7 @@ export default function TripsScreen({ navigation, onLogout }: Props) {
         <Text style={styles.driver}>Conductor: {driverName}</Text>
       ) : (
         <Text style={styles.warning}>
-          Usuario no vinculado a conductor. Usa conductor@fsg.co / fsg2026.
+          Usuario no vinculado a conductor. Usa conductor@inretrans.com / Inretrans2026*.
         </Text>
       )}
 

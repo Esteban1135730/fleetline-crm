@@ -66,13 +66,8 @@ export default function SupervisorHomeScreen({ navigation, onLogout }: Props) {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Desviaciones pendientes</Text>
-        <Pressable
-          onPress={async () => {
-            await clearToken();
-            onLogout();
-          }}
-        >
-          <Text style={styles.logout}>Salir</Text>
+        <Pressable onPress={() => navigation.navigate("Profile")}>
+          <Text style={styles.logout}>Perfil</Text>
         </Pressable>
       </View>
       <Pressable

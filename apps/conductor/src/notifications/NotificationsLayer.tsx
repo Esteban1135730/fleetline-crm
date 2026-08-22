@@ -140,13 +140,7 @@ export function NotificationsLayer({
   return (
     <View style={styles.root}>
       {children}
-      {unread > 0 ? (
-        <View style={styles.badgePill} pointerEvents="none">
-          <Text style={styles.badgeText}>
-            {unread > 99 ? "99+" : unread} alertas
-          </Text>
-        </View>
-      ) : null}
+      {/* Banner inferior: no tapa header ni botones de navegación */}
       {banner ? (
         <Animated.View style={[styles.banner, { opacity }]}>
           <Pressable
@@ -155,11 +149,24 @@ export function NotificationsLayer({
               opacity.setValue(0);
             }}
           >
-            <Text style={styles.bannerKind}>{banner.kind}</Text>
+            <View style={styles.bannerTop}>
+              <Text style={styles.bannerKind}>{banner.kind}</Text>
+              {unread > 0 ? (
+                <Text style={styles.badgeInline}>
+                  {unread > 99 ? "99+" : unread}
+                </Text>
+              ) : null}
+            </View>
             <Text style={styles.bannerTitle}>{banner.title}</Text>
             <Text style={styles.bannerBody}>{banner.body}</Text>
           </Pressable>
         </Animated.View>
+      ) : unread > 0 ? (
+        <View style={styles.badgeDock} pointerEvents="none">
+          <Text style={styles.badgeText}>
+            {unread > 99 ? "99+" : unread} alertas
+          </Text>
+        </View>
       ) : null}
     </View>
   );
@@ -167,15 +174,15 @@ export function NotificationsLayer({
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  badgePill: {
+  badgeDock: {
     position: "absolute",
-    top: 52,
-    right: 12,
+    bottom: 24,
+    alignSelf: "center",
     zIndex: 40,
     backgroundColor: "#FF2A5F",
     borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
   },
   badgeText: {
     color: "#fff",
@@ -183,21 +190,29 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontVariant: ["tabular-nums"],
   },
+  badgeInline: {
+    color: "#FF2A5F",
+    fontSize: 11,
+    fontWeight: "800",
+  },
   banner: {
     position: "absolute",
     left: 12,
     right: 12,
-    top: 48,
+    bottom: 28,
     zIndex: 50,
     backgroundColor: "#121722",
     borderColor: "rgba(255,255,255,0.07)",
     borderWidth: 1,
     borderRadius: 10,
     padding: 12,
-    shadowColor: "#000",
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
     elevation: 8,
+  },
+  bannerTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 4,
   },
   bannerKind: {
     color: "#10B981",
@@ -205,7 +220,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 1,
     textTransform: "uppercase",
-    marginBottom: 4,
   },
   bannerTitle: {
     color: "#F8FAFC",
