@@ -4,7 +4,7 @@ import {
   ComplianceDocType,
   DocStatus,
 } from "@fsg/db";
-import { HARD_RULES } from "@fsg/shared";
+import { docStatusFromExpiryDate } from "@fsg/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { RuntSyncService } from "./runt-sync.service";
 
@@ -145,12 +145,6 @@ export class DocumentProcessedListener {
   }
 
   private statusFromExpiry(expiresAt: Date | null): DocStatus {
-    if (!expiresAt) return DocStatus.PENDING;
-    const now = Date.now();
-    const ms = expiresAt.getTime() - now;
-    if (ms < 0) return DocStatus.EXPIRED;
-    const days = ms / (1000 * 60 * 60 * 24);
-    if (days <= HARD_RULES.DOC_EXPIRING_DAYS) return DocStatus.EXPIRING;
-    return DocStatus.VALID;
+    return docStatusFromExpiryDate(expiresAt) as DocStatus;
   }
 }

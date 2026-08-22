@@ -1,12 +1,13 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { DocStatus, VehicleStatus, ComplianceDocType } from "@fsg/db";
+import { HARD_RULES, docStatusFromExpiryDate } from "@fsg/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { RuntSyncService } from "./runt-sync.service";
 
 /**
- * Kill-Switch nocturno: a medianoche recorre la flota,
- * marca docs vencidos / por vencer en ≤24h como EXPIRED y reaplica Hard-Stop.
+ * Kill-Switch nocturno: a medianoche recorre docs,
+ * marca VENCIDO / POR VENCER (≤ DOC_EXPIRING_DAYS) y reaplica Hard-Stop.
  */
 @Injectable()
 export class NightlyComplianceWorker {
@@ -29,12 +30,13 @@ export class NightlyComplianceWorker {
 
   /** Expuesto para tests / disparo manual interno */
   async runSweep(now = new Date()) {
-    const horizon = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    const horizonMs = HARD_RULES.DOC_EXPIRING_DAYS * 86400000;
+    const horizon = new Date(now.getTime() + horizonMs);
 
     const dueDocs = await this.prisma.complianceDocument.findMany({
       where: {
         expiresAt: { lte: horizon },
-        status: { notIn: [DocStatus.EXPIRED, DocStatus.REJECTED] },
+        status: { notIn: [DocStatus.REJECTED] },
       },
       select: {
         id: true,
@@ -42,6 +44,7 @@ export class NightlyComplianceWorker {
         driverId: true,
         type: true,
         expiresAt: true,
+        status: true,
       },
     });
 
@@ -50,12 +53,18 @@ export class NightlyComplianceWorker {
     const driverIds = new Set<string>();
 
     for (const doc of dueDocs) {
+      if (!doc.expiresAt) continue;
+      const next = docStatusFromExpiryDate(doc.expiresAt, {
+        now,
+        currentStatus: doc.status,
+      }) as DocStatus;
+      if (next === doc.status) continue;
+
       await this.prisma.complianceDocument.update({
         where: { id: doc.id },
         data: {
-          status: DocStatus.EXPIRED,
-          notes: `Nightly Kill-Switch @ ${now.toISOString()} — vencido o ≤24h`,
-          runtVerified: false,
+          status: next,
+          notes: `Auto-vigencia @ ${now.toISOString()} — ${next}`,
         },
       });
       documentsMarked += 1;

@@ -2,9 +2,9 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Button } from "@fsg/ui";
+import { HARD_RULES, statusEs } from "@fsg/shared";
 import { FileCheck, Plus, RefreshCw, ShieldAlert } from "lucide-react";
 import { api } from "@/lib/api";
-import { statusEs } from "@fsg/shared";
 import { PageIntro } from "@/components/page-intro";
 import {
   EmptyState,
@@ -26,6 +26,7 @@ type Procedure = {
   reference?: string | null;
   status: string;
   validTo: string;
+  daysLeft?: number | null;
   notes?: string | null;
   vehicle: { plate: string; brand: string; model: string };
 };
@@ -237,6 +238,15 @@ export default function TramitesPage() {
   }, [matrix, fleetTab, fleetQuery]);
 
   const alertCount = (matrix?.counts.yellow ?? 0) + (matrix?.counts.red ?? 0);
+  const warnDays = HARD_RULES.DOC_EXPIRING_DAYS;
+  const expiredDocs = useMemo(
+    () => rows.filter((r) => r.status === "EXPIRED"),
+    [rows],
+  );
+  const expiringDocs = useMemo(
+    () => rows.filter((r) => r.status === "EXPIRING"),
+    [rows],
+  );
 
   return (
     <div className="fade-in mx-auto max-w-[1600px] space-y-6">
@@ -271,6 +281,39 @@ export default function TramitesPage() {
         </div>
       ) : null}
 
+      {expiredDocs.length > 0 || expiringDocs.length > 0 ? (
+        <div
+          className={`flex items-start gap-3 rounded-lg border px-4 py-3 ${
+            expiredDocs.length
+              ? "border-[var(--accent-alert)]/40 bg-[var(--accent-alert)]/10"
+              : "border-[var(--accent-metric)]/40 bg-[color-mix(in_srgb,var(--accent-metric)_12%,transparent)]"
+          }`}
+        >
+          <ShieldAlert
+            className={`mt-0.5 h-5 w-5 shrink-0 ${
+              expiredDocs.length
+                ? "text-[var(--accent-alert)]"
+                : "text-[var(--accent-metric)]"
+            }`}
+            aria-hidden
+          />
+          <div>
+            <p className="text-sm font-semibold">
+              Vigencia automática · {expiredDocs.length} vencido
+              {expiredDocs.length !== 1 ? "s" : ""}
+              {expiringDocs.length
+                ? ` · ${expiringDocs.length} por vencer (≤${warnDays} d)`
+                : ""}
+            </p>
+            <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
+              Amarillo si faltan ≤{warnDays} días. El día de vencimiento sigue
+              vigente; al día siguiente pasa a rojo y bloquea la unidad.
+              Solo use Renovar para actualizar la fecha.
+            </p>
+          </div>
+        </div>
+      ) : null}
+
       {loadError ? (
         <p className="rounded-lg border border-[var(--accent-alert)]/40 bg-[var(--accent-alert)]/10 px-3 py-2 text-sm text-[var(--accent-alert)]">
           {loadError}
@@ -282,12 +325,12 @@ export default function TramitesPage() {
           <KpiCard
             label="Verde · aptos"
             value={matrix.counts.green}
-            delta="Documentación vigente (>15 d)"
+            delta={`Documentación vigente (>${warnDays} d)`}
             tone="ok"
           />
           <article className="relative overflow-hidden rounded-xl border border-slate-800 bg-zinc-900/80 p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
             <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-              Amarillo · ≤15 días
+              Amarillo · ≤{warnDays} días
             </p>
             <p className="mt-2 font-mono text-5xl font-bold tracking-tight tabular-nums text-amber-400">
               {matrix.counts.yellow}
@@ -331,13 +374,13 @@ export default function TramitesPage() {
                     id: "route",
                     label: "Aptos",
                     count: matrix.counts.green,
-                    tip: "Verde: documentación vigente (>15 días). Aptos para despacho.",
+                    tip: `Verde: documentación vigente (>${warnDays} días). Aptos para despacho.`,
                   },
                   {
                     id: "alerts",
                     label: "Alertas / bloqueados",
                     count: matrix.counts.yellow + matrix.counts.red,
-                    tip: "Amarillo ≤15 días o rojo vencido. Rojo bloquea despacho.",
+                    tip: `Amarillo ≤${warnDays} días o rojo vencido. Rojo bloquea despacho.`,
                   },
                 ]}
               />
@@ -463,6 +506,23 @@ export default function TramitesPage() {
                   </td>
                   <td className="px-4 py-2.5 font-data text-xs">
                     {new Date(r.validTo).toLocaleDateString("es-CO")}
+                    {typeof r.daysLeft === "number" ? (
+                      <div
+                        className={
+                          r.daysLeft < 0
+                            ? "text-[var(--accent-alert)]"
+                            : r.daysLeft <= warnDays
+                              ? "text-[var(--accent-metric)]"
+                              : "text-[var(--text-secondary)]"
+                        }
+                      >
+                        {r.daysLeft < 0
+                          ? `Venció hace ${Math.abs(r.daysLeft)} d`
+                          : r.daysLeft === 0
+                            ? "Vence hoy · vigente hasta medianoche"
+                            : `${r.daysLeft} d restantes`}
+                      </div>
+                    ) : null}
                   </td>
                   <td className="px-4 py-2.5">
                     <StatusPulseBadge
@@ -508,32 +568,6 @@ export default function TramitesPage() {
                         }}
                       >
                         Renovar
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        className="w-auto px-2 py-1"
-                        onClick={async () => {
-                          await api(`/tramites/procedures/${r.id}`, {
-                            method: "PATCH",
-                            body: JSON.stringify({ status: "VALID" }),
-                          });
-                          await load();
-                        }}
-                      >
-                        Vigente
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        className="w-auto px-2 py-1"
-                        onClick={async () => {
-                          await api(`/tramites/procedures/${r.id}`, {
-                            method: "PATCH",
-                            body: JSON.stringify({ status: "EXPIRED" }),
-                          });
-                          await load();
-                        }}
-                      >
-                        Vencido
                       </Button>
                     </div>
                   </td>

@@ -956,8 +956,8 @@ export type WorkOrderStatus = z.infer<typeof WorkOrderStatusSchema>;
 
 /** Hard rules — umbrales operativos Inretrans OS */
 export const HARD_RULES = {
-  /** Días para semáforo amarillo / DocStatus.EXPIRING */
-  DOC_EXPIRING_DAYS: 15,
+  /** Días para semáforo amarillo / DocStatus.EXPIRING (alerta previa) */
+  DOC_EXPIRING_DAYS: 10,
   /** Fatiga alta bloquea despacho (Driver.fatigueScore) */
   FATIGUE_BLOCK_SCORE: 80,
   /** Micro-Dispatch 4.0 — fatiga máxima para asignación inteligente */
@@ -1007,6 +1007,70 @@ export const HARD_RULES = {
   /** Bloqueo UI Pilot App si velocidad > umbral (km/h) */
   PILOT_SPEED_LOCK_KPH: 15,
 } as const;
+
+/** Zona horaria operativa Colombia — vigencias documentales (SOAT, RTM, TO). */
+export const OPS_TZ = "America/Bogota";
+
+/**
+ * Días calendario hasta la fecha de vencimiento.
+ * El documento es vigente TODO el día de vencimiento (días = 0).
+ * Negativo = ya pasó el día → vencido desde el día siguiente.
+ */
+export function calendarDaysUntilExpiry(
+  expiresAt: Date | string,
+  now: Date = new Date(),
+  timeZone: string = OPS_TZ,
+): number {
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const todayStr = fmt.format(now);
+  const expStr = fmt.format(new Date(expiresAt));
+  const t0 = Date.parse(`${todayStr}T12:00:00.000Z`);
+  const t1 = Date.parse(`${expStr}T12:00:00.000Z`);
+  return Math.round((t1 - t0) / 86_400_000);
+}
+
+export type DocExpiryStatus =
+  | "VALID"
+  | "EXPIRING"
+  | "EXPIRED"
+  | "PENDING"
+  | "REJECTED";
+
+/**
+ * SOAT y afines: vigentes hasta el día de vencimiento inclusive.
+ * Amarillo (EXPIRING) si faltan ≤ DOC_EXPIRING_DAYS (incluye “vence hoy”).
+ * Rojo (EXPIRED) solo a partir del día calendario siguiente → bloqueo flota.
+ */
+export function docStatusFromExpiryDate(
+  expiresAt: Date | string | null | undefined,
+  opts?: {
+    now?: Date;
+    expiringDays?: number;
+    currentStatus?: string | null;
+  },
+): DocExpiryStatus {
+  if (opts?.currentStatus === "REJECTED") return "REJECTED";
+  if (!expiresAt) return "PENDING";
+  const days = calendarDaysUntilExpiry(expiresAt, opts?.now);
+  const warn = opts?.expiringDays ?? HARD_RULES.DOC_EXPIRING_DAYS;
+  if (days < 0) return "EXPIRED";
+  if (days <= warn) return "EXPIRING";
+  return "VALID";
+}
+
+/** True solo cuando ya pasó el día de vencimiento (día siguiente en adelante). */
+export function isDocCalendarExpired(
+  expiresAt: Date | string | null | undefined,
+  now: Date = new Date(),
+): boolean {
+  if (!expiresAt) return true;
+  return calendarDaysUntilExpiry(expiresAt, now) < 0;
+}
 
 /** PIN demo Gerencia (solo seed / tests — hash en User.executivePinHash) */
 export const GERENTE_DEMO_EXECUTIVE_PIN = "258014";

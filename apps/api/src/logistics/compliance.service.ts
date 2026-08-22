@@ -5,7 +5,7 @@ import {
   EmployeeStatus,
   VehicleStatus,
 } from "@fsg/db";
-import { HARD_RULES, type DispatchSemaphore } from "@fsg/shared";
+import { HARD_RULES, calendarDaysUntilExpiry, type DispatchSemaphore } from "@fsg/shared";
 import { PrismaService } from "../prisma/prisma.service";
 
 const CRITICAL_DOC_TYPES: ComplianceDocType[] = [
@@ -47,7 +47,7 @@ export class ComplianceService {
   constructor(private prisma: PrismaService) {}
 
   daysLeft(validTo: Date) {
-    return (validTo.getTime() - Date.now()) / 86400000;
+    return calendarDaysUntilExpiry(validTo);
   }
 
   docStatusFromValidTo(validTo: Date): DocStatus {

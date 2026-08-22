@@ -4,6 +4,7 @@ import {
   DocStatus,
   VehicleStatus,
 } from "@fsg/db";
+import { HARD_RULES, calendarDaysUntilExpiry, isDocCalendarExpired } from "@fsg/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { KafkaEventsService } from "../logistics/kafka-events.service";
 import { RuntClient } from "./runt.client";
@@ -59,12 +60,12 @@ export class RuntSyncService {
 
     for (const doc of report.documents) {
       const expired =
-        !doc.validInGovDb ||
-        (doc.expiresAt != null && doc.expiresAt.getTime() <= now.getTime());
+        !doc.validInGovDb || isDocCalendarExpired(doc.expiresAt, now);
       const status = expired
         ? DocStatus.EXPIRED
         : doc.expiresAt &&
-            (doc.expiresAt.getTime() - now.getTime()) / 86400000 <= 15
+            calendarDaysUntilExpiry(doc.expiresAt, now) <=
+              HARD_RULES.DOC_EXPIRING_DAYS
           ? DocStatus.EXPIRING
           : DocStatus.VALID;
 
@@ -121,7 +122,7 @@ export class RuntSyncService {
       throw new NotFoundException(`Vehículo ${vehicleId} no encontrado`);
     }
 
-    const now = Date.now();
+    const now = new Date();
     const blocks: string[] = [];
     const byType = new Map<string, (typeof vehicle.complianceDocs)[0]>();
 
@@ -139,9 +140,9 @@ export class RuntSyncService {
         continue;
       }
       const expired =
-        d.status === DocStatus.EXPIRED ||
         d.status === DocStatus.SUSPENDED ||
-        (d.expiresAt != null && d.expiresAt.getTime() <= now);
+        isDocCalendarExpired(d.expiresAt, now) ||
+        d.status === DocStatus.EXPIRED;
       if (expired) blocks.push(`${type}_EXPIRED`);
     }
 
@@ -149,15 +150,13 @@ export class RuntSyncService {
     const tecno = byType.get(ComplianceDocType.TECNOMECANICA);
     const soatActivo = Boolean(
       soat &&
-        soat.status !== DocStatus.EXPIRED &&
         soat.status !== DocStatus.SUSPENDED &&
-        (!soat.expiresAt || soat.expiresAt.getTime() > now),
+        !isDocCalendarExpired(soat.expiresAt, now),
     );
     const tecnoActiva = Boolean(
       tecno &&
-        tecno.status !== DocStatus.EXPIRED &&
         tecno.status !== DocStatus.SUSPENDED &&
-        (!tecno.expiresAt || tecno.expiresAt.getTime() > now),
+        !isDocCalendarExpired(tecno.expiresAt, now),
     );
 
     const complianceBlocked = blocks.length > 0;

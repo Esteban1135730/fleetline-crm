@@ -4,6 +4,7 @@ import {
   Injectable,
 } from "@nestjs/common";
 import { DocStatus, VehicleStatus } from "@fsg/db";
+import { HARD_RULES } from "@fsg/shared";
 import { PrismaService } from "../prisma/prisma.service";
 
 @Injectable()
@@ -75,14 +76,14 @@ export class TramitesService {
   }
 
   /**
-   * Lista vehículos bloqueados o con documentos por vencer (≤15 días / ≤24h).
+   * Lista vehículos bloqueados o con documentos por vencer (≤ DOC_EXPIRING_DAYS).
    */
   async complianceStatus(
     organizationId: string,
     filter: "blocked" | "expiring" | "all" = "all",
   ) {
     const now = Date.now();
-    const in15d = new Date(now + 15 * 86400000);
+    const inWarn = new Date(now + HARD_RULES.DOC_EXPIRING_DAYS * 86400000);
     const in24h = new Date(now + 24 * 60 * 60 * 1000);
 
     const vehicles = await this.prisma.vehicle.findMany({
@@ -125,7 +126,7 @@ export class TramitesService {
         (d) =>
           d.expiresAt != null &&
           new Date(d.expiresAt).getTime() > now &&
-          new Date(d.expiresAt).getTime() <= in15d.getTime(),
+          new Date(d.expiresAt).getTime() <= inWarn.getTime(),
       );
 
       const expiring24h = docs.some(

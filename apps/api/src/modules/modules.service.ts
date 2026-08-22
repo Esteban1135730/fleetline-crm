@@ -14,6 +14,7 @@ import {
   TicketPriority,
   TicketStatus,
 } from "@fsg/db";
+import { HARD_RULES, calendarDaysUntilExpiry, docStatusFromExpiryDate } from "@fsg/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { buildVisitorPass } from "../pqrs/pqrs.calc";
 
@@ -1301,6 +1302,17 @@ export class ModulesService {
   }
 
   // —— Trámites vehículo (ComplianceDocument) ——
+  /** Estado documental derivado de la fecha (vigente el día de vencimiento; rojo al día siguiente). */
+  private docStatusFromExpires(
+    expiresAt: Date | null | undefined,
+    current?: DocStatus | null,
+  ): DocStatus {
+    const next = docStatusFromExpiryDate(expiresAt, {
+      currentStatus: current,
+    });
+    return next as DocStatus;
+  }
+
   private mapProcedureRow(d: {
     id: string;
     type: ComplianceDocType;
@@ -1311,11 +1323,15 @@ export class ModulesService {
     notes: string | null;
     vehicle: { plate: string; brand: string; model: string } | null;
   }) {
+    const status = this.docStatusFromExpires(d.expiresAt, d.status);
+    const daysLeft =
+      d.expiresAt != null ? calendarDaysUntilExpiry(d.expiresAt) : null;
     return {
       id: d.id,
       type: d.type,
       reference: d.reference,
-      status: d.status,
+      status,
+      daysLeft,
       validTo: d.expiresAt?.toISOString() ?? null,
       validFrom: d.issuedAt?.toISOString() ?? null,
       notes: d.notes,
@@ -1334,6 +1350,25 @@ export class ModulesService {
       },
       orderBy: [{ expiresAt: "asc" }, { createdAt: "desc" }],
     });
+
+    // Persiste estado auto-calculado si la fecha ya lo cambió (sin botón manual).
+    await Promise.all(
+      rows.map(async (d) => {
+        if (d.status === DocStatus.REJECTED) return;
+        const next = this.docStatusFromExpires(d.expiresAt, d.status);
+        if (next !== d.status) {
+          await this.prisma.complianceDocument.update({
+            where: { id: d.id },
+            data: { status: next },
+          });
+          d.status = next;
+          if (d.vehicleId) {
+            await this.applyProcedureVehicleFlags(d.vehicleId, d.type, next);
+          }
+        }
+      }),
+    );
+
     return rows.map((d) => this.mapProcedureRow(d));
   }
 
@@ -1359,10 +1394,7 @@ export class ModulesService {
     }
 
     const expiresAt = new Date(data.validTo);
-    const daysLeft = (expiresAt.getTime() - Date.now()) / 86400000;
-    let status: DocStatus = DocStatus.VALID;
-    if (daysLeft < 0) status = DocStatus.EXPIRED;
-    else if (daysLeft < 15) status = DocStatus.EXPIRING;
+    const status = this.docStatusFromExpires(expiresAt);
 
     const created = await this.prisma.complianceDocument.create({
       data: {
@@ -1381,28 +1413,7 @@ export class ModulesService {
       },
     });
 
-    // Hard-Stop flags en unidad cuando aplica SOAT / Tecno
-    if (typeKey === ComplianceDocType.SOAT) {
-      await this.prisma.vehicle.update({
-        where: { id: vehicle.id },
-        data: {
-          soatActivo: status === DocStatus.VALID || status === DocStatus.EXPIRING,
-          complianceBlocked: status === DocStatus.EXPIRED,
-          complianceReason:
-            status === DocStatus.EXPIRED
-              ? "HARD-STOP: SOAT vencido — unidad no despachable"
-              : null,
-        },
-      });
-    }
-    if (typeKey === ComplianceDocType.TECNOMECANICA) {
-      await this.prisma.vehicle.update({
-        where: { id: vehicle.id },
-        data: {
-          tecnoActiva: status === DocStatus.VALID || status === DocStatus.EXPIRING,
-        },
-      });
-    }
+    await this.applyProcedureVehicleFlags(vehicle.id, typeKey, status);
 
     return this.mapProcedureRow(created);
   }
@@ -1422,21 +1433,17 @@ export class ModulesService {
     });
     if (!p) throw new NotFoundException("Trámite no encontrado");
 
-    let status = data.status
-      ? (data.status.toUpperCase() as DocStatus)
-      : undefined;
-    if (data.validTo && !status) {
-      const expiresAt = new Date(data.validTo);
-      const daysLeft = (expiresAt.getTime() - Date.now()) / 86400000;
-      status = DocStatus.VALID;
-      if (daysLeft < 0) status = DocStatus.EXPIRED;
-      else if (daysLeft < 15) status = DocStatus.EXPIRING;
-    }
+    const expiresAt = data.validTo ? new Date(data.validTo) : p.expiresAt;
+    // El estado siempre sale de la vigencia; no se fuerza a mano VIGENTE/VENCIDO.
+    const status =
+      p.status === DocStatus.REJECTED && !data.validTo
+        ? DocStatus.REJECTED
+        : this.docStatusFromExpires(expiresAt, p.status);
 
     const updated = await this.prisma.complianceDocument.update({
       where: { id },
       data: {
-        expiresAt: data.validTo ? new Date(data.validTo) : undefined,
+        expiresAt: data.validTo ? expiresAt : undefined,
         reference: data.reference,
         notes: data.notes,
         status,
@@ -1445,7 +1452,63 @@ export class ModulesService {
         vehicle: { select: { plate: true, brand: true, model: true } },
       },
     });
+
+    if (updated.vehicleId) {
+      await this.applyProcedureVehicleFlags(
+        updated.vehicleId,
+        updated.type,
+        status,
+      );
+    }
+
     return this.mapProcedureRow(updated);
+  }
+
+  private async applyProcedureVehicleFlags(
+    vehicleId: string,
+    typeKey: ComplianceDocType,
+    status: DocStatus,
+  ) {
+    if (typeKey === ComplianceDocType.SOAT) {
+      await this.prisma.vehicle.update({
+        where: { id: vehicleId },
+        data: {
+          soatActivo:
+            status === DocStatus.VALID || status === DocStatus.EXPIRING,
+          complianceBlocked: status === DocStatus.EXPIRED,
+          complianceReason:
+            status === DocStatus.EXPIRED
+              ? "HARD-STOP: SOAT vencido — unidad no despachable"
+              : null,
+        },
+      });
+    }
+    if (typeKey === ComplianceDocType.TECNOMECANICA) {
+      await this.prisma.vehicle.update({
+        where: { id: vehicleId },
+        data: {
+          tecnoActiva:
+            status === DocStatus.VALID || status === DocStatus.EXPIRING,
+          ...(status === DocStatus.EXPIRED
+            ? {
+                complianceBlocked: true,
+                complianceReason:
+                  "HARD-STOP: Tecnomecánica vencida — unidad no despachable",
+              }
+            : {}),
+        },
+      });
+    }
+    if (typeKey === ComplianceDocType.TARJETA_OPERACION && status === DocStatus.EXPIRED) {
+      await this.prisma.vehicle.update({
+        where: { id: vehicleId },
+        data: {
+          complianceBlocked: true,
+          complianceReason:
+            "HARD-STOP: Tarjeta de operación vencida — unidad no despachable",
+        },
+      });
+    }
   }
 
   // —— Parqueadero ——
