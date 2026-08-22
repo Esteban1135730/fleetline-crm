@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
 import { AlertTriangle, ClipboardList, Download, Plus, ShieldAlert, Star } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, apiDownload } from "@/lib/api";
 import { statusEs } from "@fsg/shared";
 import { PageIntro } from "@/components/page-intro";
 import {
@@ -49,6 +49,8 @@ export default function CalidadPage() {
   const [evidence, setEvidence] = useState<File[]>([]);
   const [formError, setFormError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [exportBusy, setExportBusy] = useState(false);
+  const [exportError, setExportError] = useState("");
 
   async function load() {
     const [s, e] = await Promise.all([
@@ -61,6 +63,26 @@ export default function CalidadPage() {
   useEffect(() => {
     void load().catch(console.error);
   }, []);
+
+  async function exportPesvExcel() {
+    setExportError("");
+    setExportBusy(true);
+    try {
+      const stamp = new Date().toISOString().slice(0, 10);
+      await apiDownload(
+        "/hqse/pesv/export/excel?days=90",
+        `pesv-auditoria-${stamp}.xlsx`,
+      );
+    } catch (err) {
+      setExportError(
+        err instanceof Error
+          ? err.message
+          : "No se pudo exportar la auditoría PESV",
+      );
+    } finally {
+      setExportBusy(false);
+    }
+  }
 
   function openForm() {
     setFormError("");
@@ -112,12 +134,28 @@ export default function CalidadPage() {
         title="Safety Command Center"
         subtitle="PESV · telemetría forense · CAPA automático"
         action={
-          <Button type="button" variant="ghost" className="w-auto border border-[var(--brand-line)]">
+          <Button
+            type="button"
+            variant="ghost"
+            className="w-auto border border-[var(--brand-line)]"
+            loading={exportBusy}
+            disabled={exportBusy}
+            onClick={() => void exportPesvExcel()}
+          >
             <Download className="mr-1.5 inline h-4 w-4" aria-hidden />
             Exportar auditoría PESV
           </Button>
         }
       />
+
+      {exportError ? (
+        <p
+          role="alert"
+          className="rounded-lg border border-[var(--accent-alert)]/40 px-4 py-3 text-sm text-[var(--accent-alert)]"
+        >
+          {exportError}
+        </p>
+      ) : null}
 
       {summary && summary.incidents > 0 ? (
         <div className="flex items-start gap-3 rounded-lg border border-[var(--accent-alert)]/40 bg-[var(--accent-alert)]/10 px-4 py-3">

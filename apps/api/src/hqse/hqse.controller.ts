@@ -5,8 +5,10 @@ import {
   Post,
   Query,
   Req,
+  Res,
   UseGuards,
 } from "@nestjs/common";
+import type { Response } from "express";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { ModulesGuard, RequireModule } from "../auth/modules.guard";
 import { HqseIncidentService } from "./hqse-incident.service";
@@ -20,7 +22,7 @@ import {
 
 type AuthReq = { user: { organizationId: string; userId: string } };
 
-@Controller("hqse")
+@Controller(["hqse", "api/v1/hqse"])
 @UseGuards(JwtAuthGuard, ModulesGuard)
 @RequireModule("qhse", "hqse")
 export class HqseController {
@@ -60,6 +62,28 @@ export class HqseController {
   @Get("pesv/risk-matrix")
   riskMatrix(@Req() req: AuthReq) {
     return this.pesv.listRiskMatrix(req.user.organizationId);
+  }
+
+  @Get("pesv/export/excel")
+  async exportPesvExcel(
+    @Req() req: AuthReq,
+    @Res() res: Response,
+    @Query("days") daysRaw?: string,
+  ) {
+    const days = daysRaw ? Number(daysRaw) : 90;
+    const { buffer, filename } = await this.pesv.exportPesvAuditExcel(
+      req.user.organizationId,
+      Number.isFinite(days) && days > 0 ? days : 90,
+    );
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${filename}"`,
+    );
+    res.send(buffer);
   }
 
   @Post("audits")
