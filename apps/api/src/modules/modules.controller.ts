@@ -97,29 +97,7 @@ export class ModulesController {
     return this.svc.createQuality(req.user.organizationId, body);
   }
 
-  // Jurídico
-  @Get("juridico/fuec")
-  @RequireModule("juridico")
-  fuec(@Req() req: { user: { organizationId: string } }) {
-    return this.svc.listFuec(req.user.organizationId);
-  }
-
-  @Post("juridico/fuec")
-  @RequireModule("juridico")
-  createFuec(
-    @Req() req: { user: { organizationId: string } },
-    @Body()
-    body: {
-      number: string;
-      contractor: string;
-      route: string;
-      validFrom: string;
-      validTo: string;
-      vehicleId?: string;
-    },
-  ) {
-    return this.svc.createFuec(req.user.organizationId, body);
-  }
+  // Jurídico FUEC → FuecController (apps/api/src/fuec)
 
   // SARLAFT
   @Get("sarlaft/checks")
@@ -475,15 +453,7 @@ export class ModulesController {
     return this.svc.updateQuality(req.user.organizationId, id, body);
   }
 
-  @Patch("juridico/fuec/:id")
-  @RequireModule("juridico")
-  updateFuec(
-    @Req() req: { user: { organizationId: string } },
-    @Param("id") id: string,
-    @Body() body: { status?: string; route?: string; validTo?: string },
-  ) {
-    return this.svc.updateFuec(req.user.organizationId, id, body);
-  }
+  // PATCH juridico/fuec/:id → FuecController
 
   @Patch("sarlaft/checks/:id")
   @RequireModule("sarlaft")

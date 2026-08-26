@@ -400,3 +400,42 @@ export function updateVehicleGps(
     body: JSON.stringify({ lat, lng }),
   });
 }
+
+export type FuecListItem = {
+  id: string;
+  number: string;
+  contractor: string;
+  route: string;
+  status: string;
+  validTo: string;
+  vehicle?: { plate: string } | null;
+};
+
+export async function fetchMyFuec(): Promise<{
+  driver: { id: string; name: string } | null;
+  items: FuecListItem[];
+}> {
+  return apiRequest("/conductor/my-fuec");
+}
+
+/** Descarga PDF FUEC autenticado y lo deja listo para compartir/imprimir. */
+export async function downloadFuecPdfToCache(
+  id: string,
+  number: string,
+): Promise<string> {
+  const token = await getToken();
+  const base = getApiUrl();
+  const FileSystem = await import("expo-file-system/legacy");
+  const path = `${FileSystem.cacheDirectory}FUEC-${number}.pdf`;
+  const result = await FileSystem.downloadAsync(
+    `${base}/juridico/fuec/${id}/pdf`,
+    path,
+    {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    },
+  );
+  if (result.status !== 200) {
+    throw new Error(`No se pudo descargar FUEC (${result.status})`);
+  }
+  return result.uri;
+}

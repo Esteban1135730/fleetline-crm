@@ -1658,6 +1658,7 @@ model Trip {
   deviationRequests TripDeviationRequest[]
   chatMessages   TripChatMessage[]
   fieldIncidents TripFieldIncident[]
+  fuecDocuments  FuecDocument[]
   /// Facturación anticipada — bloquea Despacho hasta PAID
   advancePaymentRequired Boolean @default(false)
   advancePaymentLink     CommercialAdvancePaymentLink?
@@ -1921,6 +1922,13 @@ model FuecDocument {
   cryptoHash       String?
   qrPayload        String?
   pdfUrl           String?
+  /// Snapshot completo del extracto (formulario + docs checklist) para regenerar PDF
+  payload          Json?
+  contractNumber   String?
+  origin           String?
+  destination      String?
+  tripId           String?
+  trip             Trip?        @relation(fields: [tripId], references: [id], onDelete: SetNull)
   vehicleId        String?
   vehicle          Vehicle?     @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
   planillaId       String?      @unique
@@ -1935,6 +1943,8 @@ model FuecDocument {
   @@index([vehicleId, status])
   @@index([validTo, status])
   @@index([cryptoHash])
+  @@index([tripId])
+  @@index([organizationId, contractNumber])
 }
 
 /// Snapshot persistido (Redis es caché en vivo; esto es histórico / auditoría)

@@ -196,12 +196,17 @@ export class GerenciaService {
   async buildTacticalPanel(organizationId: string) {
     const threeDaysAgo = new Date();
     threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+    const dayStart = new Date();
+    dayStart.setHours(0, 0, 0, 0);
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
 
     const activeStatuses = [
       TripStatus.IN_TRANSIT,
       TripStatus.ASSIGNED,
       TripStatus.AWAITING_PREOP,
       TripStatus.AWAITING_FUEC,
+      TripStatus.PENDING,
     ] as const;
 
     const [
@@ -210,11 +215,22 @@ export class GerenciaService {
       delayedWorkOrders,
       dispatchBlocks,
       openInvoices,
-      activeTrips,
+      activityTrips,
+      fareProxyTrips,
       vehicles,
     ] = await Promise.all([
       this.prisma.trip.count({
-        where: { organizationId, status: { in: [...activeStatuses] } },
+        where: {
+          organizationId,
+          status: {
+            in: [
+              TripStatus.IN_TRANSIT,
+              TripStatus.ASSIGNED,
+              TripStatus.AWAITING_PREOP,
+              TripStatus.AWAITING_FUEC,
+            ],
+          },
+        },
       }),
       this.prisma.workOrder.count({
         where: {
@@ -256,9 +272,37 @@ export class GerenciaService {
         },
         select: { type: true, amount: true, dueDate: true },
       }),
+      // Picos: viajes del día + activos (no solo hora exacta del slot)
       this.prisma.trip.findMany({
-        where: { organizationId, status: { in: [...activeStatuses] } },
-        select: { departAt: true },
+        where: {
+          organizationId,
+          OR: [
+            { status: { in: [...activeStatuses] } },
+            { departAt: { gte: dayStart } },
+            {
+              status: TripStatus.COMPLETED,
+              completedAt: { gte: dayStart },
+            },
+          ],
+        },
+        select: { departAt: true, startedAt: true, completedAt: true },
+        take: 500,
+      }),
+      // Proxy CxC operativo si aún no hay facturas
+      this.prisma.trip.findMany({
+        where: {
+          organizationId,
+          departAt: { gte: weekAgo },
+          status: {
+            in: [
+              TripStatus.COMPLETED,
+              TripStatus.IN_TRANSIT,
+              TripStatus.ASSIGNED,
+            ],
+          },
+        },
+        select: { fareAmount: true, departAt: true, status: true },
+        take: 500,
       }),
       this.prisma.vehicle.findMany({
         where: { organizationId },
@@ -281,7 +325,7 @@ export class GerenciaService {
       const due = inv.dueDate ? new Date(inv.dueDate) : now;
       const days = Math.max(
         0,
-        Math.ceil((now.getTime() - due.getTime()) / (86400000)),
+        Math.ceil((now.getTime() - due.getTime()) / 86400000),
       );
       let bucket = 3;
       if (days <= 15) bucket = 0;
@@ -296,11 +340,34 @@ export class GerenciaService {
       }
     }
 
-    const hourSlots = ["04:00", "06:00", "08:00", "10:00", "12:00", "14:00", "16:00", "18:00"];
-    const hourlyActivity = hourSlots.map((hora) => {
-      const h = parseInt(hora.slice(0, 2), 10);
-      const viajes = activeTrips.filter((t) => t.departAt.getHours() === h).length;
-      return { hora, viajes };
+    // Sin facturas: estimar CxC con tarifas de viajes (operativo)
+    if (openInvoices.length === 0 && fareProxyTrips.length > 0) {
+      for (const t of fareProxyTrips) {
+        const amt = Number(t.fareAmount || 0);
+        if (amt <= 0) continue;
+        cxcOpen += amt;
+        const days = Math.max(
+          0,
+          Math.ceil((now.getTime() - t.departAt.getTime()) / 86400000),
+        );
+        let bucket = 0;
+        if (days > 60) bucket = 3;
+        else if (days > 30) bucket = 2;
+        else if (days > 15) bucket = 1;
+        agingBuckets[bucket].cxc += Math.round(amt / 1_000_000);
+      }
+    }
+
+    const hourSlots = [4, 6, 8, 10, 12, 14, 16, 18];
+    const hourlyActivity = hourSlots.map((slot) => {
+      const label = `${String(slot).padStart(2, "0")}:00`;
+      const viajes = activityTrips.filter((t) => {
+        const ref = t.startedAt ?? t.departAt;
+        const h = ref.getHours();
+        // Ventana de 2 h: 08:00 captura 08–09, 10:00 captura 10–11, etc.
+        return h >= slot && h < slot + 2;
+      }).length;
+      return { hora: label, viajes };
     });
 
     const fleetByType = [
@@ -335,6 +402,8 @@ export class GerenciaService {
       hourlyActivity,
       fleetByType,
       cashAging: agingBuckets,
+      cashAgingSource:
+        openInvoices.length > 0 ? ("invoices" as const) : ("trip_fares" as const),
     };
   }
 

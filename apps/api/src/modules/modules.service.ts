@@ -325,7 +325,7 @@ export class ModulesService {
     };
   }
 
-  // —— Jurídico FUEC ——
+  // —— Jurídico FUEC (legado; runtime en FuecService) ——
   listFuec(organizationId: string) {
     return this.prisma.fuecDocument.findMany({
       where: { organizationId },
@@ -354,8 +354,8 @@ export class ModulesService {
       data: {
         organizationId,
         number: data.number,
-        contractor: data.contractor,
-        route: data.route,
+        contractorName: data.contractor,
+        routeLabel: data.route,
         validFrom: new Date(data.validFrom || Date.now()),
         validTo: new Date(data.validTo),
         vehicleId: data.vehicleId,
@@ -380,7 +380,7 @@ export class ModulesService {
         status: data.status
           ? (data.status.toUpperCase() as DocStatus)
           : undefined,
-        route: data.route,
+        routeLabel: data.route,
         validTo: data.validTo ? new Date(data.validTo) : undefined,
       },
       include: { vehicle: { select: { plate: true } } },

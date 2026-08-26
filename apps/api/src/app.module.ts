@@ -23,6 +23,7 @@ import { RevisoriaFiscalModule } from "./revisoria-fiscal/revisoria-fiscal.modul
 import { PresidenciaModule } from "./presidencia/presidencia.module";
 import { GerenciaModule } from "./gerencia/gerencia.module";
 import { JuridicoModule } from "./juridico/juridico.module";
+import { FuecModule } from "./fuec/fuec.module";
 import { RrhhModule } from "./rrhh/rrhh.module";
 import { SarlaftModule } from "./sarlaft/sarlaft.module";
 import { PatioModule } from "./patio/patio.module";
@@ -76,6 +77,7 @@ import { SecurityModule } from "./security/security.module";
     PresidenciaModule,
     GerenciaModule,
     JuridicoModule,
+    FuecModule,
     RrhhModule,
     SarlaftModule,
     PatioModule,

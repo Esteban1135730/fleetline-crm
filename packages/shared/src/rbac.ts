@@ -194,6 +194,7 @@ export const ROLE_PERMISSIONS: Record<string, RolePermissionMap> = {
     balance_scorecard: ["READ", "ANALYZE"],
     gerencia_override: ["CREATE", "READ", "UPDATE"],
     gerencia_approvals: ["CREATE", "READ", "UPDATE"],
+    founders_canvas: ["READ", "ANALYZE"],
     compras_oc: ["CREATE", "READ", "UPDATE", "DELETE"],
     compras_proveedores: ["CREATE", "READ", "UPDATE", "DELETE"],
   },
@@ -203,6 +204,8 @@ export const ROLE_PERMISSIONS: Record<string, RolePermissionMap> = {
     balance_scorecard: ["CREATE", "READ", "UPDATE", "ANALYZE"],
     gerencia_override: ["CREATE", "READ", "UPDATE", "DELETE"],
     gerencia_approvals: ["CREATE", "READ", "UPDATE"],
+    /** Lectura del Lienzo de Presidencia (SSoT ejecutivo) — sin DEFCON/CAPEX mutativo */
+    founders_canvas: ["READ", "ANALYZE"],
     crm_comercial: ["READ", "UPDATE"],
     contratos: ["READ", "UPDATE"],
     finanzas: ["READ", "UPDATE"],

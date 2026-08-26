@@ -76,6 +76,7 @@ type TacticalPanel = {
     bloqueado: number;
   }>;
   cashAging: Array<{ rango: string; cxc: number; cxp: number }>;
+  cashAgingSource?: "invoices" | "trip_fares";
 };
 
 type Dash = {
@@ -292,7 +293,17 @@ export default function GerenciaDashboardPage() {
             </section>
 
             <section className="rounded-xl border border-[var(--fl-border)] bg-[var(--fl-surface)] p-4">
-              <h3 className="mb-3 text-sm font-semibold">Flujo de caja a corto plazo</h3>
+              <h3 className="mb-1 text-sm font-semibold">Flujo de caja a corto plazo</h3>
+              {dash.tacticalPanel.cashAgingSource === "trip_fares" ? (
+                <p className="mb-3 text-[11px] text-[var(--text-secondary)]">
+                  Estimación operativa por tarifas de viaje (aún sin facturas
+                  CxC/CxP).
+                </p>
+              ) : (
+                <p className="mb-3 text-[11px] text-[var(--text-secondary)]">
+                  Aging por facturas abiertas.
+                </p>
+              )}
               <div className="h-52">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={dash.tacticalPanel.cashAging}>

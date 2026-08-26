@@ -18,6 +18,7 @@ import RoleHomeScreen from "./src/screens/RoleHomeScreen";
 import SupervisorHomeScreen from "./src/screens/SupervisorHomeScreen";
 import ChangePasswordScreen from "./src/screens/ChangePasswordScreen";
 import ProfileScreen from "./src/screens/ProfileScreen";
+import FuecListScreen from "./src/screens/FuecListScreen";
 import {
   SupportChatScreen,
   TripChatScreen,
@@ -35,6 +36,7 @@ export type RootStackParamList = {
   Preoperational: { trip: Trip };
   TripChat: { tripId: string; code: string };
   SupportChat: undefined;
+  FuecList: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -194,6 +196,11 @@ export default function App() {
                     name="SupportChat"
                     component={SupportChatScreen}
                     options={{ title: "Soporte" }}
+                  />
+                  <Stack.Screen
+                    name="FuecList"
+                    component={FuecListScreen}
+                    options={{ title: "Mis FUEC" }}
                   />
                 </>
               )}

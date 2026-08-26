@@ -38,6 +38,14 @@ export default function ProfileScreen({ navigation, user, onLogout }: Props) {
 
       <Pressable
         style={styles.row}
+        onPress={() => navigation.navigate("FuecList")}
+      >
+        <Text style={styles.rowTitle}>Mis FUEC</Text>
+        <Text style={styles.rowHint}>Exportar / imprimir extracto PDF</Text>
+      </Pressable>
+
+      <Pressable
+        style={styles.row}
         onPress={() => navigation.navigate("SupportChat")}
       >
         <Text style={styles.rowTitle}>Chat de soporte</Text>

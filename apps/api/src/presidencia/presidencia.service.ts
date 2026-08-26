@@ -449,7 +449,15 @@ export class PresidenciaService {
       by: ["origin", "destination"],
       where: {
         organizationId,
-        status: TripStatus.COMPLETED,
+        status: {
+          in: [
+            TripStatus.COMPLETED,
+            TripStatus.IN_TRANSIT,
+            TripStatus.ASSIGNED,
+            TripStatus.AWAITING_PREOP,
+            TripStatus.AWAITING_FUEC,
+          ],
+        },
       },
       _sum: { fareAmount: true },
       _count: { _all: true },
@@ -459,15 +467,22 @@ export class PresidenciaService {
 
     const max = Math.max(
       1,
-      ...trips.map((t) => Number(t._sum.fareAmount || 0)),
+      ...trips.map((t) => {
+        const rev = Number(t._sum.fareAmount || 0);
+        return rev > 0 ? rev : t._count._all;
+      }),
     );
 
-    return trips.map((t) => ({
-      corridor: `${t.origin}→${t.destination}`,
-      revenue: Number(t._sum.fareAmount || 0),
-      trips: t._count._all,
-      heat: Number(((Number(t._sum.fareAmount || 0) / max) * 100).toFixed(0)),
-    }));
+    return trips.map((t) => {
+      const revenue = Number(t._sum.fareAmount || 0);
+      const heatScore = revenue > 0 ? revenue : t._count._all;
+      return {
+        corridor: `${t.origin}→${t.destination}`,
+        revenue,
+        trips: t._count._all,
+        heat: Number(((heatScore / max) * 100).toFixed(0)),
+      };
+    });
   }
 
   /**

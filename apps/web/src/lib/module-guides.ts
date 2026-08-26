@@ -158,6 +158,15 @@ export const MODULE_GUIDES: Partial<Record<ModuleId | "cuenta", ModuleGuide>> =
         "Revise la auditoría de bóveda para trazabilidad.",
       ],
     },
+    juridico: {
+      title: "Cómo emitir Contratos FUEC",
+      summary: "Extracto único imprimible con hard-stop documental.",
+      steps: [
+        "Abra Nuevo contrato y complete contratante, ruta, placa y conductores.",
+        "Revise Datos Importantes: SOAT, RCC-RCE, tarjeta de operación y afiliación deben estar vigentes.",
+        "Guarde para generar el PDF ministerial; el conductor lo exporta desde la app (Mis FUEC).",
+      ],
+    },
     call_center: {
       title: "Cómo operar Recepción y centro de llamadas",
       summary: "Visitantes y tickets de atención.",

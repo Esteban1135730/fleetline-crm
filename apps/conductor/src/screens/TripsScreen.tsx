@@ -211,6 +211,9 @@ export default function TripsScreen({ navigation, onLogout }: Props) {
         title: u ? `Viajes · ${u.name.split(" ")[0]}` : "Mis viajes",
         headerRight: () => (
           <View style={{ flexDirection: "row", gap: 14, marginRight: 4 }}>
+            <Pressable onPress={() => navigation.navigate("FuecList")}>
+              <Text style={{ color: "#FFB800", fontWeight: "700" }}>FUEC</Text>
+            </Pressable>
             <Pressable onPress={() => navigation.navigate("SupportChat")}>
               <Text style={{ color: "#10B981", fontWeight: "700" }}>Chat</Text>
             </Pressable>
