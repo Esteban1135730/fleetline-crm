@@ -3,8 +3,10 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Platform,
   Pressable,
   RefreshControl,
+  Share,
   StyleSheet,
   Text,
   View,
@@ -51,28 +53,95 @@ export default function FuecListScreen(_props: Props) {
     }, [load]),
   );
 
+  /** Abre el sheet del sistema: WhatsApp, Drive, Gmail, Imprimir, etc. */
+  async function openAppChooser(uri: string, item: FuecListItem) {
+    const canShare = await Sharing.isAvailableAsync();
+    if (canShare) {
+      await Sharing.shareAsync(uri, {
+        mimeType: "application/pdf",
+        dialogTitle: `Enviar FUEC ${item.number}`,
+        UTI: "com.adobe.pdf",
+      });
+      return;
+    }
+    // Fallback nativo
+    await Share.share(
+      Platform.OS === "ios"
+        ? { url: uri, title: `FUEC ${item.number}` }
+        : {
+            message: `FUEC ${item.number} — ${item.route}`,
+            title: `FUEC ${item.number}`,
+            url: uri,
+          },
+      { dialogTitle: `Enviar FUEC ${item.number}` },
+    );
+  }
+
   async function sharePdf(item: FuecListItem) {
     setBusyId(item.id);
     try {
       const uri = await downloadFuecPdfToCache(item.id, item.number);
-      const can = await Sharing.isAvailableAsync();
-      if (!can) {
-        Alert.alert("PDF listo", `Archivo guardado:\n${uri}`);
-        return;
-      }
-      await Sharing.shareAsync(uri, {
-        mimeType: "application/pdf",
-        dialogTitle: `FUEC ${item.number}`,
-        UTI: "com.adobe.pdf",
-      });
+      await openAppChooser(uri, item);
     } catch (e) {
       Alert.alert(
         "Error",
-        e instanceof Error ? e.message : "No se pudo exportar el PDF",
+        e instanceof Error ? e.message : "No se pudo compartir el PDF",
       );
     } finally {
       setBusyId(null);
     }
+  }
+
+  async function downloadThenShare(item: FuecListItem) {
+    setBusyId(item.id);
+    try {
+      const uri = await downloadFuecPdfToCache(item.id, item.number, {
+        persist: true,
+      });
+      Alert.alert(
+        "PDF descargado",
+        `FUEC-${item.number}.pdf guardado en la app.\n¿Enviar ahora a otra aplicación?`,
+        [
+          { text: "Solo guardar", style: "cancel" },
+          {
+            text: "Elegir app",
+            onPress: () => {
+              void openAppChooser(uri, item).catch((err) =>
+                Alert.alert(
+                  "Error",
+                  err instanceof Error ? err.message : "No se pudo abrir el menú",
+                ),
+              );
+            },
+          },
+        ],
+      );
+    } catch (e) {
+      Alert.alert(
+        "Error",
+        e instanceof Error ? e.message : "No se pudo descargar el PDF",
+      );
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  function onFuecActions(item: FuecListItem) {
+    Alert.alert(
+      `FUEC ${item.number}`,
+      "Descarga el extracto y elige WhatsApp, Drive, Gmail, Imprimir u otra app.",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Descargar y enviar",
+          onPress: () => void downloadThenShare(item),
+        },
+        {
+          text: "Enviar / compartir",
+          onPress: () => void sharePdf(item),
+        },
+      ],
+    );
   }
 
   if (loading && items.length === 0) {
@@ -92,6 +161,10 @@ export default function FuecListScreen(_props: Props) {
           Sin conductor vinculado — no hay FUEC asignados.
         </Text>
       )}
+      <Text style={styles.hint}>
+        Toca un extracto para descargarlo o enviarlo con el selector de apps del
+        teléfono.
+      </Text>
       <FlatList
         data={items}
         keyExtractor={(i) => i.id}
@@ -124,16 +197,36 @@ export default function FuecListScreen(_props: Props) {
               <Text style={styles.meta}>
                 Vence {item.validTo.slice(0, 10)} · {item.status}
               </Text>
+              <View style={styles.row}>
+                <Pressable
+                  style={[styles.btnSecondary, busy && styles.btnBusy]}
+                  disabled={busy}
+                  onPress={() => void downloadThenShare(item)}
+                >
+                  {busy ? (
+                    <ActivityIndicator color="#10B981" />
+                  ) : (
+                    <Text style={styles.btnSecondaryText}>Descargar</Text>
+                  )}
+                </Pressable>
+                <Pressable
+                  style={[styles.btn, busy && styles.btnBusy]}
+                  disabled={busy}
+                  onPress={() => void sharePdf(item)}
+                >
+                  {busy ? (
+                    <ActivityIndicator color="#0A0D14" />
+                  ) : (
+                    <Text style={styles.btnText}>Enviar / elegir app</Text>
+                  )}
+                </Pressable>
+              </View>
               <Pressable
-                style={[styles.btn, busy && styles.btnBusy]}
+                style={styles.linkBtn}
                 disabled={busy}
-                onPress={() => void sharePdf(item)}
+                onPress={() => onFuecActions(item)}
               >
-                {busy ? (
-                  <ActivityIndicator color="#0A0D14" />
-                ) : (
-                  <Text style={styles.btnText}>Exportar / imprimir PDF</Text>
-                )}
+                <Text style={styles.linkText}>Más opciones</Text>
               </Pressable>
             </View>
           );
@@ -151,7 +244,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  sub: { color: "#94A3B8", marginBottom: 12, fontSize: 13 },
+  sub: { color: "#94A3B8", marginBottom: 6, fontSize: 13 },
+  hint: {
+    color: "#64748B",
+    fontSize: 12,
+    marginBottom: 12,
+    lineHeight: 17,
+  },
   warn: { color: "#FFB800", marginBottom: 12, fontSize: 13 },
   empty: { color: "#94A3B8", textAlign: "center", marginTop: 40, lineHeight: 20 },
   card: {
@@ -170,13 +269,26 @@ const styles = StyleSheet.create({
   },
   route: { color: "#F8FAFC", fontSize: 15, fontWeight: "600", marginTop: 6 },
   meta: { color: "#94A3B8", fontSize: 12, marginTop: 4 },
+  row: { flexDirection: "row", gap: 8, marginTop: 12 },
   btn: {
-    marginTop: 12,
+    flex: 1,
     backgroundColor: "#10B981",
     borderRadius: 8,
     paddingVertical: 12,
     alignItems: "center",
   },
+  btnSecondary: {
+    flex: 1,
+    backgroundColor: "transparent",
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#10B981",
+  },
   btnBusy: { opacity: 0.7 },
-  btnText: { color: "#0A0D14", fontWeight: "800", fontSize: 13 },
+  btnText: { color: "#0A0D14", fontWeight: "800", fontSize: 12 },
+  btnSecondaryText: { color: "#10B981", fontWeight: "800", fontSize: 12 },
+  linkBtn: { marginTop: 10, alignItems: "center" },
+  linkText: { color: "#94A3B8", fontSize: 12, fontWeight: "600" },
 });

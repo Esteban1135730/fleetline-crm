@@ -418,15 +418,22 @@ export async function fetchMyFuec(): Promise<{
   return apiRequest("/conductor/my-fuec");
 }
 
-/** Descarga PDF FUEC autenticado y lo deja listo para compartir/imprimir. */
+/** Descarga PDF FUEC autenticado. `persist` lo deja en documentDirectory. */
 export async function downloadFuecPdfToCache(
   id: string,
   number: string,
+  opts?: { persist?: boolean },
 ): Promise<string> {
   const token = await getToken();
   const base = getApiUrl();
   const FileSystem = await import("expo-file-system/legacy");
-  const path = `${FileSystem.cacheDirectory}FUEC-${number}.pdf`;
+  const safe = String(number).replace(/[^\w.-]+/g, "_");
+  const dir = opts?.persist
+    ? FileSystem.documentDirectory
+    : FileSystem.cacheDirectory;
+  if (!dir) throw new Error("Almacenamiento local no disponible");
+  const path = `${dir}FUEC-${safe}.pdf`;
+  // Re-descarga siempre para tener la versión vigente
   const result = await FileSystem.downloadAsync(
     `${base}/juridico/fuec/${id}/pdf`,
     path,
