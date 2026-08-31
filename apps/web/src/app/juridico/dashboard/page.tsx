@@ -1,10 +1,12 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
 import { HARD_RULES, statusEs } from "@fsg/shared";
 import { api } from "@/lib/api";
-import { HowToBox, PageIntro } from "@/components/page-intro";
+import { BentoPanel } from "@/components/nexa/bento-panel";
+import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
+import { ComplianceBadge } from "@/components/rrhh/compliance-badge";
 
 type FlaggedClause = {
   excerpt: string;
@@ -71,13 +73,6 @@ type Dash = {
   policy: { maxPenaltyClausePct: number };
 };
 
-function lightTone(light: string): "emerald" | "amber" | "rose" | "slate" {
-  if (light === "GREEN") return "emerald";
-  if (light === "AMBER") return "amber";
-  if (light === "RED") return "rose";
-  return "slate";
-}
-
 function asClauses(raw: unknown): FlaggedClause[] {
   return Array.isArray(raw) ? (raw as FlaggedClause[]) : [];
 }
@@ -89,11 +84,11 @@ export default function JuridicoDashboardPage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [plate, setPlate] = useState("BUS-001");
-  const [sarlaftDoc, setSarlaftDoc] = useState("CLINTON001");
-  const [sarlaftName, setSarlaftName] = useState("Propietario demo");
+  const [sarlaftDoc, setSarlaftDoc] = useState("");
+  const [sarlaftName, setSarlaftName] = useState("");
   const [comment, setComment] = useState("");
   const [scanText, setScanText] = useState(
-    "Contrato de prestación. Las partes acuerdan una penalidad del 25% del valor mensual por incumplimiento. Multa de 8% por mora en pago.",
+    "Contrato de prestaciÃ³n. Las partes acuerdan una penalidad del 25% del valor mensual por incumplimiento. Multa de 8% por mora en pago.",
   );
 
   const load = useCallback(async () => {
@@ -105,7 +100,7 @@ export default function JuridicoDashboardPage() {
       }
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Conexión fallida");
+      setError(e instanceof Error ? e.message : "ConexiÃ³n fallida");
     }
   }, [selectedId]);
 
@@ -126,13 +121,13 @@ export default function JuridicoDashboardPage() {
         status: string;
         message: string;
       }>("/api/v1/juridico/contratos/smart-scan", {
-        contractTitle: "Revisión asistida — carga del centro jurídico",
+        contractTitle: "RevisiÃ³n asistida â€” carga del centro jurÃ­dico",
         contractKind: "B2B",
         contractText: scanText,
         comments: [
           {
-            author: "Sofía Directora Jurídica",
-            body: "Revisión jurídica iniciada",
+            author: "SofÃ­a Directora JurÃ­dica",
+            body: "RevisiÃ³n jurÃ­dica iniciada",
           },
         ],
       });
@@ -140,7 +135,7 @@ export default function JuridicoDashboardPage() {
       setSelectedId(res.id);
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Revisión automática fallida");
+      setError(e instanceof Error ? e.message : "RevisiÃ³n automÃ¡tica fallida");
     } finally {
       setBusy(false);
     }
@@ -152,7 +147,7 @@ export default function JuridicoDashboardPage() {
     try {
       await api.post("/api/v1/juridico/contratos/comentario", {
         scanId: selected.id,
-        author: "Sofía Directora Jurídica",
+        author: "SofÃ­a Directora JurÃ­dica",
         body: comment.trim(),
       });
       setComment("");
@@ -177,7 +172,7 @@ export default function JuridicoDashboardPage() {
         gpsPointCount: number;
       }>(`/api/v1/juridico/expediente-probatorio/${encodeURIComponent(plate)}`);
       setMsg(
-        `${res.code}: ${res.message} · hash ${res.contentHash.slice(0, 12)}… · preop ${res.preopCount} · GPS ${res.gpsPointCount}`,
+        `${res.code}: ${res.message} Â· hash ${res.contentHash.slice(0, 12)}â€¦ Â· preop ${res.preopCount} Â· GPS ${res.gpsPointCount}`,
       );
       await load();
     } catch (e) {
@@ -203,7 +198,7 @@ export default function JuridicoDashboardPage() {
         entityType: "PROPIETARIO",
       });
       setMsg(
-        `Semáforo ${res.light} · score ${res.riskScore} · ${res.message} · hits: ${res.hits.map((h) => h.list).join(", ") || "ninguno"}`,
+        `SemÃ¡foro ${res.light} Â· score ${res.riskScore} Â· ${res.message} Â· hits: ${res.hits.map((h) => h.list).join(", ") || "ninguno"}`,
       );
       await load();
     } catch (e) {
@@ -217,77 +212,61 @@ export default function JuridicoDashboardPage() {
     dash?.policy.maxPenaltyClausePct ?? HARD_RULES.LEGAL_MAX_PENALTY_CLAUSE_PCT;
 
   return (
-    <div className="space-y-8">
-      <PageIntro module="juridico" title="Centro jurídico" />
-      <HowToBox
-        steps={[
-          "La revisión jurídica compara el documento contra el tope de penalidad.",
-          "Calendario judicial marca audiencias y derechos de petición inamovibles.",
-          "Expediente por placa sella preoperacionales, taller y GPS con hash SHA-256.",
-          "Semáforos SARLAFT consultan OFAC, Clinton, Interpol y listas nacionales.",
-        ]}
-      />
+    <div className="fade-in mx-auto max-w-[1600px] space-y-6">
+      <header className="border-b border-brand-border pb-4">
+        <p className="font-data text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-primary">
+          Jurídico
+        </p>
+        <h1 className="font-sans text-2xl font-semibold tracking-tight text-brand-text-primary md:text-3xl">
+          Centro jurídico
+        </h1>
+      </header>
 
       {error && (
-        <p className="rounded-lg border border-[color:var(--fl-critical)]/40 bg-[color:var(--fl-critical)]/10 px-4 py-3 text-sm text-[color:var(--fl-critical)]">
+        <p className="rounded-lg border border-brand-danger/40 bg-brand-danger/10 px-4 py-3 text-sm text-brand-danger">
           {error}
         </p>
       )}
       {msg && (
-        <p className="rounded-lg border border-[color:var(--fl-border)] bg-[color:var(--fl-surface)] px-4 py-3 font-mono text-sm text-[color:var(--fl-text)]">
+        <p className="rounded-lg border border-brand-border bg-brand-surface px-4 py-3 font-data text-sm text-brand-text-primary">
           {msg}
         </p>
       )}
 
-      {/* Calendario judicial */}
-      <section id="calendario" className="space-y-3">
-        <h2 className="text-lg font-semibold text-[color:var(--fl-text)]">
-          Calendario Judicial
-        </h2>
+      <BentoPanel id="calendario" title="Calendario judicial" subtitle="Audiencias y plazos inamovibles">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {(dash?.judicialCalendar ?? []).map((e) => (
             <article
               key={e.id}
               className={`rounded-xl border p-4 ${
                 e.alertRed
-                  ? "border-[color:var(--fl-critical)] bg-[color:var(--fl-critical)]/10"
-                  : "border-[color:var(--fl-border)] bg-[color:var(--fl-surface)]"
+                  ? "border-brand-danger bg-brand-danger/10"
+                  : "border-brand-border bg-brand-canvas"
               }`}
             >
               <div className="flex items-start justify-between gap-2">
-                <p className="text-sm font-medium text-[color:var(--fl-text)]">
-                  {e.title}
-                </p>
-                {e.alertRed && <Badge tone="rose">INAMOVIBLE</Badge>}
+                <p className="text-sm font-medium text-brand-text-primary">{e.title}</p>
+                {e.alertRed && <Badge tone="danger">INAMOVIBLE</Badge>}
               </div>
-              <p className="mt-2 font-mono text-xs text-[color:var(--fl-subtext)]">
+              <p className="mt-2 font-data text-xs text-brand-text-secondary">
                 {e.kind} · {e.caseRef ?? "—"} · {e.daysLeft}d
               </p>
-              <p className="mt-1 font-mono text-xs text-[color:var(--fl-amber)]">
+              <p className="mt-1 font-data text-xs text-brand-warning">
                 {new Date(e.dueAt).toLocaleString("es-CO")}
               </p>
             </article>
           ))}
           {!dash?.judicialCalendar?.length && (
-            <p className="text-sm text-[color:var(--fl-subtext)]">
-              Sin plazos cargados.
-            </p>
+            <p className="text-sm text-brand-text-secondary">Sin plazos cargados.</p>
           )}
         </div>
-      </section>
+      </BentoPanel>
 
-      {/* Split-screen contratos */}
-      <section id="contratos" className="space-y-3">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <h2 className="text-lg font-semibold text-[color:var(--fl-text)]">
-            Gestor de Contratos
-          </h2>
-          <p className="font-mono text-xs text-[color:var(--fl-subtext)]">
-            Tope penalidad FSG: {policyMax}%
-          </p>
-        </div>
-        <div className="grid gap-4 lg:grid-cols-2">
-          <div className="space-y-3 rounded-xl border border-[color:var(--fl-border)] bg-[color:var(--fl-surface)] p-4">
+      <div id="contratos" className="grid gap-4 lg:grid-cols-2">
+        <BentoPanel
+          title="Gestor de contratos"
+          subtitle={`Tope penalidad FSG: ${policyMax}%`}
+        >
             <div className="flex flex-wrap gap-2">
               {(dash?.contracts ?? []).map((c) => (
                 <button
@@ -296,8 +275,8 @@ export default function JuridicoDashboardPage() {
                   onClick={() => setSelectedId(c.id)}
                   className={`rounded-md border px-3 py-1.5 font-mono text-xs ${
                     selected?.id === c.id
-                      ? "border-[color:var(--fl-accent)] text-[color:var(--fl-accent)]"
-                      : "border-[color:var(--fl-border)] text-[color:var(--fl-subtext)]"
+                      ? "border-[color:var(--brand-primary)] text-[color:var(--brand-primary)]"
+                      : "border-[color:var(--brand-border)] text-[color:var(--brand-text-secondary)]"
                   }`}
                 >
                   {c.code}
@@ -306,83 +285,80 @@ export default function JuridicoDashboardPage() {
             </div>
             {selected ? (
               <>
-                <p className="text-sm font-medium text-[color:var(--fl-text)]">
+                <p className="text-sm font-medium text-[color:var(--brand-text-primary)]">
                   {selected.title}
                 </p>
                 <div className="flex gap-2">
                   <Badge
                     tone={
                       selected.status === "FLAGGED"
-                        ? "rose"
+                        ? "danger"
                         : selected.status === "CLEARED"
-                          ? "emerald"
-                          : "amber"
+                          ? "success"
+                          : "warning"
                     }
                   >
                     {statusEs(selected.status)}
                   </Badge>
-                  <Badge tone="slate">{selected.kind}</Badge>
+                  <Badge tone="info">{selected.kind}</Badge>
                 </div>
-                <div className="min-h-[220px] rounded-lg border border-dashed border-[color:var(--fl-border)] bg-[color:var(--fl-canvas)] p-3 font-mono text-xs leading-relaxed text-[color:var(--fl-subtext)]">
-                  <p className="mb-2 text-[color:var(--fl-text)]">
-                    Vista documento · {selected.fileRef ?? "texto / PDF"}
+                <div className="min-h-[220px] rounded-lg border border-dashed border-[color:var(--brand-border)] bg-[color:var(--brand-canvas)] p-3 font-mono text-xs leading-relaxed text-[color:var(--brand-text-secondary)]">
+                  <p className="mb-2 text-[color:var(--brand-text-primary)]">
+                    Vista documento Â· {selected.fileRef ?? "texto / PDF"}
                   </p>
                   {asClauses(selected.flaggedClauses).map((f, i) => (
                     <p
                       key={`${f.penaltyPct}-${i}`}
                       className={
                         f.severity === "OVER_POLICY"
-                          ? "mb-2 rounded bg-[color:var(--fl-critical)]/15 p-2 text-[color:var(--fl-critical)]"
-                          : "mb-2 rounded bg-[color:var(--fl-amber)]/15 p-2 text-[color:var(--fl-amber)]"
+                          ? "mb-2 rounded bg-[color:var(--brand-danger)]/15 p-2 text-[color:var(--brand-danger)]"
+                          : "mb-2 rounded bg-[color:var(--brand-warning)]/15 p-2 text-[color:var(--brand-warning)]"
                       }
                     >
                       [{f.penaltyPct}%] {f.excerpt}
                     </p>
                   ))}
                   {!asClauses(selected.flaggedClauses).length && (
-                    <p>Sin cláusulas fuera de política en este escaneo.</p>
+                    <p>Sin clÃ¡usulas fuera de polÃ­tica en este escaneo.</p>
                   )}
                 </div>
               </>
             ) : (
-              <p className="text-sm text-[color:var(--fl-subtext)]">
-                Sin escaneos. Ejecute el análisis jurídico.
+              <p className="text-sm text-[color:var(--brand-text-secondary)]">
+                Sin escaneos. Ejecute el anÃ¡lisis jurÃ­dico.
               </p>
             )}
             <textarea
               value={scanText}
               onChange={(e) => setScanText(e.target.value)}
               rows={4}
-              className="w-full rounded-lg border border-[color:var(--fl-border)] bg-[color:var(--fl-canvas)] p-3 text-sm text-[color:var(--fl-text)]"
+              className="w-full rounded-lg border border-[color:var(--brand-border)] bg-[color:var(--brand-canvas)] p-3 text-sm text-[color:var(--brand-text-primary)]"
             />
             <Button disabled={busy} onClick={() => void runSmartScan()}>
               Análisis jurídico
             </Button>
-          </div>
+        </BentoPanel>
 
-          <div className="flex flex-col rounded-xl border border-[color:var(--fl-border)] bg-[color:var(--fl-surface)] p-4">
-            <h3 className="mb-3 text-sm font-semibold text-[color:var(--fl-text)]">
-              Cadena de comentarios
-            </h3>
-            <div className="mb-3 flex-1 space-y-3 overflow-y-auto">
+        <BentoPanel title="Cadena de comentarios">
+          <div className="mb-3 flex-1 space-y-3 overflow-y-auto">
               {(selected?.commentsThread ?? []).map((c, i) => (
                 <div
                   key={`${c.at}-${i}`}
-                  className="rounded-lg border border-[color:var(--fl-border)] px-3 py-2"
+                  className="rounded-lg border border-[color:var(--brand-border)] px-3 py-2"
                 >
-                  <p className="text-xs font-medium text-[color:var(--fl-accent)]">
+                  <p className="text-xs font-medium text-[color:var(--brand-primary)]">
                     {c.author}
                   </p>
-                  <p className="mt-1 text-sm text-[color:var(--fl-text)]">
+                  <p className="mt-1 text-sm text-[color:var(--brand-text-primary)]">
                     {c.body}
                   </p>
-                  <p className="mt-1 font-mono text-[10px] text-[color:var(--fl-subtext)]">
+                  <p className="mt-1 font-mono text-[10px] text-[color:var(--brand-text-secondary)]">
                     {c.at}
                   </p>
                 </div>
               ))}
               {!selected?.commentsThread?.length && (
-                <p className="text-sm text-[color:var(--fl-subtext)]">
+                <p className="text-sm text-[color:var(--brand-text-secondary)]">
                   Sin comentarios en el hilo.
                 </p>
               )}
@@ -391,33 +367,28 @@ export default function JuridicoDashboardPage() {
               <input
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
-                placeholder="Observación jurídica…"
-                className="flex-1 rounded-lg border border-[color:var(--fl-border)] bg-[color:var(--fl-canvas)] px-3 py-2 text-sm"
+                placeholder="ObservaciÃ³n jurÃ­dicaâ€¦"
+                className="flex-1 rounded-lg border border-[color:var(--brand-border)] bg-[color:var(--brand-canvas)] px-3 py-2 text-sm"
               />
               <Button disabled={busy || !selected} onClick={() => void postComment()}>
                 Enviar
               </Button>
             </div>
-          </div>
-        </div>
-      </section>
+        </BentoPanel>
+      </div>
 
-      {/* SARLAFT */}
-      <section id="sarlaft" className="space-y-3">
-        <h2 className="text-lg font-semibold text-[color:var(--fl-text)]">
-          Módulo de Riesgo SARLAFT
-        </h2>
-        <div className="flex flex-wrap gap-2">
+      <BentoPanel id="sarlaft" title="Riesgo SARLAFT" subtitle="Consulta listas restrictivas">
+        <div className="mb-4 flex flex-wrap gap-2">
           <input
             value={sarlaftDoc}
             onChange={(e) => setSarlaftDoc(e.target.value)}
-            className="rounded-lg border border-[color:var(--fl-border)] bg-[color:var(--fl-surface)] px-3 py-2 font-mono text-sm"
+            className="field font-data"
             placeholder="Documento"
           />
           <input
             value={sarlaftName}
             onChange={(e) => setSarlaftName(e.target.value)}
-            className="rounded-lg border border-[color:var(--fl-border)] bg-[color:var(--fl-surface)] px-3 py-2 text-sm"
+            className="field"
             placeholder="Sujeto"
           />
           <Button disabled={busy} onClick={() => void consultaSarlaft()}>
@@ -428,53 +399,63 @@ export default function JuridicoDashboardPage() {
           {(dash?.sarlaftLights ?? []).map((s) => (
             <article
               key={s.id}
-              className="rounded-xl border border-[color:var(--fl-border)] bg-[color:var(--fl-surface)] p-4"
+              className="rounded-xl border border-brand-border bg-brand-canvas p-4"
             >
               <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-medium text-[color:var(--fl-text)]">
-                  {s.subjectName}
-                </p>
-                <Badge tone={lightTone(s.light)}>{s.light}</Badge>
+                <p className="text-sm font-medium text-brand-text-primary">{s.subjectName}</p>
+                <ComplianceBadge
+                  level={
+                    s.light === "GREEN"
+                      ? "GREEN"
+                      : s.light === "AMBER"
+                        ? "AMBER"
+                        : "RED"
+                  }
+                >
+                  {s.light}
+                </ComplianceBadge>
               </div>
-              <p className="mt-2 font-mono text-xs text-[color:var(--fl-subtext)]">
+              <p className="mt-2 font-data text-xs text-brand-text-secondary">
                 {s.document} · score {s.riskScore}
               </p>
-              <p className="mt-1 font-mono text-[10px] text-[color:var(--fl-amber)]">
+              <p className="mt-1 font-data text-[10px] text-brand-warning">
                 {s.listsMatched.join(" · ") || "Sin hits"}
               </p>
             </article>
           ))}
         </div>
-      </section>
+      </BentoPanel>
 
-      {/* Expediente */}
-      <section id="expediente" className="space-y-3">
-        <h2 className="text-lg font-semibold text-[color:var(--fl-text)]">
-          Expediente Probatorio
-        </h2>
-        <div className="flex flex-wrap gap-2">
+      <BentoPanel id="expediente" title="Expediente probatorio" subtitle="Hash SHA-256 · preops · GPS">
+        <div className="mb-4 flex flex-wrap gap-2">
           <input
             value={plate}
             onChange={(e) => setPlate(e.target.value.toUpperCase())}
-            className="rounded-lg border border-[color:var(--fl-border)] bg-[color:var(--fl-surface)] px-3 py-2 font-mono text-sm"
+            className="field font-data"
           />
           <Button disabled={busy} onClick={() => void generateExpediente()}>
             Generar documento inmutable
           </Button>
         </div>
-        <ul className="space-y-2">
-          {(dash?.evidentiaryPackages ?? []).map((p) => (
-            <li
-              key={p.id}
-              className="rounded-lg border border-[color:var(--fl-border)] bg-[color:var(--fl-surface)] px-4 py-3 font-mono text-xs text-[color:var(--fl-subtext)]"
-            >
-              <span className="text-[color:var(--fl-text)]">{p.code}</span> ·{" "}
-              {p.plate} · hash {p.contentHash.slice(0, 16)}… · preop{" "}
-              {p.preopCount} · GPS {p.gpsPointCount} · OT {p.workOrderCount}
-            </li>
-          ))}
-        </ul>
-      </section>
+        {(dash?.evidentiaryPackages ?? []).length === 0 ? (
+          <p className="text-sm text-brand-text-secondary">Sin expedientes generados.</p>
+        ) : (
+          <NexaTable columns={["Código", "Placa", "Hash", "Preop", "GPS", "OT"]}>
+            {(dash?.evidentiaryPackages ?? []).map((p) => (
+              <NexaRow key={p.id}>
+                <NexaCell mono>{p.code}</NexaCell>
+                <NexaCell mono>{p.plate}</NexaCell>
+                <NexaCell mono className="text-[11px] text-brand-text-secondary">
+                  {p.contentHash.slice(0, 16)}…
+                </NexaCell>
+                <NexaCell mono>{p.preopCount}</NexaCell>
+                <NexaCell mono>{p.gpsPointCount}</NexaCell>
+                <NexaCell mono>{p.workOrderCount}</NexaCell>
+              </NexaRow>
+            ))}
+          </NexaTable>
+        )}
+      </BentoPanel>
     </div>
   );
 }

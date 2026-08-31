@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { useThemeColors } from "@/lib/use-theme-colors";
+import { useTheme } from "@/lib/theme";
 
 export type MapPoint = { lat: number; lng: number };
 
@@ -16,6 +18,8 @@ type Props = {
   height?: number;
   /** Ocupa el contenedor padre (split-screen). */
   fillHeight?: boolean;
+  /** Oculta chrome interno cuando el padre usa BentoPanel. */
+  embedded?: boolean;
 };
 
 const MODE_ES: Record<string, string> = {
@@ -24,7 +28,7 @@ const MODE_ES: Record<string, string> = {
   HISTORY: "Histórico de ruta",
 };
 
-function makeDot(color: string, pulse = false) {
+function makeDot(color: string, contrast: string, pulse = false) {
   const size = pulse ? 18 : 14;
   return L.divIcon({
     className: "",
@@ -32,19 +36,13 @@ function makeDot(color: string, pulse = false) {
     iconAnchor: [size / 2, size / 2],
     html: `<span style="
       display:block;width:${size}px;height:${size}px;border-radius:999px;
-      background:${color};border:2px solid #fff;box-shadow:0 0 0 2px ${color}55;
+      background:${color};border:2px solid ${contrast};box-shadow:0 0 0 2px ${color}55;
       ${pulse ? "animation:flt-pulse 1.6s ease-in-out infinite;" : ""}
     "></span>`,
   });
 }
 
-const DARK_TILES =
-  "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
-
-/**
- * Mapa operativo Leaflet + teselas CartoDB dark.
- * Ruta sugerida / histórico GPS / punto en vivo.
- */
+/** Mapa operativo Leaflet — teselas adaptativas light/dark vía useThemeColors. */
 export function FleetMap({
   mode,
   modeLabel,
@@ -54,10 +52,14 @@ export function FleetMap({
   className = "",
   height = 320,
   fillHeight = false,
+  embedded = false,
 }: Props) {
+  const colors = useThemeColors();
+  const { mode: themeMode } = useTheme();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const layerRef = useRef<L.LayerGroup | null>(null);
+  const tileRef = useRef<L.TileLayer | null>(null);
 
   const track = useMemo(() => {
     if (mode === "LIVE_GPS" || mode === "HISTORY") {
@@ -78,26 +80,42 @@ export function FleetMap({
       attributionControl: true,
     }).setView([4.65, -74.1], 12);
 
-    L.tileLayer(DARK_TILES, {
+    const tile = L.tileLayer(colors.mapTileUrl, {
       maxZoom: 19,
       attribution: '&copy; <a href="https://carto.com/">CARTO</a> · OSM',
     }).addTo(map);
+    tileRef.current = tile;
 
     const layers = L.layerGroup().addTo(map);
     mapRef.current = map;
     layerRef.current = layers;
 
-    const style = document.createElement("style");
-    style.textContent = `@keyframes flt-pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.35);opacity:.75}}`;
-    document.head.appendChild(style);
+    if (!document.getElementById("flt-pulse-keyframes")) {
+      const style = document.createElement("style");
+      style.id = "flt-pulse-keyframes";
+      style.textContent = `@keyframes flt-pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.35);opacity:.75}}`;
+      document.head.appendChild(style);
+    }
 
     return () => {
       map.remove();
       mapRef.current = null;
       layerRef.current = null;
-      style.remove();
+      tileRef.current = null;
     };
-  }, []);
+  }, [colors.mapTileUrl]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    const prev = tileRef.current;
+    if (!map || !prev) return;
+    map.removeLayer(prev);
+    const tile = L.tileLayer(colors.mapTileUrl, {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://carto.com/">CARTO</a> · OSM',
+    }).addTo(map);
+    tileRef.current = tile;
+  }, [themeMode, colors.mapTileUrl]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -109,10 +127,12 @@ export function FleetMap({
 
     if (track.length >= 2) {
       const latlngs = track.map((p) => [p.lat, p.lng] as [number, number]);
-      const color =
-        mode === "LIVE_GPS" || mode === "HISTORY" ? "#10B981" : "#0D9488";
+      const routeColor =
+        mode === "LIVE_GPS" || mode === "HISTORY"
+          ? colors.mapRoute
+          : colors.secondary;
       L.polyline(latlngs, {
-        color,
+        color: routeColor,
         weight: 5,
         opacity: 0.9,
         lineJoin: "round",
@@ -124,21 +144,21 @@ export function FleetMap({
 
     if (track[0]) {
       L.marker([track[0].lat, track[0].lng], {
-        icon: makeDot("#FFB800"),
+        icon: makeDot(colors.warning, colors.contrastFg),
         title: "Origen",
       }).addTo(layers);
     }
     if (track.length > 1) {
       const last = track[track.length - 1];
       L.marker([last.lat, last.lng], {
-        icon: makeDot("#FF2A5F"),
+        icon: makeDot(colors.danger, colors.contrastFg),
         title: "Destino",
       }).addTo(layers);
     }
 
     if (live) {
       L.marker([live.lat, live.lng], {
-        icon: makeDot("#10B981", true),
+        icon: makeDot(colors.success, colors.contrastFg, true),
         title: "Unidad en vivo",
         zIndexOffset: 500,
       }).addTo(layers);
@@ -154,7 +174,7 @@ export function FleetMap({
     }
 
     requestAnimationFrame(() => map.invalidateSize());
-  }, [track, live, mode]);
+  }, [track, live, mode, colors]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -167,40 +187,47 @@ export function FleetMap({
     return () => ro.disconnect();
   }, [fillHeight]);
 
+  const shellClass = embedded
+    ? `overflow-hidden ${fillHeight ? "flex h-full min-h-0 flex-col" : ""} ${className}`
+    : `overflow-hidden p-0 ${fillHeight ? "flex h-full min-h-0 flex-col" : "nexa-panel"} ${className}`;
+
   return (
-    <div
-      className={`overflow-hidden p-0 ${fillHeight ? "flex h-full min-h-0 flex-col" : "fsg-panel"} ${className}`}
-      data-testid="route-map"
-    >
-      <div className="flex shrink-0 items-center justify-between border-b border-[var(--brand-line)] px-3 py-2">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--brand-muted)]">
-          Mapa · {label}
-        </span>
-        <span className="font-data text-[10px] text-[var(--brand-muted)]">
-          {track.length} puntos
-          {live ? " · en vivo" : ""}
-        </span>
-      </div>
+    <div className={shellClass} data-testid="route-map">
+      {!embedded ? (
+        <div className="flex shrink-0 items-center justify-between border-b border-brand-border px-3 py-2">
+          <span className="font-data text-[11px] font-semibold uppercase tracking-[0.12em] text-brand-text-secondary">
+            Mapa · {label}
+          </span>
+          <span className="font-data text-[10px] tabular-nums text-brand-text-secondary">
+            {track.length} puntos
+            {live ? " · en vivo" : ""}
+          </span>
+        </div>
+      ) : null}
       <div
         ref={containerRef}
-        className={`w-full bg-[#0A0D14] ${fillHeight ? "min-h-0 flex-1" : ""}`}
+        className={`w-full bg-brand-canvas ${fillHeight ? "min-h-0 flex-1" : ""}`}
         style={fillHeight ? undefined : { height }}
       />
-      <div className="flex shrink-0 flex-wrap gap-3 border-t border-[var(--brand-line)] px-3 py-1.5 text-[10px] text-[var(--brand-muted)]">
-        <span>
-          <span className="mr-1 inline-block h-2 w-2 rounded-full bg-[var(--brand-amber)]" />
-          Origen
-        </span>
-        <span>
-          <span className="mr-1 inline-block h-2 w-2 rounded-full bg-[var(--brand-signal)]" />
-          Destino
-        </span>
-        <span>
-          <span className="mr-1 inline-block h-2 w-2 rounded-full bg-[var(--brand-primary)]" />
-          Unidad / ruta
-        </span>
-        <span className="ml-auto opacity-70">CartoDB · OSRM</span>
-      </div>
+      {!embedded ? (
+        <div className="flex shrink-0 flex-wrap gap-3 border-t border-brand-border px-3 py-1.5 font-data text-[10px] text-brand-text-secondary">
+          <span>
+            <span className="mr-1 inline-block h-2 w-2 rounded-full bg-brand-warning" />
+            Origen
+          </span>
+          <span>
+            <span className="mr-1 inline-block h-2 w-2 rounded-full bg-brand-danger" />
+            Destino
+          </span>
+          <span>
+            <span className="mr-1 inline-block h-2 w-2 rounded-full bg-brand-success" />
+            Unidad / ruta
+          </span>
+          <span className="ml-auto opacity-70">
+            {themeMode === "dark" ? "Tactical dark" : "Voyager light"} · OSRM
+          </span>
+        </div>
+      ) : null}
     </div>
   );
 }

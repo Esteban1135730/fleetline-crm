@@ -7,8 +7,6 @@ import {
   AlertOctagon,
   Bell,
   FileText,
-  Fuel,
-  Gauge,
   MapPin,
   MessageSquare,
   Plus,
@@ -17,12 +15,18 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { statusEs } from "@fsg/shared";
-import { PageIntro } from "@/components/page-intro";
 import {
   EmptyState,
   SlideOver,
   StatusPulseBadge,
 } from "@/components/audit";
+import { BentoPanel } from "@/components/nexa/bento-panel";
+import { FleetHud } from "@/components/nexa/fleet-hud";
+import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
+import {
+  LogisticaToolbar,
+  type FleetStatusFilter,
+} from "@/components/logistica/logistica-toolbar";
 import {
   RouteMap,
   ServerClockBadge,
@@ -41,8 +45,8 @@ const ServicioMapPlanner = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="flex h-full items-center justify-center bg-[#0A0D14] text-sm text-[var(--brand-muted)]">
-        Cargando mapa…
+      <div className="flex h-full items-center justify-center bg-brand-canvas text-sm text-[var(--brand-text-secondary)]">
+        Cargando mapaÃ¢â‚¬Â¦
       </div>
     ),
   },
@@ -80,27 +84,27 @@ function blockerLabel(code: string) {
   return code
     .replace(/_/g, " ")
     .replace(/\bSOAT\b/i, "SOAT")
-    .replace(/\bTECNOMECANICA\b/i, "Tecnomecánica");
+    .replace(/\bTECNOMECANICA\b/i, "TecnomecÃƒÂ¡nica");
 }
 
 function KillSwitchCard({ blockers }: { blockers: string[] }) {
   if (!blockers.length) return null;
   return (
     <div
-      className="rounded-lg border border-[var(--accent-alert)]/50 bg-[color-mix(in_srgb,var(--accent-alert)_12%,transparent)] p-3"
+      className="rounded-lg border border-[var(--brand-danger)]/50 bg-[color-mix(in_srgb,var(--brand-danger)_12%,transparent)] p-3"
       data-testid="kill-switch-card"
     >
       <div className="mb-2 flex items-center gap-2">
-        <ShieldAlert className="h-4 w-4 animate-pulse text-[var(--accent-alert)]" />
-        <h4 className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--accent-alert)]">
-          Despacho bloqueado · Kill-Switch
+        <ShieldAlert className="h-4 w-4 animate-pulse text-[var(--brand-danger)]" />
+        <h4 className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--brand-danger)]">
+          Despacho bloqueado Ã‚Â· Kill-Switch
         </h4>
       </div>
-      <p className="mb-2 text-xs text-[var(--text-secondary)]">
-        La validación normativa denegó la asignación. Corrija el expediente
+      <p className="mb-2 text-xs text-[var(--brand-text-secondary)]">
+        La validaciÃƒÂ³n normativa denegÃƒÂ³ la asignaciÃƒÂ³n. Corrija el expediente
         antes de despachar.
       </p>
-      <ul className="space-y-1 rounded-md bg-[color-mix(in_srgb,var(--accent-alert)_8%,transparent)] p-2 font-data text-[10px] text-[var(--accent-alert)]">
+      <ul className="space-y-1 rounded-md bg-[color-mix(in_srgb,var(--brand-danger)_8%,transparent)] p-2 font-data text-[10px] text-[var(--brand-danger)]">
         {blockers.map((b) => (
           <li key={b} className="flex items-center gap-1.5">
             <AlertOctagon className="h-3 w-3 shrink-0" />
@@ -118,7 +122,7 @@ export default function LogisticaServiciosPage() {
   const [vehicles, setVehicles] = useState<PoolVehicle[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tracking, setTracking] = useState<Tracking | null>(null);
-  const [clock, setClock] = useState<string>("—");
+  const [clock, setClock] = useState<string>("Ã¢â‚¬â€");
   const [error, setError] = useState("");
   const [statusMsg, setStatusMsg] = useState("");
   const [originPin, setOriginPin] = useState<PlacePin | null>(null);
@@ -136,6 +140,8 @@ export default function LogisticaServiciosPage() {
   const [geoHits, setGeoHits] = useState<PlacePin[]>([]);
   const [geoMode, setGeoMode] = useState<"origin" | "dest">("origin");
   const [geoBusy, setGeoBusy] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<FleetStatusFilter>("ALL");
+  const [searchQuery, setSearchQuery] = useState("");
   const [form, setForm] = useState({
     departAt: "",
     arriveAt: "",
@@ -149,6 +155,55 @@ export default function LogisticaServiciosPage() {
     () => servicios.find((s) => s.id === selectedId) ?? null,
     [servicios, selectedId],
   );
+
+  const vehicleById = useMemo(
+    () => new Map(vehicles.map((v) => [v.id, v])),
+    [vehicles],
+  );
+
+  const filteredServicios = useMemo(() => {
+    const needle = searchQuery.trim().toLowerCase();
+    return servicios.filter((s) => {
+      const v = s.vehicle?.id ? vehicleById.get(s.vehicle.id) : undefined;
+      if (statusFilter === "IN_TRANSIT" && s.status !== "IN_TRANSIT") return false;
+      if (
+        statusFilter === "WORKSHOP" &&
+        !(v?.status === "MAINTENANCE" || v?.status === "OUT_OF_SERVICE")
+      ) {
+        return false;
+      }
+      if (
+        statusFilter === "STOPPED" &&
+        !(
+          s.status === "COMPLETED" ||
+          v?.complianceBlocked ||
+          v?.status === "OUT_OF_SERVICE"
+        )
+      ) {
+        return false;
+      }
+      if (!needle) return true;
+      return (
+        s.code.toLowerCase().includes(needle) ||
+        s.origin.toLowerCase().includes(needle) ||
+        s.destination.toLowerCase().includes(needle) ||
+        (s.driver?.name ?? "").toLowerCase().includes(needle) ||
+        (s.vehicle?.plate ?? "").toLowerCase().includes(needle)
+      );
+    });
+  }, [servicios, statusFilter, searchQuery, vehicleById]);
+
+  const hudAlerts = useMemo(() => {
+    if (!selected) return [];
+    const alerts: string[] = [];
+    const v = selected.vehicle?.id
+      ? vehicleById.get(selected.vehicle.id)
+      : undefined;
+    if (v?.complianceBlocked) alerts.push("Kill-Switch documental activo");
+    if (selected.driver?.dispatchBlocked) alerts.push("Conductor bloqueado");
+    if (!selected.driver || !selected.vehicle) alerts.push("Sin pareja despacho");
+    return alerts;
+  }, [selected, vehicleById]);
 
   const selectedDriver = drivers.find((d) => d.id === form.driverId);
   const selectedVehicle = vehicles.find((v) => v.id === form.vehicleId);
@@ -248,7 +303,7 @@ export default function LogisticaServiciosPage() {
 
   useEffect(() => {
     void Promise.all([loadServicios(), loadPool(), loadClock()]).catch((e) =>
-      setError(e instanceof Error ? e.message : "Conexión fallida"),
+      setError(e instanceof Error ? e.message : "ConexiÃƒÂ³n fallida"),
     );
     const t = setInterval(() => void loadClock(), 1000);
     return () => clearInterval(t);
@@ -263,7 +318,7 @@ export default function LogisticaServiciosPage() {
         );
         if (alive) setDeviationCount(data.length);
       } catch {
-        /* silent — campana sin badge */
+        /* silent Ã¢â‚¬â€ campana sin badge */
       }
     };
     void pullCount();
@@ -369,7 +424,7 @@ export default function LogisticaServiciosPage() {
 
   async function asignarPendiente() {
     if (!selectedId || !assignDriverId || !assignVehicleId) {
-      setError("Elige conductor y vehículo aptos para asignar");
+      setError("Elige conductor y vehÃƒÂ­culo aptos para asignar");
       return;
     }
     setError("");
@@ -382,13 +437,13 @@ export default function LogisticaServiciosPage() {
         }),
       });
       setStatusMsg(
-        "Servicio asignado — FUEC digital emitido a la App del conductor",
+        "Servicio asignado Ã¢â‚¬â€ FUEC digital emitido a la App del conductor",
       );
       setAssignDriverId("");
       setAssignVehicleId("");
       await loadServicios();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Asignación fallida");
+      setError(err instanceof Error ? err.message : "AsignaciÃƒÂ³n fallida");
     }
   }
 
@@ -398,7 +453,7 @@ export default function LogisticaServiciosPage() {
         method: "POST",
         body: "{}",
       });
-      setStatusMsg("Servicio EN PROCESO — GPS en vivo");
+      setStatusMsg("Servicio EN PROCESO Ã¢â‚¬â€ GPS en vivo");
       await loadServicios();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo iniciar");
@@ -411,7 +466,7 @@ export default function LogisticaServiciosPage() {
         method: "POST",
         body: "{}",
       });
-      setStatusMsg("Servicio cerrado — extras liquidados");
+      setStatusMsg("Servicio cerrado Ã¢â‚¬â€ extras liquidados");
       await loadServicios();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo cerrar");
@@ -435,7 +490,7 @@ export default function LogisticaServiciosPage() {
   function applySmartAssign(target: "create" | "pending") {
     if (!suggestedDispatch.driver || !suggestedDispatch.vehicle) {
       setError(
-        "Sin recursos aptos — Kill-Switch: revise fatiga, SOAT y tecnomecánica",
+        "Sin recursos aptos Ã¢â‚¬â€ Kill-Switch: revise fatiga, SOAT y tecnomecÃƒÂ¡nica",
       );
       return;
     }
@@ -450,7 +505,7 @@ export default function LogisticaServiciosPage() {
       setAssignVehicleId(suggestedDispatch.vehicle.id);
     }
     setStatusMsg(
-      `Sugerido: ${suggestedDispatch.driver.name} · ${suggestedDispatch.vehicle.plate} (menor fatiga + cumplimiento 100%)`,
+      `Sugerido: ${suggestedDispatch.driver.name} Ã‚Â· ${suggestedDispatch.vehicle.plate} (menor fatiga + cumplimiento 100%)`,
     );
   }
 
@@ -474,10 +529,16 @@ export default function LogisticaServiciosPage() {
       className="fade-in flex h-[calc(100vh-5.5rem)] min-h-[560px] flex-col gap-3"
       data-testid="panel-servicios"
     >
-      <PageIntro
-        module="logistica"
-        title="Torre de control · GPS en vivo"
-        action={
+      <header className="shrink-0 space-y-3 border-b border-brand-border pb-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="font-data text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-primary">
+              Logística · Torre de control
+            </p>
+            <h1 className="font-sans text-xl font-semibold tracking-tight text-brand-text-primary md:text-2xl">
+              Monitoreo en vivo · Despachos y FUEC
+            </h1>
+          </div>
           <div className="flex items-center gap-2">
             <ServerClockBadge clock={clock} />
             <Button
@@ -497,38 +558,39 @@ export default function LogisticaServiciosPage() {
             >
               <Bell className="h-4 w-4" />
               {deviationCount > 0 ? (
-                <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--brand-signal,#FF2A5F)] px-1 font-mono text-[10px] font-bold text-white tabular-nums">
+                <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-danger px-1 font-data text-[10px] font-bold text-white tabular-nums">
                   {deviationCount}
                 </span>
               ) : null}
             </Button>
-            <Button
-              type="button"
-              variant="primary"
-              className="w-auto"
-              onClick={openCreate}
-            >
+            <Button type="button" variant="primary" className="w-auto" onClick={openCreate}>
               <Plus className="mr-1 h-4 w-4" />
               Nueva ruta
             </Button>
           </div>
-        }
-      />
+        </div>
+        <LogisticaToolbar
+          statusFilter={statusFilter}
+          onStatusFilter={setStatusFilter}
+          search={searchQuery}
+          onSearch={setSearchQuery}
+        />
+      </header>
 
       {focusCode && !focusMissing ? (
         <p className="rounded border border-[var(--brand-primary)]/30 bg-[var(--brand-primary)]/10 px-3 py-2 text-sm text-[var(--brand-primary)]">
-          Enfocado {focusCode} — borrador desde Comercial. Asigne conductor y
-          placa para despachar. El mapa queda vacío hasta georreferenciar la
+          Enfocado {focusCode} Ã¢â‚¬â€ borrador desde Comercial. Asigne conductor y
+          placa para despachar. El mapa queda vacÃƒÂ­o hasta georreferenciar la
           ruta.
         </p>
       ) : null}
       {focusMissing && focusCode ? (
         <p
           role="alert"
-          className="rounded border border-[var(--brand-signal)]/40 bg-[var(--brand-signal)]/10 px-3 py-2 text-sm text-[var(--brand-signal)]"
+          className="rounded border border-[var(--brand-danger)]/40 bg-[var(--brand-danger)]/10 px-3 py-2 text-sm text-[var(--brand-danger)]"
         >
-          {focusCode} no está en Programación de Servicios. Vuelva a Comercial y
-          pulse Generar viaje en esa cotización.
+          {focusCode} no estÃƒÂ¡ en ProgramaciÃƒÂ³n de Servicios. Vuelva a Comercial y
+          pulse Generar viaje en esa cotizaciÃƒÂ³n.
         </p>
       ) : null}
       {statusMsg ? (
@@ -539,152 +601,134 @@ export default function LogisticaServiciosPage() {
       {error ? (
         <p
           role="alert"
-          className="rounded border border-[var(--brand-signal)]/40 bg-[var(--brand-signal)]/10 px-3 py-2 text-sm text-[var(--brand-signal)]"
+          className="rounded border border-[var(--brand-danger)]/40 bg-[var(--brand-danger)]/10 px-3 py-2 text-sm text-[var(--brand-danger)]"
         >
           {error}
         </p>
       ) : null}
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[minmax(18rem,22rem)_minmax(0,1fr)]">
-        {/* —— Izquierda: lista + alta + chat —— */}
-        <aside className="relative z-10 flex min-h-0 flex-col gap-3 overflow-hidden">
-          <div
-            className={`fsg-panel flex flex-col overflow-hidden ${
-              createOpen
-                ? "max-h-[200px] shrink-0"
-                : "min-h-[220px] flex-1"
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-12">
+        <aside className="relative z-10 flex min-h-0 flex-col gap-3 overflow-hidden lg:col-span-4">
+          <BentoPanel
+            title="Despachos activos"
+            subtitle={`${filteredServicios.length} de ${servicios.length} · planillas FUEC`}
+            className={`flex min-h-0 flex-col overflow-hidden ${
+              createOpen ? "max-h-[220px] shrink-0" : "min-h-[220px] flex-1"
             }`}
-          >
-            <div className="flex items-center justify-between border-b border-[var(--brand-line)] px-3 py-2">
-              <h2 className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--brand-muted)]">
-                Servicios ({servicios.length})
-              </h2>
+            action={
               <StatusPulseBadge
-                tone={servicios.some((s) => s.status === "IN_TRANSIT") ? "active" : "neutral"}
+                tone={
+                  servicios.some((s) => s.status === "IN_TRANSIT")
+                    ? "active"
+                    : "neutral"
+                }
                 pulse={servicios.some((s) => s.status === "IN_TRANSIT")}
               >
                 {servicios.some((s) => s.status === "IN_TRANSIT")
                   ? "En tránsito"
                   : "Nominal"}
               </StatusPulseBadge>
-            </div>
+            }
+          >
             <div className="min-h-0 flex-1 overflow-auto">
-              {!servicios.length ? (
-                <div className="p-4">
-                  <EmptyState
-                    icon={<MapPin className="h-7 w-7" />}
-                    title="Sin servicios indexados"
-                    description="Crea una ruta en el mapa para despachar la flota."
-                    actionLabel="Nueva ruta"
-                    onAction={openCreate}
-                  />
-                </div>
+              {!filteredServicios.length ? (
+                <EmptyState
+                  icon={<MapPin className="h-7 w-7" />}
+                  title={
+                    servicios.length
+                      ? "Sin coincidencias"
+                      : "Sin servicios indexados"
+                  }
+                  description={
+                    servicios.length
+                      ? "Ajuste filtros o búsqueda táctica."
+                      : "Crea una ruta en el mapa para despachar la flota."
+                  }
+                  actionLabel={servicios.length ? undefined : "Nueva ruta"}
+                  onAction={servicios.length ? undefined : openCreate}
+                />
               ) : (
-                <ul className="divide-y divide-[var(--brand-line)]">
-                  {servicios.map((s) => (
-                    <li key={s.id}>
-                      <div
-                        role="button"
-                        tabIndex={0}
-                        className={`w-full cursor-pointer px-3 py-2.5 text-left transition-colors duration-150 ${
-                          selectedId === s.id || s.code === focusCode
-                            ? "bg-[var(--brand-primary)]/10"
-                            : "hover:bg-white/[0.03]"
-                        }`}
-                        onClick={() => setSelectedId(s.id)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            setSelectedId(s.id);
-                          }
-                        }}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <span className="font-data text-xs text-[var(--brand-primary)]">
-                            {s.code}
-                          </span>
-                          <StatusPulseBadge
-                            tone={
-                              s.status === "IN_TRANSIT"
-                                ? "active"
-                                : s.status === "COMPLETED"
-                                  ? "neutral"
-                                  : "fatiga"
-                            }
-                            pulse={s.status === "IN_TRANSIT"}
-                          >
-                            {statusEs(s.status)}
-                          </StatusPulseBadge>
-                        </div>
-                        <p className="mt-1 text-sm">
+                <NexaTable
+                  columns={["Código", "Ruta", "Tripulación", "Estado"]}
+                >
+                  {filteredServicios.map((s) => (
+                    <NexaRow
+                      key={s.id}
+                      active={selectedId === s.id || s.code === focusCode}
+                      onClick={() => setSelectedId(s.id)}
+                    >
+                      <NexaCell mono className="text-brand-primary">
+                        {s.code}
+                      </NexaCell>
+                      <NexaCell>
+                        <span className="line-clamp-1 text-xs">
                           {s.origin} → {s.destination}
-                        </p>
-                        <p className="mt-0.5 text-[10px] text-[var(--brand-muted)]">
-                          {s.driver?.name ?? "Sin conductor"} ·{" "}
-                          {s.vehicle?.plate ?? "Sin placa"}
-                          {s.customer?.name ? ` · ${s.customer.name}` : ""}
-                        </p>
-                        {s.meta?.quoteCode ? (
-                          <p className="mt-0.5 font-data text-[10px] text-[var(--accent-metric,#FFB800)]">
-                            Desde cotización {s.meta.quoteCode}
-                          </p>
-                        ) : null}
-                        <div className="mt-2 flex flex-wrap gap-1">
-                          <Button
-                            variant="ghost"
-                            className="w-auto px-2 py-1 text-xs"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedId(s.id);
-                              setCommsOpen(true);
-                            }}
-                          >
-                            <MessageSquare className="mr-1 h-3 w-3" />
-                            Chat
-                          </Button>
-                          {s.status !== "IN_TRANSIT" &&
-                          s.status !== "COMPLETED" ? (
-                            <Button
-                              variant="ghost"
-                              className="w-auto px-2 py-1 text-xs"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                void iniciar(s.id);
-                              }}
-                            >
-                              Iniciar
-                            </Button>
-                          ) : null}
-                          {s.status === "IN_TRANSIT" ? (
-                            <Button
-                              variant="primary"
-                              className="w-auto px-2 py-1 text-xs"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                void cerrar(s.id);
-                              }}
-                            >
-                              Cerrar
-                            </Button>
-                          ) : null}
-                        </div>
-                      </div>
-                    </li>
+                        </span>
+                      </NexaCell>
+                      <NexaCell mono className="text-[11px] text-brand-text-secondary">
+                        {s.driver?.name ?? "—"} · {s.vehicle?.plate ?? "—"}
+                      </NexaCell>
+                      <NexaCell>
+                        <StatusPulseBadge
+                          tone={
+                            s.status === "IN_TRANSIT"
+                              ? "active"
+                              : s.status === "COMPLETED"
+                                ? "neutral"
+                                : "fatiga"
+                          }
+                          pulse={s.status === "IN_TRANSIT"}
+                        >
+                          {statusEs(s.status)}
+                        </StatusPulseBadge>
+                      </NexaCell>
+                    </NexaRow>
                   ))}
-                </ul>
+                </NexaTable>
               )}
             </div>
-          </div>
+            {selected ? (
+              <div className="mt-2 flex flex-wrap justify-end gap-1 border-t border-brand-border pt-2">
+                <Button
+                  variant="ghost"
+                  className="w-auto px-2 py-1 text-xs"
+                  onClick={() => setCommsOpen(true)}
+                >
+                  <MessageSquare className="mr-1 h-3 w-3" />
+                  Chat
+                </Button>
+                {selected.status !== "IN_TRANSIT" &&
+                selected.status !== "COMPLETED" ? (
+                  <Button
+                    variant="ghost"
+                    className="w-auto px-2 py-1 text-xs"
+                    onClick={() => void iniciar(selected.id)}
+                  >
+                    Iniciar
+                  </Button>
+                ) : null}
+                {selected.status === "IN_TRANSIT" ? (
+                  <Button
+                    variant="primary"
+                    className="w-auto px-2 py-1 text-xs"
+                    onClick={() => void cerrar(selected.id)}
+                  >
+                    Cerrar
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
+          </BentoPanel>
 
           {createOpen ? (
             <form
               id="crear-servicio"
               onSubmit={onCreateServicio}
-              className="fsg-panel max-h-[min(52vh,28rem)] shrink-0 space-y-3 overflow-y-auto p-3"
+              className="nexa-panel max-h-[min(52vh,28rem)] shrink-0 space-y-3 overflow-y-auto p-3"
               data-testid="servicio-form"
             >
               <div className="flex items-center justify-between gap-2">
-                <h3 className="text-sm font-semibold text-[var(--text-primary)]">
+                <h3 className="text-sm font-semibold text-[var(--brand-text-primary)]">
                   Nueva ruta
                 </h3>
                 <Button
@@ -699,16 +743,16 @@ export default function LogisticaServiciosPage() {
 
               <ol className="flex flex-wrap gap-1.5 text-[10px]">
                 {[
-                  { ok: step1, label: "1 · Ruta A→B" },
-                  { ok: step2, label: "2 · Salida" },
-                  { ok: step3Ready, label: "3 · Asignación" },
+                  { ok: step1, label: "1 Ã‚Â· Ruta AÃ¢â€ â€™B" },
+                  { ok: step2, label: "2 Ã‚Â· Salida" },
+                  { ok: step3Ready, label: "3 Ã‚Â· AsignaciÃƒÂ³n" },
                 ].map((s) => (
                   <li
                     key={s.label}
                     className={`rounded border px-2 py-0.5 ${
                       s.ok
                         ? "border-[var(--brand-primary)]/40 bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]"
-                        : "border-[var(--border-subtle)] text-[var(--text-secondary)]"
+                        : "border-[var(--brand-border)] text-[var(--brand-text-secondary)]"
                     }`}
                   >
                     {s.label}
@@ -716,8 +760,8 @@ export default function LogisticaServiciosPage() {
                 ))}
               </ol>
 
-              <p className="text-xs text-[var(--text-secondary)]">
-                Marca A/B en el mapa o busca la dirección aquí (el mapa queda
+              <p className="text-xs text-[var(--brand-text-secondary)]">
+                Marca A/B en el mapa o busca la direcciÃƒÂ³n aquÃƒÂ­ (el mapa queda
                 despejado).
               </p>
               <div className="flex gap-1">
@@ -725,8 +769,8 @@ export default function LogisticaServiciosPage() {
                   type="button"
                   className={`rounded-md px-2 py-1 text-[10px] font-semibold ${
                     geoMode === "origin"
-                      ? "bg-[var(--brand-amber)] text-[#1a1200]"
-                      : "border border-[var(--border-subtle)] text-[var(--text-secondary)]"
+                      ? "bg-[var(--brand-warning)] text-brand-on-warning"
+                      : "border border-[var(--brand-border)] text-[var(--brand-text-secondary)]"
                   }`}
                   onClick={() => setGeoMode("origin")}
                 >
@@ -736,8 +780,8 @@ export default function LogisticaServiciosPage() {
                   type="button"
                   className={`rounded-md px-2 py-1 text-[10px] font-semibold ${
                     geoMode === "dest"
-                      ? "bg-[var(--brand-signal)] text-white"
-                      : "border border-[var(--border-subtle)] text-[var(--text-secondary)]"
+                      ? "bg-[var(--brand-danger)] text-white"
+                      : "border border-[var(--brand-border)] text-[var(--brand-text-secondary)]"
                   }`}
                   onClick={() => setGeoMode("dest")}
                 >
@@ -747,8 +791,8 @@ export default function LogisticaServiciosPage() {
                   className="field flex-1"
                   placeholder={
                     geoMode === "origin"
-                      ? "Buscar origen…"
-                      : "Buscar destino…"
+                      ? "Buscar origenÃ¢â‚¬Â¦"
+                      : "Buscar destinoÃ¢â‚¬Â¦"
                   }
                   value={geoQuery}
                   onChange={(e) => setGeoQuery(e.target.value)}
@@ -765,16 +809,16 @@ export default function LogisticaServiciosPage() {
                   className="w-auto px-2"
                   onClick={() => void runGeoSearch()}
                 >
-                  {geoBusy ? "…" : "Ir"}
+                  {geoBusy ? "Ã¢â‚¬Â¦" : "Ir"}
                 </Button>
               </div>
               {geoHits.length ? (
-                <ul className="max-h-28 overflow-auto rounded-md border border-[var(--border-subtle)]">
+                <ul className="max-h-28 overflow-auto rounded-md border border-[var(--brand-border)]">
                   {geoHits.map((h, i) => (
                     <li key={`${h.lat}-${h.lng}-${i}`}>
                       <button
                         type="button"
-                        className="w-full px-2 py-1.5 text-left text-[11px] hover:bg-[color-mix(in_srgb,var(--accent-primary)_8%,transparent)]"
+                        className="w-full px-2 py-1.5 text-left text-[11px] hover:bg-[color-mix(in_srgb,var(--brand-primary)_8%,transparent)]"
                         onClick={() => {
                           if (geoMode === "origin") {
                             setOriginPin(h);
@@ -793,26 +837,26 @@ export default function LogisticaServiciosPage() {
                 </ul>
               ) : null}
               <div className="grid gap-1.5 text-xs">
-                <div className="rounded-md border border-[var(--border-subtle)] px-2 py-1.5">
-                  <span className="font-data text-[10px] uppercase tracking-[0.1em] text-[var(--brand-amber,#D97706)]">
-                    A · Origen
+                <div className="rounded-md border border-[var(--brand-border)] px-2 py-1.5">
+                  <span className="font-data text-[10px] uppercase tracking-[0.1em] text-[var(--brand-warning)]">
+                    A Ã‚Â· Origen
                   </span>
-                  <p className="mt-0.5 text-[var(--text-primary)]">
+                  <p className="mt-0.5 text-[var(--brand-text-primary)]">
                     {originPin?.label ?? "Sin marcar"}
                   </p>
                 </div>
-                <div className="rounded-md border border-[var(--border-subtle)] px-2 py-1.5">
-                  <span className="font-data text-[10px] uppercase tracking-[0.1em] text-[var(--brand-signal,#DC2626)]">
-                    B · Destino
+                <div className="rounded-md border border-[var(--brand-border)] px-2 py-1.5">
+                  <span className="font-data text-[10px] uppercase tracking-[0.1em] text-[var(--brand-danger)]">
+                    B Ã‚Â· Destino
                   </span>
-                  <p className="mt-0.5 text-[var(--text-primary)]">
+                  <p className="mt-0.5 text-[var(--brand-text-primary)]">
                     {destPin?.label ?? "Sin marcar"}
                   </p>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 gap-2">
-                <label className="text-xs text-[var(--text-secondary)]">
+                <label className="text-xs text-[var(--brand-text-secondary)]">
                   Salida *
                   <input
                     className="field mt-1 w-full font-data"
@@ -825,7 +869,7 @@ export default function LogisticaServiciosPage() {
                     aria-label="Salida"
                   />
                 </label>
-                <label className="text-xs text-[var(--text-secondary)]">
+                <label className="text-xs text-[var(--brand-text-secondary)]">
                   Llegada estimada
                   <input
                     className="field mt-1 w-full font-data"
@@ -839,7 +883,7 @@ export default function LogisticaServiciosPage() {
                 </label>
               </div>
 
-              <label className="block text-xs text-[var(--text-secondary)]">
+              <label className="block text-xs text-[var(--brand-text-secondary)]">
                 Conductor (opcional)
                 <select
                   className="field mt-1 w-full"
@@ -849,24 +893,24 @@ export default function LogisticaServiciosPage() {
                     setForm({ ...form, driverId: e.target.value })
                   }
                 >
-                  <option value="">Sin asignar ahora…</option>
+                  <option value="">Sin asignar ahoraÃ¢â‚¬Â¦</option>
                   {drivers.map((d) => (
                     <option key={d.id} value={d.id}>
-                      {d.ready ? "✓ " : "⚠ "}
-                      {d.name} · fatiga {d.fatigueScore}
-                      {!d.ready ? ` · ${d.blockers[0] ?? "revisar"}` : ""}
+                      {d.ready ? "Ã¢Å“â€œ " : "Ã¢Å¡Â  "}
+                      {d.name} Ã‚Â· fatiga {d.fatigueScore}
+                      {!d.ready ? ` Ã‚Â· ${d.blockers[0] ?? "revisar"}` : ""}
                     </option>
                   ))}
                 </select>
                 {selectedDriver && !selectedDriver.ready ? (
-                  <p className="mt-1 text-[11px] text-[var(--accent-alert)]">
+                  <p className="mt-1 text-[11px] text-[var(--brand-danger)]">
                     Kill-Switch conductor.
                   </p>
                 ) : null}
               </label>
 
-              <label className="block text-xs text-[var(--text-secondary)]">
-                Vehículo / placa (opcional)
+              <label className="block text-xs text-[var(--brand-text-secondary)]">
+                VehÃƒÂ­culo / placa (opcional)
                 <select
                   className="field mt-1 w-full"
                   data-testid="dispatch-vehicle"
@@ -875,18 +919,18 @@ export default function LogisticaServiciosPage() {
                     setForm({ ...form, vehicleId: e.target.value })
                   }
                 >
-                  <option value="">Sin asignar ahora…</option>
+                  <option value="">Sin asignar ahoraÃ¢â‚¬Â¦</option>
                   {vehiclesForCreate.map((v) => (
                     <option key={v.id} value={v.id}>
-                      {v.ready ? "✓ " : "⚠ "}
+                      {v.ready ? "Ã¢Å“â€œ " : "Ã¢Å¡Â  "}
                       {v.plate}
-                      {!v.ready ? ` · ${v.blockers[0] ?? "revisar"}` : ""}
+                      {!v.ready ? ` Ã‚Â· ${v.blockers[0] ?? "revisar"}` : ""}
                     </option>
                   ))}
                 </select>
                 {selectedVehicle && !selectedVehicle.ready ? (
-                  <p className="mt-1 text-[11px] text-[var(--accent-alert)]">
-                    Kill-Switch vehículo.
+                  <p className="mt-1 text-[11px] text-[var(--brand-danger)]">
+                    Kill-Switch vehÃƒÂ­culo.
                   </p>
                 ) : null}
               </label>
@@ -902,7 +946,7 @@ export default function LogisticaServiciosPage() {
                 />
                 <input
                   className="field font-data"
-                  placeholder="Cédula funcionario"
+                  placeholder="CÃƒÂ©dula funcionario"
                   value={form.officerDocument}
                   onChange={(e) =>
                     setForm({ ...form, officerDocument: e.target.value })
@@ -919,7 +963,7 @@ export default function LogisticaServiciosPage() {
                   className="w-auto"
                   onClick={() => applySmartAssign("create")}
                 >
-                  Sugerir asignación
+                  Sugerir asignaciÃƒÂ³n
                 </Button>
                 <Button
                   type="submit"
@@ -928,10 +972,10 @@ export default function LogisticaServiciosPage() {
                   disabled={!canConfirm}
                 >
                   {createBlockers.length
-                    ? "Asignación restringida"
+                    ? "AsignaciÃƒÂ³n restringida"
                     : form.driverId || form.vehicleId
                       ? "Crear y emitir FUEC"
-                      : "Crear sin asignación"}
+                      : "Crear sin asignaciÃƒÂ³n"}
                 </Button>
               </div>
             </form>
@@ -940,9 +984,9 @@ export default function LogisticaServiciosPage() {
           {selected &&
           (!selected.driver || !selected.vehicle) &&
           selected.status !== "COMPLETED" ? (
-            <div className="fsg-panel shrink-0 space-y-2 p-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--brand-amber,#FFB800)]">
-                Asignar · {selected.code}
+            <div className="nexa-panel shrink-0 space-y-2 p-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--brand-warning)]">
+                Asignar Ã‚Â· {selected.code}
               </p>
               <div className="grid gap-2">
                 <select
@@ -953,11 +997,11 @@ export default function LogisticaServiciosPage() {
                     setAssignVehicleId("");
                   }}
                 >
-                  <option value="">Conductor…</option>
+                  <option value="">ConductorÃ¢â‚¬Â¦</option>
                   {drivers.map((d) => (
                     <option key={d.id} value={d.id}>
-                      {d.ready ? "✓ " : "⚠ "}
-                      {d.name} · fatiga {d.fatigueScore}
+                      {d.ready ? "Ã¢Å“â€œ " : "Ã¢Å¡Â  "}
+                      {d.name} Ã‚Â· fatiga {d.fatigueScore}
                     </option>
                   ))}
                 </select>
@@ -966,10 +1010,10 @@ export default function LogisticaServiciosPage() {
                   value={assignVehicleId}
                   onChange={(e) => setAssignVehicleId(e.target.value)}
                 >
-                  <option value="">Placa…</option>
+                  <option value="">PlacaÃ¢â‚¬Â¦</option>
                   {vehiclesForAssign.map((v) => (
                     <option key={v.id} value={v.id}>
-                      {v.ready ? "✓ " : "⚠ "}
+                      {v.ready ? "Ã¢Å“â€œ " : "Ã¢Å¡Â  "}
                       {v.plate}
                     </option>
                   ))}
@@ -977,7 +1021,7 @@ export default function LogisticaServiciosPage() {
                 {assignDriver &&
                 (assignDriver.authorizedVehicleIds?.length ?? 0) > 0 &&
                 vehiclesForAssign.length === 0 ? (
-                  <p className="text-[11px] text-[var(--accent-alert)]">
+                  <p className="text-[11px] text-[var(--brand-danger)]">
                     Sin placas autorizadas para este conductor. Vincule en
                     Unidades autorizadas.
                   </p>
@@ -1017,15 +1061,15 @@ export default function LogisticaServiciosPage() {
           ) : null}
 
           {tracking && !createOpen ? (
-            <div className="fsg-panel max-h-[100px] shrink-0 overflow-auto p-3">
-              <p className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--brand-muted)]">
+            <div className="nexa-panel max-h-[100px] shrink-0 overflow-auto p-3">
+              <p className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--brand-text-secondary)]">
                 <Radio className="h-3 w-3" />
-                Bitácora
+                BitÃƒÂ¡cora
               </p>
               <ul className="space-y-1 font-data text-[11px]">
                 {tracking.audit.slice(0, 4).map((a) => (
                   <li key={a.id}>
-                    <span className="text-[var(--brand-muted)]">
+                    <span className="text-[var(--brand-text-secondary)]">
                       {new Date(a.serverTime).toLocaleTimeString("es-CO")}
                     </span>{" "}
                     {a.message}
@@ -1036,76 +1080,72 @@ export default function LogisticaServiciosPage() {
           ) : null}
         </aside>
 
-        {/* —— Derecha: mapa (stacking aislado para no tapar Servicios) —— */}
-        <section className="relative z-0 isolate min-h-[320px] overflow-hidden rounded-xl border border-[var(--brand-line)] bg-[#0A0D14] lg:min-h-0">
-          {tracking && selectedId && !createOpen ? (
-            <div className="absolute inset-0">
-              <RouteMap
-                mode={tracking.mode}
-                suggested={tracking.suggestedRoute}
-                history={tracking.history}
-                live={tracking.live}
-                fillHeight
-              />
-            </div>
-          ) : (
-            <ServicioMapPlanner
-              origin={originPin}
-              dest={destPin}
-              onOriginChange={setOriginPin}
-              onDestChange={setDestPin}
-              fillHeight
-              showChrome={false}
-            />
-          )}
-          {selected && tracking && !createOpen ? (
-            <aside className="pointer-events-auto absolute right-3 top-3 z-20 w-[220px] rounded-xl border border-[var(--border-subtle)] bg-[color-mix(in_srgb,var(--bg-surface-1)_92%,transparent)] p-3 shadow-lg backdrop-blur">
-              <p className="font-data text-[10px] uppercase tracking-[0.12em] text-[var(--accent-primary)]">
-                {selected.vehicle?.plate ?? "Unidad"}
-              </p>
-              <div className="mt-2 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-1 text-[10px] text-[var(--text-secondary)]">
-                    <Gauge className="h-3 w-3" /> Velocidad
-                  </span>
-                  <span className="font-data text-sm font-bold tabular-nums">
-                    {liveSpeed != null ? `${Math.round(liveSpeed)} km/h` : "—"}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-1 text-[10px] text-[var(--text-secondary)]">
-                    <Fuel className="h-3 w-3" /> Combustible
-                  </span>
-                  <span className="font-data text-sm tabular-nums">
-                    {selected.status === "IN_TRANSIT" ? "Telemetría" : "N/A"}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-[var(--text-secondary)]">
-                    Fatiga
-                  </span>
-                  <span className="font-data text-sm tabular-nums">
-                    {selected.driver?.fatigueScore ?? "—"}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-[var(--text-secondary)]">
-                    Uplink
-                  </span>
-                  <span className="font-data text-[10px] text-[var(--accent-primary)]">
-                    {tracking.mode === "LIVE_GPS" ? "LIVE GPS" : tracking.mode}
-                  </span>
-                </div>
+        <BentoPanel
+          title="Mapa operativo"
+          subtitle={
+            tracking && selectedId && !createOpen
+              ? "Telemetría GPS en vivo"
+              : "Planificador de ruta A→B"
+          }
+          icon={<Radio className="h-4 w-4" />}
+          className="relative isolate min-h-[320px] overflow-hidden !p-0 lg:col-span-8 lg:min-h-0"
+        >
+          <div className="relative min-h-[320px] flex-1 lg:min-h-0 lg:h-full">
+            {tracking && selectedId && !createOpen ? (
+              <div className="absolute inset-0">
+                <RouteMap
+                  mode={tracking.mode}
+                  suggested={tracking.suggestedRoute}
+                  history={tracking.history}
+                  live={tracking.live}
+                  fillHeight
+                  embedded
+                />
               </div>
-            </aside>
-          ) : null}
-        </section>
+            ) : (
+              <ServicioMapPlanner
+                origin={originPin}
+                dest={destPin}
+                onOriginChange={setOriginPin}
+                onDestChange={setDestPin}
+                fillHeight
+                showChrome={false}
+              />
+            )}
+            {selected && tracking && !createOpen ? (
+              <FleetHud
+                className="absolute right-3 top-3"
+                plate={selected.vehicle?.plate}
+                driverName={selected.driver?.name}
+                speedKph={liveSpeed}
+                fuelLabel={
+                  selected.status === "IN_TRANSIT" ? "Telemetría uplink" : "N/A"
+                }
+                fatigueScore={selected.driver?.fatigueScore}
+                lat={tracking.live?.lat ?? tracking.history.at(-1)?.lat}
+                lng={tracking.live?.lng ?? tracking.history.at(-1)?.lng}
+                uplink={
+                  tracking.mode === "LIVE_GPS" ? "LIVE GPS" : tracking.mode
+                }
+                alerts={hudAlerts}
+                statusLabel={statusEs(selected.status)}
+                statusTone={
+                  selected.status === "IN_TRANSIT"
+                    ? "active"
+                    : hudAlerts.length
+                      ? "danger"
+                      : "neutral"
+                }
+              />
+            ) : null}
+          </div>
+        </BentoPanel>
       </div>
 
       {tickerEvents.length ? (
-        <div className="overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] px-3 py-1.5">
-          <p className="animate-pulse truncate font-data text-[11px] text-[var(--text-secondary)]">
-            {tickerEvents.join("  ·  ")}
+        <div className="overflow-hidden rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-1.5">
+          <p className="animate-pulse truncate font-data text-[11px] text-[var(--brand-text-secondary)]">
+            {tickerEvents.join("  Ã‚Â·  ")}
           </p>
         </div>
       ) : null}
@@ -1114,7 +1154,7 @@ export default function LogisticaServiciosPage() {
         open={commsOpen}
         onClose={() => setCommsOpen(false)}
         title="Comunicaciones operativas"
-        description="Chat del servicio y soporte flota · canal App"
+        description="Chat del servicio y soporte flota Ã‚Â· canal App"
         widthClass="max-w-lg"
       >
         <div className="space-y-3">

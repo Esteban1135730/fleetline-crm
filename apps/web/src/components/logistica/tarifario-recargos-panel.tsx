@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@fsg/ui";
@@ -82,7 +82,7 @@ export function TarifarioRecargosPanel() {
 
   useEffect(() => {
     void load().catch((e) =>
-      setError(e instanceof Error ? e.message : "No se cargó el tarifario"),
+      setError(e instanceof Error ? e.message : "No se cargÃƒÂ³ el tarifario"),
     );
   }, [load]);
 
@@ -119,7 +119,7 @@ export function TarifarioRecargosPanel() {
         }),
       });
       setData(t);
-      setMsg("Base organizacional actualizada — tarifario recalculado");
+      setMsg("Base organizacional actualizada Ã¢â‚¬â€ tarifario recalculado");
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo guardar");
     } finally {
@@ -143,7 +143,7 @@ export function TarifarioRecargosPanel() {
       setData(t);
       const emp = t.empleados.find((e) => e.driverId === selectedDriver);
       if (emp) setEmpBase(String(Math.round(emp.baseSalary)));
-      setMsg("Base del empleado aplicada — valores de recargo actualizados");
+      setMsg("Base del empleado aplicada Ã¢â‚¬â€ valores de recargo actualizados");
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo guardar");
     } finally {
@@ -152,75 +152,75 @@ export function TarifarioRecargosPanel() {
   }
 
   return (
-    <section className="space-y-4 rounded-lg border border-[var(--brand-line)] bg-[var(--brand-surface,#121722)] p-4 shadow-[0_10px_30px_rgba(0,0,0,0.04)]">
+    <section className="space-y-4 rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-brand-panel">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="font-display text-lg font-bold text-[var(--brand-fg,#F8FAFC)]">
-            Tarifario de recargos · nómina
+          <h2 className="font-display text-lg font-bold text-[var(--brand-text-primary)]">
+            Tarifario de recargos Ã‚Â· nÃƒÂ³mina
           </h2>
-          <p className="mt-1 text-sm text-[var(--brand-muted,#94A3B8)]">
-            Define la base salarial. Hora ordinaria = base ÷ divisor (230). Los
+          <p className="mt-1 text-sm text-[var(--brand-text-secondary)]">
+            Define la base salarial. Hora ordinaria = base ÃƒÂ· divisor (230). Los
             factores RN / HED / HEN / ROD FEST / HEDF / HENF / RNF se aplican
-            automáticamente.
+            automÃƒÂ¡ticamente.
           </p>
         </div>
         {data ? (
-          <p className="font-data text-sm text-[var(--brand-amber,#FFB800)]">
+          <p className="font-data text-sm text-[var(--brand-warning)]">
             Hora org: {money(data.config.hourlyRate)}
           </p>
         ) : null}
       </div>
 
       {error ? (
-        <p role="alert" className="text-sm text-[var(--brand-signal,#FF2A5F)]">
+        <p role="alert" className="text-sm text-[var(--brand-danger)]">
           {error}
         </p>
       ) : null}
       {msg ? (
-        <p className="text-sm text-[var(--brand-primary,#10B981)]">{msg}</p>
+        <p className="text-sm text-[var(--brand-primary)]">{msg}</p>
       ) : null}
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <div className="space-y-3 rounded-md border border-[var(--brand-line)] p-3">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--brand-muted)]">
+        <div className="space-y-3 rounded-md border border-[var(--brand-border)] p-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--brand-text-secondary)]">
             Base organizacional (default)
           </p>
           <label className="block text-sm">
-            <span className="text-[var(--brand-muted)]">Salario base (COP)</span>
+            <span className="text-[var(--brand-text-secondary)]">Salario base (COP)</span>
             <input
-              className="mt-1 w-full rounded border border-[var(--brand-line)] bg-transparent px-3 py-2 font-data"
+              className="mt-1 w-full rounded border border-[var(--brand-border)] bg-transparent px-3 py-2 font-data"
               value={baseSalary}
               onChange={(e) => setBaseSalary(e.target.value.replace(/\D/g, ""))}
               inputMode="numeric"
             />
           </label>
           <label className="block text-sm">
-            <span className="text-[var(--brand-muted)]">
+            <span className="text-[var(--brand-text-secondary)]">
               Divisor mensual (horas)
             </span>
             <input
-              className="mt-1 w-full rounded border border-[var(--brand-line)] bg-transparent px-3 py-2 font-data"
+              className="mt-1 w-full rounded border border-[var(--brand-border)] bg-transparent px-3 py-2 font-data"
               value={divisor}
               onChange={(e) => setDivisor(e.target.value)}
               inputMode="decimal"
             />
           </label>
-          <p className="font-data text-xs text-[var(--brand-muted)]">
-            Preview hora: {money(previewHourly)} · fórmula base ÷ {divisor || "230"}
+          <p className="font-data text-xs text-[var(--brand-text-secondary)]">
+            Preview hora: {money(previewHourly)} Ã‚Â· fÃƒÂ³rmula base ÃƒÂ· {divisor || "230"}
           </p>
           <Button type="button" disabled={saving} onClick={() => void saveOrg()}>
             Guardar base org
           </Button>
         </div>
 
-        <div className="space-y-3 rounded-md border border-[var(--brand-line)] p-3">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--brand-muted)]">
+        <div className="space-y-3 rounded-md border border-[var(--brand-border)] p-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--brand-text-secondary)]">
             Base por empleado / conductor
           </p>
           <label className="block text-sm">
-            <span className="text-[var(--brand-muted)]">Conductor</span>
+            <span className="text-[var(--brand-text-secondary)]">Conductor</span>
             <select
-              className="mt-1 w-full rounded border border-[var(--brand-line)] bg-transparent px-3 py-2"
+              className="mt-1 w-full rounded border border-[var(--brand-border)] bg-transparent px-3 py-2"
               value={selectedDriver}
               onChange={(e) => {
                 const id = e.target.value;
@@ -232,25 +232,25 @@ export function TarifarioRecargosPanel() {
             >
               {(data?.empleados ?? []).map((e) => (
                 <option key={e.driverId} value={e.driverId}>
-                  {e.name} · {e.document}
+                  {e.name} Ã‚Â· {e.document}
                   {e.usesOrgDefault ? " (default org)" : ""}
                 </option>
               ))}
             </select>
           </label>
           <label className="block text-sm">
-            <span className="text-[var(--brand-muted)]">
+            <span className="text-[var(--brand-text-secondary)]">
               Salario base empleado (COP)
             </span>
             <input
-              className="mt-1 w-full rounded border border-[var(--brand-line)] bg-transparent px-3 py-2 font-data"
+              className="mt-1 w-full rounded border border-[var(--brand-border)] bg-transparent px-3 py-2 font-data"
               value={empBase}
               onChange={(e) => setEmpBase(e.target.value.replace(/\D/g, ""))}
               inputMode="numeric"
             />
           </label>
           {activeEmp ? (
-            <p className="font-data text-xs text-[var(--brand-muted)]">
+            <p className="font-data text-xs text-[var(--brand-text-secondary)]">
               Hora empleado: {money(activeEmp.hourlyRate)}
             </p>
           ) : null}
@@ -260,14 +260,14 @@ export function TarifarioRecargosPanel() {
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-md border border-[var(--brand-line)]">
+      <div className="overflow-x-auto rounded-md border border-[var(--brand-border)]">
         <table className="min-w-full text-left text-sm">
-          <thead className="border-b border-[var(--brand-line)] bg-black/20 text-xs uppercase tracking-[0.08em] text-[var(--brand-muted)]">
+          <thead className="border-b border-[var(--brand-border)] bg-black/20 text-xs uppercase tracking-[0.08em] text-[var(--brand-text-secondary)]">
             <tr>
               <th className="px-3 py-2">Sigla</th>
               <th className="px-3 py-2">Concepto</th>
               <th className="px-3 py-2">Factor</th>
-              <th className="px-3 py-2">Cálculo</th>
+              <th className="px-3 py-2">CÃƒÂ¡lculo</th>
               <th className="px-3 py-2">Valor ($)</th>
               <th className="px-3 py-2">Horas</th>
               <th className="px-3 py-2">Subtotal</th>
@@ -281,18 +281,18 @@ export function TarifarioRecargosPanel() {
               return (
                 <tr
                   key={row.sigla}
-                  className="border-b border-[var(--brand-line)] last:border-0"
+                  className="border-b border-[var(--brand-border)] last:border-0"
                 >
                   <td className="px-3 py-2">
                     <span
                       className={`inline-flex rounded border px-1.5 py-0.5 font-data text-[10px] font-bold uppercase tracking-wide ${
                         row.sigla === "HEN" || row.sigla === "HENF"
-                          ? "border-rose-500/40 bg-rose-500/15 text-rose-300"
+                          ? "border-brand-danger/40 bg-brand-danger/15 text-brand-danger"
                           : row.sigla === "HED" || row.sigla === "HEDF"
-                            ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300"
+                            ? "border-brand-success/40 bg-brand-success/15 text-brand-success"
                             : row.sigla === "RN" || row.sigla === "RNF"
-                              ? "border-amber-500/40 bg-amber-500/15 text-amber-300"
-                              : "border-slate-600 bg-slate-800/80 text-slate-300"
+                              ? "border-brand-warning/40 bg-brand-warning/15 text-brand-warning"
+                              : "border-brand-border bg-brand-surface-elevated/80 text-brand-text-secondary"
                       }`}
                     >
                       {row.sigla}
@@ -300,15 +300,15 @@ export function TarifarioRecargosPanel() {
                   </td>
                   <td className="px-3 py-2">{row.concepto}</td>
                   <td className="px-3 py-2 font-data">{factorLabel(row.factor)}</td>
-                  <td className="px-3 py-2 font-data text-[var(--brand-muted)]">
-                    {money(hourly)} × {factorLabel(row.factor)}
+                  <td className="px-3 py-2 font-data text-[var(--brand-text-secondary)]">
+                    {money(hourly)} Ãƒâ€” {factorLabel(row.factor)}
                   </td>
                   <td className="px-3 py-2 font-data font-semibold">
                     {money(row.valor)}
                   </td>
                   <td className="px-3 py-2">
                     <input
-                      className="w-20 rounded border border-[var(--brand-line)] bg-transparent px-2 py-1 font-data"
+                      className="w-20 rounded border border-[var(--brand-border)] bg-transparent px-2 py-1 font-data"
                       value={hoursBySigla[row.sigla] ?? ""}
                       placeholder="0"
                       onChange={(e) =>
@@ -330,9 +330,9 @@ export function TarifarioRecargosPanel() {
           <tfoot>
             <tr className="bg-black/10">
               <td colSpan={6} className="px-3 py-2 text-right font-semibold">
-                Total recargos / extras (simulación)
+                Total recargos / extras (simulaciÃƒÂ³n)
               </td>
-              <td className="px-3 py-2 font-data font-bold text-[var(--brand-amber,#FFB800)]">
+              <td className="px-3 py-2 font-data font-bold text-[var(--brand-warning)]">
                 {money(calcTotal)}
               </td>
             </tr>

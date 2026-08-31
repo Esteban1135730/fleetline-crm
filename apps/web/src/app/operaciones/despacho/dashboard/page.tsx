@@ -1,9 +1,11 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
+import { Filter, Flashlight, Smartphone } from "lucide-react";
 import { api } from "@/lib/api";
-import { HowToBox, PageIntro } from "@/components/page-intro";
+import { BentoPanel } from "@/components/nexa/bento-panel";
+import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
 
 type GanttItem = {
   id: string;
@@ -50,10 +52,10 @@ const COLOR_LABEL: Record<GanttItem["color"], string> = {
 };
 
 const COLOR_CLASS: Record<GanttItem["color"], string> = {
-  blue: "bg-[#2563EB]",
-  green: "bg-[#10B981]",
-  gray: "bg-[#64748B]",
-  red: "bg-[#FF2A5F]",
+  blue: "bg-brand-secondary",
+  green: "bg-brand-success",
+  gray: "bg-brand-info",
+  red: "bg-brand-danger",
 };
 
 export default function DespachoDashboardPage() {
@@ -147,45 +149,49 @@ export default function DespachoDashboardPage() {
   }
 
   return (
-    <div className="fade-in mx-auto max-w-[1600px] space-y-6">
-      <PageIntro module="logistica" title="Microdespacho" />
-      <HowToBox
-        steps={[
-          "Triple candado: Tarjeta de Operación + Extintor + Fatiga < 30 / descanso ≥ 8h.",
-          "Asignación publica itinerario silencioso a la App del conductor.",
-          "Relevo flash: alerta Viaje Descubierto + retén GPS en 1 clic.",
-        ]}
-      />
+    <div className="fade-in mx-auto max-w-[1600px] space-y-6 p-4 md:p-6">
+      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-brand-border pb-4">
+        <div>
+          <p className="font-data text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-primary">
+            Operaciones · Despacho
+          </p>
+          <h1 className="font-sans text-2xl font-semibold tracking-tight text-brand-text-primary md:text-3xl">
+            Microdespacho
+          </h1>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Badge tone="success">
+            Fatiga máx {dash?.rules.dispatchFatigueMax ?? 30}
+          </Badge>
+          <Badge tone="warning">
+            Descanso ≥ {dash?.rules.minLegalRestHours ?? 8}h
+          </Badge>
+          <Badge tone="success">Acuse app {dash?.stats.ackRate ?? 0}%</Badge>
+        </div>
+      </header>
 
       {error ? (
-        <p className="rounded-lg border border-[rgba(255,42,95,0.35)] bg-[rgba(255,42,95,0.08)] px-4 py-3 text-sm">
+        <p className="rounded-lg border border-brand-danger/40 bg-brand-danger/10 px-4 py-3 font-data text-sm text-brand-danger">
           {error}
         </p>
       ) : null}
       {msg ? (
-        <p className="rounded-lg border border-[rgba(16,185,129,0.35)] bg-[rgba(16,185,129,0.08)] px-4 py-3 text-sm">
+        <p className="rounded-lg border border-brand-success/40 bg-brand-success/10 px-4 py-3 font-data text-sm text-brand-success">
           {msg}
         </p>
       ) : null}
 
-      <div className="flex flex-wrap gap-2">
-        <Badge tone="emerald">
-          Fatiga máx {dash?.rules.dispatchFatigueMax ?? 30}
-        </Badge>
-        <Badge tone="amber">
-          Descanso ≥ {dash?.rules.minLegalRestHours ?? 8}h
-        </Badge>
-        <Badge tone="emerald">Acuse de app {dash?.stats.ackRate ?? 0}%</Badge>
-      </div>
-
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[240px_1fr]">
-        {/* Filtros laterales */}
-        <aside className="fsg-panel space-y-4 p-4">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
-            Filtros rápidos
-          </h3>
-          <label className="block text-sm">
-            <span className="text-[var(--text-secondary)]">Cliente</span>
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-12 lg:gap-4">
+        <BentoPanel
+          title="Filtros tácticos"
+          subtitle="Cliente · tipo unidad"
+          icon={<Filter />}
+          className="lg:col-span-3"
+        >
+          <label className="block font-sans text-sm">
+            <span className="font-data text-[10px] uppercase tracking-wider text-brand-text-secondary">
+              Cliente
+            </span>
             <select
               className="field mt-1 w-full"
               value={customerId}
@@ -199,8 +205,10 @@ export default function DespachoDashboardPage() {
               ))}
             </select>
           </label>
-          <label className="block text-sm">
-            <span className="text-[var(--text-secondary)]">Tipo vehículo</span>
+          <label className="mt-3 block font-sans text-sm">
+            <span className="font-data text-[10px] uppercase tracking-wider text-brand-text-secondary">
+              Tipo vehículo
+            </span>
             <select
               className="field mt-1 w-full"
               value={vehicleType}
@@ -214,48 +222,44 @@ export default function DespachoDashboardPage() {
               ))}
             </select>
           </label>
-          <div className="space-y-2 pt-2 text-xs text-[var(--text-secondary)]">
+          <div className="mt-4 space-y-2 font-data text-[11px] text-brand-text-secondary">
             <p>
-              <span className="inline-block h-2 w-2 rounded-full bg-[#2563EB]" />{" "}
+              <span className="mr-1.5 inline-block h-2 w-2 rounded-full bg-brand-secondary" />
               Asignado {dash?.stats.assigned ?? 0}
             </p>
             <p>
-              <span className="inline-block h-2 w-2 rounded-full bg-[#10B981]" />{" "}
+              <span className="mr-1.5 inline-block h-2 w-2 rounded-full bg-brand-success" />
               En ruta {dash?.stats.inRoute ?? 0}
             </p>
             <p>
-              <span className="inline-block h-2 w-2 rounded-full bg-[#64748B]" />{" "}
+              <span className="mr-1.5 inline-block h-2 w-2 rounded-full bg-brand-info" />
               Taller {dash?.stats.workshop ?? 0}
             </p>
             <p>
-              <span className="inline-block h-2 w-2 rounded-full bg-[#FF2A5F]" />{" "}
+              <span className="mr-1.5 inline-block h-2 w-2 rounded-full bg-brand-danger" />
               Bloqueado {dash?.stats.blocked ?? 0}
             </p>
           </div>
-        </aside>
+        </BentoPanel>
 
-        {/* Gantt */}
-        <section id="gantt" className="fsg-panel p-4">
-          <header className="mb-4">
-            <h3 className="font-display text-lg text-[var(--text-primary)]">
-              Cronograma diario
-            </h3>
-            <p className="text-sm text-[var(--text-secondary)]">
-              Velocidad táctica · por vehículo
-            </p>
-          </header>
+        <BentoPanel
+          id="gantt"
+          title="Cronograma diario"
+          subtitle="Velocidad táctica · por vehículo"
+          className="lg:col-span-9"
+        >
           <div className="space-y-2">
             {plates.length === 0 ? (
-              <p className="py-10 text-center text-sm text-[var(--text-secondary)]">
+              <p className="py-10 text-center font-sans text-sm text-brand-text-secondary">
                 Sin servicios en el día operativo
               </p>
             ) : (
               plates.map((plate) => (
                 <div key={plate} className="flex items-center gap-3">
-                  <span className="w-20 shrink-0 font-mono text-xs text-[var(--accent-primary)]">
+                  <span className="w-20 shrink-0 font-data text-xs text-brand-primary">
                     {plate}
                   </span>
-                  <div className="relative h-11 flex-1 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-canvas)]">
+                  <div className="relative h-11 flex-1 rounded-md border border-brand-border bg-brand-canvas">
                     {(dash?.gantt ?? [])
                       .filter((g) => g.plate === plate)
                       .map((g) => (
@@ -265,7 +269,7 @@ export default function DespachoDashboardPage() {
                           style={barStyle(g)}
                           title={`${g.code} · ${COLOR_LABEL[g.color]} · ${g.driverName || "—"} · ${g.customerName || ""}`}
                         >
-                          <span className="truncate font-mono">{g.code}</span>
+                          <span className="truncate font-data">{g.code}</span>
                           {g.appMonitor.published ? (
                             <span
                               className={`h-2 w-2 shrink-0 rounded-full ${
@@ -287,78 +291,72 @@ export default function DespachoDashboardPage() {
               ))
             )}
           </div>
-        </section>
-      </div>
+        </BentoPanel>
 
-      {/* Monitor App + relevo */}
-      <section id="relevo" className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="fsg-panel overflow-hidden">
-          <header className="border-b border-[var(--border-subtle)] px-4 py-3">
-            <h3 className="font-display text-base">Monitor de estado de la app</h3>
-            <p className="text-xs text-[var(--text-secondary)]">
-              Confirmación de lectura del itinerario
-            </p>
-          </header>
-          <ul className="max-h-[280px] divide-y divide-[var(--border-subtle)] overflow-y-auto">
+        <BentoPanel
+          title="Monitor de estado de la app"
+          subtitle="Confirmación de lectura del itinerario"
+          icon={<Smartphone />}
+          className="lg:col-span-6"
+        >
+          <NexaTable columns={["Código", "Conductor", "Ack"]}>
             {(dash?.gantt ?? [])
               .filter((g) => g.appMonitor.published || g.status === "ASSIGNED")
               .slice(0, 20)
               .map((g) => (
-                <li
-                  key={`ack-${g.id}`}
-                  className="flex items-center justify-between gap-2 px-4 py-2 text-sm"
-                >
-                  <div>
-                    <p className="font-mono text-xs text-[var(--accent-primary)]">
-                      {g.code}
-                    </p>
-                    <p className="text-[var(--text-primary)]">
-                      {g.driverName || "Sin conductor"}
-                    </p>
-                  </div>
-                  <Badge
-                    tone={
-                      g.appMonitor.acknowledged
-                        ? "emerald"
+                <NexaRow key={`ack-${g.id}`}>
+                  <NexaCell mono className="text-brand-primary">
+                    {g.code}
+                  </NexaCell>
+                  <NexaCell>{g.driverName || "Sin conductor"}</NexaCell>
+                  <NexaCell>
+                    <Badge
+                      tone={
+                        g.appMonitor.acknowledged
+                          ? "success"
+                          : g.appMonitor.published
+                            ? "warning"
+                            : "danger"
+                      }
+                    >
+                      {g.appMonitor.acknowledged
+                        ? "Leído"
                         : g.appMonitor.published
-                          ? "amber"
-                          : "rose"
-                    }
-                  >
-                    {g.appMonitor.acknowledged
-                      ? "Leído"
-                      : g.appMonitor.published
-                        ? "Pendiente ack"
-                        : "Sin publicar"}
-                  </Badge>
-                </li>
+                          ? "Pendiente ack"
+                          : "Sin publicar"}
+                    </Badge>
+                  </NexaCell>
+                </NexaRow>
               ))}
-          </ul>
-        </div>
+          </NexaTable>
+        </BentoPanel>
 
-        <div className="fsg-panel p-4">
-          <h3 className="font-display text-base">Relevo flash</h3>
-          <p className="mt-1 text-sm text-[var(--text-secondary)]">
-            Viaje descubierto → retén GPS → Push 1-clic
-          </p>
-          <ul className="mt-4 max-h-[220px] space-y-2 overflow-y-auto">
+        <BentoPanel
+          id="relevo"
+          title="Relevo flash"
+          subtitle="Viaje descubierto → retén GPS → Push 1-clic"
+          icon={<Flashlight />}
+          className="lg:col-span-6"
+        >
+          <ul className="max-h-[280px] space-y-2 overflow-y-auto">
             {(dash?.gantt ?? [])
               .filter((g) => g.color === "red" || !g.driverName)
               .slice(0, 8)
               .map((g) => (
                 <li
                   key={`flash-${g.id}`}
-                  className="flex items-center justify-between gap-2 rounded-lg border border-[var(--border-subtle)] px-3 py-2"
+                  className="flex items-center justify-between gap-2 rounded-lg border border-brand-border px-3 py-2 transition-colors hover:border-brand-border-active"
                 >
                   <div>
-                    <p className="font-mono text-xs">{g.code}</p>
-                    <p className="text-sm text-[var(--text-secondary)]">
+                    <p className="font-data text-xs">{g.code}</p>
+                    <p className="font-data text-[11px] text-brand-text-secondary">
                       {g.plate} · {g.customerName || "—"}
                     </p>
                   </div>
                   <Button
                     type="button"
                     variant="primary"
+                    className="w-auto px-3 py-1.5 text-xs"
                     disabled={busy}
                     onClick={() => void relevoFlash(g.id)}
                   >
@@ -368,13 +366,13 @@ export default function DespachoDashboardPage() {
               ))}
             {(dash?.gantt ?? []).filter((g) => g.color === "red" || !g.driverName)
               .length === 0 ? (
-              <li className="py-6 text-center text-sm text-[var(--text-secondary)]">
+              <li className="py-6 text-center font-sans text-sm text-brand-text-secondary">
                 Sin viajes descubiertos
               </li>
             ) : null}
           </ul>
-        </div>
-      </section>
+        </BentoPanel>
+      </div>
     </div>
   );
 }

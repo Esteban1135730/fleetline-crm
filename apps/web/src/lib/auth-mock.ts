@@ -91,7 +91,7 @@ export async function authenticateNode(
 
 /**
  * Mock puro para demos offline (sin API). Credencial de laboratorio:
- * `ops@fleetline.demo` / `fleetline`
+ * `ops@nexa.demo` / `nexa2026`
  */
 export async function mockAuthenticate(
   email: string,
@@ -101,8 +101,8 @@ export async function mockAuthenticate(
   await delay(latency);
 
   const ok =
-    email.trim().toLowerCase() === "ops@fleetline.demo" &&
-    password === "fleetline";
+    email.trim().toLowerCase() === "ops@nexa.demo" &&
+    password === "nexa2026";
 
   if (!email.trim() || !password.trim()) {
     throw new AuthNodeError(
@@ -122,10 +122,10 @@ export async function mockAuthenticate(
     accessToken: `flt.mock.${Date.now()}`,
     user: {
       id: "mock-node-001",
-      email: "ops@fleetline.demo",
+      email: "ops@nexa.demo",
       name: "Operador Torre",
       role: "gestor_operativo",
-      companyId: "org-mock-fleetline",
+      companyId: "org-mock-nexa",
     },
     authenticatedAt: new Date().toISOString(),
     uplinkLatencyMs: latency,

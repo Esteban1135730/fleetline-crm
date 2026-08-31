@@ -1,9 +1,19 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
+import {
+  BookOpen,
+  FileCheck,
+  FileSpreadsheet,
+  RefreshCw,
+  Wallet,
+} from "lucide-react";
 import { api } from "@/lib/api";
-import { HowToBox, PageIntro } from "@/components/page-intro";
+import { EmptyState, SlideOver } from "@/components/audit";
+import { BentoPanel } from "@/components/nexa/bento-panel";
+import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
+import { WorkbenchSearch, WorkbenchToolbar } from "@/components/workbench-toolbar";
 
 type Dash = {
   kpis: {
@@ -59,6 +69,8 @@ export default function GestorContableDashboardPage() {
   const [selectedExpense, setSelectedExpense] = useState<
     Dash["bandeja"]["peajesPendientes"][0] | null
   >(null);
+  const [auditOpen, setAuditOpen] = useState(false);
+  const [facturacionOpen, setFacturacionOpen] = useState(false);
   const [customerId, setCustomerId] = useState("");
   const [periodFrom, setPeriodFrom] = useState(() => {
     const d = new Date();
@@ -91,17 +103,35 @@ export default function GestorContableDashboardPage() {
       const plateOk =
         !plateFilter ||
         j.lines.some((l) =>
-          (l.costCenterPlate || "").toUpperCase().includes(plateFilter.toUpperCase()),
+          (l.costCenterPlate || "")
+            .toUpperCase()
+            .includes(plateFilter.toUpperCase()),
         );
       const pucOk =
         !pucFilter ||
         j.lines.some(
-          (l) =>
-            l.debit.includes(pucFilter) || l.credit.includes(pucFilter),
+          (l) => l.debit.includes(pucFilter) || l.credit.includes(pucFilter),
         );
       return plateOk && pucOk;
     });
   }, [dash, plateFilter, pucFilter]);
+
+  const diarioRows = useMemo(
+    () =>
+      diario.flatMap((j) =>
+        j.lines.map((l, idx) => ({
+          id: `${j.id}-${idx}`,
+          postedAt: j.postedAt,
+          memo: j.memo,
+          showHeader: idx === 0,
+          debit: l.debit,
+          credit: l.credit,
+          plate: l.costCenterPlate,
+          amount: l.amount,
+        })),
+      ),
+    [diario],
+  );
 
   async function aprobarGasto(approve: boolean) {
     if (!selectedExpense) return;
@@ -121,6 +151,7 @@ export default function GestorContableDashboardPage() {
           : "Gasto rechazado",
       );
       setSelectedExpense(null);
+      setAuditOpen(false);
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error de aprobación");
@@ -150,6 +181,7 @@ export default function GestorContableDashboardPage() {
           (out.dian ? ` · CUFE ${out.dian.cufe.slice(0, 16)}…` : "") +
           (out.cxcCreated ? " · CxC generada" : ""),
       );
+      setFacturacionOpen(false);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error de emisión DIAN");
@@ -171,132 +203,274 @@ export default function GestorContableDashboardPage() {
       );
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error de sincronización con taller");
+      setError(
+        e instanceof Error ? e.message : "Error de sincronización con taller",
+      );
     }
   }
 
   return (
-    <div className="fade-in mx-auto max-w-[1600px] space-y-5">
-      <PageIntro module="contabilidad" title="Gestor contable · Contabilidad 4.0" />
-      <HowToBox
-        steps={[
-          "Audita peajes/tanqueos de la billetera de flota y contabílalos al centro de costo por placa.",
-          "Emite FE DIAN sobre viajes COMPLETED del periodo — genera CxC automáticamente.",
-          "Sincroniza OT de taller y depreciación por kilometraje al cierre.",
-        ]}
-      />
+    <div className="fade-in mx-auto max-w-[1600px] space-y-6">
+      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-brand-border pb-4">
+        <div>
+          <p className="font-data text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-primary">
+            Contabilidad · Gestor
+          </p>
+          <h1 className="font-sans text-2xl font-semibold tracking-tight text-brand-text-primary md:text-3xl">
+            Gestor contable · Contabilidad 4.0
+          </h1>
+          <p className="mt-1 font-sans text-sm text-brand-text-secondary">
+            Libro diario · FE DIAN · gastos de ruta · cierre taller
+          </p>
+        </div>
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-auto px-4 py-2"
+            onClick={() => setFacturacionOpen(true)}
+          >
+            <FileSpreadsheet className="mr-1.5 inline h-4 w-4" aria-hidden />
+            Emitir FE DIAN
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            className="w-auto px-4 py-2"
+            onClick={() => void syncTaller()}
+          >
+            Sincronizar taller
+          </Button>
+        </div>
+      </header>
 
       {error ? (
-        <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-600 dark:text-rose-300">
+        <p className="rounded-lg border border-brand-danger/30 bg-brand-danger/10 px-3 py-2 text-sm text-brand-danger">
           {error}
         </p>
       ) : null}
       {info ? (
-        <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">
+        <p className="rounded-lg border border-brand-success/30 bg-brand-success/10 px-3 py-2 text-sm text-brand-success">
           {info}
         </p>
       ) : null}
 
-      {/* KPIs */}
       <div className="grid gap-3 sm:grid-cols-3">
-        <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4">
-          <p className="text-xs text-[var(--text-secondary)]">Facturado mes</p>
-          <p className="mt-1 font-mono text-xl text-[var(--text-primary)]">
+        <BentoPanel title="Facturado mes" subtitle="FE DIAN emitidas">
+          <p className="font-data text-2xl font-bold tabular-nums text-brand-text-primary">
             {money(dash?.kpis.totalFacturadoMes || 0)}
           </p>
-        </div>
-        <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4">
-          <p className="text-xs text-[var(--text-secondary)]">Cartera CxC</p>
-          <p className="mt-1 font-mono text-xl text-[var(--text-primary)]">
+        </BentoPanel>
+        <BentoPanel title="Cartera CxC" subtitle="Saldo por cobrar">
+          <p className="font-data text-2xl font-bold tabular-nums text-brand-primary">
             {money(dash?.kpis.totalCarteraCxc || 0)}
           </p>
-        </div>
-        <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4">
-          <p className="text-xs text-[var(--text-secondary)]">Gastos ruta pendientes</p>
-          <p className="mt-1 font-mono text-xl text-[var(--text-primary)]">
+        </BentoPanel>
+        <BentoPanel
+          title="Gastos ruta"
+          subtitle="Pendientes de auditoría"
+          icon={<Wallet aria-hidden />}
+        >
+          <p className="font-data text-2xl font-bold tabular-nums text-brand-warning">
             {dash?.kpis.gastosRutaPendientes ?? 0}
           </p>
-        </div>
+        </BentoPanel>
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[1fr_340px]">
-        {/* Libro diario */}
-        <section id="diario" className="space-y-3">
-          <div className="flex flex-wrap items-end gap-2">
-            <h2 className="font-display text-sm font-semibold text-[var(--text-primary)]">
-              Libro diario virtual
-            </h2>
-            <input
-              className="ml-auto rounded-lg border border-[var(--border-subtle)] bg-transparent px-3 py-1.5 font-mono text-xs"
-              placeholder="Filtro placa"
-              value={plateFilter}
-              onChange={(e) => setPlateFilter(e.target.value)}
-            />
-            <input
-              className="rounded-lg border border-[var(--border-subtle)] bg-transparent px-3 py-1.5 font-mono text-xs"
-              placeholder="Cuenta PUC"
-              value={pucFilter}
-              onChange={(e) => setPucFilter(e.target.value)}
-            />
+        <BentoPanel
+          id="diario"
+          title="Libro diario virtual"
+          subtitle="Asientos por centro de costo"
+          icon={<BookOpen aria-hidden />}
+          action={
             <Button
               type="button"
               variant="ghost"
-              className="text-xs"
+              className="w-auto px-3 py-1.5 text-xs"
               onClick={() => void load()}
             >
+              <RefreshCw className="mr-1 inline h-3 w-3" aria-hidden />
               Refrescar
             </Button>
-          </div>
-          <div className="overflow-x-auto rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
-            <table className="w-full min-w-[720px] text-left text-sm">
-              <thead className="border-b border-[var(--border-subtle)] text-xs uppercase text-[var(--text-secondary)]">
-                <tr>
-                  <th className="px-3 py-2">Fecha</th>
-                  <th className="px-3 py-2">Memo</th>
-                  <th className="px-3 py-2">Débito</th>
-                  <th className="px-3 py-2">Crédito</th>
-                  <th className="px-3 py-2">Placa</th>
-                  <th className="px-3 py-2">Monto</th>
-                </tr>
-              </thead>
-              <tbody>
-                {diario.flatMap((j) =>
-                  j.lines.map((l, idx) => (
-                    <tr
-                      key={`${j.id}-${idx}`}
-                      className="border-b border-[var(--border-subtle)]/50"
-                    >
-                      <td className="px-3 py-2 font-mono text-[10px]">
-                        {idx === 0 ? new Date(j.postedAt).toLocaleString("es-CO") : ""}
-                      </td>
-                      <td className="px-3 py-2 text-xs">{idx === 0 ? j.memo : ""}</td>
-                      <td className="px-3 py-2 font-mono text-xs">{l.debit}</td>
-                      <td className="px-3 py-2 font-mono text-xs">{l.credit}</td>
-                      <td className="px-3 py-2 font-mono text-xs">
-                        {l.costCenterPlate || "—"}
-                      </td>
-                      <td className="px-3 py-2 font-mono text-xs">{money(l.amount)}</td>
-                    </tr>
-                  )),
-                )}
-                {!diario.length ? (
-                  <tr>
-                    <td colSpan={6} className="px-3 py-8 text-center text-[var(--text-secondary)]">
-                      Sin asientos en la red
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
+          }
+        >
+          <WorkbenchToolbar>
+            <WorkbenchSearch
+              value={plateFilter}
+              onChange={setPlateFilter}
+              placeholder="Filtro placa…"
+            />
+            <WorkbenchSearch
+              value={pucFilter}
+              onChange={setPucFilter}
+              placeholder="Cuenta PUC…"
+            />
+          </WorkbenchToolbar>
 
-          <form
-            id="facturacion"
-            onSubmit={emitirDian}
-            className="grid gap-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4 md:grid-cols-4"
+          <div className="mt-3">
+            {!diarioRows.length ? (
+              <EmptyState
+                title="Sin asientos en la red"
+                description="Ajuste filtros o sincronice operaciones."
+              />
+            ) : (
+              <NexaTable
+                columns={[
+                  "Fecha",
+                  "Memo",
+                  "Débito",
+                  "Crédito",
+                  "Placa",
+                  "Monto",
+                ]}
+              >
+                {diarioRows.map((row) => (
+                  <NexaRow key={row.id}>
+                    <NexaCell mono className="text-[10px]">
+                      {row.showHeader
+                        ? new Date(row.postedAt).toLocaleString("es-CO")
+                        : ""}
+                    </NexaCell>
+                    <NexaCell className="text-xs">
+                      {row.showHeader ? row.memo : ""}
+                    </NexaCell>
+                    <NexaCell mono className="text-xs">
+                      {row.debit}
+                    </NexaCell>
+                    <NexaCell mono className="text-xs">
+                      {row.credit}
+                    </NexaCell>
+                    <NexaCell mono className="text-xs">
+                      {row.plate || "—"}
+                    </NexaCell>
+                    <NexaCell mono>{money(row.amount)}</NexaCell>
+                  </NexaRow>
+                ))}
+              </NexaTable>
+            )}
+          </div>
+        </BentoPanel>
+
+        <aside id="gastos" className="space-y-4">
+          <BentoPanel
+            title="Peajes / tanqueos"
+            subtitle="Por auditar"
+            icon={<FileCheck aria-hidden />}
           >
+            {!dash?.bandeja.peajesPendientes?.length ? (
+              <p className="py-4 text-center text-sm text-brand-text-secondary">
+                Bandeja limpia
+              </p>
+            ) : (
+              <NexaTable columns={["Placa", "Tipo", "Monto", ""]}>
+                {(dash?.bandeja.peajesPendientes || []).map((p) => (
+                  <NexaRow
+                    key={p.id}
+                    active={selectedExpense?.id === p.id}
+                    onClick={() => {
+                      setSelectedExpense(p);
+                      setAuditOpen(true);
+                    }}
+                  >
+                    <NexaCell mono className="text-xs">
+                      {p.plate}
+                    </NexaCell>
+                    <NexaCell>
+                      <Badge tone={p.kind === "PEAJE" ? "warning" : "success"}>
+                        {p.kind}
+                      </Badge>
+                    </NexaCell>
+                    <NexaCell mono>{money(p.amount)}</NexaCell>
+                    <NexaCell>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="w-auto px-2 py-1 text-[10px]"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedExpense(p);
+                          setAuditOpen(true);
+                        }}
+                      >
+                        Auditar
+                      </Button>
+                    </NexaCell>
+                  </NexaRow>
+                ))}
+              </NexaTable>
+            )}
+          </BentoPanel>
+
+          <BentoPanel
+            title="Facturas recurrentes"
+            subtitle="Por emitir"
+          >
+            {!dash?.bandeja.facturasRecurrentes?.length ? (
+              <p className="py-4 text-center text-sm text-brand-text-secondary">
+                Sin pendientes
+              </p>
+            ) : (
+              <NexaTable columns={["Cliente", "NIT", "Segmento"]}>
+                {(dash?.bandeja.facturasRecurrentes || []).map((c) => (
+                  <NexaRow
+                    key={c.id}
+                    onClick={() => {
+                      setCustomerId(c.id);
+                      setFacturacionOpen(true);
+                    }}
+                  >
+                    <NexaCell>{c.name}</NexaCell>
+                    <NexaCell mono className="text-xs">
+                      {c.nit}
+                    </NexaCell>
+                    <NexaCell className="text-xs text-brand-text-secondary">
+                      {c.segment}
+                    </NexaCell>
+                  </NexaRow>
+                ))}
+              </NexaTable>
+            )}
+          </BentoPanel>
+        </aside>
+      </div>
+
+      <SlideOver
+        open={facturacionOpen}
+        onClose={() => setFacturacionOpen(false)}
+        title="Emitir FE DIAN"
+        description="Viajes COMPLETED del periodo · genera CxC automáticamente"
+        widthClass="max-w-lg"
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-auto px-4 py-2"
+              onClick={() => setFacturacionOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              form="gestor-facturacion-form"
+              variant="primary"
+              className="w-auto px-4 py-2"
+            >
+              Emitir FE DIAN
+            </Button>
+          </>
+        }
+      >
+        <form
+          id="gestor-facturacion-form"
+          onSubmit={emitirDian}
+          className="space-y-4"
+        >
+          <label className="flex flex-col gap-1 font-data text-[10px] uppercase tracking-wider text-brand-text-secondary">
+            Cliente
             <select
-              className="rounded-lg border border-[var(--border-subtle)] bg-transparent px-3 py-2 text-sm md:col-span-2"
+              className="field"
               value={customerId}
               onChange={(e) => setCustomerId(e.target.value)}
             >
@@ -306,112 +480,86 @@ export default function GestorContableDashboardPage() {
                 </option>
               ))}
             </select>
+          </label>
+          <label className="flex flex-col gap-1 font-data text-[10px] uppercase tracking-wider text-brand-text-secondary">
+            Periodo desde
             <input
               type="date"
-              className="rounded-lg border border-[var(--border-subtle)] bg-transparent px-3 py-2 text-sm"
+              className="field font-data"
               value={periodFrom}
               onChange={(e) => setPeriodFrom(e.target.value)}
             />
+          </label>
+          <label className="flex flex-col gap-1 font-data text-[10px] uppercase tracking-wider text-brand-text-secondary">
+            Periodo hasta
             <input
               type="date"
-              className="rounded-lg border border-[var(--border-subtle)] bg-transparent px-3 py-2 text-sm"
+              className="field font-data"
               value={periodTo}
               onChange={(e) => setPeriodTo(e.target.value)}
             />
-            <div className="flex flex-wrap gap-2 md:col-span-4">
-              <Button type="submit">Emitir FE DIAN</Button>
-              <Button type="button" variant="ghost" onClick={() => void syncTaller()}>
-                Sincronizar taller / depreciación
+          </label>
+        </form>
+      </SlideOver>
+
+      <SlideOver
+        open={auditOpen}
+        onClose={() => {
+          setAuditOpen(false);
+          setSelectedExpense(null);
+        }}
+        title={
+          selectedExpense
+            ? `Auditoría · ${selectedExpense.plate}`
+            : "Auditoría split-screen"
+        }
+        description="Soporte visual · extracción IA · centro de costo por placa"
+        widthClass="max-w-xl"
+        footer={
+          selectedExpense ? (
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-auto px-4 py-2"
+                onClick={() => void aprobarGasto(false)}
+              >
+                Rechazar
               </Button>
+              <Button
+                type="button"
+                variant="primary"
+                className="w-auto px-4 py-2"
+                onClick={() => void aprobarGasto(true)}
+              >
+                Aprobar y contabilizar
+              </Button>
+            </>
+          ) : null
+        }
+      >
+        {selectedExpense ? (
+          <div className="space-y-3">
+            <div className="flex min-h-[120px] items-center justify-center rounded-lg border border-dashed border-brand-border text-xs text-brand-text-secondary">
+              {selectedExpense.photoRef || "Foto peaje/tanqueo · IA"}
             </div>
-          </form>
-        </section>
-
-        {/* Bandeja derecha */}
-        <aside id="gastos" className="space-y-4">
-          <section className="space-y-2">
-            <h2 className="text-sm font-semibold text-[var(--text-primary)]">
-              Peajes / tanqueos por auditar
-            </h2>
-            <div className="space-y-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-3">
-              {(dash?.bandeja.peajesPendientes || []).map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => setSelectedExpense(p)}
-                  className={`w-full rounded-lg border px-3 py-2 text-left ${
-                    selectedExpense?.id === p.id
-                      ? "border-teal-500/50 bg-teal-500/10"
-                      : "border-[var(--border-subtle)]"
-                  }`}
-                >
-                  <div className="flex justify-between gap-2">
-                    <span className="font-mono text-xs">{p.plate}</span>
-                    <Badge tone={p.kind === "PEAJE" ? "amber" : "emerald"}>
-                      {p.kind}
-                    </Badge>
-                  </div>
-                  <p className="mt-1 font-mono text-sm">{money(p.amount)}</p>
-                </button>
-              ))}
-              {!dash?.bandeja.peajesPendientes?.length ? (
-                <p className="py-4 text-center text-sm text-[var(--text-secondary)]">
-                  Bandeja limpia
-                </p>
-              ) : null}
-            </div>
-          </section>
-
-          {selectedExpense ? (
-            <section className="grid gap-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-3">
-              <h3 className="text-sm font-semibold">Auditoría split-screen</h3>
-              <div className="flex min-h-[120px] items-center justify-center rounded-lg border border-dashed border-[var(--border-subtle)] text-xs text-[var(--text-secondary)]">
-                {selectedExpense.photoRef || "Foto peaje/tanqueo · IA"}
-              </div>
-              <pre className="overflow-auto rounded-lg bg-black/5 p-2 font-mono text-[10px] dark:bg-white/5">
-                {JSON.stringify(
-                  selectedExpense.aiExtracted || {
-                    plate: selectedExpense.plate,
-                    amount: selectedExpense.amount,
-                    kind: selectedExpense.kind,
-                  },
-                  null,
-                  2,
-                )}
-              </pre>
-              <div className="flex gap-2">
-                <Button type="button" onClick={() => void aprobarGasto(true)}>
-                  Aprobar y contabilizar
-                </Button>
-                <Button type="button" variant="ghost" onClick={() => void aprobarGasto(false)}>
-                  Rechazar
-                </Button>
-              </div>
-            </section>
-          ) : null}
-
-          <section className="space-y-2">
-            <h2 className="text-sm font-semibold text-[var(--text-primary)]">
-              Facturas recurrentes por emitir
-            </h2>
-            <div className="space-y-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-3">
-              {(dash?.bandeja.facturasRecurrentes || []).map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  className="w-full rounded-lg border border-[var(--border-subtle)] px-3 py-2 text-left"
-                  onClick={() => setCustomerId(c.id)}
-                >
-                  <p className="text-sm text-[var(--text-primary)]">{c.name}</p>
-                  <p className="font-mono text-[10px] text-[var(--text-secondary)]">
-                    {c.nit} · {c.segment}
-                  </p>
-                </button>
-              ))}
-            </div>
-          </section>
-        </aside>
-      </div>
+            <pre className="overflow-auto rounded-lg border border-brand-border bg-brand-surface-elevated/50 p-2 font-data text-[10px]">
+              {JSON.stringify(
+                selectedExpense.aiExtracted || {
+                  plate: selectedExpense.plate,
+                  amount: selectedExpense.amount,
+                  kind: selectedExpense.kind,
+                },
+                null,
+                2,
+              )}
+            </pre>
+            <p className="font-data text-lg tabular-nums text-brand-text-primary">
+              {money(selectedExpense.amount)}
+            </p>
+          </div>
+        ) : null}
+      </SlideOver>
     </div>
   );
 }

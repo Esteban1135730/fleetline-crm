@@ -1,9 +1,8 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
 import { api } from "@/lib/api";
-import { HowToBox, PageIntro } from "@/components/page-intro";
 
 type Onboarding = {
   id: string;
@@ -57,17 +56,17 @@ const STAGES: Array<{ key: keyof Dash["kanban"]; label: string }> = [
 const DOC_LABELS: Record<string, string> = {
   SOAT: "SOAT",
   TECNOMECANICA: "Tecno",
-  TARJETA_OPERACION: "T. Operación",
+  TARJETA_OPERACION: "T. OperaciÃƒÂ³n",
   RCC: "RCC",
   RCE: "RCE",
-  POLIZA_CONTRACTUAL: "Póliza",
+  POLIZA_CONTRACTUAL: "PÃƒÂ³liza",
 };
 
-function lightTone(light: string): "emerald" | "amber" | "rose" | "slate" {
-  if (light === "GREEN") return "emerald";
-  if (light === "AMBER_15" || light === "AMBER_7") return "amber";
-  if (light === "RED_0" || light === "EXPIRED") return "rose";
-  return "slate";
+function lightTone(light: string): "success" | "warning" | "danger" | "info" {
+  if (light === "GREEN") return "success";
+  if (light === "AMBER_15" || light === "AMBER_7") return "warning";
+  if (light === "RED_0" || light === "EXPIRED") return "danger";
+  return "info";
 }
 
 export default function VinculacionesDashboardPage() {
@@ -89,7 +88,7 @@ export default function VinculacionesDashboardPage() {
     try {
       setDash(await api<Dash>("/api/v1/vinculaciones/dashboard"));
     } catch (e) {
-      setError((e as Error).message || "Señal perdida — conexión de vinculaciones");
+      setError((e as Error).message || "SeÃƒÂ±al perdida Ã¢â‚¬â€ conexiÃƒÂ³n de vinculaciones");
     }
   }, []);
 
@@ -115,13 +114,13 @@ export default function VinculacionesDashboardPage() {
           }),
         },
       );
-      setMsg(`${res.message} · ${res.link.portalUrl}`);
+      setMsg(`${res.message} Ã‚Â· ${res.link.portalUrl}`);
       setOwnerName("");
       setOwnerDoc("");
       setOwnerEmail("");
       await load();
     } catch (e) {
-      setError((e as Error).message || "No se generó portal");
+      setError((e as Error).message || "No se generÃƒÂ³ portal");
     } finally {
       setBusy(false);
     }
@@ -142,7 +141,7 @@ export default function VinculacionesDashboardPage() {
       setCedula("");
       await load();
     } catch (e) {
-      setError((e as Error).message || "Verificación de antecedentes fallida");
+      setError((e as Error).message || "VerificaciÃƒÂ³n de antecedentes fallida");
     } finally {
       setBusy(false);
     }
@@ -172,35 +171,31 @@ export default function VinculacionesDashboardPage() {
   }
 
   return (
-    <div className="fade-in mx-auto max-w-[1400px] space-y-5 bg-[var(--bg-canvas)] p-4 text-[var(--text-primary)] md:p-6">
-      <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-4 shadow-[0_10px_30px_rgba(0,0,0,0.04)]">
-        <PageIntro module="rrhh" title="Alta de afiliados · Vinculaciones" />
-        <p className="mt-1 text-sm text-[var(--text-secondary)]">
-          Embudo de auditoría legal · RUNT/SIMIT · OCR
-        </p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Badge tone="amber">Embudo {dash?.stats.received ?? 0} nuevas</Badge>
-          <Badge tone="rose">
+    <div className="fade-in mx-auto max-w-[1400px] space-y-5 bg-[var(--brand-canvas)] p-4 text-[var(--brand-text-primary)] md:p-6">
+      <header className="nexa-panel flex flex-wrap items-start justify-between gap-3 p-4 backdrop-blur-md">
+        <div>
+          <h1 className="font-sans text-xl font-semibold tracking-tight text-brand-text-primary">
+            Vinculaciones
+          </h1>
+          <p className="mt-1 font-data text-[10px] uppercase tracking-[0.14em] text-brand-text-secondary">
+            Embudo legal · RUNT · OCR
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Badge tone="warning">Embudo {dash?.stats.received ?? 0} nuevas</Badge>
+          <Badge tone="danger">
             Bloqueo legal {dash?.stats.blockedLegal ?? 0}
           </Badge>
         </div>
-      </div>
-
-      <HowToBox
-        steps={[
-          "Genere link de auto-servicio para el propietario.",
-          "La lectura extrae SOAT, tarjeta de operación y pólizas; contrato listo para firma.",
-          "TO vencida a las 00:00 → ROJO legal y rebote en Logística.",
-        ]}
-      />
+      </header>
 
       {error ? (
-        <p className="rounded-xl border border-[#DC2626]/40 bg-[#DC2626]/10 px-4 py-3 text-sm text-[#DC2626]">
+        <p className="rounded-xl border border-brand-danger/40 bg-brand-danger/10 px-4 py-3 text-sm text-brand-danger">
           {error}
         </p>
       ) : null}
       {msg ? (
-        <p className="rounded-xl border border-[#0D9488]/40 bg-[#0D9488]/10 px-4 py-3 text-sm">
+        <p className="rounded-xl border border-brand-secondary/40 bg-brand-secondary/10 px-4 py-3 text-sm">
           {msg}
         </p>
       ) : null}
@@ -212,29 +207,29 @@ export default function VinculacionesDashboardPage() {
           {STAGES.map((s) => (
             <div
               key={s.key}
-              className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-3"
+              className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-3"
             >
-              <p className="text-xs font-semibold uppercase text-[#64748B]">
+              <p className="text-xs font-semibold uppercase text-brand-text-secondary">
                 {s.label}
               </p>
               <ul className="mt-2 space-y-2">
                 {(dash?.kanban[s.key] ?? []).map((card) => (
                   <li
                     key={card.id}
-                    className="rounded-lg border border-[var(--border-subtle)] px-2 py-2 text-sm"
+                    className="rounded-lg border border-[var(--brand-border)] px-2 py-2 text-sm"
                   >
-                    <p className="font-mono text-xs text-[#0D9488]">
+                    <p className="font-mono text-xs text-brand-secondary">
                       {card.code}
                     </p>
                     <p>{card.ownerName}</p>
-                    <p className="font-mono text-xs text-[#64748B]">
+                    <p className="font-mono text-xs text-brand-text-secondary">
                       {card.plate || "sin placa"}
                     </p>
                   </li>
                 ))}
                 {(dash?.kanban[s.key] ?? []).length === 0 ? (
-                  <li className="py-6 text-center text-xs text-[#94A3B8]">
-                    Vacío
+                  <li className="py-6 text-center text-xs text-brand-text-secondary">
+                    VacÃƒÂ­o
                   </li>
                 ) : null}
               </ul>
@@ -245,7 +240,7 @@ export default function VinculacionesDashboardPage() {
 
       {/* Acciones */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <section className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-4">
+        <section className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4">
           <h3 className="font-display text-base">Portal afiliado</h3>
           <input
             className="field mt-2 w-full"
@@ -276,11 +271,11 @@ export default function VinculacionesDashboardPage() {
           </Button>
         </section>
 
-        <section className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-4">
-          <h3 className="font-display text-base">Verificación de antecedentes</h3>
+        <section className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4">
+          <h3 className="font-display text-base">VerificaciÃƒÂ³n de antecedentes</h3>
           <input
             className="field mt-2 w-full"
-            placeholder="Cédula conductor"
+            placeholder="CÃƒÂ©dula conductor"
             value={cedula}
             onChange={(e) => setCedula(e.target.value)}
           />
@@ -300,10 +295,10 @@ export default function VinculacionesDashboardPage() {
                 <Badge
                   tone={
                     c.riskLight === "GREEN"
-                      ? "emerald"
+                      ? "success"
                       : c.riskLight === "AMBER"
-                        ? "amber"
-                        : "rose"
+                        ? "warning"
+                        : "danger"
                   }
                 >
                   {c.riskLight}
@@ -315,7 +310,7 @@ export default function VinculacionesDashboardPage() {
 
         <section
           id="ocr"
-          className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-4"
+          className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4"
         >
           <h3 className="font-display text-base">Validar OCR</h3>
           <textarea
@@ -337,19 +332,19 @@ export default function VinculacionesDashboardPage() {
 
       {/* Split-screen OCR viewer */}
       <section className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-        <div className="min-h-[220px] rounded-xl border border-dashed border-[var(--border-subtle)] bg-[color-mix(in_srgb,var(--bg-canvas)_40%,transparent)] p-4 font-mono text-xs">
-          <p className="mb-2 text-[#64748B]">Visor de documento (pantalla partida)</p>
-          <pre className="whitespace-pre-wrap text-[var(--text-primary)]">
+        <div className="min-h-[220px] rounded-xl border border-dashed border-[var(--brand-border)] bg-[color-mix(in_srgb,var(--brand-canvas)_40%,transparent)] p-4 font-mono text-xs">
+          <p className="mb-2 text-brand-text-secondary">Visor de documento (pantalla partida)</p>
+          <pre className="whitespace-pre-wrap text-[var(--brand-text-primary)]">
             {ocrText || "Pegue texto OCR / referencia de PDF"}
           </pre>
         </div>
-        <div className="min-h-[220px] rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-4">
-          <p className="mb-2 text-sm text-[#64748B]">Extracción / contrato</p>
-          <p className="font-mono text-sm text-[#0D9488]">
-            {selectedPdf || "Contrato pendiente de generación"}
+        <div className="min-h-[220px] rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4">
+          <p className="mb-2 text-sm text-brand-text-secondary">ExtracciÃƒÂ³n / contrato</p>
+          <p className="font-mono text-sm text-brand-secondary">
+            {selectedPdf || "Contrato pendiente de generaciÃƒÂ³n"}
           </p>
-          <p className="mt-4 text-xs text-[#64748B]">
-            Validación manual: contraste de lectura vs documento original antes de firma
+          <p className="mt-4 text-xs text-brand-text-secondary">
+            ValidaciÃƒÂ³n manual: contraste de lectura vs documento original antes de firma
             digital.
           </p>
         </div>
@@ -358,13 +353,13 @@ export default function VinculacionesDashboardPage() {
       {/* Traffic light */}
       <section
         id="vencimientos"
-        className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-4"
+        className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4"
       >
         <h3 className="font-display text-lg">Matriz de Vencimientos</h3>
         <div className="mt-3 overflow-x-auto">
           <table className="w-full min-w-[720px] text-left text-sm">
             <thead>
-              <tr className="border-b border-[var(--border-subtle)] text-xs uppercase text-[var(--text-secondary)]">
+              <tr className="border-b border-[var(--brand-border)] text-xs uppercase text-[var(--brand-text-secondary)]">
                 <th className="py-2 pr-2">Placa</th>
                 {Object.keys(DOC_LABELS).map((k) => (
                   <th key={k} className="py-2 pr-2">
@@ -378,9 +373,9 @@ export default function VinculacionesDashboardPage() {
               {(dash?.trafficLight ?? []).map((row) => (
                 <tr
                   key={row.vehicleId}
-                  className="border-b border-[var(--border-subtle)]"
+                  className="border-b border-[var(--brand-border)]"
                 >
-                  <td className="py-2 pr-2 font-mono text-[#0D9488]">
+                  <td className="py-2 pr-2 font-mono text-brand-secondary">
                     {row.plate}
                   </td>
                   {Object.keys(DOC_LABELS).map((k) => {
@@ -390,13 +385,13 @@ export default function VinculacionesDashboardPage() {
                         {d ? (
                           <Badge tone={lightTone(d.light)}>{d.light}</Badge>
                         ) : (
-                          <span className="text-xs text-[#94A3B8]">—</span>
+                          <span className="text-xs text-brand-text-secondary">Ã¢â‚¬â€</span>
                         )}
                       </td>
                     );
                   })}
                   <td className="py-2">
-                    <Badge tone={row.legalRed ? "rose" : "emerald"}>
+                    <Badge tone={row.legalRed ? "danger" : "success"}>
                       {row.legalRed ? "ROJO" : "Correcto"}
                     </Badge>
                   </td>

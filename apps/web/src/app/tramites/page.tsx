@@ -5,13 +5,14 @@ import { Button } from "@fsg/ui";
 import { HARD_RULES, statusEs } from "@fsg/shared";
 import { FileCheck, Plus, RefreshCw, ShieldAlert } from "lucide-react";
 import { api } from "@/lib/api";
-import { PageIntro } from "@/components/page-intro";
 import {
   EmptyState,
   KpiCard,
   SlideOver,
   StatusPulseBadge,
 } from "@/components/audit";
+import { BentoPanel } from "@/components/nexa/bento-panel";
+import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
 import {
   WorkbenchSearch,
   WorkbenchTabs,
@@ -70,7 +71,11 @@ const EMPTY_ALTA = {
 
 function asVehicleList(raw: unknown): Vehicle[] {
   if (Array.isArray(raw)) return raw as Vehicle[];
-  if (raw && typeof raw === "object" && Array.isArray((raw as { items?: unknown }).items)) {
+  if (
+    raw &&
+    typeof raw === "object" &&
+    Array.isArray((raw as { items?: unknown }).items)
+  ) {
     return (raw as { items: Vehicle[] }).items;
   }
   return [];
@@ -110,14 +115,14 @@ export default function TramitesPage() {
       const list = asVehicleList(v);
       if (list.length) return list;
     } catch {
-      /* fallback a flota / matriz */
+      /* fallback */
     }
     try {
       const v = await api<unknown>("/fleet/vehicles");
       const list = asVehicleList(v);
       if (list.length) return list;
     } catch {
-      /* matriz como última fuente */
+      /* matriz */
     }
     return [];
   }
@@ -130,8 +135,12 @@ export default function TramitesPage() {
       api<FleetMatrix>("/tramites/fleet-matrix"),
     ]);
     const errors: string[] = [];
-    if (p.status === "fulfilled") setRows(Array.isArray(p.value) ? p.value : []);
-    else errors.push(p.reason instanceof Error ? p.reason.message : "Trámites no disponibles");
+    if (p.status === "fulfilled")
+      setRows(Array.isArray(p.value) ? p.value : []);
+    else
+      errors.push(
+        p.reason instanceof Error ? p.reason.message : "Trámites no disponibles",
+      );
 
     let fleet: Vehicle[] = v.status === "fulfilled" ? v.value : [];
     if (m.status === "fulfilled") {
@@ -146,7 +155,9 @@ export default function TramitesPage() {
       }
     } else {
       errors.push(
-        m.reason instanceof Error ? m.reason.message : "Semáforo de flota no disponible",
+        m.reason instanceof Error
+          ? m.reason.message
+          : "Semáforo de flota no disponible",
       );
     }
     setVehicles(fleet);
@@ -249,33 +260,45 @@ export default function TramitesPage() {
   );
 
   return (
-    <div className="fade-in mx-auto max-w-[1600px] space-y-6">
-      <PageIntro
-        module="tramites"
-        title="Compliance Auto-Sync"
-        subtitle="Escudo documental · RUNT en vivo · Kill-Switch activo"
-        action={
-          <Button
-            type="button"
-            variant="primary"
-            className="w-auto px-4 py-2"
-            onClick={openForm}
-          >
-            <Plus className="mr-1.5 inline h-4 w-4" aria-hidden />
-            Nuevo Trámite
-          </Button>
-        }
-      />
+    <div className="fade-in mx-auto max-w-[1600px] space-y-6 p-4 md:p-6">
+      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-brand-border pb-4">
+        <div>
+          <p className="font-data text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-primary">
+            Trámites · Compliance
+          </p>
+          <h1 className="font-sans text-2xl font-semibold tracking-tight text-brand-text-primary md:text-3xl">
+            Escudo documental · SOAT / RTM
+          </h1>
+          <p className="mt-1 font-sans text-sm text-brand-text-secondary">
+            RUNT en vivo · Kill-Switch activo
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="primary"
+          className="w-auto px-4 py-2"
+          onClick={openForm}
+        >
+          <Plus className="mr-1.5 inline h-4 w-4" aria-hidden />
+          Nuevo trámite
+        </Button>
+      </header>
 
       {matrix && matrix.counts.red > 0 ? (
-        <div className="flex items-start gap-3 rounded-lg border border-[var(--accent-alert)]/40 bg-[var(--accent-alert)]/10 px-4 py-3">
-          <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-[var(--accent-alert)]" aria-hidden />
+        <div className="flex items-start gap-3 rounded-lg border border-brand-danger/40 bg-brand-danger/10 px-4 py-3">
+          <ShieldAlert
+            className="mt-0.5 h-5 w-5 shrink-0 text-brand-danger"
+            aria-hidden
+          />
           <div>
-            <p className="text-sm font-semibold">
-              Kill-Switch activo · {matrix.counts.red} unidad{matrix.counts.red !== 1 ? "es" : ""} bloqueada{matrix.counts.red !== 1 ? "s" : ""}
+            <p className="font-sans text-sm font-semibold text-brand-text-primary">
+              Kill-Switch activo · {matrix.counts.red} unidad
+              {matrix.counts.red !== 1 ? "es" : ""} bloqueada
+              {matrix.counts.red !== 1 ? "s" : ""}
             </p>
-            <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
-              Despacho restringido por SOAT, RTM o tarjeta de operación vencidos o ausentes.
+            <p className="mt-0.5 font-sans text-xs text-brand-text-secondary">
+              Despacho restringido por SOAT, RTM o tarjeta de operación vencidos
+              o ausentes.
             </p>
           </div>
         </div>
@@ -285,114 +308,103 @@ export default function TramitesPage() {
         <div
           className={`flex items-start gap-3 rounded-lg border px-4 py-3 ${
             expiredDocs.length
-              ? "border-[var(--accent-alert)]/40 bg-[var(--accent-alert)]/10"
-              : "border-[var(--accent-metric)]/40 bg-[color-mix(in_srgb,var(--accent-metric)_12%,transparent)]"
+              ? "border-brand-danger/40 bg-brand-danger/10"
+              : "border-brand-warning/40 bg-brand-warning/10"
           }`}
         >
           <ShieldAlert
             className={`mt-0.5 h-5 w-5 shrink-0 ${
-              expiredDocs.length
-                ? "text-[var(--accent-alert)]"
-                : "text-[var(--accent-metric)]"
+              expiredDocs.length ? "text-brand-danger" : "text-brand-warning"
             }`}
             aria-hidden
           />
           <div>
-            <p className="text-sm font-semibold">
+            <p className="font-sans text-sm font-semibold text-brand-text-primary">
               Vigencia automática · {expiredDocs.length} vencido
               {expiredDocs.length !== 1 ? "s" : ""}
               {expiringDocs.length
                 ? ` · ${expiringDocs.length} por vencer (≤${warnDays} d)`
                 : ""}
             </p>
-            <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
+            <p className="mt-0.5 font-sans text-xs text-brand-text-secondary">
               Amarillo si faltan ≤{warnDays} días. El día de vencimiento sigue
               vigente; al día siguiente pasa a rojo y bloquea la unidad.
-              Solo use Renovar para actualizar la fecha.
             </p>
           </div>
         </div>
       ) : null}
 
       {loadError ? (
-        <p className="rounded-lg border border-[var(--accent-alert)]/40 bg-[var(--accent-alert)]/10 px-3 py-2 text-sm text-[var(--accent-alert)]">
+        <p className="rounded-lg border border-brand-danger/40 bg-brand-danger/10 px-3 py-2 font-data text-sm text-brand-danger">
           {loadError}
         </p>
       ) : null}
 
       {matrix ? (
-        <div className="grid gap-3 sm:grid-cols-3">
+        <section className="grid gap-3 sm:grid-cols-3">
           <KpiCard
             label="Verde · aptos"
             value={matrix.counts.green}
             delta={`Documentación vigente (>${warnDays} d)`}
             tone="ok"
           />
-          <article className="relative overflow-hidden rounded-xl border border-slate-800 bg-zinc-900/80 p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-              Amarillo · ≤{warnDays} días
-            </p>
-            <p className="mt-2 font-mono text-5xl font-bold tracking-tight tabular-nums text-amber-400">
-              {matrix.counts.yellow}
-            </p>
-            <p className="mt-3 text-xs font-medium text-slate-400">
-              Renovación planificada
-            </p>
-          </article>
-          <article className="relative overflow-hidden rounded-xl border border-slate-800 bg-zinc-900/80 p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-              Rojo · bloqueados
-            </p>
-            <p className="mt-2 font-mono text-5xl font-bold tracking-tight tabular-nums text-[var(--fl-critical,#FF2A5F)]">
-              {matrix.counts.red}
-            </p>
-            <p className="mt-3 text-xs font-medium text-slate-400">
-              Bloqueo operativo de despacho · alertas {alertCount}
-            </p>
-          </article>
-        </div>
+          <KpiCard
+            label={`Amarillo · ≤${warnDays} días`}
+            value={matrix.counts.yellow}
+            delta="Renovación planificada"
+            tone="warn"
+          />
+          <KpiCard
+            label="Rojo · bloqueados"
+            value={matrix.counts.red}
+            delta={`Bloqueo operativo · alertas ${alertCount}`}
+            tone="danger"
+          />
+        </section>
       ) : null}
 
       {matrix ? (
-        <div className="flt-panel data-shell overflow-hidden !p-0">
-          <div className="space-y-3 border-b border-[var(--border-subtle)] px-4 py-3">
-            <div className="text-sm font-semibold">Semáforo de flota</div>
-            <WorkbenchToolbar>
-              <WorkbenchTabs
-                value={fleetTab}
-                onChange={(id) =>
-                  setFleetTab(id as "all" | "route" | "alerts")
-                }
-                tabs={[
-                  {
-                    id: "all",
-                    label: "Todos",
-                    count: matrix.vehicles.length,
-                    tip: "Toda la flota con semáforo documental",
-                  },
-                  {
-                    id: "route",
-                    label: "Aptos",
-                    count: matrix.counts.green,
-                    tip: `Verde: documentación vigente (>${warnDays} días). Aptos para despacho.`,
-                  },
-                  {
-                    id: "alerts",
-                    label: "Alertas / bloqueados",
-                    count: matrix.counts.yellow + matrix.counts.red,
-                    tip: `Amarillo ≤${warnDays} días o rojo vencido. Rojo bloquea despacho.`,
-                  },
-                ]}
-              />
-              <WorkbenchSearch
-                value={fleetQuery}
-                onChange={setFleetQuery}
-                placeholder="Buscar por placa…"
-              />
-            </WorkbenchToolbar>
-          </div>
+        <BentoPanel
+          title="Semáforo de flota"
+          subtitle="Documentación · despacho"
+          icon={<FileCheck />}
+        >
+          <WorkbenchToolbar>
+            <WorkbenchTabs
+              value={fleetTab}
+              onChange={(id) =>
+                setFleetTab(id as "all" | "route" | "alerts")
+              }
+              tabs={[
+                {
+                  id: "all",
+                  label: "Todos",
+                  count: matrix.vehicles.length,
+                  tip: "Toda la flota con semáforo documental",
+                },
+                {
+                  id: "route",
+                  label: "Aptos",
+                  count: matrix.counts.green,
+                  tip: `Verde: documentación vigente (>${warnDays} días). Aptos para despacho.`,
+                },
+                {
+                  id: "alerts",
+                  label: "Alertas / bloqueados",
+                  count: matrix.counts.yellow + matrix.counts.red,
+                  tip: `Amarillo ≤${warnDays} días o rojo vencido. Rojo bloquea despacho.`,
+                },
+              ]}
+            />
+            <WorkbenchSearch
+              value={fleetQuery}
+              onChange={setFleetQuery}
+              placeholder="Buscar por placa…"
+            />
+          </WorkbenchToolbar>
+
           {!filteredFleet.length ? (
-            <div className="p-4">
+            <div className="mt-3">
               <EmptyState
                 icon={<FileCheck className="h-7 w-7" />}
                 title={
@@ -405,32 +417,22 @@ export default function TramitesPage() {
                     ? "Matricule una placa desde Nuevo trámite para indexar SOAT, tecnomecánica o TO."
                     : "Ajuste pestaña o búsqueda de placa."
                 }
-                actionLabel="+ Nuevo Trámite"
+                actionLabel="+ Nuevo trámite"
                 onAction={openForm}
               />
             </div>
           ) : (
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr>
-                  <th className="px-4 py-2">Placa</th>
-                  <th className="px-4 py-2">Odómetro</th>
-                  <th className="px-4 py-2">Semáforo</th>
-                  <th className="px-4 py-2">Detalle</th>
-                  <th className="px-4 py-2">RUNT</th>
-                </tr>
-              </thead>
-              <tbody>
+            <div className="mt-3">
+              <NexaTable
+                columns={["Placa", "Odómetro", "Semáforo", "Detalle", "RUNT"]}
+              >
                 {filteredFleet.map((v) => (
-                  <tr
-                    key={v.vehicleId}
-                    className="border-t border-[var(--border-subtle)]"
-                  >
-                    <td className="px-4 py-2.5 font-data">{v.plate}</td>
-                    <td className="px-4 py-2.5 font-data text-xs">
+                  <NexaRow key={v.vehicleId}>
+                    <NexaCell mono>{v.plate}</NexaCell>
+                    <NexaCell mono className="text-xs">
                       {v.odometerKm.toLocaleString("es-CO")} km
-                    </td>
-                    <td className="px-4 py-2.5">
+                    </NexaCell>
+                    <NexaCell>
                       <StatusPulseBadge
                         tone={
                           v.semaphore === "GREEN"
@@ -447,12 +449,12 @@ export default function TramitesPage() {
                             ? "Amarillo"
                             : "Rojo · bloqueado"}
                       </StatusPulseBadge>
-                    </td>
-                    <td className="px-4 py-2.5 text-xs text-[var(--text-secondary)]">
+                    </NexaCell>
+                    <NexaCell className="text-xs text-brand-text-secondary">
                       {[...v.blockReasons, ...v.warnings].join(" · ") ||
                         "Documentación al día"}
-                    </td>
-                    <td className="px-4 py-2.5">
+                    </NexaCell>
+                    <NexaCell>
                       <Button
                         type="button"
                         variant="ghost"
@@ -460,16 +462,19 @@ export default function TramitesPage() {
                         loading={syncBusy === v.vehicleId}
                         onClick={() => void syncRunt(v.vehicleId)}
                       >
-                        <RefreshCw className="mr-1 inline h-3 w-3" aria-hidden />
+                        <RefreshCw
+                          className="mr-1 inline h-3 w-3"
+                          aria-hidden
+                        />
                         Sync RUNT
                       </Button>
-                    </td>
-                  </tr>
+                    </NexaCell>
+                  </NexaRow>
                 ))}
-              </tbody>
-            </table>
+              </NexaTable>
+            </div>
           )}
-        </div>
+        </BentoPanel>
       ) : null}
 
       {!rows.length ? (
@@ -477,105 +482,99 @@ export default function TramitesPage() {
           icon={<FileCheck className="h-7 w-7" />}
           title="Sin trámites registrados"
           description="Indexe SOAT, tecnomecánica o tarjeta de operación."
-          actionLabel="+ Nuevo Trámite"
+          actionLabel="+ Nuevo trámite"
           onAction={openForm}
         />
       ) : (
-        <div className="fsg-panel data-shell overflow-hidden">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr>
-                <th className="px-4 py-2">Vehículo</th>
-                <th className="px-4 py-2">Trámite</th>
-                <th className="px-4 py-2">Vence</th>
-                <th className="px-4 py-2">Estado</th>
-                <th className="px-4 py-2">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.id} className="border-t border-[var(--brand-line)]">
-                  <td className="px-4 py-2.5 font-data">{r.vehicle.plate}</td>
-                  <td className="px-4 py-2.5">
-                    {TYPE_ES[r.type] || r.type}
-                    {r.reference ? (
-                      <div className="text-[11px] text-[var(--brand-muted)]">
-                        Ref: {r.reference}
-                      </div>
-                    ) : null}
-                  </td>
-                  <td className="px-4 py-2.5 font-data text-xs">
-                    {new Date(r.validTo).toLocaleDateString("es-CO")}
-                    {typeof r.daysLeft === "number" ? (
-                      <div
-                        className={
-                          r.daysLeft < 0
-                            ? "text-[var(--accent-alert)]"
-                            : r.daysLeft <= warnDays
-                              ? "text-[var(--accent-metric)]"
-                              : "text-[var(--text-secondary)]"
-                        }
-                      >
-                        {r.daysLeft < 0
-                          ? `Venció hace ${Math.abs(r.daysLeft)} d`
-                          : r.daysLeft === 0
-                            ? "Vence hoy · vigente hasta medianoche"
-                            : `${r.daysLeft} d restantes`}
-                      </div>
-                    ) : null}
-                  </td>
-                  <td className="px-4 py-2.5">
-                    <StatusPulseBadge
-                      tone={
-                        r.status === "VALID"
-                          ? "active"
-                          : r.status === "EXPIRING"
-                            ? "fatiga"
-                            : "danger"
-                      }
-                      pulse={r.status !== "VALID"}
+        <BentoPanel
+          title="Planilla documental"
+          subtitle={`${rows.length} trámites indexados`}
+        >
+          <NexaTable
+            columns={["Vehículo", "Trámite", "Vence", "Estado", "Acciones"]}
+          >
+            {rows.map((r) => (
+              <NexaRow key={r.id}>
+                <NexaCell mono>{r.vehicle.plate}</NexaCell>
+                <NexaCell>
+                  {TYPE_ES[r.type] || r.type}
+                  {r.reference ? (
+                    <span className="mt-0.5 block font-data text-[11px] text-brand-text-secondary">
+                      Ref: {r.reference}
+                    </span>
+                  ) : null}
+                </NexaCell>
+                <NexaCell mono className="text-xs">
+                  {new Date(r.validTo).toLocaleDateString("es-CO")}
+                  {typeof r.daysLeft === "number" ? (
+                    <span
+                      className={`mt-0.5 block ${
+                        r.daysLeft < 0
+                          ? "text-brand-danger"
+                          : r.daysLeft <= warnDays
+                            ? "text-brand-warning"
+                            : "text-brand-text-secondary"
+                      }`}
                     >
-                      {r.status === "VALID"
-                        ? "Vigente"
+                      {r.daysLeft < 0
+                        ? `Venció hace ${Math.abs(r.daysLeft)} d`
+                        : r.daysLeft === 0
+                          ? "Vence hoy · vigente hasta medianoche"
+                          : `${r.daysLeft} d restantes`}
+                    </span>
+                  ) : null}
+                </NexaCell>
+                <NexaCell>
+                  <StatusPulseBadge
+                    tone={
+                      r.status === "VALID"
+                        ? "active"
                         : r.status === "EXPIRING"
-                          ? "Por vencer"
-                          : r.status === "EXPIRED"
-                            ? "Vencido"
-                            : statusEs(r.status)}
-                    </StatusPulseBadge>
-                  </td>
-                  <td className="px-4 py-2.5">
-                    <div className="flex flex-wrap items-center gap-1">
-                      <input
-                        className="field w-28 py-1 text-xs"
-                        type="date"
-                        id={`renew-${r.id}`}
-                        defaultValue={r.validTo.slice(0, 10)}
-                      />
-                      <Button
-                        variant="ghost"
-                        className="w-auto px-2 py-1"
-                        onClick={async () => {
-                          const el = document.getElementById(
-                            `renew-${r.id}`,
-                          ) as HTMLInputElement | null;
-                          if (!el?.value) return;
-                          await api(`/tramites/procedures/${r.id}`, {
-                            method: "PATCH",
-                            body: JSON.stringify({ validTo: el.value }),
-                          });
-                          await load();
-                        }}
-                      >
-                        Renovar
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                          ? "fatiga"
+                          : "danger"
+                    }
+                    pulse={r.status !== "VALID"}
+                  >
+                    {r.status === "VALID"
+                      ? "Vigente"
+                      : r.status === "EXPIRING"
+                        ? "Por vencer"
+                        : r.status === "EXPIRED"
+                          ? "Vencido"
+                          : statusEs(r.status)}
+                  </StatusPulseBadge>
+                </NexaCell>
+                <NexaCell>
+                  <div className="flex flex-wrap items-center gap-1">
+                    <input
+                      className="field w-28 py-1 font-data text-xs"
+                      type="date"
+                      id={`renew-${r.id}`}
+                      defaultValue={r.validTo.slice(0, 10)}
+                    />
+                    <Button
+                      variant="ghost"
+                      className="w-auto px-2 py-1"
+                      onClick={async () => {
+                        const el = document.getElementById(
+                          `renew-${r.id}`,
+                        ) as HTMLInputElement | null;
+                        if (!el?.value) return;
+                        await api(`/tramites/procedures/${r.id}`, {
+                          method: "PATCH",
+                          body: JSON.stringify({ validTo: el.value }),
+                        });
+                        await load();
+                      }}
+                    >
+                      Renovar
+                    </Button>
+                  </div>
+                </NexaCell>
+              </NexaRow>
+            ))}
+          </NexaTable>
+        </BentoPanel>
       )}
 
       <SlideOver
@@ -607,12 +606,12 @@ export default function TramitesPage() {
       >
         <form id="tramite-form" onSubmit={onCreate} className="space-y-4">
           {formError ? (
-            <p className="rounded-md border border-[var(--accent-alert)]/40 bg-[var(--accent-alert)]/10 px-3 py-2 text-xs text-[var(--accent-alert)]">
+            <p className="rounded-md border border-brand-danger/40 bg-brand-danger/10 px-3 py-2 font-data text-xs text-brand-danger">
               {formError}
             </p>
           ) : null}
           <label className="block space-y-1.5">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+            <span className="font-data text-[10px] font-semibold uppercase tracking-wider text-brand-text-secondary">
               Vehículo
             </span>
             <select
@@ -638,7 +637,9 @@ export default function TramitesPage() {
               {vehicles.map((v) => (
                 <option key={v.id} value={v.id}>
                   {v.plate}
-                  {v.brand || v.model ? ` — ${v.brand} ${v.model}`.trim() : ""}
+                  {v.brand || v.model
+                    ? ` — ${v.brand} ${v.model}`.trim()
+                    : ""}
                 </option>
               ))}
               <option value="__alta__">+ Matricular unidad nueva</option>
@@ -657,9 +658,9 @@ export default function TramitesPage() {
             ) : null}
           </label>
           {showAlta || vehicles.length === 0 ? (
-            <div className="grid grid-cols-2 gap-3 rounded-lg border border-[var(--border-subtle)] p-3">
+            <div className="grid grid-cols-2 gap-3 rounded-lg border border-brand-border p-3">
               <label className="col-span-2 block space-y-1.5">
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                <span className="font-data text-[10px] font-semibold uppercase tracking-wider text-brand-text-secondary">
                   Placa
                 </span>
                 <input
@@ -674,11 +675,11 @@ export default function TramitesPage() {
                 />
               </label>
               <label className="block space-y-1.5">
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                <span className="font-data text-[10px] font-semibold uppercase tracking-wider text-brand-text-secondary">
                   Marca
                 </span>
                 <input
-                  className="field w-full"
+                  className="field w-full font-sans"
                   data-field="skip"
                   placeholder="Chevrolet"
                   value={alta.brand}
@@ -687,11 +688,11 @@ export default function TramitesPage() {
                 />
               </label>
               <label className="block space-y-1.5">
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                <span className="font-data text-[10px] font-semibold uppercase tracking-wider text-brand-text-secondary">
                   Modelo
                 </span>
                 <input
-                  className="field w-full"
+                  className="field w-full font-sans"
                   data-field="skip"
                   placeholder="NPR"
                   value={alta.model}
@@ -700,7 +701,7 @@ export default function TramitesPage() {
                 />
               </label>
               <label className="col-span-2 block space-y-1.5">
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                <span className="font-data text-[10px] font-semibold uppercase tracking-wider text-brand-text-secondary">
                   Año
                 </span>
                 <input
@@ -714,7 +715,7 @@ export default function TramitesPage() {
             </div>
           ) : null}
           <label className="block space-y-1.5">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+            <span className="font-data text-[10px] font-semibold uppercase tracking-wider text-brand-text-secondary">
               Tipo
             </span>
             <select
@@ -730,22 +731,22 @@ export default function TramitesPage() {
             </select>
           </label>
           <label className="block space-y-1.5">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+            <span className="font-data text-[10px] font-semibold uppercase tracking-wider text-brand-text-secondary">
               Nº póliza / referencia
             </span>
             <input
-              className="field w-full"
+              className="field w-full font-data"
               data-field="skip"
               value={form.reference}
               onChange={(e) => setForm({ ...form, reference: e.target.value })}
             />
           </label>
           <label className="block space-y-1.5">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+            <span className="font-data text-[10px] font-semibold uppercase tracking-wider text-brand-text-secondary">
               Vigente hasta
             </span>
             <input
-              className="field w-full"
+              className="field w-full font-data"
               type="date"
               value={form.validTo}
               onChange={(e) => setForm({ ...form, validTo: e.target.value })}
@@ -753,11 +754,11 @@ export default function TramitesPage() {
             />
           </label>
           <label className="block space-y-1.5">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+            <span className="font-data text-[10px] font-semibold uppercase tracking-wider text-brand-text-secondary">
               Notas
             </span>
             <textarea
-              className="field w-full min-h-[72px]"
+              className="field min-h-[72px] w-full font-sans"
               data-field="notes"
               value={form.notes}
               onChange={(e) => setForm({ ...form, notes: e.target.value })}

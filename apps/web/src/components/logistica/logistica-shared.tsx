@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import dynamic from "next/dynamic";
 
@@ -9,10 +9,10 @@ const FleetMap = dynamic(
     ssr: false,
     loading: () => (
       <div
-        className="fsg-panel flex h-[320px] items-center justify-center text-sm text-[var(--brand-muted)]"
+        className="nexa-panel flex h-[320px] items-center justify-center text-sm text-[var(--brand-text-secondary)]"
         data-testid="route-map"
       >
-        Cargando mapa…
+        Cargando mapaâ€¦
       </div>
     ),
   },
@@ -131,19 +131,19 @@ export const NOVELTY_KINDS = [
 export function noveltyColor(kind: string) {
   switch (kind) {
     case "INCAPACITY":
-      return "bg-[var(--brand-signal)]/20 text-[var(--brand-signal)]";
+      return "bg-[var(--brand-danger)]/20 text-[var(--brand-danger)]";
     case "VACATION_PAID":
-      return "bg-[var(--brand-amber)]/20 text-[var(--brand-amber)]";
+      return "bg-[var(--brand-warning)]/20 text-[var(--brand-warning)]";
     case "REST":
-      return "bg-slate-500/20 text-[var(--brand-muted)]";
+      return "bg-brand-info/20 text-[var(--brand-text-secondary)]";
     case "UNJUSTIFIED_ABSENCE":
-      return "bg-red-900/40 text-[var(--brand-signal)]";
+      return "bg-brand-danger/40 text-[var(--brand-danger)]";
     case "AVAILABLE_NO_CONTRACT":
-      return "bg-cyan-500/15 text-cyan-400";
+      return "bg-brand-primary/15 text-brand-primary";
     case "ASSIGNED":
       return "bg-[var(--brand-primary)]/20 text-[var(--brand-primary)]";
     default:
-      return "bg-emerald-500/15 text-[var(--brand-primary)]";
+      return "bg-brand-success/15 text-[var(--brand-primary)]";
   }
 }
 
@@ -155,6 +155,7 @@ export function RouteMap(props: {
   live: { lat: number; lng: number } | null;
   fillHeight?: boolean;
   height?: number;
+  embedded?: boolean;
 }) {
   return (
     <FleetMap
@@ -165,13 +166,14 @@ export function RouteMap(props: {
       live={props.live}
       height={props.height ?? 320}
       fillHeight={props.fillHeight}
+      embedded={props.embedded}
     />
   );
 }
 
 export function ServerClockBadge({ clock }: { clock: string }) {
   return (
-    <div className="font-data text-right text-xs text-[var(--brand-muted)]">
+    <div className="font-data text-right text-xs text-[var(--brand-text-secondary)]">
       <div>RELOJ SERVIDOR</div>
       <div
         className="text-lg text-[var(--brand-primary)]"

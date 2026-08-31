@@ -1,11 +1,28 @@
-"use client";
+﻿"use client";
 
-import { FormEvent, useEffect, useState } from "react";
-import { Badge, Button } from "@fsg/ui";
-import { ORG_ASSIGNABLE_ROLE_GROUPS, ORG_ASSIGNABLE_ROLES, ROLE_LABELS, type Role } from "@fsg/shared";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { Button } from "@fsg/ui";
+import {
+  CORPORATE_AREA_MODULES,
+  MODULE_LABELS,
+  ORG_ASSIGNABLE_ROLE_GROUPS,
+  ORG_ASSIGNABLE_ROLES,
+  ROLE_LABELS,
+  ROLE_VIEWS,
+  type ModuleId,
+  type Role,
+} from "@fsg/shared";
+import { KeyRound, Plus, Shield, UserCheck, Users } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
-import { HowToBox, PageIntro } from "@/components/page-intro";
+import { SlideOver, StatusPulseBadge } from "@/components/audit";
+import { BentoPanel } from "@/components/nexa/bento-panel";
+import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
+import {
+  WorkbenchSearch,
+  WorkbenchTabs,
+  WorkbenchToolbar,
+} from "@/components/workbench-toolbar";
 
 type UserRow = {
   id: string;
@@ -19,11 +36,9 @@ type UserRow = {
   message?: string;
 };
 
-function RoleOptions({
-  assignable,
-}: {
-  assignable: readonly Role[];
-}) {
+const MATRIX_MODULES: ModuleId[] = CORPORATE_AREA_MODULES;
+
+function RoleOptions({ assignable }: { assignable: readonly Role[] }) {
   const allowed = new Set(assignable);
   return (
     <>
@@ -44,20 +59,40 @@ function RoleOptions({
   );
 }
 
+function userStatusBadge(u: UserRow) {
+  if (u.status === "pending") {
+    return (
+      <StatusPulseBadge tone="fatiga" pulse>
+        Pendiente
+      </StatusPulseBadge>
+    );
+  }
+  if (u.active) {
+    return <StatusPulseBadge tone="active">Activo</StatusPulseBadge>;
+  }
+  return <StatusPulseBadge tone="danger">Inactivo</StatusPulseBadge>;
+}
+
 export default function UsuariosPage() {
   const { user: me } = useAuth();
   const isMaster = me?.role === "platform_master";
   const assignable = isMaster
     ? ORG_ASSIGNABLE_ROLES
-    : ORG_ASSIGNABLE_ROLES.filter((r) => r !== "org_admin" || me?.role === "org_admin");
+    : ORG_ASSIGNABLE_ROLES.filter(
+        (r) => r !== "org_admin" || me?.role === "org_admin",
+      );
 
   const [users, setUsers] = useState<UserRow[]>([]);
+  const [tab, setTab] = useState("directorio");
+  const [search, setSearch] = useState("");
+  const [slideOpen, setSlideOpen] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<Role>("gestor_operativo");
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
+  const [busy, setBusy] = useState(false);
 
   async function load() {
     setUsers(await api<UserRow[]>("/users"));
@@ -69,10 +104,27 @@ export default function UsuariosPage() {
     );
   }, []);
 
+  const pending = users.filter((u) => u.status === "pending");
+  const activeCount = users.filter(
+    (u) => u.active && u.status !== "pending",
+  ).length;
+
+  const filteredUsers = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return users;
+    return users.filter(
+      (u) =>
+        u.name.toLowerCase().includes(q) ||
+        u.email.toLowerCase().includes(q) ||
+        (ROLE_LABELS[u.role] ?? u.role).toLowerCase().includes(q),
+    );
+  }, [users, search]);
+
   async function onCreate(e: FormEvent) {
     e.preventDefault();
     setError("");
     setInfo("");
+    setBusy(true);
     try {
       const created = await api<UserRow>("/users", {
         method: "POST",
@@ -81,6 +133,8 @@ export default function UsuariosPage() {
       setName("");
       setEmail("");
       setPassword("");
+      setRole("gestor_operativo");
+      setSlideOpen(false);
       if (created.pendingAuthorization || created.status === "pending") {
         setInfo(
           created.message ||
@@ -90,44 +144,93 @@ export default function UsuariosPage() {
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error");
+    } finally {
+      setBusy(false);
     }
   }
 
-  const pending = users.filter((u) => u.status === "pending");
-
   return (
     <div className="fade-in mx-auto max-w-[1600px] space-y-6">
-      <div>
-        <PageIntro module="usuarios" title="Directorio de accesos" />
-        <HowToBox
-          steps={[
-            "Crea usuario con email, clave y rol operativo.",
-            "Si el rol es de mando igual o superior al tuyo, queda pendiente hasta autorización.",
-            "Org admin puede modificar, resetear clave o desactivar usuarios de su empresa.",
-          ]}
-        />
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="font-sans text-lg font-semibold tracking-tight text-brand-text-primary">
+            Directorio de accesos
+          </h1>
+          <p className="mt-0.5 font-data text-[10px] uppercase tracking-[0.12em] text-brand-text-secondary">
+            RBAC · cuentas · matriz de permisos
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="primary"
+          className="w-auto px-4 py-2"
+          data-testid="usuarios-open-alta"
+          onClick={() => setSlideOpen(true)}
+        >
+          <Plus className="mr-1.5 inline h-4 w-4" aria-hidden />
+          Dar de alta
+        </Button>
+      </header>
+
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <BentoPanel title="Total" subtitle="Cuentas" icon={<Users aria-hidden />}>
+          <p className="font-data text-3xl font-bold tabular-nums text-brand-text-primary">
+            {users.length}
+          </p>
+        </BentoPanel>
+        <BentoPanel
+          title="Activos"
+          subtitle="Uplink nominal"
+          icon={<UserCheck aria-hidden />}
+        >
+          <p className="font-data text-3xl font-bold tabular-nums text-brand-success">
+            {activeCount}
+          </p>
+        </BentoPanel>
+        <BentoPanel
+          title="Pendientes"
+          subtitle="Autorización"
+          icon={<Shield aria-hidden />}
+        >
+          <p className="font-data text-3xl font-bold tabular-nums text-brand-warning">
+            {pending.length}
+          </p>
+        </BentoPanel>
+        <BentoPanel
+          title="Roles"
+          subtitle="Asignables"
+          icon={<KeyRound aria-hidden />}
+        >
+          <p className="font-data text-3xl font-bold tabular-nums text-brand-primary">
+            {assignable.length}
+          </p>
+        </BentoPanel>
       </div>
 
       {pending.length > 0 ? (
-        <div className="fsg-panel space-y-3 border-[var(--brand-amber)]/40 p-4">
-          <div className="font-display text-sm font-semibold text-[var(--brand-amber)]">
-            Altas pendientes de autorización ({pending.length})
-          </div>
+        <BentoPanel
+          title="Altas pendientes de autorización"
+          subtitle={`${pending.length} en cola`}
+          icon={<Shield aria-hidden />}
+        >
           <ul className="space-y-2">
             {pending.map((u) => (
               <li
                 key={u.id}
-                className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--brand-line)] pb-2 last:border-0"
+                className="flex flex-wrap items-center justify-between gap-2 border-b border-brand-border pb-2 last:border-0"
               >
                 <div>
-                  <div className="text-sm font-medium">{u.name}</div>
-                  <div className="font-data text-xs text-[var(--brand-mute)]">
+                  <div className="text-sm font-medium text-brand-text-primary">
+                    {u.name}
+                  </div>
+                  <div className="font-data text-xs text-brand-text-secondary">
                     {u.email} · {ROLE_LABELS[u.role] ?? u.role}
                   </div>
                 </div>
                 <div className="flex gap-2">
                   <Button
                     variant="primary"
+                    className="w-auto px-3 py-1.5 text-xs"
                     onClick={async () => {
                       await api(`/users/${u.id}/authorize`, {
                         method: "POST",
@@ -140,6 +243,7 @@ export default function UsuariosPage() {
                   </Button>
                   <Button
                     variant="ghost"
+                    className="w-auto px-3 py-1.5 text-xs"
                     onClick={async () => {
                       await api(`/users/${u.id}/authorize`, {
                         method: "POST",
@@ -154,85 +258,56 @@ export default function UsuariosPage() {
               </li>
             ))}
           </ul>
-        </div>
+        </BentoPanel>
       ) : null}
 
-      <form
-        onSubmit={onCreate}
-        className="fsg-panel grid grid-cols-1 gap-3 p-4 md:grid-cols-5"
-      >
-        <input
-          className="field"
-          placeholder="Nombre"
-          data-testid="usuarios-name"
-          data-field="personName"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-          minLength={2}
-          autoComplete="name"
+      {error ? (
+        <p className="text-sm text-brand-danger">{error}</p>
+      ) : null}
+      {info ? (
+        <p className="text-sm text-brand-warning">{info}</p>
+      ) : null}
+
+      <WorkbenchToolbar>
+        <WorkbenchTabs
+          tabs={[
+            { id: "directorio", label: "Directorio", count: users.length },
+            { id: "matriz", label: "Matriz RBAC" },
+          ]}
+          value={tab}
+          onChange={setTab}
         />
-        <input
-          className="field"
-          placeholder="Correo"
-          type="email"
-          data-testid="usuarios-email"
-          data-field="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          autoComplete="email"
-        />
-        <input
-          className="field"
-          placeholder="Clave (mín. 8)"
-          type="password"
-          data-testid="usuarios-password"
-          data-field="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          minLength={8}
-          autoComplete="new-password"
-        />
-        <select
-          className="field"
-          data-testid="usuarios-role"
-          value={role}
-          onChange={(e) => setRole(e.target.value as Role)}
+        {tab === "directorio" ? (
+          <WorkbenchSearch
+            value={search}
+            onChange={setSearch}
+            placeholder="Buscar por nombre, correo o rol…"
+          />
+        ) : null}
+      </WorkbenchToolbar>
+
+      {tab === "directorio" ? (
+        <BentoPanel
+          title="Directorio de usuarios"
+          subtitle={
+            isMaster ? "Empresa activa · cross-tenant" : "Tenant actual"
+          }
         >
-          <RoleOptions assignable={assignable} />
-        </select>
-        <Button type="submit" variant="primary" data-testid="usuarios-submit">
-          Dar de alta
-        </Button>
-      </form>
-
-      {error ? <p className="text-sm text-[var(--brand-signal)]">{error}</p> : null}
-      {info ? <p className="text-sm text-[var(--brand-amber)]">{info}</p> : null}
-
-      <div className="fsg-panel data-shell overflow-hidden">
-        <div className="border-b border-[var(--brand-line)] px-4 py-3 font-display text-sm font-semibold">
-          Directorio ({users.length})
-          {isMaster ? " · empresa activa" : ""}
-        </div>
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr>
-              <th className="px-4 py-2">Nombre</th>
-              <th className="px-4 py-2">Correo</th>
-              {isMaster ? <th className="px-4 py-2">Empresa</th> : null}
-              <th className="px-4 py-2">Rol</th>
-              <th className="px-4 py-2">Estado</th>
-              <th className="px-4 py-2" />
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((u) => (
-              <tr key={u.id} className="border-t border-[var(--brand-line)]">
-                <td className="px-4 py-2.5">
+          <NexaTable
+            columns={[
+              "Nombre",
+              "Correo",
+              ...(isMaster ? ["Empresa"] : []),
+              "Rol",
+              "Estado",
+              "Acciones",
+            ]}
+          >
+            {filteredUsers.map((u) => (
+              <NexaRow key={u.id}>
+                <NexaCell>
                   <input
-                    className="field py-1 text-xs"
+                    className="field w-full py-1 text-xs"
                     defaultValue={u.name}
                     onBlur={async (e) => {
                       if (e.target.value === u.name) return;
@@ -243,10 +318,10 @@ export default function UsuariosPage() {
                       await load();
                     }}
                   />
-                </td>
-                <td className="px-4 py-2.5">
+                </NexaCell>
+                <NexaCell mono>
                   <input
-                    className="field py-1 text-xs font-data"
+                    className="field w-full py-1 font-data text-xs"
                     type="email"
                     defaultValue={u.email}
                     onBlur={async (e) => {
@@ -258,15 +333,15 @@ export default function UsuariosPage() {
                       await load();
                     }}
                   />
-                </td>
+                </NexaCell>
                 {isMaster ? (
-                  <td className="px-4 py-2.5 font-data text-xs text-[var(--brand-mute)]">
+                  <NexaCell mono className="text-brand-text-secondary">
                     {u.organization?.name ?? "—"}
-                  </td>
+                  </NexaCell>
                 ) : null}
-                <td className="px-4 py-2.5">
+                <NexaCell>
                   <select
-                    className="field py-1 text-xs"
+                    className="field w-full py-1 text-xs"
                     value={u.role}
                     onChange={async (e) => {
                       await api(`/users/${u.id}`, {
@@ -278,30 +353,18 @@ export default function UsuariosPage() {
                   >
                     <RoleOptions assignable={assignable} />
                   </select>
-                </td>
-                <td className="px-4 py-2.5">
-                  <Badge
-                    tone={
-                      u.status === "pending"
-                        ? "amber"
-                        : u.active
-                          ? "emerald"
-                          : "rose"
-                    }
-                  >
-                    {u.status === "pending"
-                      ? "Pendiente"
-                      : u.active
-                        ? "Activo"
-                        : "Inactivo"}
-                  </Badge>
-                </td>
-                <td className="px-4 py-2.5">
+                </NexaCell>
+                <NexaCell>{userStatusBadge(u)}</NexaCell>
+                <NexaCell>
                   <div className="flex flex-wrap gap-1">
                     <Button
                       variant="ghost"
+                      className="w-auto px-2 py-1 text-xs"
                       onClick={async () => {
-                        const pwd = prompt("Nueva clave para el usuario:", "Fleet2026*");
+                        const pwd = prompt(
+                          "Nueva clave para el usuario:",
+                          "Fleet2026*",
+                        );
                         if (!pwd) return;
                         await api(`/users/${u.id}`, {
                           method: "PATCH",
@@ -314,6 +377,7 @@ export default function UsuariosPage() {
                     {u.active ? (
                       <Button
                         variant="ghost"
+                        className="w-auto px-2 py-1 text-xs"
                         onClick={async () => {
                           await api(`/users/${u.id}/deactivate`, {
                             method: "POST",
@@ -326,6 +390,7 @@ export default function UsuariosPage() {
                     ) : (
                       <Button
                         variant="ghost"
+                        className="w-auto px-2 py-1 text-xs"
                         onClick={async () => {
                           await api(`/users/${u.id}`, {
                             method: "PATCH",
@@ -341,12 +406,134 @@ export default function UsuariosPage() {
                       </Button>
                     )}
                   </div>
-                </td>
-              </tr>
+                </NexaCell>
+              </NexaRow>
             ))}
-          </tbody>
-        </table>
-      </div>
+          </NexaTable>
+        </BentoPanel>
+      ) : (
+        <BentoPanel
+          title="Matriz RBAC"
+          subtitle="Roles × áreas corporativas"
+          icon={<Shield aria-hidden />}
+        >
+          <div className="overflow-x-auto">
+            <NexaTable
+              columns={[
+                "Rol",
+                ...MATRIX_MODULES.map(
+                  (m) => MODULE_LABELS[m]?.slice(0, 8) ?? m,
+                ),
+              ]}
+            >
+              {assignable.map((r) => {
+                const views = new Set(ROLE_VIEWS[r] ?? []);
+                return (
+                  <NexaRow key={r}>
+                    <NexaCell className="min-w-[180px] text-xs font-medium">
+                      {ROLE_LABELS[r] ?? r}
+                    </NexaCell>
+                    {MATRIX_MODULES.map((m) => (
+                      <NexaCell key={m} className="text-center">
+                        {views.has(m) ? (
+                          <span
+                            className="font-data text-xs text-brand-success"
+                            aria-label="Acceso permitido"
+                          >
+                            ✓
+                          </span>
+                        ) : (
+                          <span className="font-data text-xs text-brand-text-secondary">
+                            —
+                          </span>
+                        )}
+                      </NexaCell>
+                    ))}
+                  </NexaRow>
+                );
+              })}
+            </NexaTable>
+          </div>
+        </BentoPanel>
+      )}
+
+      <SlideOver
+        open={slideOpen}
+        onClose={() => setSlideOpen(false)}
+        title="Alta de usuario"
+        description="Email, clave y rol operativo. Roles de mando igual o superior quedan en pendiente."
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-auto"
+              onClick={() => setSlideOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              form="usuarios-alta-form"
+              variant="primary"
+              className="w-auto"
+              disabled={busy}
+              data-testid="usuarios-submit"
+            >
+              Registrar acceso
+            </Button>
+          </div>
+        }
+      >
+        <form
+          id="usuarios-alta-form"
+          onSubmit={onCreate}
+          className="space-y-4"
+        >
+          <input
+            className="field"
+            placeholder="Nombre"
+            data-testid="usuarios-name"
+            data-field="personName"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+            minLength={2}
+            autoComplete="name"
+          />
+          <input
+            className="field font-data"
+            placeholder="Correo"
+            type="email"
+            data-testid="usuarios-email"
+            data-field="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            autoComplete="email"
+          />
+          <input
+            className="field"
+            placeholder="Clave (mín. 8)"
+            type="password"
+            data-testid="usuarios-password"
+            data-field="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            minLength={8}
+            autoComplete="new-password"
+          />
+          <select
+            className="field"
+            data-testid="usuarios-role"
+            value={role}
+            onChange={(e) => setRole(e.target.value as Role)}
+          >
+            <RoleOptions assignable={assignable} />
+          </select>
+        </form>
+      </SlideOver>
     </div>
   );
 }

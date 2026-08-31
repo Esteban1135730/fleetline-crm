@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Button } from "@fsg/ui";
@@ -12,15 +12,16 @@ import {
   Wallet,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { PageIntro } from "@/components/page-intro";
 import {
   EmptyState,
   KpiCard,
   SlideOver,
   StatusPulseBadge,
 } from "@/components/audit";
+import { BentoPanel } from "@/components/nexa/bento-panel";
+import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
 
-/** Cupo mensual operativo (Compras · PDF segundas). */
+/** Cupo mensual operativo (Compras Â· PDF segundas). */
 const MONTHLY_BUDGET_COP = 15_000_000;
 
 type SupplierOpt = {
@@ -82,7 +83,7 @@ function formatCop(n: number) {
   if (s.length <= 6) return `$${abs.toLocaleString("es-CO")}`;
   const head = Number(s.slice(0, -6)).toLocaleString("es-CO");
   const tail = s.slice(-6);
-  return `$${head}´${tail.slice(0, 3)}.${tail.slice(3)}`;
+  return `$${head}Â´${tail.slice(0, 3)}.${tail.slice(3)}`;
 }
 
 export default function ComprasPage() {
@@ -152,7 +153,7 @@ export default function ComprasPage() {
     const qty = Math.max(1, Number(form.quantity.replace(/\D/g, "")) || 1);
     const amount = Number(form.amount.replace(/\D/g, ""));
     if (!form.description.trim()) {
-      setFormError("Indique la descripción de la compra");
+      setFormError("Indique la descripciÃ³n de la compra");
       return;
     }
     if (!form.supplierId) {
@@ -161,7 +162,7 @@ export default function ComprasPage() {
     }
     if (selectedSupplier?.sarlaftBlocked) {
       setFormError(
-        "Hard lock SARLAFT: proveedor bloqueado — no puede emitir OC",
+        "Hard lock SARLAFT: proveedor bloqueado â€” no puede emitir OC",
       );
       return;
     }
@@ -178,7 +179,7 @@ export default function ComprasPage() {
     }
     const desc =
       qty > 1
-        ? `${form.description.trim()} · ×${qty}`
+        ? `${form.description.trim()} Â· Ã—${qty}`
         : form.description.trim();
     setBusy(true);
     try {
@@ -210,7 +211,7 @@ export default function ComprasPage() {
     e.preventDefault();
     setSupplierError("");
     if (!supplierForm.name.trim() || supplierForm.name.trim().length < 2) {
-      setSupplierError("Indique la razón social del proveedor");
+      setSupplierError("Indique la razÃ³n social del proveedor");
       return;
     }
     if (!supplierForm.nit.trim() || supplierForm.nit.trim().length < 5) {
@@ -253,42 +254,46 @@ export default function ComprasPage() {
 
   return (
     <div className="fade-in mx-auto max-w-[1600px] space-y-6">
-      <PageIntro
-        module="compras"
-        title="Compras y proveedores"
-        action={
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              className="w-auto px-3 py-2"
-              onClick={() => {
-                setSupplierError("");
-                setSupplierSlideOpen(true);
-              }}
-            >
-              <Building2 className="mr-1 h-4 w-4" />
-              Homologar proveedor
-            </Button>
-            <Button
-              type="button"
-              variant="primary"
-              className="w-auto"
-              onClick={() => {
-                setFormError("");
-                setSlideOpen(true);
-              }}
-            >
-              <Plus className="mr-1 h-4 w-4" />
-              Crear Solicitud de Compra
-            </Button>
-          </div>
-        }
-      />
+      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-brand-border pb-4">
+        <div>
+          <p className="font-data text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-primary">
+            Compras
+          </p>
+          <h1 className="font-sans text-2xl font-semibold tracking-tight text-brand-text-primary md:text-3xl">
+            Compras y proveedores
+          </h1>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-auto px-3 py-2"
+            onClick={() => {
+              setSupplierError("");
+              setSupplierSlideOpen(true);
+            }}
+          >
+            <Building2 className="mr-1 h-4 w-4" />
+            Homologar proveedor
+          </Button>
+          <Button
+            type="button"
+            variant="primary"
+            className="w-auto"
+            onClick={() => {
+              setFormError("");
+              setSlideOpen(true);
+            }}
+          >
+            <Plus className="mr-1 h-4 w-4" />
+            Crear solicitud
+          </Button>
+        </div>
+      </header>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <KpiCard
-          label="Pendientes de Aprobación"
+          label="Pendientes de AprobaciÃ³n"
           value={kpis.pending}
           tone={kpis.pending > 0 ? "warn" : "ok"}
           icon={<CheckCircle2 />}
@@ -314,14 +319,14 @@ export default function ComprasPage() {
         />
       </div>
 
-      <section className="fsg-panel overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--brand-line)] px-4 py-3">
+      <section className="nexa-panel overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--brand-border)] px-4 py-3">
           <div>
             <h2 className="font-display text-sm font-semibold">
               Directorio de proveedores
             </h2>
-            <p className="text-xs text-[var(--text-secondary)]">
-              Homologación comercial — no crea usuarios del CRM
+            <p className="text-xs text-[var(--brand-text-secondary)]">
+              HomologaciÃ³n comercial â€” no crea usuarios del CRM
             </p>
           </div>
           <Button
@@ -342,7 +347,7 @@ export default function ComprasPage() {
             <EmptyState
               icon={<Building2 className="h-7 w-7" />}
               title="Sin proveedores homologados"
-              description="Registre NIT y razón social para usarlos en órdenes de compra."
+              description="Registre NIT y razÃ³n social para usarlos en Ã³rdenes de compra."
               actionLabel="+ Homologar proveedor"
               onAction={() => {
                 setSupplierError("");
@@ -355,10 +360,10 @@ export default function ComprasPage() {
             {suppliers.map((s) => (
               <article
                 key={s.id}
-                className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-canvas)] p-4"
+                className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-canvas)] p-4"
               >
                 <div className="flex items-start justify-between gap-2">
-                  <p className="text-sm font-medium text-[var(--text-primary)]">
+                  <p className="text-sm font-medium text-[var(--brand-text-primary)]">
                     {s.name}
                   </p>
                   <StatusPulseBadge
@@ -368,17 +373,17 @@ export default function ComprasPage() {
                     {s.sarlaftBlocked ? "BLOQUEO" : "OK"}
                   </StatusPulseBadge>
                 </div>
-                <p className="mt-1 font-mono text-xs text-[var(--text-secondary)]">
+                <p className="mt-1 font-mono text-xs text-[var(--brand-text-secondary)]">
                   NIT {s.nit}
                 </p>
                 {s.email || s.phone ? (
-                  <p className="mt-1 text-xs text-[var(--text-secondary)]">
-                    {[s.email, s.phone].filter(Boolean).join(" · ")}
+                  <p className="mt-1 text-xs text-[var(--brand-text-secondary)]">
+                    {[s.email, s.phone].filter(Boolean).join(" Â· ")}
                   </p>
                 ) : null}
                 {s.productTags?.length ? (
-                  <p className="mt-2 text-[11px] text-[var(--text-secondary)]">
-                    {s.productTags.slice(0, 4).join(" · ")}
+                  <p className="mt-2 text-[11px] text-[var(--brand-text-secondary)]">
+                    {s.productTags.slice(0, 4).join(" Â· ")}
                   </p>
                 ) : null}
                 <Button
@@ -400,11 +405,11 @@ export default function ComprasPage() {
         )}
       </section>
 
-      <div className="fsg-panel data-shell overflow-hidden">
-        <div className="flex items-center justify-between border-b border-[var(--brand-line)] px-4 py-3">
-          <span className="font-display text-sm font-semibold">
-            Órdenes ({rows.length})
-          </span>
+      <BentoPanel
+        title="Órdenes de compra"
+        subtitle={`${rows.length} solicitudes`}
+        icon={<Package className="h-4 w-4" />}
+        action={
           <Button
             type="button"
             variant="primary"
@@ -415,124 +420,96 @@ export default function ComprasPage() {
             }}
           >
             <Plus className="mr-1 h-4 w-4" />
-            Crear Solicitud de Compra
+            Nueva OC
           </Button>
-        </div>
-
+        }
+      >
         {!rows.length ? (
-          <div className="p-6">
-            <EmptyState
-              icon={<Package className="h-7 w-7" />}
-              title="Sin solicitudes de compra"
-              description="Crea una OC con descripción, proveedor, cantidad y valor."
-              actionLabel="+ Crear Solicitud de Compra"
-              onAction={() => {
-                setFormError("");
-                setSlideOpen(true);
-              }}
-            />
-          </div>
+          <EmptyState
+            icon={<Package className="h-7 w-7" />}
+            title="Sin solicitudes de compra"
+            description="Crea una OC con descripción, proveedor, cantidad y valor."
+            actionLabel="+ Crear solicitud"
+            onAction={() => {
+              setFormError("");
+              setSlideOpen(true);
+            }}
+          />
         ) : (
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr>
-                <th className="px-4 py-2">Orden</th>
-                <th className="px-4 py-2">Proveedor</th>
-                <th className="px-4 py-2">Valor</th>
-                <th className="px-4 py-2">Estado</th>
-                <th className="px-4 py-2" />
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => {
-                const next = nextStatus(r.status);
-                return (
-                  <tr
-                    key={r.id}
-                    className="border-t border-[var(--brand-line)]"
-                  >
-                    <td className="px-4 py-2.5">
-                      <span className="font-data text-xs text-[var(--brand-primary)]">
-                        {r.code}
-                      </span>
-                      <div>{r.description}</div>
-                      <div className="text-[11px] text-[var(--brand-muted)]">
-                        {r.category}
-                      </div>
-                    </td>
-                    <td className="px-4 py-2.5">{r.supplier}</td>
-                    <td className="px-4 py-2.5 font-data tabular-nums">
-                      {formatCop(Number(r.amount || 0))}
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <StatusPulseBadge
-                        tone={
-                          r.status === "RECEIVED"
-                            ? "active"
-                            : r.status === "CANCELLED"
-                              ? "neutral"
-                              : r.status === "REQUESTED"
-                                ? "fatiga"
-                                : "active"
-                        }
-                        pulse={r.status === "REQUESTED"}
-                      >
-                        {STATUS_ES[r.status] || r.status}
-                      </StatusPulseBadge>
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <div className="flex flex-wrap justify-end gap-1">
-                        {next === "RECEIVED" ? (
-                          <span className="mr-2 text-[10px] text-[var(--text-secondary)]">
-                            3-Way → CxP
-                          </span>
-                        ) : null}
-                        {next ? (
-                          <Button
-                            variant="ghost"
-                            className="w-auto"
-                            onClick={async () => {
-                              await api(`/compras/orders/${r.id}/status`, {
-                                method: "PATCH",
-                                body: JSON.stringify({ status: next }),
-                              });
-                              await load();
-                            }}
-                          >
-                            → {STATUS_ES[next]}
-                          </Button>
-                        ) : null}
-                        {r.status !== "CANCELLED" &&
-                        r.status !== "RECEIVED" ? (
-                          <Button
-                            variant="ghost"
-                            className="w-auto"
-                            onClick={async () => {
-                              await api(`/compras/orders/${r.id}/status`, {
-                                method: "PATCH",
-                                body: JSON.stringify({ status: "CANCELLED" }),
-                              });
-                              await load();
-                            }}
-                          >
-                            Cancelar
-                          </Button>
-                        ) : null}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <NexaTable columns={["Orden", "Proveedor", "Valor", "Estado", ""]}>
+            {rows.map((r) => {
+              const next = nextStatus(r.status);
+              return (
+                <NexaRow key={r.id}>
+                  <NexaCell>
+                    <span className="font-data text-xs text-brand-primary">{r.code}</span>
+                    <div>{r.description}</div>
+                    <div className="text-[11px] text-brand-text-secondary">{r.category}</div>
+                  </NexaCell>
+                  <NexaCell>{r.supplier}</NexaCell>
+                  <NexaCell mono>{formatCop(Number(r.amount || 0))}</NexaCell>
+                  <NexaCell>
+                    <StatusPulseBadge
+                      tone={
+                        r.status === "RECEIVED"
+                          ? "active"
+                          : r.status === "CANCELLED"
+                            ? "neutral"
+                            : r.status === "REQUESTED"
+                              ? "fatiga"
+                              : "active"
+                      }
+                      pulse={r.status === "REQUESTED"}
+                    >
+                      {STATUS_ES[r.status] || r.status}
+                    </StatusPulseBadge>
+                  </NexaCell>
+                  <NexaCell>
+                    <div className="flex flex-wrap justify-end gap-1">
+                      {next ? (
+                        <Button
+                          variant="ghost"
+                          className="w-auto"
+                          onClick={async () => {
+                            await api(`/compras/orders/${r.id}/status`, {
+                              method: "PATCH",
+                              body: JSON.stringify({ status: next }),
+                            });
+                            await load();
+                          }}
+                        >
+                          → {STATUS_ES[next]}
+                        </Button>
+                      ) : null}
+                      {r.status !== "CANCELLED" && r.status !== "RECEIVED" ? (
+                        <Button
+                          variant="ghost"
+                          className="w-auto"
+                          onClick={async () => {
+                            await api(`/compras/orders/${r.id}/status`, {
+                              method: "PATCH",
+                              body: JSON.stringify({ status: "CANCELLED" }),
+                            });
+                            await load();
+                          }}
+                        >
+                          Cancelar
+                        </Button>
+                      ) : null}
+                    </div>
+                  </NexaCell>
+                </NexaRow>
+              );
+            })}
+          </NexaTable>
         )}
-      </div>
+      </BentoPanel>
 
       <SlideOver
         open={slideOpen}
         onClose={() => setSlideOpen(false)}
         title="Solicitud de compra"
-        description="3-Way Matching · Hard lock presupuestal activo"
+        description="3-Way Matching Â· Hard lock presupuestal activo"
         footer={
           <>
             <Button
@@ -561,31 +538,31 @@ export default function ComprasPage() {
           onSubmit={onCreate}
           className="grid gap-3"
         >
-          <div className="rounded-lg border border-[var(--border-subtle)] p-3">
+          <div className="rounded-lg border border-[var(--brand-border)] p-3">
             <div className="flex items-center justify-between text-xs">
-              <span className="font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+              <span className="font-semibold uppercase tracking-wide text-[var(--brand-text-secondary)]">
                 Impacto presupuestal
               </span>
               <span
-                className={`font-data tabular-nums ${overBudget ? "text-[var(--accent-alert)]" : "text-[var(--accent-primary)]"}`}
+                className={`font-data tabular-nums ${overBudget ? "text-[var(--brand-danger)]" : "text-[var(--brand-primary)]"}`}
               >
                 {budgetImpactPct}%
               </span>
             </div>
-            <div className="mt-2 h-2 overflow-hidden rounded-full bg-[var(--border-subtle)]">
+            <div className="mt-2 h-2 overflow-hidden rounded-full bg-[var(--brand-border)]">
               <div
-                className={`h-full transition-all duration-150 ${overBudget ? "bg-[var(--accent-alert)]" : budgetImpactPct >= 70 ? "bg-[var(--accent-metric)]" : "bg-[var(--accent-primary)]"}`}
+                className={`h-full transition-all duration-150 ${overBudget ? "bg-[var(--brand-danger)]" : budgetImpactPct >= 70 ? "bg-[var(--brand-warning)]" : "bg-[var(--brand-primary)]"}`}
                 style={{ width: `${Math.min(100, budgetImpactPct)}%` }}
               />
             </div>
-            <p className="mt-2 text-[11px] text-[var(--text-secondary)]">
-              Disponible: {formatCop(kpis.presupuestoDisponible)} · Cupo{" "}
+            <p className="mt-2 text-[11px] text-[var(--brand-text-secondary)]">
+              Disponible: {formatCop(kpis.presupuestoDisponible)} Â· Cupo{" "}
               {formatCop(MONTHLY_BUDGET_COP)}
             </p>
             {overBudget ? (
-              <p className="mt-1 flex items-center gap-1 text-xs text-[var(--accent-alert)]">
+              <p className="mt-1 flex items-center gap-1 text-xs text-[var(--brand-danger)]">
                 <ShieldAlert className="h-3.5 w-3.5" />
-                Hard lock — requiere aprobación financiera
+                Hard lock â€” requiere aprobaciÃ³n financiera
               </p>
             ) : null}
           </div>
@@ -593,13 +570,13 @@ export default function ComprasPage() {
           {formError ? (
             <p
               role="alert"
-              className="rounded border border-[var(--brand-signal)]/40 bg-[var(--brand-signal)]/10 px-3 py-2 text-sm text-[var(--brand-signal)]"
+              className="rounded border border-[var(--brand-danger)]/40 bg-[var(--brand-danger)]/10 px-3 py-2 text-sm text-[var(--brand-danger)]"
             >
               {formError}
             </p>
           ) : null}
-          <label className="text-xs text-slate-400">
-            Descripción
+          <label className="text-xs text-brand-text-secondary">
+            DescripciÃ³n
             <input
               className="field mt-1 w-full"
               data-field="text"
@@ -612,7 +589,7 @@ export default function ComprasPage() {
               required
             />
           </label>
-          <label className="text-xs text-[var(--text-secondary)]">
+          <label className="text-xs text-[var(--brand-text-secondary)]">
             Proveedor homologado
             <select
               className="field mt-1 w-full"
@@ -623,30 +600,30 @@ export default function ComprasPage() {
               }
               required
             >
-              <option value="">Seleccionar proveedor…</option>
+              <option value="">Seleccionar proveedorâ€¦</option>
               {suppliers.map((s) => (
                 <option
                   key={s.id}
                   value={s.id}
                   disabled={Boolean(s.sarlaftBlocked)}
                 >
-                  {s.name} · NIT {s.nit}
-                  {s.sarlaftBlocked ? " · SARLAFT bloqueado" : ""}
+                  {s.name} Â· NIT {s.nit}
+                  {s.sarlaftBlocked ? " Â· SARLAFT bloqueado" : ""}
                 </option>
               ))}
             </select>
             {selectedSupplier?.sarlaftBlocked ? (
-              <p className="mt-1 flex items-center gap-1 text-xs text-[var(--accent-alert)]">
+              <p className="mt-1 flex items-center gap-1 text-xs text-[var(--brand-danger)]">
                 <ShieldAlert className="h-3.5 w-3.5" />
-                Proveedor sin auditoría SARLAFT — OC bloqueada
+                Proveedor sin auditorÃ­a SARLAFT â€” OC bloqueada
               </p>
             ) : selectedSupplier ? (
-              <p className="mt-1 text-[10px] text-[var(--text-secondary)]">
-                Rating {selectedSupplier.rating.toFixed(1)}/5 · homologado
+              <p className="mt-1 text-[10px] text-[var(--brand-text-secondary)]">
+                Rating {selectedSupplier.rating.toFixed(1)}/5 Â· homologado
               </p>
             ) : suppliers.length === 0 ? (
-              <p className="mt-1 text-[10px] text-[var(--accent-metric)]">
-                Sin proveedores —{" "}
+              <p className="mt-1 text-[10px] text-[var(--brand-warning)]">
+                Sin proveedores â€”{" "}
                 <button
                   type="button"
                   className="underline underline-offset-2"
@@ -662,7 +639,7 @@ export default function ComprasPage() {
             ) : null}
           </label>
           <div className="grid grid-cols-2 gap-3">
-            <label className="text-xs text-slate-400">
+            <label className="text-xs text-brand-text-secondary">
               Cantidad
               <input
                 className="field mt-1 w-full font-data"
@@ -680,7 +657,7 @@ export default function ComprasPage() {
                 required
               />
             </label>
-            <label className="text-xs text-slate-400">
+            <label className="text-xs text-brand-text-secondary">
               Valor COP
               <input
                 className="field mt-1 w-full font-data"
@@ -701,8 +678,8 @@ export default function ComprasPage() {
               />
             </label>
           </div>
-          <label className="text-xs text-slate-400">
-            Categoría
+          <label className="text-xs text-brand-text-secondary">
+            CategorÃ­a
             <select
               className="field mt-1 w-full"
               value={form.category}
@@ -710,17 +687,17 @@ export default function ComprasPage() {
             >
               <option value="REPUESTOS">Repuestos</option>
               <option value="COMBUSTIBLE">Combustible</option>
-              <option value="PAPELERIA">Papelería</option>
+              <option value="PAPELERIA">PapelerÃ­a</option>
               <option value="SERVICIOS">Servicios</option>
               <option value="GENERAL">General</option>
             </select>
           </label>
-          <label className="text-xs text-slate-400">
+          <label className="text-xs text-brand-text-secondary">
             Solicitante (opcional)
             <input
               className="field mt-1 w-full"
               data-field="text"
-              placeholder="Área o nombre"
+              placeholder="Ãrea o nombre"
               value={form.requestedBy}
               onChange={(e) =>
                 setForm({ ...form, requestedBy: e.target.value })
@@ -766,13 +743,13 @@ export default function ComprasPage() {
           {supplierError ? (
             <p
               role="alert"
-              className="rounded border border-[var(--accent-alert)]/40 bg-[color-mix(in_srgb,var(--accent-alert)_10%,transparent)] px-3 py-2 text-sm text-[var(--accent-alert)]"
+              className="rounded border border-[var(--brand-danger)]/40 bg-[color-mix(in_srgb,var(--brand-danger)_10%,transparent)] px-3 py-2 text-sm text-[var(--brand-danger)]"
             >
               {supplierError}
             </p>
           ) : null}
-          <label className="text-xs text-[var(--text-secondary)]">
-            Razón social
+          <label className="text-xs text-[var(--brand-text-secondary)]">
+            RazÃ³n social
             <input
               className="field mt-1 w-full"
               value={supplierForm.name}
@@ -784,7 +761,7 @@ export default function ComprasPage() {
               autoFocus
             />
           </label>
-          <label className="text-xs text-[var(--text-secondary)]">
+          <label className="text-xs text-[var(--brand-text-secondary)]">
             NIT
             <input
               className="field mt-1 w-full font-mono"
@@ -797,7 +774,7 @@ export default function ComprasPage() {
             />
           </label>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <label className="text-xs text-[var(--text-secondary)]">
+            <label className="text-xs text-[var(--brand-text-secondary)]">
               Correo
               <input
                 className="field mt-1 w-full"
@@ -809,8 +786,8 @@ export default function ComprasPage() {
                 placeholder="ventas@proveedor.com"
               />
             </label>
-            <label className="text-xs text-[var(--text-secondary)]">
-              Teléfono
+            <label className="text-xs text-[var(--brand-text-secondary)]">
+              TelÃ©fono
               <input
                 className="field mt-1 w-full font-mono"
                 value={supplierForm.phone}
@@ -821,8 +798,8 @@ export default function ComprasPage() {
               />
             </label>
           </div>
-          <label className="text-xs text-[var(--text-secondary)]">
-            Categorías / tags (separados por coma)
+          <label className="text-xs text-[var(--brand-text-secondary)]">
+            CategorÃ­as / tags (separados por coma)
             <input
               className="field mt-1 w-full"
               value={supplierForm.productTags}
@@ -836,7 +813,7 @@ export default function ComprasPage() {
             />
           </label>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <label className="text-xs text-[var(--text-secondary)]">
+            <label className="text-xs text-[var(--brand-text-secondary)]">
               Banco (opcional)
               <input
                 className="field mt-1 w-full"
@@ -846,7 +823,7 @@ export default function ComprasPage() {
                 }
               />
             </label>
-            <label className="text-xs text-[var(--text-secondary)]">
+            <label className="text-xs text-[var(--brand-text-secondary)]">
               Cuenta (opcional)
               <input
                 className="field mt-1 w-full font-mono"

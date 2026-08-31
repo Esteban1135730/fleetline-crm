@@ -94,7 +94,7 @@ export function EmployeeExcelPanel({ open, onClose, onImported }: Props) {
       );
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Exportación fallida");
+      setError(e instanceof Error ? e.message : "ExportaciÃ³n fallida");
     } finally {
       setBusy(false);
     }
@@ -138,7 +138,7 @@ export function EmployeeExcelPanel({ open, onClose, onImported }: Props) {
       setImportResult(result);
       onImported?.();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Importación fallida");
+      setError(e instanceof Error ? e.message : "ImportaciÃ³n fallida");
     } finally {
       setBusy(false);
     }
@@ -148,7 +148,7 @@ export function EmployeeExcelPanel({ open, onClose, onImported }: Props) {
     <Modal
       open={open}
       onClose={onClose}
-      title="Excel · Personal RRHH"
+      title="Excel Â· Personal RRHH"
       size="lg"
     >
       <div className="space-y-4">
@@ -157,8 +157,8 @@ export function EmployeeExcelPanel({ open, onClose, onImported }: Props) {
             type="button"
             className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${
               mode === "export"
-                ? "bg-[var(--accent-primary)] text-[var(--brand-primary-fg)]"
-                : "border border-[var(--border-subtle)] text-[var(--text-secondary)]"
+                ? "bg-[var(--brand-primary)] text-[var(--brand-primary-fg)]"
+                : "border border-[var(--brand-border)] text-[var(--brand-text-secondary)]"
             }`}
             onClick={() => setMode("export")}
           >
@@ -168,8 +168,8 @@ export function EmployeeExcelPanel({ open, onClose, onImported }: Props) {
             type="button"
             className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${
               mode === "import"
-                ? "bg-[var(--accent-primary)] text-[var(--brand-primary-fg)]"
-                : "border border-[var(--border-subtle)] text-[var(--text-secondary)]"
+                ? "bg-[var(--brand-primary)] text-[var(--brand-primary-fg)]"
+                : "border border-[var(--brand-border)] text-[var(--brand-text-secondary)]"
             }`}
             onClick={() => setMode("import")}
           >
@@ -178,14 +178,14 @@ export function EmployeeExcelPanel({ open, onClose, onImported }: Props) {
         </div>
 
         {error ? (
-          <p className="rounded-lg border border-[var(--accent-alert)]/40 bg-[color-mix(in_srgb,var(--accent-alert)_10%,transparent)] px-3 py-2 text-sm text-[var(--accent-alert)]">
+          <p className="rounded-lg border border-[var(--brand-danger)]/40 bg-[color-mix(in_srgb,var(--brand-danger)_10%,transparent)] px-3 py-2 text-sm text-[var(--brand-danger)]">
             {error}
           </p>
         ) : null}
 
         {mode === "export" ? (
           <>
-            <p className="text-sm text-[var(--text-secondary)]">
+            <p className="text-sm text-[var(--brand-text-secondary)]">
               Marque las columnas a incluir en el archivo Excel.
             </p>
             <div className="flex flex-wrap gap-2">
@@ -223,15 +223,15 @@ export function EmployeeExcelPanel({ open, onClose, onImported }: Props) {
                 return (
                   <section
                     key={group}
-                    className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-3"
+                    className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-3"
                   >
                     <div className="mb-2 flex items-center justify-between gap-2">
-                      <h4 className="text-xs font-semibold uppercase tracking-wide text-[var(--accent-primary)]">
+                      <h4 className="text-xs font-semibold uppercase tracking-wide text-[var(--brand-primary)]">
                         {RRHH_EXCEL_GROUP_LABELS[group]}
                       </h4>
                       <button
                         type="button"
-                        className="text-[11px] text-[var(--text-secondary)] underline"
+                        className="text-[11px] text-[var(--brand-text-secondary)] underline"
                         onClick={() => selectGroup(group, !allOn)}
                       >
                         {allOn ? "Quitar grupo" : "Marcar grupo"}
@@ -240,17 +240,17 @@ export function EmployeeExcelPanel({ open, onClose, onImported }: Props) {
                     <ul className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
                       {cols.map((col) => (
                         <li key={col.key}>
-                          <label className="flex cursor-pointer items-center gap-2 text-sm text-[var(--text-primary)]">
+                          <label className="flex cursor-pointer items-center gap-2 text-sm text-[var(--brand-text-primary)]">
                             <input
                               type="checkbox"
-                              className="h-4 w-4 accent-[var(--accent-primary)]"
+                              className="h-4 w-4 accent-[var(--brand-primary)]"
                               checked={selected.has(col.key)}
                               onChange={() => toggle(col.key)}
                             />
                             <span>
                               {col.label}
                               {col.exportOnly ? (
-                                <span className="ml-1 text-[10px] text-[var(--text-secondary)]">
+                                <span className="ml-1 text-[10px] text-[var(--brand-text-secondary)]">
                                   (solo lectura)
                                 </span>
                               ) : null}
@@ -288,8 +288,8 @@ export function EmployeeExcelPanel({ open, onClose, onImported }: Props) {
           </>
         ) : (
           <>
-            <p className="text-sm text-[var(--text-secondary)]">
-              Suba un Excel con encabezados en español. Si el documento ya
+            <p className="text-sm text-[var(--brand-text-secondary)]">
+              Suba un Excel con encabezados en espaÃ±ol. Si el documento ya
               existe se actualiza; si no, se crea expediente + usuario (requiere
               correo).
             </p>
@@ -303,9 +303,9 @@ export function EmployeeExcelPanel({ open, onClose, onImported }: Props) {
               >
                 Descargar plantilla
               </Button>
-              <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] px-4 py-2 text-sm font-semibold text-[var(--text-primary)] hover:border-[var(--accent-primary)]">
+              <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-4 py-2 text-sm font-semibold text-[var(--brand-text-primary)] hover:border-[var(--brand-primary)]">
                 <Upload className="h-4 w-4" aria-hidden />
-                {busy ? "Procesando…" : "Elegir archivo .xlsx"}
+                {busy ? "Procesandoâ€¦" : "Elegir archivo .xlsx"}
                 <input
                   type="file"
                   accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -321,14 +321,14 @@ export function EmployeeExcelPanel({ open, onClose, onImported }: Props) {
             </div>
 
             {importResult ? (
-              <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-3 text-sm">
-                <p className="font-semibold text-[var(--text-primary)]">
-                  Resultado: {importResult.created} creados ·{" "}
-                  {importResult.updated} actualizados · {importResult.skipped}{" "}
-                  vacíos
+              <div className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-3 text-sm">
+                <p className="font-semibold text-[var(--brand-text-primary)]">
+                  Resultado: {importResult.created} creados Â·{" "}
+                  {importResult.updated} actualizados Â· {importResult.skipped}{" "}
+                  vacÃ­os
                 </p>
                 {importResult.errors.length ? (
-                  <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto font-mono text-xs text-[var(--accent-alert)]">
+                  <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto font-mono text-xs text-[var(--brand-danger)]">
                     {importResult.errors.slice(0, 40).map((err) => (
                       <li key={`${err.row}-${err.message}`}>
                         Fila {err.row}: {err.message}
@@ -336,7 +336,7 @@ export function EmployeeExcelPanel({ open, onClose, onImported }: Props) {
                     ))}
                   </ul>
                 ) : (
-                  <p className="mt-1 text-[var(--text-secondary)]">
+                  <p className="mt-1 text-[var(--brand-text-secondary)]">
                     Sin errores de fila.
                   </p>
                 )}

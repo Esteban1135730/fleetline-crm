@@ -1,6 +1,6 @@
 import type { Role } from "@fsg/shared";
 
-/** Roles operativos del nodo Inretrans (alias de dominio + API). */
+/** Roles operativos del nodo NEXA (alias de dominio + API). */
 export type UserRole = Role;
 
 export type SystemStatus = "NOMINAL" | "ALERT" | "OFFLINE";
@@ -38,7 +38,7 @@ export class AuthNodeError extends Error {
 }
 
 export const AUTH_COPY = {
-  brandOs: "INRETRANS OS",
+  brandOs: "NEXA OS",
   engineVersion: "MOTOR DE TELEMETRÍA V2.4",
   accessTitle: "ACCESO A TORRE DE CONTROL",
   accessSubtitle: "Autenticación para flota y telemetría en vivo.",

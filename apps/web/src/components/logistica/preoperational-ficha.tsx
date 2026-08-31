@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { Badge } from "@fsg/ui";
 import {
@@ -21,11 +21,11 @@ export function PreoperationalFicha({
   if (!at || !checklist) {
     return (
       <div className="space-y-3 text-sm">
-        <p className="font-data text-[10px] uppercase tracking-[0.14em] text-[var(--accent-metric)]">
-          Ficha preoperacional · {tripCode}
+        <p className="font-data text-[10px] uppercase tracking-[0.14em] text-[var(--brand-warning)]">
+          Ficha preoperacional Â· {tripCode}
         </p>
-        <p className="text-[var(--text-secondary)]">
-          Sin inspección registrada. El conductor debe firmar el checklist
+        <p className="text-[var(--brand-text-secondary)]">
+          Sin inspecciÃ³n registrada. El conductor debe firmar el checklist
           desde la app antes de iniciar ruta o transmitir GPS.
         </p>
       </div>
@@ -40,14 +40,14 @@ export function PreoperationalFicha({
   return (
     <div className="space-y-4 text-sm">
       <div>
-        <p className="font-data text-[10px] uppercase tracking-[0.14em] text-[var(--accent-primary)]">
-          Ficha preoperacional · {tripCode}
+        <p className="font-data text-[10px] uppercase tracking-[0.14em] text-[var(--brand-primary)]">
+          Ficha preoperacional Â· {tripCode}
         </p>
         <p
-          className="mt-2 font-data text-xs text-[var(--text-primary)]"
+          className="mt-2 font-data text-xs text-[var(--brand-text-primary)]"
           title={`Preoperacional validado por el conductor a las ${timeLabel}`}
         >
-          Sellado · {timeLabel}
+          Sellado Â· {timeLabel}
         </p>
       </div>
 
@@ -57,14 +57,14 @@ export function PreoperationalFicha({
           return (
             <li
               key={item.key}
-              className="flex items-center justify-between gap-2 rounded-lg border border-[var(--border-subtle)] px-3 py-2"
+              className="flex items-center justify-between gap-2 rounded-lg border border-[var(--brand-border)] px-3 py-2"
             >
-              <span className="text-[var(--text-primary)]">{item.label}</span>
+              <span className="text-[var(--brand-text-primary)]">{item.label}</span>
               <Badge
-                tone={ok ? "emerald" : "rose"}
+                tone={ok ? "success" : "danger"}
                 title={
                   ok
-                    ? `${item.label}: APTO — validado por el conductor`
+                    ? `${item.label}: APTO â€” validado por el conductor`
                     : `${item.label}: NO APTO`
                 }
               >
@@ -77,10 +77,10 @@ export function PreoperationalFicha({
 
       {checklist.observaciones ? (
         <div>
-          <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--text-secondary)]">
+          <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--brand-text-secondary)]">
             Observaciones
           </p>
-          <p className="text-[var(--text-primary)]">{checklist.observaciones}</p>
+          <p className="text-[var(--brand-text-primary)]">{checklist.observaciones}</p>
         </div>
       ) : null}
     </div>

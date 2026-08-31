@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
@@ -28,7 +28,6 @@ import {
 } from "recharts";
 import { api } from "@/lib/api";
 import { statusEs } from "@fsg/shared";
-import { PageIntro } from "@/components/page-intro";
 import { Can } from "@/lib/permissions";
 import {
   EmptyState,
@@ -36,6 +35,8 @@ import {
   SlideOver,
   StatusPulseBadge,
 } from "@/components/audit";
+import { BentoPanel } from "@/components/nexa/bento-panel";
+import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
 
 type Semaphore = "GREEN" | "AMBER" | "RED";
 
@@ -103,9 +104,9 @@ type SystemLog = {
 type CpuPoint = { time: string; load: number };
 
 const SEM_CLASS: Record<Semaphore, string> = {
-  GREEN: "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.45)]",
-  AMBER: "bg-amber-500 shadow-[0_0_8px_rgba(255,184,0,0.4)]",
-  RED: "bg-rose-500 shadow-[0_0_8px_rgba(255,42,95,0.45)]",
+  GREEN: "bg-brand-success shadow-brand-glow-success",
+  AMBER: "bg-brand-warning shadow-brand-glow-warning",
+  RED: "bg-brand-danger shadow-brand-glow-danger",
 };
 
 function Semaforo({
@@ -120,10 +121,10 @@ function Semaforo({
   const isCritical = critical && s === "RED";
   return (
     <div
-      className={`flex items-center gap-2 rounded-lg border bg-[var(--bg-surface)] px-3 py-2 transition duration-150 ${
+      className={`flex items-center gap-2 rounded-lg border bg-brand-surface px-3 py-2 transition duration-150 ${
         isCritical
-          ? "animate-pulse border-rose-500 shadow-[0_0_16px_rgba(255,42,95,0.55)]"
-          : "border-[var(--border-subtle)]"
+          ? "animate-pulse border-brand-danger shadow-brand-glow-danger-strong"
+          : "border-[var(--brand-border)]"
       }`}
     >
       <span
@@ -134,8 +135,8 @@ function Semaforo({
         <p
           className={`truncate text-xs ${
             isCritical
-              ? "font-semibold text-rose-300"
-              : "text-[var(--text-secondary)]"
+              ? "font-semibold text-brand-danger"
+              : "text-[var(--brand-text-secondary)]"
           }`}
         >
           {label}
@@ -201,7 +202,7 @@ export default function TiDashboardPage() {
         return next.slice(-12);
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Conexión de TI fallida");
+      setError(e instanceof Error ? e.message : "ConexiÃƒÂ³n de TI fallida");
     }
   }, []);
 
@@ -228,7 +229,7 @@ export default function TiDashboardPage() {
       );
       setOnboardUrl(res.onboardingUrl);
       setInfo(
-        `Enlace de un solo uso generado · expira ${formatSession(res.expiresAt)}`,
+        `Enlace de un solo uso generado Ã‚Â· expira ${formatSession(res.expiresAt)}`,
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error en alta de usuario");
@@ -251,7 +252,7 @@ export default function TiDashboardPage() {
       setPairCode(res.pairCode);
       setMdmOpen(true);
       setInfo(
-        `MDM Kiosk-Mode · código ${res.pairCode} · expira ${formatSession(res.expiresAt)}`,
+        `MDM Kiosk-Mode Ã‚Â· cÃƒÂ³digo ${res.pairCode} Ã‚Â· expira ${formatSession(res.expiresAt)}`,
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error de emparejamiento");
@@ -259,7 +260,7 @@ export default function TiDashboardPage() {
   }
 
   function onRotateSecrets() {
-    setInfo("Secrets rotados en staging · tokens de sesión invalidados");
+    setInfo("Secrets rotados en staging Ã‚Â· tokens de sesiÃƒÂ³n invalidados");
   }
 
   const infraIcon = (name: string) => {
@@ -280,50 +281,53 @@ export default function TiDashboardPage() {
 
   return (
     <div className="fade-in mx-auto max-w-[1600px] space-y-6">
-      <PageIntro
-        module="tecnologia_ti"
-        title="NOC · Autonomous Core"
-        subtitle="Self-healing Kubernetes cluster · zero-trust activo"
-        action={
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              className="w-auto border border-[var(--brand-line)]"
-              onClick={onRotateSecrets}
-            >
-              <ShieldCheck className="mr-1.5 inline h-4 w-4 text-[var(--accent-primary)]" aria-hidden />
-              Rotar secrets (staging)
+      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-brand-border pb-4">
+        <div>
+          <p className="font-data text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-primary">
+            Tecnología · TI
+          </p>
+          <h1 className="font-sans text-2xl font-semibold tracking-tight text-brand-text-primary md:text-3xl">
+            NOC · Autonomous Core
+          </h1>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            className="w-auto border border-brand-border"
+            onClick={onRotateSecrets}
+          >
+            <ShieldCheck className="mr-1.5 inline h-4 w-4 text-brand-primary" aria-hidden />
+            Rotar secrets (staging)
+          </Button>
+          <Can on="integraciones" perform="CREATE">
+            <Button type="button" variant="primary" className="w-auto" onClick={() => void onMdmQr()}>
+              <Smartphone className="mr-1.5 inline h-4 w-4" aria-hidden />
+              MDM Provisioning (QR)
             </Button>
-            <Can on="integraciones" perform="CREATE">
-              <Button type="button" variant="primary" className="w-auto" onClick={() => void onMdmQr()}>
-                <Smartphone className="mr-1.5 inline h-4 w-4" aria-hidden />
-                MDM Provisioning (QR)
-              </Button>
-            </Can>
-          </div>
-        }
-      />
+          </Can>
+        </div>
+      </header>
 
       {selfHealed ? (
-        <div className="flex items-start gap-3 rounded-lg border border-[var(--accent-primary)]/40 bg-[var(--accent-primary)]/10 px-4 py-3">
-          <Activity className="mt-0.5 h-5 w-5 text-[var(--accent-primary)]" aria-hidden />
+        <div className="flex items-start gap-3 rounded-lg border border-[var(--brand-primary)]/40 bg-[var(--brand-primary)]/10 px-4 py-3">
+          <Activity className="mt-0.5 h-5 w-5 text-[var(--brand-primary)]" aria-hidden />
           <div>
-            <p className="text-sm font-semibold">Auto-scaling mitigó saturación de CPU</p>
-            <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
-              HPA inyectó capacidad · Kafka rebalanceado · crisis resuelta sin intervención humana
+            <p className="text-sm font-semibold">Auto-scaling mitigÃƒÂ³ saturaciÃƒÂ³n de CPU</p>
+            <p className="mt-0.5 text-xs text-[var(--brand-text-secondary)]">
+              HPA inyectÃƒÂ³ capacidad Ã‚Â· Kafka rebalanceado Ã‚Â· crisis resuelta sin intervenciÃƒÂ³n humana
             </p>
           </div>
         </div>
       ) : null}
 
       {error ? (
-        <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-300">
+        <p className="rounded-lg border border-brand-danger/30 bg-brand-danger/10 px-3 py-2 text-sm text-brand-danger">
           {error}
         </p>
       ) : null}
       {info ? (
-        <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-300">
+        <p className="rounded-lg border border-brand-success/30 bg-brand-success/10 px-3 py-2 text-sm text-brand-success">
           {info}
         </p>
       ) : null}
@@ -335,7 +339,7 @@ export default function TiDashboardPage() {
               <KpiCard
                 label="CPU cluster"
                 value={`${health.server.cpu.pct}%`}
-                delta={`Mem ${health.server.memory.pct}% · ${health.server.memory.rssMb} MB`}
+                delta={`Mem ${health.server.memory.pct}% Ã‚Â· ${health.server.memory.rssMb} MB`}
                 tone={health.server.cpu.semaphore === "RED" ? "danger" : health.server.cpu.semaphore === "AMBER" ? "warn" : "ok"}
                 icon={<Cpu className="h-5 w-5" aria-hidden />}
               />
@@ -370,21 +374,21 @@ export default function TiDashboardPage() {
                     key={s.name}
                     className={`col-span-2 rounded-xl border p-3 ${
                       degraded
-                        ? "border-amber-500/40 bg-amber-500/5"
-                        : "border-[var(--border-subtle)] bg-[var(--bg-surface)]"
+                        ? "border-brand-warning/40 bg-brand-warning/5"
+                        : "border-[var(--brand-border)] bg-brand-surface"
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div>
-                        <h4 className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">
+                        <h4 className="text-[10px] font-bold uppercase tracking-wider text-[var(--brand-text-secondary)]">
                           {s.name}
                         </h4>
                         <p className="mt-1 font-mono text-sm font-bold">
                           {statusEs(s.status)}
-                          {typeof s.latencyMs === "number" ? ` · ${s.latencyMs}ms` : ""}
+                          {typeof s.latencyMs === "number" ? ` Ã‚Â· ${s.latencyMs}ms` : ""}
                         </p>
                       </div>
-                      <Icon className={`h-6 w-6 ${degraded ? "text-amber-500" : "text-[var(--text-secondary)]"}`} aria-hidden />
+                      <Icon className={`h-6 w-6 ${degraded ? "text-brand-warning" : "text-[var(--brand-text-secondary)]"}`} aria-hidden />
                     </div>
                   </div>
                 );
@@ -392,11 +396,11 @@ export default function TiDashboardPage() {
             </div>
 
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-              <div className="fsg-panel p-4 lg:col-span-7">
+              <div className="nexa-panel p-4 lg:col-span-7">
                 <div className="mb-4 flex items-center justify-between">
                   <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider">
-                    <Cpu className="h-4 w-4 text-cyan-400" aria-hidden />
-                    Cómputo distribuido (K8s HPA)
+                    <Cpu className="h-4 w-4 text-brand-primary" aria-hidden />
+                    CÃƒÂ³mputo distribuido (K8s HPA)
                   </h3>
                   <StatusPulseBadge tone="active" pulse>
                     Monitoring
@@ -408,36 +412,36 @@ export default function TiDashboardPage() {
                       <AreaChart data={cpuHistory}>
                         <defs>
                           <linearGradient id="cpuFill" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#22d3ee" stopOpacity={0.35} />
-                            <stop offset="100%" stopColor="#22d3ee" stopOpacity={0} />
+                            <stop offset="0%" stopColor="var(--brand-primary)" stopOpacity={0.35} />
+                            <stop offset="100%" stopColor="var(--brand-primary)" stopOpacity={0} />
                           </linearGradient>
                         </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--brand-chart-grid)" />
                         <XAxis dataKey="time" tick={{ fontSize: 10 }} />
                         <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} unit="%" />
                         <Tooltip formatter={(v: number) => [`${v}%`, "CPU"]} />
-                        <Area type="monotone" dataKey="load" stroke="#22d3ee" fill="url(#cpuFill)" strokeWidth={2} />
+                        <Area type="monotone" dataKey="load" stroke="var(--brand-primary)" fill="url(#cpuFill)" strokeWidth={2} />
                       </AreaChart>
                     </ResponsiveContainer>
                   ) : (
-                    <p className="text-sm text-[var(--text-secondary)]">Acumulando telemetría…</p>
+                    <p className="text-sm text-[var(--brand-text-secondary)]">Acumulando telemetrÃƒÂ­aÃ¢â‚¬Â¦</p>
                   )}
                 </div>
               </div>
 
-              <div className="fsg-panel flex flex-col overflow-hidden lg:col-span-5">
-                <header className="flex items-center gap-2 border-b border-[var(--brand-line)] px-4 py-3">
-                  <Terminal className="h-4 w-4 text-[var(--accent-primary)]" aria-hidden />
-                  <h3 className="text-xs font-semibold uppercase tracking-wider">Terminal · eventos NOC</h3>
+              <div className="nexa-panel flex flex-col overflow-hidden lg:col-span-5">
+                <header className="flex items-center gap-2 border-b border-[var(--brand-border)] px-4 py-3">
+                  <Terminal className="h-4 w-4 text-[var(--brand-primary)]" aria-hidden />
+                  <h3 className="text-xs font-semibold uppercase tracking-wider">Terminal Ã‚Â· eventos NOC</h3>
                 </header>
                 <div className="max-h-[260px] flex-1 overflow-y-auto p-3 font-mono text-[11px]">
                   {logs.length === 0 ? (
-                    <p className="text-[var(--text-secondary)]">Sin eventos recientes.</p>
+                    <p className="text-[var(--brand-text-secondary)]">Sin eventos recientes.</p>
                   ) : (
                     logs.map((l) => (
-                      <p key={l.id} className="mb-1.5 text-[var(--text-secondary)]">
-                        <span className="text-[var(--accent-primary)]">[{l.level}]</span>{" "}
-                        {new Date(l.createdAt).toLocaleTimeString("es-CO")} · {l.source} — {l.message}
+                      <p key={l.id} className="mb-1.5 text-[var(--brand-text-secondary)]">
+                        <span className="text-[var(--brand-primary)]">[{l.level}]</span>{" "}
+                        {new Date(l.createdAt).toLocaleTimeString("es-CO")} Ã‚Â· {l.source} Ã¢â‚¬â€ {l.message}
                       </p>
                     ))
                   )}
@@ -445,18 +449,18 @@ export default function TiDashboardPage() {
               </div>
             </div>
 
-            <p className="font-mono text-xs text-[var(--text-secondary)]">
-              Check {formatSession(health.checkedAt)} · DLQ {health.dlqPending}
+            <p className="font-mono text-xs text-[var(--brand-text-secondary)]">
+              Check {formatSession(health.checkedAt)} Ã‚Â· DLQ {health.dlqPending}
             </p>
           </>
         ) : (
-          <p className="text-sm text-[var(--text-secondary)]">Sincronizando telemetría…</p>
+          <p className="text-sm text-[var(--brand-text-secondary)]">Sincronizando telemetrÃƒÂ­aÃ¢â‚¬Â¦</p>
         )}
       </section>
 
-      <section className="rounded-xl border border-slate-800 bg-zinc-900/80 p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
-        <h2 className="mb-3 font-display text-sm font-semibold text-[var(--text-primary)]">
-          Acciones Rápidas de Acceso
+      <section className="rounded-xl border border-brand-border bg-brand-surface/80 p-4 shadow-[var(--brand-shadow-inset)]">
+        <h2 className="mb-3 font-display text-sm font-semibold text-[var(--brand-text-primary)]">
+          Acciones RÃƒÂ¡pidas de Acceso
         </h2>
         <div className="flex flex-col gap-4">
           <div className="flex flex-wrap items-end gap-2">
@@ -466,15 +470,15 @@ export default function TiDashboardPage() {
                 className="flex flex-wrap items-end gap-2"
               >
                 <div className="relative min-w-[220px] flex-1">
-                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-brand-text-secondary">
                     Correo
                   </label>
                   <Mail
-                    className="pointer-events-none absolute bottom-2.5 left-3 h-4 w-4 text-slate-500"
+                    className="pointer-events-none absolute bottom-2.5 left-3 h-4 w-4 text-brand-text-secondary"
                     aria-hidden
                   />
                   <input
-                    className="w-full rounded-lg border border-[var(--border-subtle)] bg-transparent py-2 pl-9 pr-3 text-sm"
+                    className="w-full rounded-lg border border-[var(--brand-border)] bg-transparent py-2 pl-9 pr-3 text-sm"
                     placeholder="correo del nuevo usuario"
                     type="email"
                     required
@@ -484,11 +488,11 @@ export default function TiDashboardPage() {
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-brand-text-secondary">
                     Rol
                   </label>
                   <select
-                    className="rounded-lg border border-[var(--border-subtle)] bg-transparent px-3 py-2 text-sm"
+                    className="rounded-lg border border-[var(--brand-border)] bg-transparent px-3 py-2 text-sm"
                     value={onboardRole}
                     onChange={(e) => setOnboardRole(e.target.value)}
                   >
@@ -509,7 +513,7 @@ export default function TiDashboardPage() {
               <Button
                 type="button"
                 variant="ghost"
-                className="w-auto border border-slate-600 px-4 py-2"
+                className="w-auto border border-brand-border px-4 py-2"
                 onClick={() => void onMdmQr()}
               >
                 <QrCode className="mr-1.5 inline h-4 w-4" aria-hidden />
@@ -518,7 +522,7 @@ export default function TiDashboardPage() {
             </Can>
           </div>
           {onboardUrl ? (
-            <p className="break-all font-mono text-xs text-[var(--text-secondary)]">
+            <p className="break-all font-mono text-xs text-[var(--brand-text-secondary)]">
               {onboardUrl}
             </p>
           ) : null}
@@ -528,8 +532,8 @@ export default function TiDashboardPage() {
       <SlideOver
         open={mdmOpen}
         onClose={() => setMdmOpen(false)}
-        title="MDM · Provisioning Kiosk-Mode"
-        description="Escaneo QR · fleetline-mdm:// · VPN túnel directo"
+        title="MDM Ã‚Â· Provisioning Kiosk-Mode"
+        description="Escaneo QR · nexa-mdm:// · VPN túnel directo"
         widthClass="max-w-md"
         footer={
           <Button type="button" variant="ghost" className="w-auto" onClick={() => setMdmOpen(false)}>
@@ -538,99 +542,69 @@ export default function TiDashboardPage() {
         }
       >
         <div className="space-y-4">
-          <div className="rounded-lg border border-[var(--brand-line)] bg-[var(--bg-surface)] p-4 text-center">
-            <QrCode className="mx-auto h-16 w-16 text-cyan-400" aria-hidden />
-            <p className="mt-3 font-mono text-lg font-bold tracking-widest">{pairCode || "——"}</p>
-            <p className="mt-1 text-xs text-[var(--text-secondary)]">Código de emparejamiento</p>
+          <div className="rounded-lg border border-[var(--brand-border)] bg-brand-surface p-4 text-center">
+            <QrCode className="mx-auto h-16 w-16 text-brand-primary" aria-hidden />
+            <p className="mt-3 font-mono text-lg font-bold tracking-widest">{pairCode || "Ã¢â‚¬â€Ã¢â‚¬â€"}</p>
+            <p className="mt-1 text-xs text-[var(--brand-text-secondary)]">CÃƒÂ³digo de emparejamiento</p>
           </div>
           {qrPayload ? (
-            <div className="rounded-lg border border-[var(--brand-line)] p-3">
-              <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
+            <div className="rounded-lg border border-[var(--brand-border)] p-3">
+              <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--brand-text-secondary)]">
                 Payload encriptado
               </p>
-              <p className="break-all font-mono text-[10px] text-[var(--accent-primary)]">{qrPayload}</p>
+              <p className="break-all font-mono text-[10px] text-[var(--brand-primary)]">{qrPayload}</p>
             </div>
           ) : null}
-          <p className="text-xs text-[var(--text-secondary)]">
-            Al escanear, la tablet entra en modo quiosco, bloquea apps externas y levanta túnel VPN a la flota.
+          <p className="text-xs text-[var(--brand-text-secondary)]">
+            Al escanear, la tablet entra en modo quiosco, bloquea apps externas y levanta tÃƒÂºnel VPN a la flota.
           </p>
         </div>
       </SlideOver>
 
       <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
-        <section id="usuarios" className="space-y-3">
-          <h2 className="font-display text-sm font-semibold text-[var(--text-primary)]">
-            Usuarios de la organización
-          </h2>
+        <BentoPanel id="usuarios" title="Usuarios de la organización" icon={<UserPlus className="h-4 w-4" />}>
           {!users.length ? (
             <EmptyState
               icon={<UserPlus className="h-7 w-7" />}
               title="Sin usuarios en la red"
-              description="Genere un enlace de alta desde Acciones rápidas."
+              description="Genere un enlace de alta desde Acciones rÃƒÂ¡pidas."
             />
           ) : (
-            <div className="overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[640px] text-left text-sm">
-                  <thead className="border-b border-[var(--border-subtle)] text-xs uppercase tracking-wide text-[var(--text-secondary)]">
-                    <tr>
-                      <th className="px-3 py-2 font-medium">Usuario</th>
-                      <th className="px-3 py-2 font-medium">Rol</th>
-                      <th className="px-3 py-2 font-medium">Estado</th>
-                      <th className="px-3 py-2 font-medium">Última sesión</th>
-                      <th className="px-3 py-2 font-medium">IP</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {users.map((u) => (
-                      <tr
-                        key={u.id}
-                        className="border-b border-[var(--border-subtle)]/60 last:border-0"
-                      >
-                        <td className="px-3 py-2">
-                          <p className="text-[var(--text-primary)]">{u.name}</p>
-                          <p className="font-mono text-xs text-[var(--text-secondary)]">
-                            {u.email}
-                          </p>
-                        </td>
-                        <td className="px-3 py-2 font-mono text-xs">{u.role}</td>
-                        <td className="px-3 py-2">
-                          <StatusPulseBadge
-                            tone={
-                              u.status === "active" && u.active
-                                ? "active"
-                                : u.status === "pending"
-                                  ? "fatiga"
-                                  : "neutral"
-                            }
-                            pulse={u.status === "pending"}
-                          >
-                            {statusEs(u.status)}
-                          </StatusPulseBadge>
-                        </td>
-                        <td className="px-3 py-2 font-mono text-xs">
-                          {formatSession(u.lastSessionAt)}
-                        </td>
-                        <td className="px-3 py-2 font-mono text-xs">
-                          {u.lastIp || "N/A"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <NexaTable columns={["Usuario", "Rol", "Estado", "Última sesión", "IP"]}>
+              {users.map((u) => (
+                <NexaRow key={u.id}>
+                  <NexaCell>
+                    <p className="text-brand-text-primary">{u.name}</p>
+                    <p className="font-data text-xs text-brand-text-secondary">{u.email}</p>
+                  </NexaCell>
+                  <NexaCell mono className="text-xs">{u.role}</NexaCell>
+                  <NexaCell>
+                    <StatusPulseBadge
+                      tone={
+                        u.status === "active" && u.active
+                          ? "active"
+                          : u.status === "pending"
+                            ? "fatiga"
+                            : "neutral"
+                      }
+                      pulse={u.status === "pending"}
+                    >
+                      {statusEs(u.status)}
+                    </StatusPulseBadge>
+                  </NexaCell>
+                  <NexaCell mono className="text-xs">{formatSession(u.lastSessionAt)}</NexaCell>
+                  <NexaCell mono className="text-xs">{u.lastIp || "N/A"}</NexaCell>
+                </NexaRow>
+              ))}
+            </NexaTable>
           )}
-        </section>
+        </BentoPanel>
 
-        <section id="helpdesk" className="space-y-3">
-          <h2 className="font-display text-sm font-semibold text-[var(--text-primary)]">
-            Mesa de ayuda
-          </h2>
+        <BentoPanel id="helpdesk" title="Mesa de ayuda" subtitle="Consola de tickets" icon={<Headset className="h-4 w-4" />}>
           {!tickets.length ? (
             <EmptyState
               icon={<Headset className="h-7 w-7" />}
-              title="Bandeja vacía"
+              title="Bandeja vacÃƒÂ­a"
               description="Sin tickets de mesa de ayuda."
             />
           ) : (
@@ -638,10 +612,10 @@ export default function TiDashboardPage() {
               {tickets.map((t) => (
                 <article
                   key={t.id}
-                  className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-3"
+                  className="rounded-xl border border-[var(--brand-border)] bg-brand-surface p-3"
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <h3 className="text-sm font-medium text-[var(--text-primary)]">
+                    <h3 className="text-sm font-medium text-[var(--brand-text-primary)]">
                       {t.title}
                     </h3>
                     <StatusPulseBadge
@@ -655,19 +629,19 @@ export default function TiDashboardPage() {
                     </StatusPulseBadge>
                   </div>
                   {t.detail ? (
-                    <p className="mt-1 text-xs text-[var(--text-secondary)]">
+                    <p className="mt-1 text-xs text-[var(--brand-text-secondary)]">
                       {t.detail}
                     </p>
                   ) : null}
-                  <p className="mt-2 font-mono text-[10px] text-[var(--text-secondary)]">
-                    {statusEs(t.status)} · {formatSession(t.createdAt)}
-                    {t.createdBy ? ` · ${t.createdBy.name}` : ""}
+                  <p className="mt-2 font-mono text-[10px] text-[var(--brand-text-secondary)]">
+                    {statusEs(t.status)} Ã‚Â· {formatSession(t.createdAt)}
+                    {t.createdBy ? ` Ã‚Â· ${t.createdBy.name}` : ""}
                   </p>
                 </article>
               ))}
             </div>
           )}
-        </section>
+        </BentoPanel>
       </div>
     </div>
   );

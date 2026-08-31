@@ -1,11 +1,10 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, useEffect, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
 import { AlertTriangle, ClipboardList, Download, Plus, ShieldAlert, Star } from "lucide-react";
 import { api, apiDownload } from "@/lib/api";
 import { statusEs } from "@fsg/shared";
-import { PageIntro } from "@/components/page-intro";
 import {
   EmptyState,
   EvidenceDropzone,
@@ -13,6 +12,9 @@ import {
   SlideOver,
   StatusPulseBadge,
 } from "@/components/audit";
+import { BentoPanel } from "@/components/nexa/bento-panel";
+import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
+import { ComplianceBadge } from "@/components/rrhh/compliance-badge";
 
 type Summary = {
   total: number;
@@ -77,7 +79,7 @@ export default function CalidadPage() {
       setExportError(
         err instanceof Error
           ? err.message
-          : "No se pudo exportar la auditoría PESV",
+          : "No se pudo exportar la auditorÃ­a PESV",
       );
     } finally {
       setExportBusy(false);
@@ -99,10 +101,10 @@ export default function CalidadPage() {
     setFormError("");
     const description = form.description.trim();
     if (description.length < 3) {
-      setFormError("Indique la descripción de la novedad");
+      setFormError("Indique la descripciÃ³n de la novedad");
       return;
     }
-    const title = form.date ? `${description} · ${form.date}` : description;
+    const title = form.date ? `${description} Â· ${form.date}` : description;
     setBusy(true);
     try {
       await api("/calidad/events", {
@@ -129,15 +131,20 @@ export default function CalidadPage() {
 
   return (
     <div className="fade-in mx-auto max-w-[1600px] space-y-6">
-      <PageIntro
-        module="qhse"
-        title="Safety Command Center"
-        subtitle="PESV · telemetría forense · CAPA automático"
-        action={
+      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-brand-border pb-4">
+        <div>
+          <p className="font-data text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-primary">
+            QHSE / PESV
+          </p>
+          <h1 className="font-sans text-2xl font-semibold tracking-tight text-brand-text-primary md:text-3xl">
+            Safety Command Center
+          </h1>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             type="button"
             variant="ghost"
-            className="w-auto border border-[var(--brand-line)]"
+            className="w-auto border border-brand-border"
             loading={exportBusy}
             disabled={exportBusy}
             onClick={() => void exportPesvExcel()}
@@ -145,26 +152,30 @@ export default function CalidadPage() {
             <Download className="mr-1.5 inline h-4 w-4" aria-hidden />
             Exportar auditoría PESV
           </Button>
-        }
-      />
+          <Button type="button" variant="primary" className="w-auto px-4 py-2" onClick={openForm}>
+            <Plus className="mr-1.5 inline h-4 w-4" aria-hidden />
+            Nuevo reporte
+          </Button>
+        </div>
+      </header>
 
       {exportError ? (
         <p
           role="alert"
-          className="rounded-lg border border-[var(--accent-alert)]/40 px-4 py-3 text-sm text-[var(--accent-alert)]"
+          className="rounded-lg border border-brand-danger/40 px-4 py-3 text-sm text-brand-danger"
         >
           {exportError}
         </p>
       ) : null}
 
       {summary && summary.incidents > 0 ? (
-        <div className="flex items-start gap-3 rounded-lg border border-[var(--accent-alert)]/40 bg-[var(--accent-alert)]/10 px-4 py-3">
-          <ShieldAlert className="mt-0.5 h-5 w-5 text-[var(--accent-alert)]" aria-hidden />
+        <div className="flex items-start gap-3 rounded-lg border border-brand-danger/40 bg-brand-danger/10 px-4 py-3">
+          <ShieldAlert className="mt-0.5 h-5 w-5 text-brand-danger" aria-hidden />
           <div>
-            <p className="text-sm font-semibold">
+            <p className="text-sm font-semibold text-brand-text-primary">
               {summary.incidents} incidente{summary.incidents !== 1 ? "s" : ""} abiertos · telemetría activa
             </p>
-            <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
+            <p className="mt-0.5 text-xs text-brand-text-secondary">
               Frenadas bruscas y excesos de velocidad generan reportes automáticos con evidencia GPS.
             </p>
           </div>
@@ -174,7 +185,7 @@ export default function CalidadPage() {
       {summary ? (
         <div className="stagger grid grid-cols-1 gap-4 md:grid-cols-4">
           <KpiCard
-            label="Satisfacción"
+            label="SatisfacciÃ³n"
             value={npsDisplay(summary.nps)}
             tone={
               summary.nps == null
@@ -200,80 +211,64 @@ export default function CalidadPage() {
         </div>
       ) : null}
 
-      <div className="flex justify-end">
-        <Button type="button" variant="primary" className="w-auto px-4 py-2" onClick={openForm}>
-          <Plus className="mr-1.5 inline h-4 w-4" aria-hidden />
-          Nuevo reporte QHSE
-        </Button>
-      </div>
-
       {!rows.length ? (
         <EmptyState
           icon={<ClipboardList className="h-7 w-7" />}
           title="Sin reportes QHSE"
-          description="Registre el primer evento de calidad, incidente o auditoría."
+          description="Registre el primer evento de calidad, incidente o auditorÃ­a."
           actionLabel="+ Nuevo Reporte QHSE"
           onAction={openForm}
         />
       ) : (
-        <div className="fsg-panel data-shell overflow-hidden">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr>
-                <th className="px-4 py-2">Tipo</th>
-                <th className="px-4 py-2">Título</th>
-                <th className="px-4 py-2">Score</th>
-                <th className="px-4 py-2">Estado</th>
-                <th className="px-4 py-2">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.id} className="border-t border-[var(--brand-line)]">
-                  <td className="px-4 py-2.5">
-                    <Badge>{r.type}</Badge>
-                  </td>
-                  <td className="px-4 py-2.5">{r.title}</td>
-                  <td className="px-4 py-2.5 font-data tabular-nums">
-                    {r.score != null ? r.score : "N/A"}
-                  </td>
-                  <td className="px-4 py-2.5">
-                    <StatusPulseBadge
-                      tone={r.status === "OPEN" ? "danger" : "active"}
-                      pulse={r.status === "OPEN"}
+        <BentoPanel
+          title="Registro QHSE / PESV"
+          subtitle={`${rows.length} eventos`}
+          icon={<ClipboardList className="h-4 w-4" />}
+        >
+          <NexaTable columns={["Tipo", "Título", "Score", "Estado", "Acciones"]}>
+            {rows.map((r) => (
+              <NexaRow key={r.id}>
+                <NexaCell>
+                  <Badge>{r.type}</Badge>
+                </NexaCell>
+                <NexaCell>{r.title}</NexaCell>
+                <NexaCell mono>{r.score != null ? r.score : "N/A"}</NexaCell>
+                <NexaCell>
+                  <StatusPulseBadge
+                    tone={r.status === "OPEN" ? "danger" : "active"}
+                    pulse={r.status === "OPEN"}
+                  >
+                    {statusEs(r.status)}
+                  </StatusPulseBadge>
+                </NexaCell>
+                <NexaCell>
+                  {r.status === "OPEN" ? (
+                    <Button
+                      variant="ghost"
+                      className="w-auto px-3 py-1"
+                      onClick={async () => {
+                        await api(`/calidad/events/${r.id}`, {
+                          method: "PATCH",
+                          body: JSON.stringify({ status: "CLOSED" }),
+                        });
+                        await load();
+                      }}
                     >
-                      {statusEs(r.status)}
-                    </StatusPulseBadge>
-                  </td>
-                  <td className="px-4 py-2.5">
-                    {r.status === "OPEN" ? (
-                      <Button
-                        variant="ghost"
-                        className="w-auto px-3 py-1"
-                        onClick={async () => {
-                          await api(`/calidad/events/${r.id}`, {
-                            method: "PATCH",
-                            body: JSON.stringify({ status: "CLOSED" }),
-                          });
-                          await load();
-                        }}
-                      >
-                        Cerrar
-                      </Button>
-                    ) : null}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                      Cerrar
+                    </Button>
+                  ) : null}
+                </NexaCell>
+              </NexaRow>
+            ))}
+          </NexaTable>
+        </BentoPanel>
       )}
 
       <SlideOver
         open={formOpen}
         onClose={() => setFormOpen(false)}
         title="Nuevo reporte QHSE"
-        description="Tipo, fecha, descripción y evidencia adjunta."
+        description="Tipo, fecha, descripciÃ³n y evidencia adjunta."
         footer={
           <>
             <Button
@@ -300,13 +295,13 @@ export default function CalidadPage() {
           {formError ? (
             <p
               role="alert"
-              className="rounded border border-[var(--brand-signal)]/40 bg-[var(--brand-signal)]/10 px-3 py-2 text-sm text-[var(--brand-signal)]"
+              className="rounded border border-[var(--brand-danger)]/40 bg-[var(--brand-danger)]/10 px-3 py-2 text-sm text-[var(--brand-danger)]"
             >
               {formError}
             </p>
           ) : null}
           <label className="block space-y-1.5">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+            <span className="text-xs font-semibold uppercase tracking-wider text-brand-text-secondary">
               Tipo
             </span>
             <select
@@ -315,12 +310,12 @@ export default function CalidadPage() {
               onChange={(e) => setForm({ ...form, type: e.target.value })}
             >
               <option value="INCIDENT">Incidente / novedad</option>
-              <option value="NPS">Satisfacción</option>
-              <option value="AUDIT">Auditoría</option>
+              <option value="NPS">SatisfacciÃ³n</option>
+              <option value="AUDIT">AuditorÃ­a</option>
             </select>
           </label>
           <label className="block space-y-1.5">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+            <span className="text-xs font-semibold uppercase tracking-wider text-brand-text-secondary">
               Fecha
             </span>
             <input
@@ -332,8 +327,8 @@ export default function CalidadPage() {
             />
           </label>
           <label className="block space-y-1.5">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-              Descripción
+            <span className="text-xs font-semibold uppercase tracking-wider text-brand-text-secondary">
+              DescripciÃ³n
             </span>
             <textarea
               className="field min-h-[96px] w-full"
@@ -348,8 +343,8 @@ export default function CalidadPage() {
           </label>
           {form.type === "NPS" ? (
             <label className="block space-y-1.5">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                Puntaje de satisfacción
+              <span className="text-xs font-semibold uppercase tracking-wider text-brand-text-secondary">
+                Puntaje de satisfacciÃ³n
               </span>
               <input
                 className="field w-full font-data"
@@ -369,12 +364,12 @@ export default function CalidadPage() {
             </label>
           ) : null}
           <div className="space-y-1.5">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+            <span className="text-xs font-semibold uppercase tracking-wider text-brand-text-secondary">
               Evidencia
             </span>
             <EvidenceDropzone onFiles={setEvidence} />
             {evidence.length > 0 ? (
-              <p className="font-mono text-xs text-slate-500">
+              <p className="font-mono text-xs text-brand-text-secondary">
                 {evidence.length} archivo(s) listos para adjunto local
               </p>
             ) : null}

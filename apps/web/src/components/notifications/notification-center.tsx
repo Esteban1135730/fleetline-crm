@@ -62,32 +62,32 @@ export function NotificationBell() {
     open ? (
       <div
         ref={panelRef}
-        className="fixed z-[100] w-[min(92vw,360px)] overflow-hidden rounded-lg border border-[var(--brand-line)] bg-[var(--brand-surface,#121722)] shadow-xl"
+        className="fixed z-[100] w-[min(92vw,360px)] overflow-hidden rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-xl"
         style={{ top: coords.top, right: coords.right }}
       >
-          <div className="flex items-center justify-between border-b border-[var(--brand-line)] px-3 py-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--brand-muted)]">
-              Inbox · alertas
+          <div className="flex items-center justify-between border-b border-[var(--brand-border)] px-3 py-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--brand-text-secondary)]">
+              Inbox Ã‚Â· alertas
             </p>
             <button
               type="button"
               className="text-[11px] text-[var(--brand-primary)]"
               onClick={() => void markAllRead()}
             >
-              Marcar leídas
+              Marcar leÃƒÂ­das
             </button>
           </div>
 
           {webPushSupported ? (
-            <div className="border-b border-[var(--brand-line)] px-3 py-2">
+            <div className="border-b border-[var(--brand-border)] px-3 py-2">
               {pushOk ? (
-                <p className="text-xs text-[var(--accent-primary)]">
+                <p className="text-xs text-[var(--brand-primary)]">
                   Avisos activados en este equipo
                 </p>
               ) : (
                 <button
                   type="button"
-                  className="inline-flex h-8 w-auto items-center rounded-lg bg-[var(--accent-primary)] px-3 text-xs font-semibold text-[var(--brand-primary-fg,#042f2e)]"
+                  className="inline-flex h-8 w-auto items-center rounded-lg bg-[var(--brand-primary)] px-3 text-xs font-semibold text-[var(--brand-primary-fg)]"
                   onClick={() => {
                     void enableWebPush().then((r) => {
                       setPushOk(r.ok);
@@ -99,7 +99,7 @@ export function NotificationBell() {
                 </button>
               )}
               {pushMsg && !pushOk ? (
-                <p className="mt-1.5 text-[11px] text-[var(--brand-muted)]">
+                <p className="mt-1.5 text-[11px] text-[var(--brand-text-secondary)]">
                   {pushMsg}
                 </p>
               ) : null}
@@ -108,7 +108,7 @@ export function NotificationBell() {
 
           <ul className="max-h-[420px] overflow-auto">
             {items.length === 0 ? (
-              <li className="px-3 py-6 text-center text-sm text-[var(--brand-muted)]">
+              <li className="px-3 py-6 text-center text-sm text-[var(--brand-text-secondary)]">
                 Sin notificaciones
               </li>
             ) : (
@@ -116,7 +116,7 @@ export function NotificationBell() {
                 <li key={n.id}>
                   <button
                     type="button"
-                    className={`w-full border-b border-[var(--brand-line)] px-3 py-2.5 text-left hover:bg-[var(--brand-primary)]/10 ${
+                    className={`w-full border-b border-[var(--brand-border)] px-3 py-2.5 text-left hover:bg-[var(--brand-primary)]/10 ${
                       n.readAt ? "opacity-70" : ""
                     }`}
                     onClick={() => {
@@ -128,18 +128,18 @@ export function NotificationBell() {
                     }}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <p className="text-sm font-semibold text-[var(--brand-fg,#F8FAFC)]">
+                      <p className="text-sm font-semibold text-[var(--brand-text-primary)]">
                         {n.title}
                       </p>
                       {!n.readAt ? (
                         <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-[var(--brand-primary)]" />
                       ) : null}
                     </div>
-                    <p className="mt-0.5 text-xs text-[var(--brand-muted)]">
+                    <p className="mt-0.5 text-xs text-[var(--brand-text-secondary)]">
                       {n.body}
                     </p>
-                    <p className="mt-1 font-data text-[10px] text-[var(--brand-muted)]">
-                      {n.kind} ·{" "}
+                    <p className="mt-1 font-data text-[10px] text-[var(--brand-text-secondary)]">
+                      {n.kind} Ã‚Â·{" "}
                       {new Date(n.createdAt).toLocaleString("es-CO", {
                         hour12: false,
                       })}
@@ -179,7 +179,7 @@ export function NotificationBell() {
           />
         </svg>
         {unread > 0 ? (
-          <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--brand-signal,#FF2A5F)] px-1 font-data text-[9px] text-white">
+          <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--brand-danger)] px-1 font-data text-[9px] text-white">
             {unread > 99 ? "99+" : unread}
           </span>
         ) : null}
@@ -200,23 +200,23 @@ export function NotificationToasts() {
       {toasts.map((t) => (
         <div
           key={t.toastId}
-          className="pointer-events-auto rounded-lg border border-[var(--brand-line)] bg-[var(--brand-surface,#121722)] p-3 shadow-2xl"
+          className="pointer-events-auto rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] p-3 shadow-2xl"
           role="status"
         >
           <div className="flex items-start justify-between gap-2">
             <div>
-              <p className="text-sm font-semibold text-[var(--brand-fg)]">
+              <p className="text-sm font-semibold text-[var(--brand-text-primary)]">
                 {t.title}
               </p>
-              <p className="mt-1 text-xs text-[var(--brand-muted)]">{t.body}</p>
+              <p className="mt-1 text-xs text-[var(--brand-text-secondary)]">{t.body}</p>
             </div>
             <button
               type="button"
-              className="text-[var(--brand-muted)]"
+              className="text-[var(--brand-text-secondary)]"
               onClick={() => dismissToast(t.toastId)}
               aria-label="Cerrar"
             >
-              ×
+              Ãƒâ€”
             </button>
           </div>
           <div className="mt-2 flex gap-2">

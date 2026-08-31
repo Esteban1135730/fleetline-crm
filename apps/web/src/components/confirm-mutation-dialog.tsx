@@ -31,7 +31,7 @@ export function ConfirmMutationHost() {
         : buildEditRows(input.previous, input.next);
     const title =
       input.title ||
-      (kind === "delete" ? "Confirmar eliminación" : "Confirmar edición");
+      (kind === "delete" ? "Confirmar eliminaciÃƒÂ³n" : "Confirmar ediciÃƒÂ³n");
     return new Promise<boolean>((resolve) => {
       setPending({ kind, title, rows, resolve });
     });
@@ -85,32 +85,32 @@ export function ConfirmMutationHost() {
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="confirm-mutation-title"
-        className="relative z-[1] flex max-h-[min(90dvh,90vh)] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] shadow-2xl"
+        className="relative z-[1] flex max-h-[min(90dvh,90vh)] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-2xl"
       >
         <div className="shrink-0 px-5 pt-5">
           <h2
             id="confirm-mutation-title"
-            className="text-lg font-semibold text-[var(--text-primary)]"
+            className="text-lg font-semibold text-[var(--brand-text-primary)]"
           >
             {pending.title}
           </h2>
-          <p className="mt-1 text-sm text-[var(--text-secondary)]">
+          <p className="mt-1 text-sm text-[var(--brand-text-secondary)]">
             {isDelete
-              ? "Revisa los datos que se van a eliminar. Esta acción no se puede deshacer."
+              ? "Revisa los datos que se van a eliminar. Esta acciÃƒÂ³n no se puede deshacer."
               : "Revisa los valores anteriores y los nuevos antes de guardar."}
           </p>
         </div>
 
         <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-5 py-4">
           {pending.rows.length === 0 ? (
-            <p className="text-sm text-[var(--text-secondary)]">
-              No hay campos para mostrar. Confirma solo si estás seguro.
+            <p className="text-sm text-[var(--brand-text-secondary)]">
+              No hay campos para mostrar. Confirma solo si estÃƒÂ¡s seguro.
             </p>
           ) : (
-            <div className="overflow-x-auto rounded-lg border border-[var(--border-subtle)]">
+            <div className="overflow-x-auto rounded-lg border border-[var(--brand-border)]">
               <table className="w-full text-left text-sm">
                 <thead>
-                  <tr className="text-xs uppercase tracking-wide text-[var(--text-secondary)]">
+                  <tr className="text-xs uppercase tracking-wide text-[var(--brand-text-secondary)]">
                     <th className="px-3 py-2">Campo</th>
                     <th className="px-3 py-2">
                       {isDelete ? "Dato actual" : "Anterior"}
@@ -124,9 +124,9 @@ export function ConfirmMutationHost() {
                   {pending.rows.map((row) => (
                     <tr
                       key={row.key}
-                      className={`border-t border-[var(--border-subtle)] ${
+                      className={`border-t border-[var(--brand-border)] ${
                         row.changed
-                          ? "bg-[color-mix(in_srgb,var(--accent-metric)_10%,transparent)]"
+                          ? "bg-[color-mix(in_srgb,var(--brand-warning)_10%,transparent)]"
                           : ""
                       }`}
                     >
@@ -135,7 +135,7 @@ export function ConfirmMutationHost() {
                         {row.before}
                       </td>
                       {!isDelete ? (
-                        <td className="px-3 py-2 font-data text-xs text-[var(--accent-primary)]">
+                        <td className="px-3 py-2 font-data text-xs text-[var(--brand-primary)]">
                           {row.after}
                         </td>
                       ) : null}
@@ -147,14 +147,14 @@ export function ConfirmMutationHost() {
           )}
 
           {!isDelete && changed.length === 0 ? (
-            <p className="mt-3 text-xs text-[var(--text-secondary)]">
-              No hay diferencias detectadas. Aun así puedes cancelar si fue un
+            <p className="mt-3 text-xs text-[var(--brand-text-secondary)]">
+              No hay diferencias detectadas. Aun asÃƒÂ­ puedes cancelar si fue un
               clic accidental.
             </p>
           ) : null}
         </div>
 
-        <div className="flex shrink-0 justify-end gap-2 border-t border-[var(--border-subtle)] px-5 py-4">
+        <div className="flex shrink-0 justify-end gap-2 border-t border-[var(--brand-border)] px-5 py-4">
           <Button
             type="button"
             variant="ghost"
@@ -166,10 +166,10 @@ export function ConfirmMutationHost() {
           <Button
             type="button"
             variant="primary"
-            className={`w-auto px-4 py-2 ${isDelete ? "!bg-[var(--accent-alert,#FF2A5F)]" : ""}`}
+            className={`w-auto px-4 py-2 ${isDelete ? "!bg-[var(--brand-danger)]" : ""}`}
             onClick={() => close(true)}
           >
-            {isDelete ? "Sí, eliminar" : "Sí, guardar cambios"}
+            {isDelete ? "SÃƒÂ­, eliminar" : "SÃƒÂ­, guardar cambios"}
           </Button>
         </div>
       </div>

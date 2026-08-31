@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
@@ -14,8 +14,9 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { statusEs } from "@fsg/shared";
-import { PageIntro } from "@/components/page-intro";
-import { EmptyState, KpiCard, Modal, SlideOver } from "@/components/audit";
+import { EmptyState, KpiCard, SlideOver } from "@/components/audit";
+import { BentoPanel } from "@/components/nexa/bento-panel";
+import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
 
 type Account = { id: string; code: string; name: string; type?: string };
 
@@ -54,7 +55,11 @@ type PeriodInfo = {
 };
 
 function formatCop(n: number) {
-  return `$${Math.round(n).toLocaleString("es-CO")}`;
+  return new Intl.NumberFormat("es-CO", {
+    style: "currency",
+    currency: "COP",
+    maximumFractionDigits: 0,
+  }).format(Math.round(n));
 }
 
 function accountIndent(code: string) {
@@ -77,7 +82,7 @@ export default function ContabilidadPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [period, setPeriod] = useState<PeriodInfo | null>(null);
   const [error, setError] = useState("");
-  const [accountModalOpen, setAccountModalOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const [entryOpen, setEntryOpen] = useState(false);
   const [description, setDescription] = useState("");
   const [lines, setLines] = useState<EntryLine[]>(emptyLines);
@@ -114,12 +119,33 @@ export default function ContabilidadPage() {
         }, 0);
     const activos = net("ASSET", false);
     const pasivos = net("LIABILITY", true);
-    const patrimonio = net("EQUITY", true) + net("INCOME", true) - net("EXPENSE", false);
+    const patrimonio =
+      net("EQUITY", true) + net("INCOME", true) - net("EXPENSE", false);
     const totalDebit = balance.reduce((s, r) => s + r.debit, 0);
     const totalCredit = balance.reduce((s, r) => s + r.credit, 0);
     const delta = totalDebit - totalCredit;
     return { activos, pasivos, patrimonio, totalDebit, totalCredit, delta };
   }, [balance]);
+
+  const journalRows = useMemo(
+    () =>
+      entries.flatMap((e) =>
+        e.lines.map((l, idx) => ({
+          entryId: e.id,
+          number: e.number,
+          description: e.description,
+          status: e.status,
+          lineIdx: idx,
+          accountCode: l.account.code,
+          accountName: l.account.name,
+          debit: Number(l.debit),
+          credit: Number(l.credit),
+          periodLocked:
+            period?.status === "SOFT_CLOSED" || period?.status === "HARD_LOCKED",
+        })),
+      ),
+    [entries, period],
+  );
 
   const lineDebit = lines.reduce((s, l) => s + (Number(l.debit) || 0), 0);
   const lineCredit = lines.reduce((s, l) => s + (Number(l.credit) || 0), 0);
@@ -160,7 +186,7 @@ export default function ContabilidadPage() {
         body: JSON.stringify(accountForm),
       });
       setAccountForm({ code: "", name: "", type: "ASSET" });
-      setAccountModalOpen(false);
+      setAccountOpen(false);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al crear cuenta");
@@ -168,7 +194,11 @@ export default function ContabilidadPage() {
   }
 
   async function closeMonth() {
-    if (!confirm("¿Cerrar el mes? No se podrán publicar ni anular asientos del periodo.")) {
+    if (
+      !confirm(
+        "¿Cerrar el mes? No se podrán publicar ni anular asientos del periodo.",
+      )
+    ) {
       return;
     }
     setError("");
@@ -177,7 +207,6 @@ export default function ContabilidadPage() {
         method: "POST",
         body: JSON.stringify({}),
       });
-      setError("");
       await load();
       window.alert(res.message || "Periodo cerrado");
     } catch (err) {
@@ -185,53 +214,66 @@ export default function ContabilidadPage() {
     }
   }
 
+  async function voidEntry(entryId: string, number: string) {
+    if (!confirm(`¿Anular asiento ${number}?`)) return;
+    await api(`/accounting/journal/${entryId}/void`, { method: "PATCH" });
+    await load();
+  }
+
   return (
     <div className="fade-in mx-auto max-w-[1600px] space-y-6">
-      <PageIntro
-        module="contabilidad"
-        title="Libro mayor y balances"
-        action={
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              className="w-auto px-4 py-2"
-              disabled={periodLocked}
-              onClick={() => void closeMonth()}
-            >
-              <Lock className="mr-1.5 inline h-4 w-4" aria-hidden />
-              Cerrar mes
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              className="w-auto px-4 py-2"
-              onClick={() => setAccountModalOpen(true)}
-            >
-              <Plus className="mr-1.5 inline h-4 w-4" aria-hidden />
-              Crear cuenta
-            </Button>
-            <Button
-              type="button"
-              variant="primary"
-              className="w-auto px-4 py-2"
-              disabled={periodLocked}
-              onClick={() => {
-                setError("");
-                setEntryOpen(true);
-              }}
-            >
-              <FileSpreadsheet className="mr-1.5 inline h-4 w-4" aria-hidden />
-              Nuevo asiento
-            </Button>
-          </div>
-        }
-      />
+      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-brand-border pb-4">
+        <div>
+          <p className="font-data text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-primary">
+            Contabilidad · NIIF
+          </p>
+          <h1 className="font-sans text-2xl font-semibold tracking-tight text-brand-text-primary md:text-3xl">
+            Libro mayor y balances
+          </h1>
+          <p className="mt-1 font-sans text-sm text-brand-text-secondary">
+            PUC · partida doble · cierre de periodo
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            className="w-auto px-4 py-2"
+            disabled={periodLocked}
+            onClick={() => void closeMonth()}
+          >
+            <Lock className="mr-1.5 inline h-4 w-4" aria-hidden />
+            Cerrar mes
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-auto px-4 py-2"
+            onClick={() => setAccountOpen(true)}
+          >
+            <Plus className="mr-1.5 inline h-4 w-4" aria-hidden />
+            Crear cuenta
+          </Button>
+          <Button
+            type="button"
+            variant="primary"
+            className="w-auto px-4 py-2"
+            disabled={periodLocked}
+            onClick={() => {
+              setError("");
+              setEntryOpen(true);
+            }}
+          >
+            <FileSpreadsheet className="mr-1.5 inline h-4 w-4" aria-hidden />
+            Nuevo asiento
+          </Button>
+        </div>
+      </header>
 
       {periodLocked ? (
         <p
           role="status"
-          className="rounded-lg border border-[color-mix(in_srgb,var(--accent-metric)_35%,transparent)] bg-[color-mix(in_srgb,var(--accent-metric)_8%,transparent)] px-3 py-2 text-sm text-[var(--accent-metric)]"
+          className="rounded-lg border border-brand-warning/35 bg-brand-warning/10 px-3 py-2 text-sm text-brand-warning"
         >
           Periodo {period?.yearMonth} {statusEs(period?.status ?? "")} — edición
           bloqueada.
@@ -239,7 +281,7 @@ export default function ContabilidadPage() {
       ) : null}
 
       {error ? (
-        <p role="alert" className="text-sm text-[var(--brand-signal)]">
+        <p role="alert" className="text-sm text-brand-danger">
           {error}
         </p>
       ) : null}
@@ -272,136 +314,129 @@ export default function ContabilidadPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="fsg-panel data-shell overflow-hidden">
-          <div className="flex items-center justify-between border-b border-[var(--brand-line)] px-4 py-3">
-            <span className="font-display text-sm font-semibold">
-              Balance de prueba (PUC)
-            </span>
-            <Badge
-              tone={Math.abs(macros.delta) < 1 ? "emerald" : "rose"}
-            >
+        <BentoPanel
+          title="Balance de prueba (PUC)"
+          subtitle="Débitos y créditos acumulados"
+          icon={<BookOpen aria-hidden />}
+          action={
+            <Badge tone={Math.abs(macros.delta) < 1 ? "success" : "danger"}>
               Δ {macros.delta.toLocaleString("es-CO")}
             </Badge>
-          </div>
+          }
+        >
           {balance.length === 0 ? (
-            <div className="p-4">
-              <EmptyState
-                icon={<BookOpen className="h-7 w-7" aria-hidden />}
-                title="Sin movimientos en balance"
-                description="Publica asientos para construir el balance de prueba."
-              />
-            </div>
+            <EmptyState
+              icon={<BookOpen className="h-7 w-7" aria-hidden />}
+              title="Sin movimientos en balance"
+              description="Publica asientos para construir el balance de prueba."
+            />
           ) : (
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr>
-                  <th className="px-4 py-2">Cuenta</th>
-                  <th className="px-4 py-2">Débito</th>
-                  <th className="px-4 py-2">Crédito</th>
-                </tr>
-              </thead>
-              <tbody>
-                {balance.map((r) => (
-                  <tr key={r.id} className="border-t border-[var(--brand-line)]">
-                    <td className={`px-4 py-2.5 ${accountIndent(r.code)}`}>
-                      <span className="font-data text-xs text-[var(--brand-primary)]">
-                        {r.code}
-                      </span>{" "}
-                      {r.name}
-                    </td>
-                    <td className="px-4 py-2.5 font-data text-xs tabular-nums">
-                      {r.debit ? r.debit.toLocaleString("es-CO") : "—"}
-                    </td>
-                    <td className="px-4 py-2.5 font-data text-xs tabular-nums">
-                      {r.credit ? r.credit.toLocaleString("es-CO") : "—"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-
-        <div className="fsg-panel overflow-hidden">
-          <div className="border-b border-[var(--brand-line)] px-4 py-3 font-display text-sm font-semibold">
-            Asientos contables ({entries.length})
-          </div>
-          {entries.length === 0 ? (
-            <div className="p-4">
-              <EmptyState
-                icon={<FileSpreadsheet className="h-7 w-7" aria-hidden />}
-                title="Sin asientos publicados"
-                description="Abre el panel de partida doble dinámica para el primer asiento."
-                actionLabel="Nuevo asiento"
-                onAction={() => setEntryOpen(true)}
-              />
-            </div>
-          ) : (
-            <div className="divide-y divide-[var(--brand-line)]">
-              {entries.map((e) => (
-                <div key={e.id} className="px-4 py-3">
-                  <div className="mb-2 flex items-center justify-between gap-3">
-                    <div>
-                      <span className="font-data text-xs text-[var(--brand-primary)]">
-                        {e.number}
-                      </span>
-                      <p className="text-sm font-medium text-[var(--text-primary)]">
-                        {e.description}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge tone={e.status === "VOID" ? "rose" : "emerald"}>
-                        {statusEs(e.status)}
-                      </Badge>
-                      {e.status !== "VOID" && !periodLocked ? (
-                        <Button
-                          variant="ghost"
-                          className="w-auto"
-                          onClick={async () => {
-                            if (!confirm(`¿Anular asiento ${e.number}?`)) return;
-                            await api(`/accounting/journal/${e.id}/void`, {
-                              method: "PATCH",
-                            });
-                            await load();
-                          }}
-                        >
-                          Anular
-                        </Button>
-                      ) : null}
-                    </div>
-                  </div>
-                  <ul className="space-y-1 text-xs text-[var(--text-secondary)]">
-                    {e.lines.map((l, idx) => (
-                      <li key={idx} className="flex justify-between font-data">
-                        <span>
-                          {l.account.code} {l.account.name}
-                        </span>
-                        <span className="tabular-nums">
-                          D {Number(l.debit).toLocaleString("es-CO")} / C{" "}
-                          {Number(l.credit).toLocaleString("es-CO")}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+            <NexaTable columns={["Cuenta", "Débito", "Crédito"]}>
+              {balance.map((r) => (
+                <NexaRow key={r.id}>
+                  <NexaCell className={accountIndent(r.code)}>
+                    <span className="font-data text-xs text-brand-primary">
+                      {r.code}
+                    </span>{" "}
+                    {r.name}
+                  </NexaCell>
+                  <NexaCell mono>
+                    {r.debit ? r.debit.toLocaleString("es-CO") : "—"}
+                  </NexaCell>
+                  <NexaCell mono>
+                    {r.credit ? r.credit.toLocaleString("es-CO") : "—"}
+                  </NexaCell>
+                </NexaRow>
               ))}
-            </div>
+            </NexaTable>
           )}
-        </div>
+        </BentoPanel>
+
+        <BentoPanel
+          title="Asientos contables"
+          subtitle={`${entries.length} publicados`}
+          icon={<FileSpreadsheet aria-hidden />}
+        >
+          {entries.length === 0 ? (
+            <EmptyState
+              icon={<FileSpreadsheet className="h-7 w-7" aria-hidden />}
+              title="Sin asientos publicados"
+              description="Abre el panel de partida doble para el primer asiento."
+              actionLabel="Nuevo asiento"
+              onAction={() => setEntryOpen(true)}
+            />
+          ) : (
+            <NexaTable
+              columns={[
+                "Asiento",
+                "Descripción",
+                "Cuenta",
+                "Débito",
+                "Crédito",
+                "Estado",
+                "",
+              ]}
+            >
+              {journalRows.map((row, idx) => (
+                <NexaRow key={`${row.entryId}-${row.lineIdx}-${idx}`}>
+                  <NexaCell mono className="text-xs text-brand-primary">
+                    {row.lineIdx === 0 ? row.number : ""}
+                  </NexaCell>
+                  <NexaCell className="text-xs">
+                    {row.lineIdx === 0 ? row.description : ""}
+                  </NexaCell>
+                  <NexaCell mono className="text-xs">
+                    {row.accountCode}{" "}
+                    <span className="font-sans text-brand-text-secondary">
+                      {row.accountName}
+                    </span>
+                  </NexaCell>
+                  <NexaCell mono>
+                    {row.debit ? row.debit.toLocaleString("es-CO") : "—"}
+                  </NexaCell>
+                  <NexaCell mono>
+                    {row.credit ? row.credit.toLocaleString("es-CO") : "—"}
+                  </NexaCell>
+                  <NexaCell>
+                    {row.lineIdx === 0 ? (
+                      <Badge tone={row.status === "VOID" ? "danger" : "success"}>
+                        {statusEs(row.status)}
+                      </Badge>
+                    ) : null}
+                  </NexaCell>
+                  <NexaCell>
+                    {row.lineIdx === 0 &&
+                    row.status !== "VOID" &&
+                    !row.periodLocked ? (
+                      <Button
+                        variant="ghost"
+                        className="w-auto text-xs"
+                        onClick={() => void voidEntry(row.entryId, row.number)}
+                      >
+                        Anular
+                      </Button>
+                    ) : null}
+                  </NexaCell>
+                </NexaRow>
+              ))}
+            </NexaTable>
+          )}
+        </BentoPanel>
       </div>
 
-      <Modal
-        open={accountModalOpen}
-        onClose={() => setAccountModalOpen(false)}
+      <SlideOver
+        open={accountOpen}
+        onClose={() => setAccountOpen(false)}
         title="Crear cuenta contable"
         description="Alta de cuenta en el plan contable operativo."
+        widthClass="max-w-md"
         footer={
           <>
             <Button
               type="button"
               variant="ghost"
-              className="w-auto"
-              onClick={() => setAccountModalOpen(false)}
+              className="w-auto px-4 py-2"
+              onClick={() => setAccountOpen(false)}
             >
               Cancelar
             </Button>
@@ -409,7 +444,7 @@ export default function ContabilidadPage() {
               type="submit"
               form="create-account-form"
               variant="primary"
-              className="w-auto"
+              className="w-auto px-4 py-2"
             >
               Guardar cuenta
             </Button>
@@ -421,39 +456,48 @@ export default function ContabilidadPage() {
           onSubmit={onCreateAccount}
           className="grid grid-cols-1 gap-3"
         >
-          <input
-            className="field font-data"
-            placeholder="Código PUC"
-            value={accountForm.code}
-            onChange={(e) =>
-              setAccountForm({ ...accountForm, code: e.target.value })
-            }
-            required
-          />
-          <input
-            className="field"
-            placeholder="Nombre cuenta"
-            value={accountForm.name}
-            onChange={(e) =>
-              setAccountForm({ ...accountForm, name: e.target.value })
-            }
-            required
-          />
-          <select
-            className="field"
-            value={accountForm.type}
-            onChange={(e) =>
-              setAccountForm({ ...accountForm, type: e.target.value })
-            }
-          >
-            <option value="ASSET">Activo</option>
-            <option value="LIABILITY">Pasivo</option>
-            <option value="EQUITY">Patrimonio</option>
-            <option value="INCOME">Ingreso</option>
-            <option value="EXPENSE">Gasto</option>
-          </select>
+          <label className="flex flex-col gap-1 font-data text-[10px] uppercase tracking-wider text-brand-text-secondary">
+            Código PUC
+            <input
+              className="field font-data tabular-nums"
+              placeholder="1110"
+              value={accountForm.code}
+              onChange={(e) =>
+                setAccountForm({ ...accountForm, code: e.target.value })
+              }
+              required
+            />
+          </label>
+          <label className="flex flex-col gap-1 font-data text-[10px] uppercase tracking-wider text-brand-text-secondary">
+            Nombre cuenta
+            <input
+              className="field"
+              placeholder="Bancos"
+              value={accountForm.name}
+              onChange={(e) =>
+                setAccountForm({ ...accountForm, name: e.target.value })
+              }
+              required
+            />
+          </label>
+          <label className="flex flex-col gap-1 font-data text-[10px] uppercase tracking-wider text-brand-text-secondary">
+            Tipo
+            <select
+              className="field"
+              value={accountForm.type}
+              onChange={(e) =>
+                setAccountForm({ ...accountForm, type: e.target.value })
+              }
+            >
+              <option value="ASSET">Activo</option>
+              <option value="LIABILITY">Pasivo</option>
+              <option value="EQUITY">Patrimonio</option>
+              <option value="INCOME">Ingreso</option>
+              <option value="EXPENSE">Gasto</option>
+            </select>
+          </label>
         </form>
-      </Modal>
+      </SlideOver>
 
       <SlideOver
         open={entryOpen}
@@ -466,7 +510,7 @@ export default function ContabilidadPage() {
             <Button
               type="button"
               variant="ghost"
-              className="w-auto"
+              className="w-auto px-4 py-2"
               onClick={() => setEntryOpen(false)}
             >
               Cancelar
@@ -475,7 +519,7 @@ export default function ContabilidadPage() {
               type="submit"
               form="journal-multiline-form"
               variant="primary"
-              className="w-auto"
+              className="w-auto px-4 py-2"
               disabled={!isBalanced}
             >
               {isBalanced ? "Publicar asiento" : "Sin cuadre"}
@@ -488,7 +532,7 @@ export default function ContabilidadPage() {
           onSubmit={(e) => void onCreateEntry(e)}
           className="space-y-4"
         >
-          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+          <label className="flex flex-col gap-1 font-data text-[10px] uppercase tracking-wider text-brand-text-secondary">
             Descripción / memo
             <input
               className="field"
@@ -503,9 +547,9 @@ export default function ContabilidadPage() {
             {lines.map((line, idx) => (
               <div
                 key={line.key}
-                className="grid grid-cols-12 items-end gap-2 rounded-lg border border-[var(--border-subtle)] p-2"
+                className="grid grid-cols-12 items-end gap-2 rounded-lg border border-brand-border p-2"
               >
-                <label className="col-span-12 text-[10px] uppercase text-[var(--text-secondary)] sm:col-span-6">
+                <label className="col-span-12 font-data text-[10px] uppercase text-brand-text-secondary sm:col-span-6">
                   Cuenta {idx + 1}
                   <select
                     className="field mt-1 w-full"
@@ -529,10 +573,10 @@ export default function ContabilidadPage() {
                     ))}
                   </select>
                 </label>
-                <label className="col-span-5 text-[10px] uppercase text-[var(--text-secondary)] sm:col-span-2">
+                <label className="col-span-5 font-data text-[10px] uppercase text-brand-text-secondary sm:col-span-2">
                   Débito
                   <input
-                    className="field mt-1 w-full font-data"
+                    className="field mt-1 w-full font-data tabular-nums"
                     type="number"
                     min={0}
                     placeholder="0"
@@ -548,10 +592,10 @@ export default function ContabilidadPage() {
                     }
                   />
                 </label>
-                <label className="col-span-5 text-[10px] uppercase text-[var(--text-secondary)] sm:col-span-2">
+                <label className="col-span-5 font-data text-[10px] uppercase text-brand-text-secondary sm:col-span-2">
                   Crédito
                   <input
-                    className="field mt-1 w-full font-data"
+                    className="field mt-1 w-full font-data tabular-nums"
                     type="number"
                     min={0}
                     placeholder="0"
@@ -574,7 +618,9 @@ export default function ContabilidadPage() {
                       variant="ghost"
                       className="w-auto px-2"
                       onClick={() =>
-                        setLines((rows) => rows.filter((r) => r.key !== line.key))
+                        setLines((rows) =>
+                          rows.filter((r) => r.key !== line.key),
+                        )
                       }
                     >
                       <Trash2 className="h-4 w-4" />
@@ -609,8 +655,8 @@ export default function ContabilidadPage() {
           <div
             className={`rounded-lg border p-3 ${
               isBalanced
-                ? "border-[color-mix(in_srgb,var(--accent-primary)_35%,transparent)]"
-                : "border-[color-mix(in_srgb,var(--accent-alert)_35%,transparent)]"
+                ? "border-brand-primary/35"
+                : "border-brand-danger/35"
             }`}
           >
             <div className="flex justify-between font-data text-sm tabular-nums">
@@ -623,9 +669,7 @@ export default function ContabilidadPage() {
             </div>
             <p
               className={`mt-2 text-xs font-semibold ${
-                isBalanced
-                  ? "text-[var(--accent-primary)]"
-                  : "text-[var(--accent-alert)]"
+                isBalanced ? "text-brand-primary" : "text-brand-danger"
               }`}
             >
               {isBalanced

@@ -1,10 +1,30 @@
-"use client";
+﻿"use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
+import {
+  AlertTriangle,
+  BarChart3,
+  RefreshCw,
+  Shield,
+  TrendingUp,
+  Truck,
+} from "lucide-react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { api } from "@/lib/api";
 import { statusEs } from "@fsg/shared";
-import { HowToBox, PageIntro } from "@/components/page-intro";
+import { useThemeColors } from "@/lib/use-theme-colors";
+import { EmptyState, SlideOver } from "@/components/audit";
+import { BentoPanel } from "@/components/nexa/bento-panel";
+import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
 
 type Dash = {
   kpis: {
@@ -70,7 +90,11 @@ type Costeo = {
 };
 
 function cop(n: number) {
-  return `$${Math.round(n).toLocaleString("es-CO")}`;
+  return new Intl.NumberFormat("es-CO", {
+    style: "currency",
+    currency: "COP",
+    maximumFractionDigits: 0,
+  }).format(Math.round(n));
 }
 
 function pct(n: number) {
@@ -78,11 +102,14 @@ function pct(n: number) {
 }
 
 export default function CfoDashboardPage() {
+  const colors = useThemeColors();
   const [dash, setDash] = useState<Dash | null>(null);
   const [error, setError] = useState("");
   const [ok, setOk] = useState("");
   const [otp, setOtp] = useState("");
   const [selectedLot, setSelectedLot] = useState<string>("");
+  const [simOpen, setSimOpen] = useState(false);
+  const [costeoOpen, setCosteoOpen] = useState(false);
   const [simForm, setSimForm] = useState({
     fareAmount: "1200000",
     fuelProjected: "280000",
@@ -110,6 +137,17 @@ export default function CfoDashboardPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const tipStyle = useMemo(
+    () => ({
+      borderRadius: 12,
+      border: `1px solid ${colors.border}`,
+      background: colors.surface,
+      color: colors.textPrimary,
+      fontSize: 12,
+    }),
+    [colors],
+  );
 
   async function onMfaDisburse(e: FormEvent) {
     e.preventDefault();
@@ -171,67 +209,64 @@ export default function CfoDashboardPage() {
     }
   }
 
-  const maxEbitda = Math.max(
-    1,
-    ...(dash?.ebitdaSeries.map((x) => x.ebitda) || [1]),
-  );
-
   return (
-    <div className="fade-in mx-auto max-w-[1600px] space-y-5">
-      <PageIntro
-        module="tesoreria"
-        title="Dirección financiera"
-      />
-      <HowToBox
-        steps={[
-          "Apruebe lotes > tope Tesorería con OTP de 6 dígitos (doble candado).",
-          "Simule rentabilidad de cotizaciones — firma bloqueada si EBITDA < 15%.",
-          "Revise costeo por placa para bajas de flota y fugas de capital.",
-        ]}
-      />
-
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge tone="emerald">
-          Cartera {cop(dash?.kpis.carteraAbierta ?? 0)}
-        </Badge>
-        <Badge tone="amber">
-          Lotes CFO {dash?.kpis.lotesCfoPendientes ?? 0}
-        </Badge>
-        <Badge tone="rose">
-          Gastos ruta pend. {cop(dash?.kpis.gastosRutaPendientes ?? 0)}
-        </Badge>
-        <Button
-          type="button"
-          variant="ghost"
-          className="text-xs"
-          onClick={() => void load()}
-        >
-          Refrescar
-        </Button>
-      </div>
+    <div className="fade-in mx-auto max-w-[1600px] space-y-6">
+      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-brand-border pb-4">
+        <div>
+          <p className="font-data text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-primary">
+            Finanzas · Dirección
+          </p>
+          <h1 className="font-sans text-2xl font-semibold tracking-tight text-brand-text-primary md:text-3xl">
+            Dirección financiera
+          </h1>
+          <p className="mt-1 font-sans text-sm text-brand-text-secondary">
+            MFA dispersión · EBITDA · costeo por placa
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge tone="success">
+            Cartera {cop(dash?.kpis.carteraAbierta ?? 0)}
+          </Badge>
+          <Badge tone="warning">
+            Lotes CFO {dash?.kpis.lotesCfoPendientes ?? 0}
+          </Badge>
+          <Badge tone="danger">
+            Gastos ruta {cop(dash?.kpis.gastosRutaPendientes ?? 0)}
+          </Badge>
+          <Button
+            type="button"
+            variant="ghost"
+            className="w-auto px-3 py-1.5 text-xs"
+            onClick={() => void load()}
+          >
+            <RefreshCw className="mr-1 inline h-3 w-3" aria-hidden />
+            Refrescar
+          </Button>
+        </div>
+      </header>
 
       {error ? (
-        <p className="text-sm text-[var(--accent-alert)]">{error}</p>
+        <p className="rounded-lg border border-brand-danger/30 bg-brand-danger/10 px-3 py-2 text-sm text-brand-danger">
+          {error}
+        </p>
       ) : null}
       {ok ? (
-        <p className="text-sm text-[var(--accent-primary)]">{ok}</p>
+        <p className="rounded-lg border border-brand-primary/30 bg-brand-primary/10 px-3 py-2 text-sm text-brand-primary">
+          {ok}
+        </p>
       ) : null}
 
-      {/* Bandeja MFA */}
-      <section className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4">
-        <h2 className="font-display text-sm font-semibold text-[var(--text-primary)]">
-          Bandeja de aprobación · OTP CFO
-        </h2>
-        <p className="mt-1 font-data text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">
-          Tope MFA Dirección:{" "}
-          {cop(dash?.kpis.cfoMfaThreshold ?? 20_000_000)}
-        </p>
+      <BentoPanel
+        title="Bandeja de aprobación · OTP CFO"
+        subtitle={`Tope MFA: ${cop(dash?.kpis.cfoMfaThreshold ?? 20_000_000)}`}
+        icon={<Shield aria-hidden />}
+      >
         <form
           onSubmit={onMfaDisburse}
-          className="mt-3 grid gap-3 md:grid-cols-[1fr_140px_auto]"
+          className="grid gap-3 md:grid-cols-[1fr_140px_auto]"
         >
           <select
-            className="rounded-lg border border-[var(--border-subtle)] bg-transparent px-3 py-2 font-data text-xs"
+            className="field font-data text-xs"
             value={selectedLot}
             onChange={(e) => setSelectedLot(e.target.value)}
           >
@@ -244,135 +279,152 @@ export default function CfoDashboardPage() {
             ))}
           </select>
           <input
-            className="rounded-lg border border-[var(--border-subtle)] bg-transparent px-3 py-2 font-data text-xs tracking-[0.2em]"
+            className="field font-data text-xs tracking-[0.2em]"
             placeholder="OTP 000000"
             value={otp}
             onChange={(e) => setOtp(e.target.value)}
             maxLength={6}
             required
           />
-          <Button type="submit" variant="primary">
+          <Button type="submit" variant="primary" className="w-auto px-4 py-2">
             Liberar lote
           </Button>
         </form>
         {!dash?.highValueLots.length ? (
-          <p className="mt-3 text-xs text-[var(--text-secondary)]">
+          <p className="mt-3 text-xs text-brand-text-secondary">
             Sin lotes sobre el tope CFO en cola.
           </p>
-        ) : null}
-      </section>
+        ) : (
+          <div className="mt-4">
+            <NexaTable columns={["Contraparte", "Monto", "Estado", "MFA"]}>
+              {(dash?.approvalTray || []).map((l) => (
+                <NexaRow
+                  key={l.id}
+                  active={selectedLot === l.id}
+                  onClick={() => setSelectedLot(l.id)}
+                >
+                  <NexaCell>{l.counterparty}</NexaCell>
+                  <NexaCell mono>{cop(l.amount)}</NexaCell>
+                  <NexaCell>{statusEs(l.status)}</NexaCell>
+                  <NexaCell>
+                    {l.requiresCfoMfa ? (
+                      <Badge tone="warning">CFO MFA</Badge>
+                    ) : (
+                      "—"
+                    )}
+                  </NexaCell>
+                </NexaRow>
+              ))}
+            </NexaTable>
+          </div>
+        )}
+      </BentoPanel>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        {/* EBITDA chart */}
-        <section className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4">
-          <h2 className="font-display text-sm font-semibold">
-            EBITDA mensual (comando)
-          </h2>
-          <div className="mt-4 flex h-40 items-end gap-2">
-            {(dash?.ebitdaSeries || []).map((b) => (
-              <div
-                key={b.label}
-                className="flex flex-1 flex-col items-center gap-1"
-              >
-                <div
-                  className="w-full rounded-t bg-[var(--accent-primary)]/80"
-                  style={{
-                    height: `${Math.max(8, (b.ebitda / maxEbitda) * 100)}%`,
-                  }}
-                  title={cop(b.ebitda)}
+        <BentoPanel
+          title="EBITDA mensual"
+          subtitle="Comando financiero"
+          icon={<BarChart3 aria-hidden />}
+        >
+          <div className="h-44">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={dash?.ebitdaSeries || []}>
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke={colors.chartGrid}
                 />
-                <span className="font-data text-[9px] text-[var(--text-secondary)]">
-                  {b.label}
-                </span>
-              </div>
-            ))}
+                <XAxis
+                  dataKey="label"
+                  tick={{ fontSize: 10, fill: colors.textSecondary }}
+                />
+                <YAxis tick={{ fontSize: 10, fill: colors.textSecondary }} />
+                <Tooltip
+                  formatter={(v: number) => [cop(v), "EBITDA"]}
+                  contentStyle={tipStyle}
+                />
+                <Bar
+                  dataKey="ebitda"
+                  name="EBITDA"
+                  fill={colors.primary}
+                  radius={[4, 4, 0, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
-          <p className="mt-3 text-xs text-[var(--text-secondary)]">
-            Flujo 7d: ingreso CxC {cop(dash?.cashProjection7d.expectedInflowCxc ?? 0)}{" "}
-            · salida cola {cop(dash?.cashProjection7d.queuedOutflow ?? 0)} ·{" "}
+          <p className="mt-3 text-xs text-brand-text-secondary">
+            Flujo 7d: ingreso CxC{" "}
+            {cop(dash?.cashProjection7d.expectedInflowCxc ?? 0)} · salida cola{" "}
+            {cop(dash?.cashProjection7d.queuedOutflow ?? 0)} ·{" "}
             {dash?.cashProjection7d.alert}
           </p>
-        </section>
+        </BentoPanel>
 
-        {/* Alertas */}
-        <section className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4">
-          <h2 className="font-display text-sm font-semibold">
-            Alertas financieras
-          </h2>
-          <ul className="mt-3 space-y-2">
-            {(dash?.alerts || []).map((a, i) => (
-              <li
-                key={`${a.kind}-${i}`}
-                className="flex items-start gap-2 rounded-lg border border-[var(--border-subtle)] px-3 py-2"
-              >
-                <Badge
-                  tone={
-                    a.severity === "RED"
-                      ? "rose"
-                      : a.severity === "AMBER"
-                        ? "amber"
-                        : "emerald"
-                  }
+        <BentoPanel
+          title="Alertas financieras"
+          subtitle="Semáforo de riesgo"
+          icon={<AlertTriangle aria-hidden />}
+        >
+          {!dash?.alerts?.length ? (
+            <EmptyState title="Sin alertas activas" description="Sistema nominal." />
+          ) : (
+            <ul className="space-y-2">
+              {(dash?.alerts || []).map((a, i) => (
+                <li
+                  key={`${a.kind}-${i}`}
+                  className="flex items-start gap-2 rounded-lg border border-brand-border px-3 py-2"
                 >
-                  {a.severity}
-                </Badge>
-                <span className="text-xs text-[var(--text-primary)]">
-                  {a.message}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
+                  <Badge
+                    tone={
+                      a.severity === "RED"
+                        ? "danger"
+                        : a.severity === "AMBER"
+                          ? "warning"
+                          : "success"
+                    }
+                  >
+                    {a.severity}
+                  </Badge>
+                  <span className="text-xs text-brand-text-primary">
+                    {a.message}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </BentoPanel>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        {/* Simulador */}
-        <section className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4">
-          <h2 className="font-display text-sm font-semibold">
-            Simulador de rentabilidad
-          </h2>
-          <form onSubmit={onSimulate} className="mt-3 grid grid-cols-2 gap-2">
-            {(
-              [
-                ["fareAmount", "Tarifa"],
-                ["fuelProjected", "Combustible"],
-                ["tireWear", "Llantas"],
-                ["driverSalary", "Salario conductor"],
-                ["insurancePolicies", "Pólizas"],
-              ] as const
-            ).map(([key, label]) => (
-              <label key={key} className="text-[10px] text-[var(--text-secondary)]">
-                {label}
-                <input
-                  className="mt-1 w-full rounded-lg border border-[var(--border-subtle)] bg-transparent px-2 py-1.5 font-data text-xs"
-                  value={simForm[key]}
-                  onChange={(e) =>
-                    setSimForm((f) => ({ ...f, [key]: e.target.value }))
-                  }
-                />
-              </label>
-            ))}
-            <div className="col-span-2">
-              <Button type="submit" variant="secondary" className="w-full">
-                Evaluar margen
-              </Button>
-            </div>
-          </form>
+        <BentoPanel
+          title="Simulador de rentabilidad"
+          subtitle="EBITDA mínimo 15% · firma bloqueada"
+          icon={<TrendingUp aria-hidden />}
+          action={
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-auto px-3 py-1.5 text-xs"
+              onClick={() => setSimOpen(true)}
+            >
+              Abrir simulador
+            </Button>
+          }
+        >
           {sim ? (
-            <div className="mt-3 space-y-1 rounded-lg border border-[var(--border-subtle)] p-3 text-xs">
+            <div className="space-y-1 rounded-lg border border-brand-border p-3 text-xs">
               <div className="flex items-center gap-2">
                 <Badge
                   tone={
                     sim.simulation.semaphore === "GREEN"
-                      ? "emerald"
+                      ? "success"
                       : sim.simulation.semaphore === "AMBER"
-                        ? "amber"
-                        : "rose"
+                        ? "warning"
+                        : "danger"
                   }
                 >
                   {sim.simulation.semaphore}
                 </Badge>
-                <span className="font-data">
+                <span className="font-data tabular-nums">
                   EBITDA {cop(sim.simulation.ebitda)} ·{" "}
                   {pct(sim.simulation.margin)}
                 </span>
@@ -380,105 +432,194 @@ export default function CfoDashboardPage() {
               <p>{sim.message}</p>
               {!sim.simulation.canSign &&
               sim.simulation.counterOfferSuggested ? (
-                <p className="font-data text-[var(--accent-metric)]">
+                <p className="font-data tabular-nums text-brand-warning">
                   Contraoferta sugerida:{" "}
                   {cop(sim.simulation.counterOfferSuggested)}
                 </p>
               ) : null}
             </div>
-          ) : null}
-        </section>
+          ) : (
+            <p className="text-sm text-brand-text-secondary">
+              Evalúe margen de cotizaciones antes de firmar contrato.
+            </p>
+          )}
+        </BentoPanel>
 
-        {/* Costeo placa */}
-        <section className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4">
-          <h2 className="font-display text-sm font-semibold">
-            Costeo por placa (Rayos X)
-          </h2>
-          <form onSubmit={onCosteo} className="mt-3 flex gap-2">
-            <input
-              className="flex-1 rounded-lg border border-[var(--border-subtle)] bg-transparent px-3 py-2 font-data text-xs uppercase"
-              value={placa}
-              onChange={(e) => setPlaca(e.target.value)}
-              placeholder="BOG-892"
-            />
-            <Button type="submit" variant="secondary">
-              Consolidar
+        <BentoPanel
+          title="Costeo por placa"
+          subtitle="Rayos X · fugas de capital"
+          icon={<Truck aria-hidden />}
+          action={
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-auto px-3 py-1.5 text-xs"
+              onClick={() => setCosteoOpen(true)}
+            >
+              Consolidar placa
             </Button>
-          </form>
+          }
+        >
           {costeo ? (
-            <div className="mt-3 space-y-2 text-xs">
+            <div className="space-y-2 text-xs">
               <div className="flex items-center gap-2">
-                <span className="font-data text-sm font-semibold">
+                <span className="font-data text-sm font-semibold tabular-nums">
                   {costeo.plate}
                 </span>
                 <Badge
                   tone={
                     costeo.semaphore === "GREEN"
-                      ? "emerald"
+                      ? "success"
                       : costeo.semaphore === "AMBER"
-                        ? "amber"
-                        : "rose"
+                        ? "warning"
+                        : "danger"
                   }
                 >
                   {pct(costeo.margin)}
                 </Badge>
               </div>
-              <p>Ingresos: {cop(costeo.revenue)}</p>
-              <p>
-                Costos ruta/combustible: {cop(costeo.costs.routeAndFuel)} ·
-                Taller: {cop(costeo.costs.partsAndWorkshop)}
+              <p className="font-data tabular-nums">
+                Ingresos: {cop(costeo.revenue)}
               </p>
-              <p className="font-data">
+              <p className="font-data tabular-nums">
+                Ruta/combustible: {cop(costeo.costs.routeAndFuel)} · Taller:{" "}
+                {cop(costeo.costs.partsAndWorkshop)}
+              </p>
+              <p className="font-data tabular-nums">
                 Contribución: {cop(costeo.contribution)}
               </p>
-              <p className="text-[var(--text-secondary)]">
+              <p className="text-brand-text-secondary">
                 {costeo.fleetDecisionHint}
               </p>
             </div>
-          ) : null}
-        </section>
+          ) : (
+            <p className="text-sm text-brand-text-secondary">
+              Consolide ingresos y costos por unidad de flota.
+            </p>
+          )}
+        </BentoPanel>
       </div>
 
-      {/* Cotizaciones pendientes */}
-      <section className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4">
-        <h2 className="font-display text-sm font-semibold">
-          Cotizaciones comerciales · revisión financiera
-        </h2>
-        <div className="mt-3 overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="font-data text-[10px] uppercase text-[var(--text-secondary)]">
-                <th className="px-2 py-1">Código</th>
-                <th className="px-2 py-1">Cliente</th>
-                <th className="px-2 py-1">Monto</th>
-                <th className="px-2 py-1">Estado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(dash?.quotesPending || []).map((q) => (
-                <tr
-                  key={q.id}
-                  className="border-t border-[var(--border-subtle)]"
-                >
-                  <td className="px-2 py-2 font-data text-xs">{q.code}</td>
-                  <td className="px-2 py-2 text-xs">{q.customer}</td>
-                  <td className="px-2 py-2 font-data text-xs">
-                    {cop(q.amount)}
-                  </td>
-                  <td className="px-2 py-2">
-                    <Badge tone="amber">{statusEs(q.status)}</Badge>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {!dash?.quotesPending?.length ? (
-            <p className="py-4 text-center text-xs text-[var(--text-secondary)]">
-              Sin cotizaciones en bandeja
-            </p>
-          ) : null}
-        </div>
-      </section>
+      <BentoPanel
+        title="Cotizaciones comerciales"
+        subtitle="Revisión financiera pendiente"
+      >
+        {!dash?.quotesPending?.length ? (
+          <EmptyState
+            title="Sin cotizaciones en bandeja"
+            description="Comercial sin pendientes de revisión."
+          />
+        ) : (
+          <NexaTable columns={["Código", "Cliente", "Monto", "Estado"]}>
+            {(dash?.quotesPending || []).map((q) => (
+              <NexaRow key={q.id}>
+                <NexaCell mono className="text-xs">
+                  {q.code}
+                </NexaCell>
+                <NexaCell className="text-xs">{q.customer}</NexaCell>
+                <NexaCell mono>{cop(q.amount)}</NexaCell>
+                <NexaCell>
+                  <Badge tone="warning">{statusEs(q.status)}</Badge>
+                </NexaCell>
+              </NexaRow>
+            ))}
+          </NexaTable>
+        )}
+      </BentoPanel>
+
+      <SlideOver
+        open={simOpen}
+        onClose={() => setSimOpen(false)}
+        title="Simulador de rentabilidad"
+        description="Firma bloqueada si EBITDA < 15%"
+        widthClass="max-w-md"
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-auto px-4 py-2"
+              onClick={() => setSimOpen(false)}
+            >
+              Cerrar
+            </Button>
+            <Button
+              type="submit"
+              form="cfo-sim-form"
+              variant="primary"
+              className="w-auto px-4 py-2"
+            >
+              Evaluar margen
+            </Button>
+          </>
+        }
+      >
+        <form id="cfo-sim-form" onSubmit={onSimulate} className="grid grid-cols-2 gap-3">
+          {(
+            [
+              ["fareAmount", "Tarifa"],
+              ["fuelProjected", "Combustible"],
+              ["tireWear", "Llantas"],
+              ["driverSalary", "Salario conductor"],
+              ["insurancePolicies", "Pólizas"],
+            ] as const
+          ).map(([key, label]) => (
+            <label
+              key={key}
+              className="font-data text-[10px] uppercase text-brand-text-secondary"
+            >
+              {label}
+              <input
+                className="field mt-1 w-full font-data tabular-nums"
+                value={simForm[key]}
+                onChange={(e) =>
+                  setSimForm((f) => ({ ...f, [key]: e.target.value }))
+                }
+              />
+            </label>
+          ))}
+        </form>
+      </SlideOver>
+
+      <SlideOver
+        open={costeoOpen}
+        onClose={() => setCosteoOpen(false)}
+        title="Costeo por placa"
+        description="Consolidado ingresos · ruta · taller"
+        widthClass="max-w-md"
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-auto px-4 py-2"
+              onClick={() => setCosteoOpen(false)}
+            >
+              Cerrar
+            </Button>
+            <Button
+              type="submit"
+              form="cfo-costeo-form"
+              variant="primary"
+              className="w-auto px-4 py-2"
+            >
+              Consolidar
+            </Button>
+          </>
+        }
+      >
+        <form id="cfo-costeo-form" onSubmit={onCosteo} className="space-y-3">
+          <label className="flex flex-col gap-1 font-data text-[10px] uppercase tracking-wider text-brand-text-secondary">
+            Placa
+            <input
+              className="field font-data uppercase tabular-nums"
+              value={placa}
+              onChange={(e) => setPlaca(e.target.value)}
+              placeholder="BOG-892"
+            />
+          </label>
+        </form>
+      </SlideOver>
     </div>
   );
 }

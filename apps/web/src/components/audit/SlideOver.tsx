@@ -15,7 +15,7 @@ type SlideOverProps = {
   widthClass?: string;
 };
 
-/** Panel lateral derecho — formularios de alta/edición (auditoría UI/UX). */
+/** Panel lateral derecho â€” formularios de alta/ediciÃ³n (auditorÃ­a UI/UX). */
 export function SlideOver({
   open,
   onClose,
@@ -48,7 +48,7 @@ export function SlideOver({
     <div className="fixed inset-0 z-[85]" role="presentation">
       <button
         type="button"
-        className="absolute inset-0 bg-black/55"
+        className="absolute inset-0 bg-[var(--brand-scrim)] backdrop-blur-sm"
         aria-label="Cerrar panel"
         onClick={onClose}
       />
@@ -56,18 +56,18 @@ export function SlideOver({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className={`absolute top-0 right-0 bottom-0 flex w-full ${widthClass} flex-col border-l border-[var(--border-subtle)] bg-[var(--bg-surface-1)] shadow-2xl`}
+        className={`absolute top-0 right-0 bottom-0 flex w-full ${widthClass} flex-col border-bevel border-l bg-[var(--surface-convex)] shadow-3d-panel backdrop-blur-md`}
       >
-        <header className="flex shrink-0 items-start justify-between gap-3 border-b border-[var(--border-subtle)] px-5 py-4">
+        <header className="flex shrink-0 items-start justify-between gap-3 border-b border-brand-border/60 px-5 py-4">
           <div className="min-w-0 pr-2">
             <h2
               id={titleId}
-              className="text-lg font-semibold text-[var(--text-primary)]"
+              className="text-lg font-semibold text-[var(--brand-text-primary)]"
             >
               {title}
             </h2>
             {description ? (
-              <p className="mt-1 text-sm text-[var(--text-secondary)]">
+              <p className="mt-1 text-sm text-[var(--brand-text-secondary)]">
                 {description}
               </p>
             ) : null}
@@ -87,7 +87,7 @@ export function SlideOver({
         </div>
 
         {footer ? (
-          <footer className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-[var(--border-subtle)] bg-[var(--bg-surface-1)] px-5 py-4">
+          <footer className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-brand-border/60 bg-brand-surface/80 px-5 py-4 backdrop-blur-md">
             {footer}
           </footer>
         ) : null}

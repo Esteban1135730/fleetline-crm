@@ -1,9 +1,12 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
+import { Radio, ShieldAlert, Phone } from "lucide-react";
 import { api } from "@/lib/api";
-import { HowToBox, PageIntro } from "@/components/page-intro";
+import { EmptyState, StatusPulseBadge } from "@/components/audit";
+import { BentoPanel } from "@/components/nexa/bento-panel";
+import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
 
 type Anomaly = {
   kind: "DESVIO" | "SOS" | "FATIGA";
@@ -46,11 +49,13 @@ type Dash = {
   };
 };
 
-const SEV_CLASS: Record<Anomaly["severity"], string> = {
-  CRITICAL: "border-[#FF2A5F] bg-[#FF2A5F]/20 text-[var(--text-primary)]",
-  HIGH: "border-[#FFB800]/60 bg-[#FFB800]/10 text-[var(--text-primary)]",
-  WARN: "border-[var(--border-subtle)] bg-[color-mix(in_srgb,var(--bg-surface-2)_50%,transparent)] text-[var(--text-primary)]",
-};
+function severityTone(
+  s: Anomaly["severity"],
+): "danger" | "fatiga" | "neutral" {
+  if (s === "CRITICAL") return "danger";
+  if (s === "HIGH") return "fatiga";
+  return "neutral";
+}
 
 export default function CentroControlDashboardPage() {
   const [dash, setDash] = useState<Dash | null>(null);
@@ -172,115 +177,147 @@ export default function CentroControlDashboardPage() {
 
   return (
     <div
-      className={`fade-in relative mx-auto min-h-[100dvh] max-w-[1400px] space-y-4 p-3 md:p-6 ${
-        warRoom
-          ? "bg-[color-mix(in_srgb,var(--accent-alert)_12%,var(--bg-canvas))] text-[var(--text-primary)]"
-          : "bg-[var(--bg-canvas)] text-[var(--text-primary)]"
+      className={`fade-in relative mx-auto min-h-[100dvh] max-w-[1400px] space-y-4 p-4 md:p-6 ${
+        warRoom ? "bg-brand-canvas text-brand-text-primary" : "bg-brand-canvas"
       }`}
     >
       {warRoom ? (
-        <div className="pointer-events-none fixed inset-0 z-0 animate-pulse bg-[#FF2A5F]/10" />
+        <div className="pointer-events-none fixed inset-0 z-0 animate-pulse bg-brand-danger/10" />
       ) : null}
 
-      <div className="relative z-10 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-4">
-        <PageIntro module="logistica" title="Torre de control 24/7" />
-        <p className="mt-1 text-sm text-[var(--text-secondary)]">
-          Video wall · monitoreo por excepción · solo anomalías
-        </p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Badge tone={warRoom ? "rose" : "emerald"}>
-            {warRoom ? "Alerta máxima · Sala de crisis" : "Nominal"}
-          </Badge>
-          <Badge tone="amber">
-            {(dash?.anomalies ?? []).length} excepciones
-          </Badge>
+      <header className="relative z-10 flex flex-wrap items-start justify-between gap-3 border-b border-brand-border pb-4">
+        <div>
+          <p className="font-data text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-primary">
+            Torre de control 24/7
+          </p>
+          <h1 className="font-sans text-2xl font-semibold tracking-tight text-brand-text-primary md:text-3xl">
+            Monitoreo por excepción
+          </h1>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Badge tone={warRoom ? "danger" : "success"}>
+              {warRoom ? "Alerta máxima · Sala de crisis" : "Nominal"}
+            </Badge>
+            <Badge tone="warning">
+              {(dash?.anomalies ?? []).length} excepciones
+            </Badge>
+          </div>
         </div>
-      </div>
-
-      <div className="relative z-10">
-        <HowToBox
-          steps={[
-            "Solo emergen unidades con anomalía (desvío, SOS, fatiga).",
-            "Desvío: tipificar → llamada al conductor + SMS al cliente.",
-            "SOS: Modo Rojo · checklist · apagado IoT solo con protocolo confirmado.",
-          ]}
-        />
-      </div>
+        <StatusPulseBadge tone={warRoom ? "danger" : "active"} pulse={warRoom}>
+          Video wall · uplink {warRoom ? "crítico" : "nominal"}
+        </StatusPulseBadge>
+      </header>
 
       {error ? (
-        <p className="relative z-10 rounded-xl border border-[#FF2A5F]/50 bg-[#FF2A5F]/15 px-4 py-3 text-sm">
+        <p className="relative z-10 rounded-lg border border-brand-danger/40 bg-brand-danger/10 px-4 py-3 font-data text-sm text-brand-danger">
           {error}
         </p>
       ) : null}
       {msg ? (
-        <p className="relative z-10 rounded-xl border border-[#10B981]/40 bg-[#10B981]/10 px-4 py-3 text-sm">
+        <p className="relative z-10 rounded-lg border border-brand-success/40 bg-brand-success/10 px-4 py-3 font-data text-sm text-brand-success">
           {msg}
         </p>
       ) : null}
 
-      {/* Video wall — anomalías */}
-      <section
-        id="anomalias"
-        className="relative z-10 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-4"
-      >
-        <h3 className="font-display text-xl">Pantalla de monitoreo · Excepciones</h3>
-        <p className="text-sm text-[var(--text-secondary)]">
-          Fondo negro — solo unidades fuera de nominal
-        </p>
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="relative z-10 grid grid-cols-1 gap-3 lg:grid-cols-12 lg:gap-4">
+        <BentoPanel
+          id="anomalias"
+          title="Pantalla de excepciones"
+          subtitle="Solo unidades fuera de nominal"
+          icon={<ShieldAlert />}
+          className="lg:col-span-8"
+        >
           {(dash?.anomalies ?? []).length === 0 ? (
-            <p className="col-span-full py-16 text-center font-mono text-sm text-[var(--text-secondary)]">
-              Flota nominal — sin excepciones en la red
+            <EmptyState
+              title="Flota nominal"
+              description="Sin excepciones en la red — telemetría dentro de parámetros."
+            />
+          ) : (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {(dash?.anomalies ?? []).map((a) => (
+                <article
+                  key={`${a.kind}-${a.id}`}
+                  className={`rounded-lg border px-3 py-3 transition-colors hover:border-brand-border-active ${
+                    a.severity === "CRITICAL"
+                      ? "border-brand-danger/40 bg-brand-danger/10"
+                      : a.severity === "HIGH"
+                        ? "border-brand-warning/30 bg-brand-warning/10"
+                        : "border-brand-border bg-brand-canvas"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-data text-lg tabular-nums text-brand-text-primary">
+                      {a.plate || "SIN-PLACA"}
+                    </p>
+                    <StatusPulseBadge tone={severityTone(a.severity)}>
+                      {a.kind}
+                    </StatusPulseBadge>
+                  </div>
+                  <p className="mt-1 font-sans text-sm text-brand-text-primary">
+                    {a.label}
+                  </p>
+                  <p className="mt-1 font-data text-[10px] tabular-nums text-brand-text-secondary">
+                    {new Date(a.at).toLocaleTimeString("es-CO")}
+                  </p>
+                </article>
+              ))}
+            </div>
+          )}
+        </BentoPanel>
+
+        <BentoPanel
+          title="Consola VoIP"
+          subtitle="Marcación rápida · fatiga"
+          icon={<Phone />}
+          className="lg:col-span-4"
+        >
+          {(dash?.voipDirectory ?? []).length === 0 ? (
+            <p className="font-sans text-sm text-brand-text-secondary">
+              Sin conductores en zona de atención
             </p>
           ) : (
-            (dash?.anomalies ?? []).map((a) => (
-              <article
-                key={`${a.kind}-${a.id}`}
-                className={`rounded-lg border p-4 ${SEV_CLASS[a.severity]}`}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <p className="font-mono text-lg text-[#10B981]">
-                    {a.plate || "SIN-PLACA"}
-                  </p>
-                  <Badge
-                    tone={
-                      a.severity === "CRITICAL"
-                        ? "rose"
-                        : a.severity === "HIGH"
-                          ? "amber"
-                          : "slate"
-                    }
-                  >
-                    {a.kind}
-                  </Badge>
-                </div>
-                <p className="mt-2 text-sm">{a.label}</p>
-                <p className="mt-1 font-mono text-xs text-[var(--text-secondary)]">
-                  {new Date(a.at).toLocaleTimeString("es-CO")}
-                </p>
-              </article>
-            ))
+            <NexaTable columns={["Conductor", "Fatiga", "Acción"]}>
+              {(dash?.voipDirectory ?? []).map((d) => (
+                <NexaRow key={d.driverId}>
+                  <NexaCell>{d.name}</NexaCell>
+                  <NexaCell mono>
+                    {d.fatigueScore}
+                    {d.zone === "YELLOW" ? " · AMARILLA" : ""}
+                  </NexaCell>
+                  <NexaCell>
+                    {d.phone ? (
+                      <a
+                        href={`tel:${d.phone}`}
+                        className="font-data text-[10px] font-semibold uppercase tracking-wider text-brand-success hover:underline"
+                      >
+                        CALL
+                      </a>
+                    ) : (
+                      "—"
+                    )}
+                  </NexaCell>
+                </NexaRow>
+              ))}
+            </NexaTable>
           )}
-        </div>
-      </section>
+        </BentoPanel>
 
-      {/* Acciones desvío / SOS */}
-      <section
-        id="warroom"
-        className="relative z-10 grid grid-cols-1 gap-3 lg:grid-cols-2"
-      >
-        <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-4">
-          <h3 className="font-display text-lg">Desvío de geocerca</h3>
+        <BentoPanel
+          id="warroom"
+          title="Desvío de geocerca"
+          subtitle="Tipificar · llamada · SMS cliente"
+          className="lg:col-span-6"
+        >
           <input
-            className="field mt-3 min-h-[48px] w-full !bg-[var(--bg-surface-2)] !text-[var(--text-primary)]"
+            className="field w-full font-data uppercase"
             placeholder="Placa (opcional)"
             value={tipPlate}
             onChange={(e) => setTipPlate(e.target.value.toUpperCase())}
           />
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="mt-3 flex flex-wrap justify-end gap-2">
             <Button
               type="button"
               variant="primary"
+              className="w-auto px-4 py-2"
               disabled={busy}
               onClick={() => void tipificarDesvio()}
             >
@@ -289,24 +326,23 @@ export default function CentroControlDashboardPage() {
             <Button
               type="button"
               variant="secondary"
-              className="!bg-[#FF2A5F] !text-white"
+              className="w-auto px-4 py-2 !bg-brand-danger !text-white"
               disabled={busy}
               onClick={() => void activarSos()}
             >
-              Activar SOS / Sala de crisis
+              Activar SOS
             </Button>
           </div>
-        </div>
+        </BentoPanel>
 
-        <div className="rounded-xl border border-[#FF2A5F]/40 bg-[color-mix(in_srgb,var(--accent-alert)_10%,var(--bg-surface-1))] p-4">
-          <h3 className="font-display text-lg text-[#FF2A5F]">
-            IoT · Apagado remoto
-          </h3>
-          <p className="text-sm text-[var(--text-secondary)]">
-            Requiere SOS ACTIVE + confirmación de protocolo
-          </p>
+        <BentoPanel
+          title="IoT · Apagado remoto"
+          subtitle="SOS ACTIVE + protocolo confirmado"
+          icon={<Radio />}
+          className="lg:col-span-6 border-brand-danger/30"
+        >
           <select
-            className="field mt-3 min-h-[48px] w-full !bg-[var(--bg-surface-2)] !text-[var(--text-primary)]"
+            className="field w-full font-data"
             value={selectedSos}
             onChange={(e) => setSelectedSos(e.target.value)}
           >
@@ -317,10 +353,11 @@ export default function CentroControlDashboardPage() {
               </option>
             ))}
           </select>
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="mt-3 flex flex-wrap justify-end gap-2">
             <Button
               type="button"
               variant="primary"
+              className="w-auto px-4 py-2"
               disabled={busy || !selectedSos}
               onClick={() => void apagadoRemoto()}
             >
@@ -329,63 +366,30 @@ export default function CentroControlDashboardPage() {
             <Button
               type="button"
               variant="secondary"
+              className="w-auto px-4 py-2"
               onClick={() => setPipOpen((v) => !v)}
             >
-              {pipOpen ? "Cerrar ventana de cabina" : "Ventana de cabina"}
+              {pipOpen ? "Cerrar cabina" : "Ventana cabina"}
             </Button>
           </div>
-        </div>
-      </section>
+        </BentoPanel>
+      </div>
 
-      {/* Consola VoIP */}
-      <section
-        id="voip"
-        className="relative z-10 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-4"
-      >
-        <h3 className="font-display text-lg">Consola de llamadas · Marcación rápida</h3>
-        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {(dash?.voipDirectory ?? []).map((d) => (
-            <a
-              key={d.driverId}
-              href={d.phone ? `tel:${d.phone}` : undefined}
-              className="flex items-center justify-between rounded-lg border border-[var(--border-subtle)] bg-[color-mix(in_srgb,var(--bg-canvas)_70%,transparent)] px-3 py-3 hover:border-[#10B981]/50"
-            >
-              <div>
-                <p className="text-sm font-medium">{d.name}</p>
-                <p className="font-mono text-xs text-[var(--text-secondary)]">
-                  Fatiga {d.fatigueScore}
-                  {d.zone === "YELLOW" ? " · AMARILLA" : ""}
-                </p>
-              </div>
-              <span className="rounded bg-[#10B981]/20 px-2 py-1 font-mono text-xs text-[#10B981]">
-                CALL
-              </span>
-            </a>
-          ))}
-          {(dash?.voipDirectory ?? []).length === 0 ? (
-            <p className="text-sm text-[var(--text-secondary)]">
-              Sin conductores en zona de atención
-            </p>
-          ) : null}
-        </div>
-      </section>
-
-      {/* PIP flotante */}
       {pipOpen ? (
-        <div className="fixed bottom-4 right-4 z-50 w-[280px] overflow-hidden rounded-xl border border-[#FF2A5F]/50 bg-[var(--bg-surface-1)] shadow-2xl sm:w-[360px]">
-          <div className="flex items-center justify-between border-b border-[var(--border-subtle)] px-3 py-2">
-            <p className="font-mono text-xs text-[#FF2A5F]">CABINA EN VIVO</p>
+        <div className="fixed bottom-4 right-4 z-50 w-[280px] overflow-hidden rounded-xl border border-brand-danger/50 bg-brand-surface shadow-2xl sm:w-[360px]">
+          <div className="flex items-center justify-between border-b border-brand-border px-3 py-2">
+            <p className="font-data text-xs text-brand-danger">CABINA EN VIVO</p>
             <button
               type="button"
-              className="text-xs text-[var(--text-secondary)]"
+              className="font-data text-xs text-brand-text-secondary"
               onClick={() => setPipOpen(false)}
             >
               Cerrar
             </button>
           </div>
-          <div className="relative flex h-44 items-center justify-center bg-[radial-gradient(circle_at_center,#1a0a0e,#000)]">
-            <div className="absolute left-2 top-2 h-2 w-2 animate-pulse rounded-full bg-[#FF2A5F]" />
-            <p className="font-mono text-xs text-[var(--text-secondary)]">
+          <div className="relative flex h-44 items-center justify-center bg-brand-canvas">
+            <div className="absolute left-2 top-2 h-2 w-2 animate-pulse rounded-full bg-brand-danger" />
+            <p className="font-data text-xs text-brand-text-secondary">
               Stream IP · escucha ambiental
               {warRoom ? " · Alerta máxima" : ""}
             </p>

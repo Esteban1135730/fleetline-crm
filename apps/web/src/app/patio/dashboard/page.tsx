@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -16,13 +16,13 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { statusEs } from "@fsg/shared";
-import { PageIntro } from "@/components/page-intro";
 import {
   EmptyState,
   KpiCard,
   SlideOver,
   StatusPulseBadge,
 } from "@/components/audit";
+import { BentoPanel } from "@/components/nexa/bento-panel";
 
 type InYardUnit = {
   parkingLogId: string;
@@ -82,11 +82,11 @@ type GateResult = {
 };
 
 const BLOCK_ES: Record<string, string> = {
-  NO_ACTIVE_TRIP: "Sin viaje activo en ventana de despacho (±4 h)",
-  LPR_NO_ACTIVE_TRIP: "Sin viaje activo en ventana de despacho (±4 h)",
-  VEHICLE_DOCS_EXPIRED_JURIDICO: "Documentos jurídicos vencidos (SOAT / TO / pólizas)",
+  NO_ACTIVE_TRIP: "Sin viaje activo en ventana de despacho (Â±4 h)",
+  LPR_NO_ACTIVE_TRIP: "Sin viaje activo en ventana de despacho (Â±4 h)",
+  VEHICLE_DOCS_EXPIRED_JURIDICO: "Documentos jurÃ­dicos vencidos (SOAT / TO / pÃ³lizas)",
   VEHICLE_COMPLIANCE_BLOCKED: "Unidad con hard-stop documental",
-  ALCOHOL_CHECK_MISSING_OR_FAILED: "Alcoholimetría ausente, vencida o fallida",
+  ALCOHOL_CHECK_MISSING_OR_FAILED: "AlcoholimetrÃ­a ausente, vencida o fallida",
   DRIVER_FATIGUE: "Conductor en fatiga (bloqueo operativo)",
   DRIVER_DISPATCH_BLOCKED: "Conductor bloqueado para despacho",
   DRIVER_INACTIVE: "Conductor inactivo",
@@ -95,7 +95,7 @@ const BLOCK_ES: Record<string, string> = {
   VEHICLE_STATUS_OUT_OF_SERVICE: "Unidad fuera de servicio",
   GATE_CHECKOUT_DENIED_COMPLIANCE_BLOCK: "Salida denegada por compliance",
   LPR_HARD_STOP: "Hard-stop de talanquera",
-  ALREADY_IN_YARD: "La unidad ya está en patio",
+  ALREADY_IN_YARD: "La unidad ya estÃ¡ en patio",
   NOT_IN_YARD: "No hay ingreso abierto para esta placa",
   PLATE_NOT_IN_FLEET: "Placa no registrada en la flota",
 };
@@ -137,7 +137,7 @@ export default function CoordinadorPatioDashboard() {
       setDash(d);
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Conexión fallida");
+      setError(e instanceof Error ? e.message : "ConexiÃ³n fallida");
     }
   }, []);
 
@@ -175,10 +175,10 @@ export default function CoordinadorPatioDashboard() {
           scheduledDepartAt: when,
         },
       );
-      setMsg(res.message || `Bahía LIFO asignada a ${forPlate}`);
+      setMsg(res.message || `BahÃ­a LIFO asignada a ${forPlate}`);
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo asignar bahía");
+      setError(e instanceof Error ? e.message : "No se pudo asignar bahÃ­a");
     }
   }
 
@@ -202,7 +202,7 @@ export default function CoordinadorPatioDashboard() {
         });
         setMsg(
           res.message ||
-            `Ingreso OK · ${res.plate || plate} — talanquera abierta y bahía LIFO.`,
+            `Ingreso OK Â· ${res.plate || plate} â€” talanquera abierta y bahÃ­a LIFO.`,
         );
         setPanel("none");
         setPlate("");
@@ -214,7 +214,7 @@ export default function CoordinadorPatioDashboard() {
         );
         setMsg(
           `${res.message || "Talanquera abierta"}${
-            res.trip?.code ? ` · Viaje ${res.trip.code}` : ""
+            res.trip?.code ? ` Â· Viaje ${res.trip.code}` : ""
           }`,
         );
         setLastBlocks([]);
@@ -227,7 +227,7 @@ export default function CoordinadorPatioDashboard() {
       setLastBlocks(blocks);
       const readable =
         blocks.length > 0
-          ? blocks.map(blockLabel).join(" · ")
+          ? blocks.map(blockLabel).join(" Â· ")
           : e instanceof Error
             ? e.message
             : "Bloqueo de talanquera";
@@ -244,14 +244,14 @@ export default function CoordinadorPatioDashboard() {
 
   return (
     <div className="fade-in mx-auto max-w-[1600px] space-y-6 p-4 md:p-6">
-      <header className="flex flex-wrap items-start justify-between gap-3">
+      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-brand-border pb-4">
         <div>
-          <PageIntro module="parqueadero" title="Patio inteligente" />
-          <p className="mt-1 max-w-2xl text-sm text-[var(--text-secondary)]">
-            Flujo operativo: <strong>1)</strong> registrar ingreso → bahía LIFO ·{" "}
-            <strong>2)</strong> validar salida LPR (viaje + docs + alcoholimetría).
-            Si hay hard-stop, el ledger muestra el motivo accionable.
+          <p className="font-data text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-primary">
+            Parqueadero
           </p>
+          <h1 className="font-sans text-2xl font-semibold tracking-tight text-brand-text-primary md:text-3xl">
+            Patio inteligente
+          </h1>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button
@@ -278,14 +278,14 @@ export default function CoordinadorPatioDashboard() {
       {error ? (
         <div
           role="alert"
-          className="space-y-3 rounded-lg border border-[var(--accent-alert)]/40 bg-[color-mix(in_srgb,var(--accent-alert)_10%,transparent)] px-4 py-3"
+          className="space-y-3 rounded-lg border border-[var(--brand-danger)]/40 bg-[color-mix(in_srgb,var(--brand-danger)_10%,transparent)] px-4 py-3"
         >
-          <p className="font-mono text-sm text-[var(--accent-alert)]">{error}</p>
+          <p className="font-mono text-sm text-[var(--brand-danger)]">{error}</p>
           {lastBlocks.length > 0 ? (
-            <ul className="space-y-1 text-sm text-[var(--text-primary)]">
+            <ul className="space-y-1 text-sm text-[var(--brand-text-primary)]">
               {lastBlocks.map((b) => (
                 <li key={b} className="flex items-start gap-2">
-                  <Ban className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--accent-alert)]" />
+                  <Ban className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--brand-danger)]" />
                   <span>{blockLabel(b)}</span>
                 </li>
               ))}
@@ -297,9 +297,9 @@ export default function CoordinadorPatioDashboard() {
             ) ? (
               <Link
                 href="/logistica"
-                className="rounded-md border border-[var(--border-subtle)] px-3 py-1.5 text-xs hover:bg-[var(--bg-canvas)]"
+                className="rounded-md border border-[var(--brand-border)] px-3 py-1.5 text-xs hover:bg-[var(--brand-canvas)]"
               >
-                Ir a Despacho / Logística
+                Ir a Despacho / LogÃ­stica
               </Link>
             ) : null}
             {lastBlocks.some((b) =>
@@ -307,15 +307,15 @@ export default function CoordinadorPatioDashboard() {
             ) ? (
               <Link
                 href="/tramites"
-                className="rounded-md border border-[var(--border-subtle)] px-3 py-1.5 text-xs hover:bg-[var(--bg-canvas)]"
+                className="rounded-md border border-[var(--brand-border)] px-3 py-1.5 text-xs hover:bg-[var(--brand-canvas)]"
               >
-                Ir a Trámites / docs
+                Ir a TrÃ¡mites / docs
               </Link>
             ) : null}
             {lastBlocks.some((b) => /MAINTENANCE|TALLER/i.test(b)) ? (
               <Link
                 href="/taller/coordinador/dashboard"
-                className="rounded-md border border-[var(--border-subtle)] px-3 py-1.5 text-xs hover:bg-[var(--bg-canvas)]"
+                className="rounded-md border border-[var(--brand-border)] px-3 py-1.5 text-xs hover:bg-[var(--brand-canvas)]"
               >
                 <Wrench className="mr-1 inline h-3.5 w-3.5" />
                 Abrir Taller
@@ -336,8 +336,8 @@ export default function CoordinadorPatioDashboard() {
       ) : null}
 
       {msg ? (
-        <p className="rounded-lg border border-[var(--accent-primary)]/30 bg-[color-mix(in_srgb,var(--accent-primary)_8%,transparent)] px-4 py-3 text-sm">
-          <CheckCircle2 className="mr-1.5 inline h-4 w-4 text-[var(--accent-primary)]" />
+        <p className="rounded-lg border border-[var(--brand-primary)]/30 bg-[color-mix(in_srgb,var(--brand-primary)_8%,transparent)] px-4 py-3 text-sm">
+          <CheckCircle2 className="mr-1.5 inline h-4 w-4 text-[var(--brand-primary)]" />
           {msg}
         </p>
       ) : null}
@@ -345,7 +345,7 @@ export default function CoordinadorPatioDashboard() {
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <KpiCard
           label="Unidades en patio"
-          value={dash?.inventory.count ?? "—"}
+          value={dash?.inventory.count ?? "â€”"}
           delta="Inventario LIFO"
           tone="ok"
           icon={<ParkingSquare />}
@@ -373,12 +373,11 @@ export default function CoordinadorPatioDashboard() {
         />
       </section>
 
-      {/* Unidades en patio — acción real */}
-      <section className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-5">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-display text-lg text-[var(--text-primary)]">
-            Unidades en patio
-          </h2>
+      <BentoPanel
+        title="Unidades en patio"
+        subtitle={`${dash?.inventory.count ?? 0} en inventario LIFO`}
+        icon={<ParkingSquare className="h-4 w-4" />}
+        action={
           <Button
             type="button"
             variant="secondary"
@@ -387,12 +386,13 @@ export default function CoordinadorPatioDashboard() {
           >
             + Ingreso
           </Button>
-        </div>
+        }
+      >
         {(dash?.inventory.inYard ?? []).length === 0 ? (
           <EmptyState
             icon={<ParkingSquare className="h-7 w-7" aria-hidden />}
-            title="Patio vacío"
-            description="Registre el ingreso LPR/manual para ocupar bahías y alimentar el mapa."
+            title="Patio vacÃ­o"
+            description="Registre el ingreso LPR/manual para ocupar bahÃ­as y alimentar el mapa."
             actionLabel="Registrar ingreso"
             onAction={() => openPanel("ingreso")}
           />
@@ -401,18 +401,18 @@ export default function CoordinadorPatioDashboard() {
             {(dash?.inventory.inYard ?? []).map((u) => (
               <li
                 key={u.parkingLogId}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--border-subtle)] px-3 py-2"
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--brand-border)] px-3 py-2"
               >
                 <div>
-                  <p className="font-mono text-base tabular-nums text-[var(--text-primary)]">
+                  <p className="font-mono text-base tabular-nums text-[var(--brand-text-primary)]">
                     {u.plate}
                   </p>
-                  <p className="text-xs text-[var(--text-secondary)]">
+                  <p className="text-xs text-[var(--brand-text-secondary)]">
                     Desde{" "}
                     {new Date(u.checkedInAt).toLocaleString("es-CO")}
-                    {u.driver?.name ? ` · ${u.driver.name}` : ""}
+                    {u.driver?.name ? ` Â· ${u.driver.name}` : ""}
                     {u.vehicle?.complianceBlocked
-                      ? " · docs en alerta"
+                      ? " Â· docs en alerta"
                       : ""}
                   </p>
                 </div>
@@ -424,7 +424,7 @@ export default function CoordinadorPatioDashboard() {
                     onClick={() => void assignLifo(u.plate)}
                   >
                     <MapPin className="mr-1 h-3.5 w-3.5" />
-                    Bahía LIFO
+                    BahÃ­a LIFO
                   </Button>
                   <Button
                     type="button"
@@ -439,28 +439,24 @@ export default function CoordinadorPatioDashboard() {
             ))}
           </ul>
         )}
-      </section>
+      </BentoPanel>
 
-      <section
+      <BentoPanel
         id="talanquera"
-        className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-5"
-      >
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 className="font-display text-lg text-[var(--text-primary)]">
-            Ledger talanquera
-          </h2>
-          <StatusPulseBadge
-            tone={blocked > 0 ? "danger" : "active"}
-            pulse={blocked > 0}
-          >
+        title="Ledger talanquera"
+        subtitle={blocked > 0 ? "ALERTA activa" : "Estado nominal"}
+        icon={<ShieldAlert className="h-4 w-4" />}
+        action={
+          <StatusPulseBadge tone={blocked > 0 ? "danger" : "active"} pulse={blocked > 0}>
             {blocked > 0 ? "ALERTA" : "NOMINAL"}
           </StatusPulseBadge>
-        </div>
+        }
+      >
         {(dash?.talanquera || []).length === 0 ? (
           <EmptyState
             icon={<ShieldAlert className="h-7 w-7" aria-hidden />}
             title="Sin eventos LPR"
-            description="Cada ingreso o intento de salida queda registrado aquí con el motivo."
+            description="Cada ingreso o intento de salida queda registrado aquÃ­ con el motivo."
             actionLabel="Validar salida LPR"
             onAction={() => openPanel("salida")}
           />
@@ -469,11 +465,11 @@ export default function CoordinadorPatioDashboard() {
             {(dash?.talanquera || []).map((t) => (
               <li
                 key={t.id}
-                className="rounded-lg border border-[var(--border-subtle)] px-3 py-2 text-sm"
+                className="rounded-lg border border-[var(--brand-border)] px-3 py-2 text-sm"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="font-mono tabular-nums">{t.plate}</span>
-                  <Badge tone={t.gateOpened ? "emerald" : "rose"}>
+                  <Badge tone={t.gateOpened ? "success" : "danger"}>
                     {t.gateOpened
                       ? t.kind === "CHECK_IN"
                         ? "INGRESO OK"
@@ -482,22 +478,22 @@ export default function CoordinadorPatioDashboard() {
                   </Badge>
                 </div>
                 {!t.gateOpened && (t.blocks?.length || t.denyReason) ? (
-                  <ul className="mt-2 space-y-0.5 text-xs text-[var(--accent-alert)]">
+                  <ul className="mt-2 space-y-0.5 text-xs text-[var(--brand-danger)]">
                     {(t.blocks?.length
                       ? t.blocks
                       : [t.denyReason || "BLOQUEO"]
                     ).map((b) => (
-                      <li key={`${t.id}-${b}`}>· {blockLabel(String(b))}</li>
+                      <li key={`${t.id}-${b}`}>Â· {blockLabel(String(b))}</li>
                     ))}
                   </ul>
                 ) : null}
                 {t.tripCode ? (
-                  <p className="mt-1 font-mono text-[11px] text-[var(--text-secondary)]">
+                  <p className="mt-1 font-mono text-[11px] text-[var(--brand-text-secondary)]">
                     Viaje {t.tripCode}
                   </p>
                 ) : null}
                 {t.createdAt ? (
-                  <p className="mt-0.5 font-mono text-[10px] text-[var(--text-secondary)]">
+                  <p className="mt-0.5 font-mono text-[10px] text-[var(--brand-text-secondary)]">
                     {new Date(t.createdAt).toLocaleString("es-CO")}
                   </p>
                 ) : null}
@@ -515,18 +511,15 @@ export default function CoordinadorPatioDashboard() {
             ))}
           </ul>
         )}
-      </section>
+      </BentoPanel>
 
-      <section className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-5">
-        <h2 className="mb-4 font-display text-lg text-[var(--text-primary)]">
-          Yard Map · LIFO
-        </h2>
+      <BentoPanel title="Yard Map · LIFO" icon={<MapPin className="h-4 w-4" />}>
         {(dash?.yardMap || []).filter((s) => s.status === "OCCUPIED" || s.plate)
           .length === 0 ? (
           <EmptyState
             icon={<ParkingSquare className="h-7 w-7" aria-hidden />}
-            title="Sin bahías ocupadas"
-            description="Tras un ingreso, use «Bahía LIFO» en la unidad para ubicarla por hora de salida."
+            title="Sin bahÃ­as ocupadas"
+            description="Tras un ingreso, use Â«BahÃ­a LIFOÂ» en la unidad para ubicarla por hora de salida."
           />
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -535,23 +528,23 @@ export default function CoordinadorPatioDashboard() {
               .map((s) => (
                 <div
                   key={s.id}
-                  className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-canvas)] p-3"
+                  className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-canvas)] p-3"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-mono text-sm text-[var(--accent-primary)]">
+                    <span className="font-mono text-sm text-[var(--brand-primary)]">
                       {s.laneCode}/{s.bayCode}
                     </span>
                     <Badge
-                      tone={s.status === "OCCUPIED" ? "amber" : "neutral"}
+                      tone={s.status === "OCCUPIED" ? "warning" : "neutral"}
                     >
                       {statusEs(s.status)}
                     </Badge>
                   </div>
-                  <p className="mt-2 font-mono text-lg text-[var(--text-primary)]">
-                    {s.plate || "—"}
+                  <p className="mt-2 font-mono text-lg text-[var(--brand-text-primary)]">
+                    {s.plate || "â€”"}
                   </p>
                   {s.scheduledDepartAt ? (
-                    <p className="mt-1 font-mono text-xs text-[var(--text-secondary)]">
+                    <p className="mt-1 font-mono text-xs text-[var(--brand-text-secondary)]">
                       Salida{" "}
                       {new Date(s.scheduledDepartAt).toLocaleString("es-CO")}
                     </p>
@@ -560,12 +553,11 @@ export default function CoordinadorPatioDashboard() {
               ))}
           </div>
         )}
-      </section>
+      </BentoPanel>
 
-      <section className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-5">
-        <h2 className="mb-3 font-display text-lg">Cola de lavado</h2>
+      <BentoPanel title="Cola de lavado" icon={<Droplets className="h-4 w-4" />}>
         {(dash?.washQueue || []).length === 0 ? (
-          <p className="text-sm text-[var(--text-secondary)]">
+          <p className="text-sm text-[var(--brand-text-secondary)]">
             Sin unidades en cola de lavado.
           </p>
         ) : (
@@ -573,17 +565,17 @@ export default function CoordinadorPatioDashboard() {
             {(dash?.washQueue || []).map((w) => (
               <li
                 key={w.id}
-                className="flex justify-between rounded-lg border border-[var(--border-subtle)] px-3 py-2 font-mono text-sm"
+                className="flex justify-between rounded-lg border border-[var(--brand-border)] px-3 py-2 font-mono text-sm"
               >
                 <span>{w.plate}</span>
-                <span className="text-[var(--text-secondary)]">
-                  P{w.priority} · {statusEs(w.status)}
+                <span className="text-[var(--brand-text-secondary)]">
+                  P{w.priority} Â· {statusEs(w.status)}
                 </span>
               </li>
             ))}
           </ul>
         )}
-      </section>
+      </BentoPanel>
 
       <SlideOver
         open={panel !== "none"}
@@ -593,8 +585,8 @@ export default function CoordinadorPatioDashboard() {
         }
         description={
           panel === "ingreso"
-            ? "CHECK_IN: abre talanquera, crea parking log y permite asignar bahía LIFO."
-            : "CHECK_OUT LPR: exige viaje activo, docs jurídicos y alcoholimetría vigente."
+            ? "CHECK_IN: abre talanquera, crea parking log y permite asignar bahÃ­a LIFO."
+            : "CHECK_OUT LPR: exige viaje activo, docs jurÃ­dicos y alcoholimetrÃ­a vigente."
         }
         footer={
           <>
@@ -619,7 +611,7 @@ export default function CoordinadorPatioDashboard() {
           </>
         }
       >
-        <label className="flex flex-col gap-1 text-xs uppercase tracking-wide text-[var(--text-secondary)]">
+        <label className="flex flex-col gap-1 text-xs uppercase tracking-wide text-[var(--brand-text-secondary)]">
           Placa
           <input
             className="field font-mono"
@@ -631,17 +623,17 @@ export default function CoordinadorPatioDashboard() {
         </label>
         {panel === "ingreso" ? (
           <>
-            <label className="mt-3 flex flex-col gap-1 text-xs uppercase text-[var(--text-secondary)]">
+            <label className="mt-3 flex flex-col gap-1 text-xs uppercase text-[var(--brand-text-secondary)]">
               Guardia / auxiliar
               <input
                 className="field"
                 value={guardName}
                 onChange={(e) => setGuardName(e.target.value)}
-                placeholder="Nombre en portería"
+                placeholder="Nombre en porterÃ­a"
               />
             </label>
-            <label className="mt-3 flex flex-col gap-1 text-xs uppercase text-[var(--text-secondary)]">
-              Odómetro (km)
+            <label className="mt-3 flex flex-col gap-1 text-xs uppercase text-[var(--brand-text-secondary)]">
+              OdÃ³metro (km)
               <input
                 className="field font-mono"
                 inputMode="numeric"
@@ -651,7 +643,7 @@ export default function CoordinadorPatioDashboard() {
                 }
               />
             </label>
-            <label className="mt-3 flex flex-col gap-1 text-xs uppercase text-[var(--text-secondary)]">
+            <label className="mt-3 flex flex-col gap-1 text-xs uppercase text-[var(--brand-text-secondary)]">
               Salida programada (LIFO)
               <input
                 className="field font-mono"
@@ -662,9 +654,9 @@ export default function CoordinadorPatioDashboard() {
             </label>
           </>
         ) : (
-          <p className="mt-3 text-xs text-[var(--text-secondary)]">
-            Controles: viaje en logística (±4 h), compliance documental y
-            alcoholimetría. Si falla alguno, la barrera no abre y el motivo
+          <p className="mt-3 text-xs text-[var(--brand-text-secondary)]">
+            Controles: viaje en logÃ­stica (Â±4 h), compliance documental y
+            alcoholimetrÃ­a. Si falla alguno, la barrera no abre y el motivo
             queda en el ledger.
           </p>
         )}

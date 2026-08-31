@@ -8,18 +8,18 @@ type KpiCardProps = {
   delta?: string;
   tone?: "neutral" | "ok" | "warn" | "danger";
   spark?: number[];
-  /** Ícono Lucide (u otro) semitransparente — esquina superior derecha. */
+  /** Ãcono Lucide (u otro) semitransparente â€” esquina superior derecha. */
   icon?: ReactNode;
 };
 
 const toneValue: Record<NonNullable<KpiCardProps["tone"]>, string> = {
-  neutral: "text-[var(--text-primary)]",
-  ok: "text-[var(--accent-primary)]",
-  warn: "text-[var(--accent-metric)]",
-  danger: "text-[var(--accent-alert)]",
+  neutral: "text-[var(--brand-text-primary)]",
+  ok: "text-[var(--brand-primary)]",
+  warn: "text-[var(--brand-warning)]",
+  danger: "text-[var(--brand-danger)]",
 };
 
-/** KPI ejecutivo — tipografía grande + micro-tendencia. */
+/** KPI ejecutivo â€” tipografÃ­a grande + micro-tendencia. */
 export function KpiCard({
   label,
   value,
@@ -30,26 +30,26 @@ export function KpiCard({
 }: KpiCardProps) {
   const max = spark?.length ? Math.max(...spark, 1) : 1;
   return (
-    <article className="fsg-panel relative overflow-hidden p-4">
+    <article className="nexa-panel frosted-glass nexa-panel-interactive frosted-glass-interactive bento-panel-accent relative overflow-hidden p-4">
       {icon ? (
         <div
-          className="pointer-events-none absolute right-3 top-3 text-[var(--text-secondary)]/30 [&_svg]:h-10 [&_svg]:w-10"
+          className="pointer-events-none absolute right-3 top-3 text-[var(--brand-text-secondary)]/30 [&_svg]:h-10 [&_svg]:w-10"
           aria-hidden
         >
           {icon}
         </div>
       ) : null}
-      <p className="relative text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
+      <p className="panel-header-mono relative text-brand-text-secondary">
         {label}
       </p>
       <p
-        className={`relative mt-2 font-mono text-4xl font-bold tracking-tight tabular-nums ${toneValue[tone]}`}
+        className={`relative mt-2 font-data text-4xl font-bold tracking-tight tabular-nums kpi-depth ${toneValue[tone]}`}
       >
         {value}
       </p>
-      <div className="relative mt-3 flex items-end justify-between gap-3">
+      <div className="panel-divider relative mt-3 flex items-end justify-between gap-3 border-t pt-3">
         {delta ? (
-          <span className="text-xs font-medium text-[var(--text-secondary)]">
+          <span className="text-xs font-medium text-[var(--brand-text-secondary)]">
             {delta}
           </span>
         ) : (
@@ -58,7 +58,7 @@ export function KpiCard({
         {spark && spark.length > 1 ? (
           <svg
             viewBox="0 0 64 20"
-            className="h-5 w-16 text-[var(--accent-primary)]"
+            className="h-5 w-16 text-[var(--brand-primary)]"
             aria-hidden
           >
             <polyline
@@ -88,13 +88,20 @@ type PulseBadgeProps = {
 
 const badgeTone: Record<NonNullable<PulseBadgeProps["tone"]>, string> = {
   active:
-    "border-[color-mix(in_srgb,var(--accent-primary)_40%,transparent)] bg-[color-mix(in_srgb,var(--accent-primary)_14%,transparent)] text-[var(--accent-primary)]",
+    "border-[color-mix(in_srgb,var(--brand-primary)_40%,transparent)] bg-[color-mix(in_srgb,var(--brand-primary)_14%,transparent)] text-[var(--brand-primary)]",
   fatiga:
-    "border-[color-mix(in_srgb,var(--accent-metric)_40%,transparent)] bg-[color-mix(in_srgb,var(--accent-metric)_14%,transparent)] text-[var(--accent-metric)]",
+    "border-[color-mix(in_srgb,var(--brand-warning)_40%,transparent)] bg-[color-mix(in_srgb,var(--brand-warning)_14%,transparent)] text-[var(--brand-warning)]",
   danger:
-    "border-[color-mix(in_srgb,var(--accent-alert)_40%,transparent)] bg-[color-mix(in_srgb,var(--accent-alert)_14%,transparent)] text-[var(--accent-alert)]",
+    "border-[color-mix(in_srgb,var(--brand-danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--brand-danger)_14%,transparent)] text-[var(--brand-danger)]",
   neutral:
-    "border-[var(--border-subtle)] bg-[var(--bg-surface-2)] text-[var(--text-secondary)]",
+    "border-[var(--brand-border)] bg-[var(--brand-surface-elevated)] text-[var(--brand-text-secondary)]",
+};
+
+const dotGlow: Record<NonNullable<PulseBadgeProps["tone"]>, string> = {
+  active: "glow-led-primary",
+  fatiga: "glow-led-warning",
+  danger: "glow-led-danger",
+  neutral: "",
 };
 
 export function StatusPulseBadge({
@@ -105,9 +112,12 @@ export function StatusPulseBadge({
   const shouldPulse = pulse ?? (tone === "danger" || tone === "fatiga");
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide ${badgeTone[tone]} ${shouldPulse ? "animate-pulse" : ""}`}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 font-data text-[10px] font-bold uppercase tracking-wide ${badgeTone[tone]} ${shouldPulse ? "animate-pulse" : ""}`}
     >
-      <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden />
+      <span
+        className={`h-1.5 w-1.5 rounded-full bg-current ${dotGlow[tone]}`}
+        aria-hidden
+      />
       {children}
     </span>
   );

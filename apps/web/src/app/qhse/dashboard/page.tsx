@@ -1,16 +1,17 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
 import { Inbox, ShieldAlert, Star } from "lucide-react";
 import { api } from "@/lib/api";
 import { statusEs } from "@fsg/shared";
-import { PageIntro } from "@/components/page-intro";
 import {
   EmptyState,
   KpiCard,
   StatusPulseBadge,
 } from "@/components/audit";
+import { BentoPanel } from "@/components/nexa/bento-panel";
+import { ComplianceBadge } from "@/components/rrhh/compliance-badge";
 
 type Signal = "NOMINAL" | "WATCH" | "ALERT";
 
@@ -105,7 +106,7 @@ export default function QhsePreventionDashboardPage() {
       setDash(d);
       setNps(n);
     } catch (e) {
-      setError((e as Error).message || "Señal perdida — reintentando conexión");
+      setError((e as Error).message || "SeÃ±al perdida â€” reintentando conexiÃ³n");
     }
   }, []);
 
@@ -139,7 +140,7 @@ export default function QhsePreventionDashboardPage() {
         URL.revokeObjectURL(url);
       }
     } catch (e) {
-      setError((e as Error).message || "Exportación ambiental fallida");
+      setError((e as Error).message || "ExportaciÃ³n ambiental fallida");
     } finally {
       setBusy(false);
     }
@@ -148,11 +149,29 @@ export default function QhsePreventionDashboardPage() {
   const rm = dash?.riskMatrix;
 
   return (
-    <div className="fade-in mx-auto max-w-[1600px] space-y-8">
-      <PageIntro module="qhse" title="Radar de Prevención" />
+    <div className="fade-in mx-auto max-w-[1600px] space-y-6">
+      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-brand-border pb-4">
+        <div>
+          <p className="font-data text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-primary">
+            QHSE
+          </p>
+          <h1 className="font-sans text-2xl font-semibold tracking-tight text-brand-text-primary md:text-3xl">
+            Radar de Prevención
+          </h1>
+        </div>
+        <Button
+          type="button"
+          variant="primary"
+          className="w-auto px-4 py-2"
+          disabled={busy}
+          onClick={() => void exportCarbon()}
+        >
+          {busy ? "Calculando…" : "Exportar huella PDF"}
+        </Button>
+      </header>
 
       {error ? (
-        <p className="rounded-lg border border-[rgba(255,42,95,0.35)] bg-[rgba(255,42,95,0.08)] px-4 py-3 text-sm text-[var(--text-primary)]">
+        <p className="rounded-lg border border-brand-danger/35 bg-brand-danger/10 px-4 py-3 text-sm text-brand-text-primary">
           {error}
         </p>
       ) : null}
@@ -162,7 +181,7 @@ export default function QhsePreventionDashboardPage() {
           label="Preoperacionales incompletos"
           value={rm ? rm.preopsIncomplete.count : 0}
           delta={
-            rm ? signalLabel(rm.preopsIncomplete.signal) : "Sincronizando…"
+            rm ? signalLabel(rm.preopsIncomplete.signal) : "Sincronizandoâ€¦"
           }
           tone={rm ? signalTone(rm.preopsIncomplete.signal) : "neutral"}
           icon={<ShieldAlert />}
@@ -172,7 +191,7 @@ export default function QhsePreventionDashboardPage() {
           value={rm ? rm.licensesCoursesExpiring.count : 0}
           delta={
             rm
-              ? `${rm.licensesCoursesExpiring.licenses} lic. · ${rm.licensesCoursesExpiring.courses} cursos`
+              ? `${rm.licensesCoursesExpiring.licenses} lic. Â· ${rm.licensesCoursesExpiring.courses} cursos`
               : undefined
           }
           tone={rm ? signalTone(rm.licensesCoursesExpiring.signal) : "neutral"}
@@ -185,100 +204,73 @@ export default function QhsePreventionDashboardPage() {
         />
       </section>
 
-      <section
+      <BentoPanel
         id="esg"
-        className="fsg-panel flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between"
-      >
-        <div className="relative min-w-0 flex-1">
-          <Star
-            className="pointer-events-none absolute -right-1 -top-1 h-12 w-12 text-slate-500/25"
-            aria-hidden
-          />
-          <p className="text-xs uppercase tracking-wider text-[var(--text-secondary)]">
-            Sostenibilidad · Satisfacción y huella de CO₂
-          </p>
-          <p className="mt-1 font-display text-2xl text-[var(--text-primary)]">
-            Satisfacción{" "}
-            <span className="font-mono tabular-nums">
-              {npsDisplay(nps?.nps)}
-            </span>
-            <span className="ml-3 font-mono text-base text-[var(--text-secondary)]">
-              avg {nps?.average != null ? nps.average : "N/A"} · n=
-              {nps?.sampleSize ?? 0}
-            </span>
-          </p>
-          {carbon ? (
-            <p className="mt-1 font-mono text-sm text-[var(--text-secondary)]">
-              {carbon.footprint.kgCo2} kg CO₂ · {carbon.footprint.gallons} gal ·{" "}
-              {carbon.footprint.distanceKm} km
-              {carbon.footprint.gCo2PerKm != null
-                ? ` · ${carbon.footprint.gCo2PerKm} g/km`
-                : ""}
-            </p>
-          ) : null}
-        </div>
-        <div className="flex flex-wrap items-center justify-end gap-3">
-          {nps ? (
-            <StatusPulseBadge
-              tone={nps.riskTicketsOpen > 0 ? "fatiga" : "active"}
+        title="Sostenibilidad · PESV"
+        subtitle="Satisfacción y huella CO₂"
+        icon={<Star className="h-4 w-4" />}
+        action={
+          nps ? (
+            <ComplianceBadge
+              level={nps.riskTicketsOpen > 0 ? "AMBER" : "GREEN"}
               pulse={nps.riskTicketsOpen > 0}
             >
               {nps.riskTicketsOpen} tickets riesgo
-            </StatusPulseBadge>
-          ) : null}
-          <Button
-            type="button"
-            variant="primary"
-            className="w-auto px-4 py-2"
-            disabled={busy}
-            onClick={() => void exportCarbon()}
-          >
-            {busy ? "Calculando…" : "Exportar huella PDF"}
-          </Button>
-        </div>
-      </section>
+            </ComplianceBadge>
+          ) : null
+        }
+      >
+        <p className="font-sans text-2xl text-brand-text-primary">
+          Satisfacción{" "}
+          <span className="font-data tabular-nums">{npsDisplay(nps?.nps)}</span>
+          <span className="ml-3 font-data text-base text-brand-text-secondary">
+            avg {nps?.average != null ? nps.average : "N/A"} · n={nps?.sampleSize ?? 0}
+          </span>
+        </p>
+        {carbon ? (
+          <p className="mt-1 font-data text-sm text-brand-text-secondary">
+            {carbon.footprint.kgCo2} kg CO₂ · {carbon.footprint.gallons} gal ·{" "}
+            {carbon.footprint.distanceKm} km
+            {carbon.footprint.gCo2PerKm != null
+              ? ` · ${carbon.footprint.gCo2PerKm} g/km`
+              : ""}
+          </p>
+        ) : null}
+      </BentoPanel>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <section id="novedades" className="fsg-panel overflow-hidden">
-          <header className="border-b border-[var(--border-subtle)] px-5 py-4">
-            <h3 className="font-display text-lg text-[var(--text-primary)]">
-              Bandeja de novedades
-            </h3>
-            <p className="text-sm text-[var(--text-secondary)]">
-              Feed en vivo · GPS / PQRS
-            </p>
-          </header>
+        <BentoPanel
+          id="novedades"
+          title="Bandeja de novedades"
+          subtitle="Feed en vivo · GPS / PQRS"
+          icon={<Inbox className="h-4 w-4" />}
+        >
           {(dash?.liveFeed ?? []).length === 0 ? (
-            <div className="p-4">
-              <EmptyState
-                icon={<Inbox className="h-7 w-7" />}
-                title="Sin novedades en la red"
-                description="La cola de GPS y PQRS aparece aquí en tiempo real."
-              />
-            </div>
+            <EmptyState
+              icon={<Inbox className="h-7 w-7" />}
+              title="Sin novedades en la red"
+              description="La cola de GPS y PQRS aparece aquí en tiempo real."
+            />
           ) : (
-            <ul className="max-h-[420px] divide-y divide-[var(--border-subtle)] overflow-y-auto">
+            <ul className="max-h-[420px] divide-y divide-brand-border overflow-y-auto">
               {dash!.liveFeed.map((item) => (
                 <li
                   key={`${item.source}-${item.id}`}
-                  className="flex items-start justify-between gap-3 px-5 py-3"
+                  className="flex items-start justify-between gap-3 py-3"
                 >
                   <div>
-                    <p className="text-sm text-[var(--text-primary)]">
-                      {item.title}
-                    </p>
-                    <p className="mt-0.5 font-mono text-xs text-[var(--text-secondary)]">
-                      {item.source} ·{" "}
-                      {new Date(item.at).toLocaleString("es-CO")}
+                    <p className="text-sm text-brand-text-primary">{item.title}</p>
+                    <p className="mt-0.5 font-data text-xs text-brand-text-secondary">
+                      {item.source} · {new Date(item.at).toLocaleString("es-CO")}
                     </p>
                   </div>
                   <Badge
                     tone={
                       item.source === "TELEMETRY"
-                        ? "rose"
+                        ? "danger"
                         : item.source === "PQRS"
-                          ? "amber"
-                          : "emerald"
+                          ? "warning"
+                          : "success"
                     }
                   >
                     {statusEs(item.status)}
@@ -287,17 +279,12 @@ export default function QhsePreventionDashboardPage() {
               ))}
             </ul>
           )}
-        </section>
+        </BentoPanel>
 
-        <section id="siniestros" className="space-y-3">
-          <header className="px-1">
-            <h3 className="font-display text-lg text-[var(--text-primary)]">
-              Panel de investigaciones
-            </h3>
-            <p className="text-sm text-[var(--text-secondary)]">
-              Sala de crisis · Tablero de siniestros
-            </p>
-          </header>
+        <div id="siniestros" className="space-y-3">
+          <p className="px-1 font-data text-[10px] uppercase tracking-[0.14em] text-brand-text-secondary">
+            Panel de investigaciones · Sala de crisis
+          </p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <KanbanColumn
               title="En Investigación"
@@ -309,7 +296,7 @@ export default function QhsePreventionDashboardPage() {
               closed
             />
           </div>
-        </section>
+        </div>
       </div>
     </div>
   );
@@ -328,10 +315,7 @@ function KanbanColumn(props: {
   }>;
 }) {
   return (
-    <div className="fsg-panel min-h-[280px] p-3">
-      <p className="mb-3 px-1 text-xs font-medium uppercase tracking-wider text-[var(--text-secondary)]">
-        {props.title} · {props.items.length}
-      </p>
+    <BentoPanel title={props.title} subtitle={`${props.items.length} tarjetas`}>
       <div className="space-y-2">
         {props.items.length === 0 ? (
           <EmptyState
@@ -343,12 +327,10 @@ function KanbanColumn(props: {
           props.items.map((card) => (
             <article
               key={card.id}
-              className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-canvas)] p-3"
+              className="rounded-lg border border-brand-border bg-brand-canvas p-3"
             >
               <div className="flex items-center justify-between gap-2">
-                <span className="font-mono text-xs text-[var(--accent-primary)]">
-                  {card.code}
-                </span>
+                <span className="font-data text-xs text-brand-primary">{card.code}</span>
                 <StatusPulseBadge
                   tone={props.closed ? "active" : "fatiga"}
                   pulse={!props.closed}
@@ -356,16 +338,14 @@ function KanbanColumn(props: {
                   {card.severity}
                 </StatusPulseBadge>
               </div>
-              <p className="mt-1 text-sm text-[var(--text-primary)]">
-                {card.title}
-              </p>
-              <p className="mt-1 font-mono text-xs text-[var(--text-secondary)]">
+              <p className="mt-1 text-sm text-brand-text-primary">{card.title}</p>
+              <p className="mt-1 font-data text-xs text-brand-text-secondary">
                 {card.vehicle?.plate ?? "N/A"} · {card.driver?.name ?? "N/A"}
               </p>
             </article>
           ))
         )}
       </div>
-    </div>
+    </BentoPanel>
   );
 }

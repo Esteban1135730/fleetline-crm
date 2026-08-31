@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
@@ -15,6 +15,7 @@ import {
   Gavel,
 } from "lucide-react";
 import Link from "next/link";
+import { useThemeColors } from "@/lib/use-theme-colors";
 import {
   LineChart,
   Line,
@@ -34,6 +35,7 @@ import {
 } from "recharts";
 import { api } from "@/lib/api";
 import { EmptyState, KpiCard, Modal, SlideOver } from "@/components/audit";
+import { BentoPanel } from "@/components/nexa/bento-panel";
 
 type Pillars = {
   growth?: { label: string; valuePct: number; hint: string };
@@ -83,16 +85,30 @@ function cop(n: number) {
   }).format(n);
 }
 
-const HEAT_COLORS = [
-  "#0D9488",
-  "#10B981",
-  "#D97706",
-  "#FFB800",
-  "#FF2A5F",
-  "#94A3B8",
-];
-
 export default function PresidenciaDashboardPage() {
+  const colors = useThemeColors();
+  const heatColors = useMemo(
+    () => [
+      colors.secondary,
+      colors.success,
+      colors.warning,
+      colors.warning,
+      colors.danger,
+      colors.chartNeutral,
+    ],
+    [colors],
+  );
+  const chartTipStyle = useMemo(
+    () => ({
+      borderRadius: 12,
+      border: `1px solid ${colors.border}`,
+      background: colors.surface,
+      color: colors.textPrimary,
+      fontSize: 12,
+    }),
+    [colors],
+  );
+
   const [dash, setDash] = useState<Dash | null>(null);
   const [busy, setBusy] = useState(false);
   const [listening, setListening] = useState(false);
@@ -269,11 +285,11 @@ export default function PresidenciaDashboardPage() {
     const f = dash?.fleetHealth;
     if (!f) return [];
     return [
-      { name: "En ruta", value: f.enRuta, color: "#10B981" },
-      { name: "En patio", value: f.enPatio, color: "#64748B" },
-      { name: "En taller", value: f.enTaller, color: "#FF2A5F" },
+      { name: "En ruta", value: f.enRuta, color: colors.success },
+      { name: "En patio", value: f.enPatio, color: colors.chartMuted },
+      { name: "En taller", value: f.enTaller, color: colors.danger },
     ].filter((d) => d.value > 0);
-  }, [dash?.fleetHealth]);
+  }, [dash?.fleetHealth, colors]);
 
   const burnRateSeries = dash?.cashFlowHistory?.length
     ? dash.cashFlowHistory
@@ -287,24 +303,27 @@ export default function PresidenciaDashboardPage() {
     <div
       className={`fade-in relative mx-auto min-h-[100dvh] max-w-[1400px] space-y-5 p-4 md:p-6 ${
         defconActive
-          ? "bg-[#1a0508] text-[#F8FAFC]"
-          : "bg-[#F4F6F9] text-[#0F172A] dark:bg-[#0A0D14] dark:text-[#F8FAFC]"
+          ? "bg-brand-canvas text-brand-text-primary"
+          : "bg-brand-canvas text-brand-text-primary dark:bg-brand-canvas dark:text-brand-text-primary"
       }`}
     >
       {defconActive ? (
-        <div className="pointer-events-none fixed inset-0 z-0 animate-pulse bg-[#FF2A5F]/15" />
+        <div className="pointer-events-none fixed inset-0 z-0 animate-pulse bg-brand-danger/15" />
       ) : null}
 
-      <header className="relative z-10 flex flex-wrap items-start justify-between gap-3">
+      <header className="relative z-10 flex flex-wrap items-start justify-between gap-3 border-b border-brand-border pb-4">
         <div>
-          <h1 className="font-display text-2xl font-semibold tracking-tight md:text-3xl">
+          <p className="font-data text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-primary">
+            Presidencia
+          </p>
+          <h1 className="font-sans text-2xl font-semibold tracking-tight text-brand-text-primary md:text-3xl">
             Lienzo de presidencia
           </h1>
           <div className="mt-2 flex flex-wrap gap-2">
-            <Badge tone={defconActive ? "rose" : "emerald"}>
+            <Badge tone={defconActive ? "danger" : "success"}>
               {defconActive ? "Alerta máxima · Sala de crisis" : "Nominal"}
             </Badge>
-            <Badge tone="amber">
+            <Badge tone="warning">
               Bloqueo operativo {dash?.killSwitch?.blockedPct ?? 0}%
             </Badge>
           </div>
@@ -340,7 +359,7 @@ export default function PresidenciaDashboardPage() {
           <Button
             type="button"
             variant="primary"
-            className="w-auto px-4 py-2 !bg-[#FF2A5F] !text-white"
+            className="w-auto px-4 py-2 !bg-brand-danger !text-white"
             onClick={() => setDefconOpen(true)}
           >
             Protocolo de crisis
@@ -349,7 +368,7 @@ export default function PresidenciaDashboardPage() {
       </header>
 
       {error ? (
-        <p className="relative z-10 rounded-xl border border-[#DC2626]/40 bg-[#DC2626]/10 px-4 py-3 text-sm text-[#DC2626]">
+        <p className="relative z-10 rounded-xl border border-brand-danger/40 bg-brand-danger/10 px-4 py-3 text-sm text-brand-danger">
           {error}
         </p>
       ) : null}
@@ -419,37 +438,29 @@ export default function PresidenciaDashboardPage() {
         />
       </section>
 
-      <div className="relative z-10 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <section className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-4">
-          <div className="mb-3 flex items-center gap-2">
-            <LineChartIcon className="h-4 w-4 text-emerald-500/70" aria-hidden />
-            <h3 className="text-sm font-semibold text-slate-100">
-              Burn rate · ingresos vs costos (M COP)
-            </h3>
-          </div>
+      <div className="relative z-10 grid grid-cols-1 gap-3 lg:grid-cols-12 lg:gap-4">
+        <BentoPanel
+          title="Burn rate · ingresos vs costos"
+          subtitle="M COP"
+          icon={<LineChartIcon />}
+          className="lg:col-span-7"
+        >
           {burnRateSeries.length > 0 ? (
             <div className="h-56 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={burnRateSeries}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
-                  <XAxis dataKey="mes" tick={{ fill: "#94A3B8", fontSize: 11 }} />
-                  <YAxis tick={{ fill: "#94A3B8", fontSize: 11 }} width={48} />
-                  <Tooltip
-                    contentStyle={{
-                      background: "var(--bg-surface-1)",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      borderRadius: 8,
-                      fontSize: 12,
-                    }}
-                  />
+                  <CartesianGrid strokeDasharray="3 3" stroke={colors.chartGrid} />
+                  <XAxis dataKey="mes" tick={{ fill: colors.textSecondary, fontSize: 11 }} />
+                  <YAxis tick={{ fill: colors.textSecondary, fontSize: 11 }} width={48} />
+                  <Tooltip contentStyle={chartTipStyle} />
                   <Legend />
                   <Area
                     type="monotone"
                     dataKey="ingresos"
                     name="Ingresos"
                     stackId="1"
-                    stroke="#10B981"
-                    fill="#10B981"
+                    stroke={colors.success}
+                    fill={colors.success}
                     fillOpacity={0.35}
                   />
                   <Area
@@ -457,8 +468,8 @@ export default function PresidenciaDashboardPage() {
                     dataKey="costos"
                     name="Costos"
                     stackId="2"
-                    stroke="#FF2A5F"
-                    fill="#FF2A5F"
+                    stroke={colors.danger}
+                    fill={colors.danger}
                     fillOpacity={0.25}
                   />
                 </AreaChart>
@@ -467,23 +478,22 @@ export default function PresidenciaDashboardPage() {
           ) : (
             <EmptyState title="Sin serie financiera" description="Sin datos de burn rate." />
           )}
-        </section>
+        </BentoPanel>
 
-        <section className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-4">
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <Truck className="h-4 w-4 text-emerald-500/70" aria-hidden />
-              <h3 className="text-sm font-semibold text-slate-100">
-                Salud de flota
-              </h3>
-            </div>
+        <BentoPanel
+          title="Salud de flota"
+          subtitle="En ruta · patio · taller"
+          icon={<Truck />}
+          className="lg:col-span-5"
+          action={
             <Link
               href="/taller"
-              className="text-xs font-semibold text-emerald-500 hover:underline"
+              className="font-data text-[10px] font-semibold uppercase tracking-wider text-brand-primary hover:underline"
             >
               Ir a taller →
             </Link>
-          </div>
+          }
+        >
           {fleetDonut.length > 0 ? (
             <div className="h-56 w-full">
               <ResponsiveContainer width="100%" height="100%">
@@ -502,14 +512,7 @@ export default function PresidenciaDashboardPage() {
                       <Cell key={entry.name} fill={entry.color} />
                     ))}
                   </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      background: "var(--bg-surface-1)",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      borderRadius: 8,
-                      fontSize: 12,
-                    }}
-                  />
+                  <Tooltip contentStyle={chartTipStyle} />
                   <Legend />
                 </PieChart>
               </ResponsiveContainer>
@@ -517,15 +520,14 @@ export default function PresidenciaDashboardPage() {
           ) : (
             <EmptyState title="Sin flota indexada" description="Registre unidades en Taller." />
           )}
-        </section>
+        </BentoPanel>
 
-        <section className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-4">
-          <div className="mb-3 flex items-center gap-2">
-            <ShieldAlert className="h-4 w-4 text-amber-500/70" aria-hidden />
-            <h3 className="text-sm font-semibold text-slate-100">
-              Termómetro de cumplimiento
-            </h3>
-          </div>
+        <BentoPanel
+          title="Termómetro de cumplimiento"
+          subtitle="QHSE · SARLAFT · trámites"
+          icon={<ShieldAlert />}
+          className="lg:col-span-4"
+        >
           {(dash?.complianceAlerts?.length ?? 0) > 0 ? (
             <ul className="space-y-2">
               {dash!.complianceAlerts!.map((a, i) => (
@@ -533,14 +535,14 @@ export default function PresidenciaDashboardPage() {
                   key={`${a.source}-${i}`}
                   className={`rounded-lg border px-3 py-2 text-sm ${
                     a.severity === "CRITICAL" || a.severity === "HIGH"
-                      ? "border-[#FF2A5F]/40 bg-[#FF2A5F]/10 text-[#FECDD3]"
-                      : "border-amber-500/30 bg-amber-500/10 text-amber-100"
+                      ? "border-brand-danger/40 bg-brand-danger/10 text-brand-danger"
+                      : "border-brand-warning/30 bg-brand-warning/10 text-brand-on-warning"
                   }`}
                 >
-                  <span className="font-mono text-[10px] uppercase tracking-wider opacity-80">
+                  <span className="font-data text-[10px] uppercase tracking-wider opacity-80">
                     {a.source}
                   </span>
-                  <p className="mt-0.5 font-medium">{a.message}</p>
+                  <p className="mt-0.5 font-sans font-medium">{a.message}</p>
                 </li>
               ))}
             </ul>
@@ -550,33 +552,25 @@ export default function PresidenciaDashboardPage() {
               description="Normatividad al día en QHSE, SARLAFT y Trámites."
             />
           )}
-        </section>
+        </BentoPanel>
 
-        <section className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-4">
-          <div className="mb-3 flex items-center gap-2">
-            <TrendingUp className="h-4 w-4 text-emerald-500/70" aria-hidden />
-            <h3 className="text-sm font-semibold text-slate-100">
-              Pipeline comercial
-            </h3>
-          </div>
+        <BentoPanel
+          title="Pipeline comercial"
+          subtitle="Cotizado vs cerrado"
+          icon={<TrendingUp />}
+          className="lg:col-span-8"
+        >
           {(dash?.commercialPipeline?.weeks?.length ?? 0) > 0 ? (
             <div className="h-56 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={dash!.commercialPipeline!.weeks}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
-                  <XAxis dataKey="label" tick={{ fill: "#94A3B8", fontSize: 11 }} />
-                  <YAxis tick={{ fill: "#94A3B8", fontSize: 11 }} width={48} />
-                  <Tooltip
-                    contentStyle={{
-                      background: "var(--bg-surface-1)",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      borderRadius: 8,
-                      fontSize: 12,
-                    }}
-                  />
+                  <CartesianGrid strokeDasharray="3 3" stroke={colors.chartGrid} />
+                  <XAxis dataKey="label" tick={{ fill: colors.textSecondary, fontSize: 11 }} />
+                  <YAxis tick={{ fill: colors.textSecondary, fontSize: 11 }} width={48} />
+                  <Tooltip contentStyle={chartTipStyle} />
                   <Legend />
-                  <Bar dataKey="cotizado" name="Cotizado" fill="#64748B" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="cerrado" name="Cerrado" fill="#10B981" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="cotizado" name="Cotizado" fill={colors.chartMuted} radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="cerrado" name="Cerrado" fill={colors.success} radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -586,54 +580,46 @@ export default function PresidenciaDashboardPage() {
               description="Cotizaciones y contratos del mes aparecerán aquí."
             />
           )}
-        </section>
-      </div>
+        </BentoPanel>
 
-      <div className="relative z-10 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <section className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-4">
-          <div className="mb-3 flex items-center gap-2">
-            <LineChartIcon className="h-4 w-4 text-emerald-500/70" aria-hidden />
-            <h3 className="text-sm font-semibold text-slate-100">
-              Flujo de caja · M COP
-            </h3>
-          </div>
+        <BentoPanel
+          title="Flujo de caja"
+          subtitle="M COP · acumulado e ingreso"
+          icon={<LineChartIcon />}
+          className="lg:col-span-6"
+        >
           {cashFlowSeries.length > 0 ? (
             <div className="h-56 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={cashFlowSeries}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                  <CartesianGrid strokeDasharray="3 3" stroke={colors.chartGrid} />
                   <XAxis
                     dataKey="name"
-                    tick={{ fill: "#94A3B8", fontSize: 11 }}
-                    axisLine={{ stroke: "rgba(255,255,255,0.1)" }}
+                    tick={{ fill: colors.textSecondary, fontSize: 11 }}
+                    axisLine={{ stroke: colors.border }}
                   />
                   <YAxis
-                    tick={{ fill: "#94A3B8", fontSize: 11 }}
-                    axisLine={{ stroke: "rgba(255,255,255,0.1)" }}
+                    tick={{ fill: colors.textSecondary, fontSize: 11 }}
+                    axisLine={{ stroke: colors.border }}
                     width={48}
                   />
                   <Tooltip
-                    contentStyle={{
-                      background: "var(--bg-surface-1)",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      borderRadius: 8,
-                      fontSize: 12,
-                    }}
+                    contentStyle={chartTipStyle}
                     formatter={(v: number) => [`${v} M`, ""]}
                   />
                   <Line
                     type="monotone"
                     dataKey="flujo"
                     name="Acumulado"
-                    stroke="#10B981"
+                    stroke={colors.success}
                     strokeWidth={2}
-                    dot={{ r: 3, fill: "#10B981" }}
+                    dot={{ r: 3, fill: colors.success }}
                   />
                   <Line
                     type="monotone"
                     dataKey="ingreso"
                     name="Ingreso"
-                    stroke="#FFB800"
+                    stroke={colors.warning}
                     strokeWidth={1.5}
                     strokeDasharray="4 4"
                     dot={false}
@@ -648,44 +634,38 @@ export default function PresidenciaDashboardPage() {
             />
           )}
           {dash?.cashFlow?.atRiskAmount ? (
-            <p className="mt-2 font-mono text-xs text-amber-400 tabular-nums">
+            <p className="mt-2 font-data text-xs tabular-nums text-brand-warning">
               En riesgo: {cop(dash.cashFlow.atRiskAmount)}
             </p>
           ) : null}
-        </section>
+        </BentoPanel>
 
-        <section className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-4">
-          <div className="mb-3 flex items-center gap-2">
-            <Flame className="h-4 w-4 text-amber-500/70" aria-hidden />
-            <h3 className="text-sm font-semibold text-slate-100">
-              Mapa de calor · corredores
-            </h3>
-          </div>
+        <BentoPanel
+          title="Mapa de calor"
+          subtitle="Corredores de ingreso"
+          icon={<Flame />}
+          className="lg:col-span-6"
+        >
           {heatBars.length > 0 ? (
             <div className="h-56 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={heatBars} layout="vertical" margin={{ left: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                  <CartesianGrid strokeDasharray="3 3" stroke={colors.chartGrid} />
                   <XAxis
                     type="number"
                     domain={[0, 100]}
-                    tick={{ fill: "#94A3B8", fontSize: 11 }}
-                    axisLine={{ stroke: "rgba(255,255,255,0.1)" }}
+                    tick={{ fill: colors.textSecondary, fontSize: 11 }}
+                    axisLine={{ stroke: colors.border }}
                   />
                   <YAxis
                     type="category"
                     dataKey="corridor"
                     width={88}
-                    tick={{ fill: "#94A3B8", fontSize: 10 }}
-                    axisLine={{ stroke: "rgba(255,255,255,0.1)" }}
+                    tick={{ fill: colors.textSecondary, fontSize: 10 }}
+                    axisLine={{ stroke: colors.border }}
                   />
                   <Tooltip
-                    contentStyle={{
-                      background: "var(--bg-surface-1)",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      borderRadius: 8,
-                      fontSize: 12,
-                    }}
+                    contentStyle={chartTipStyle}
                     formatter={(v: number, _n, item) => {
                       const row = item?.payload as {
                         revenue?: number;
@@ -701,7 +681,7 @@ export default function PresidenciaDashboardPage() {
                     {heatBars.map((h, i) => (
                       <Cell
                         key={h.corridor}
-                        fill={HEAT_COLORS[i % HEAT_COLORS.length]}
+                        fill={heatColors[i % heatColors.length]}
                         fillOpacity={Math.max(0.35, h.heat / 100)}
                       />
                     ))}
@@ -715,50 +695,54 @@ export default function PresidenciaDashboardPage() {
               description="Mapa cifrado vacío — sin datos de calor de ingresos."
             />
           )}
-        </section>
+        </BentoPanel>
       </div>
 
-      <section
+      <BentoPanel
         id="jarvis"
-        className="relative z-10 flex flex-col items-center rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-6"
+        title="Asistente directivo"
+        subtitle="Briefing por voz · solo lectura operativa"
+        className="relative z-10"
       >
-        <div
-          className={`relative mb-4 flex h-28 w-28 items-center justify-center rounded-full border-2 ${
-            listening
-              ? "animate-pulse border-[#0D9488] shadow-[0_0_40px_rgba(13,148,136,0.45)]"
-              : "border-slate-700"
-          }`}
-        >
+        <div className="flex flex-col items-center">
           <div
-            className={`h-16 w-16 rounded-full bg-gradient-to-br from-[#0D9488] to-[#10B981] ${
-              listening ? "absolute animate-ping opacity-40" : ""
+            className={`relative mb-4 flex h-28 w-28 items-center justify-center rounded-full border-2 ${
+              listening
+                ? "animate-pulse border-brand-secondary shadow-[0_0_40px_var(--brand-primary-glow)]"
+                : "border-brand-border"
             }`}
-          />
-          <span className="relative font-display text-sm text-white">Asistente</span>
-        </div>
-        <textarea
-          className="field min-h-[72px] w-full max-w-xl"
-          value={utterance}
-          onChange={(e) => setUtterance(e.target.value)}
-          aria-label="Comando del asistente"
-        />
-        <div className="mt-3 flex w-full max-w-xl justify-end">
-          <Button
-            type="button"
-            variant="primary"
-            className="w-auto !min-h-[40px] !px-6"
-            disabled={busy}
-            onClick={() => void askJarvis()}
           >
-            Hablar con el asistente
-          </Button>
+            <div
+              className={`h-16 w-16 rounded-full bg-gradient-to-br from-brand-secondary to-brand-success ${
+                listening ? "absolute animate-ping opacity-40" : ""
+              }`}
+            />
+            <span className="relative font-sans text-sm text-brand-text-primary">Asistente</span>
+          </div>
+          <textarea
+            className="field min-h-[72px] w-full max-w-xl"
+            value={utterance}
+            onChange={(e) => setUtterance(e.target.value)}
+            aria-label="Comando del asistente"
+          />
+          <div className="mt-3 flex w-full max-w-xl justify-end">
+            <Button
+              type="button"
+              variant="primary"
+              className="w-auto !min-h-[40px] !px-6"
+              disabled={busy}
+              onClick={() => void askJarvis()}
+            >
+              Hablar con el asistente
+            </Button>
+          </div>
+          {jarvisOut ? (
+            <p className="mt-4 max-w-2xl text-center font-sans text-sm text-brand-text-secondary">
+              {jarvisOut}
+            </p>
+          ) : null}
         </div>
-        {jarvisOut ? (
-          <p className="mt-4 max-w-2xl text-center text-sm text-slate-300">
-            {jarvisOut}
-          </p>
-        ) : null}
-      </section>
+      </BentoPanel>
 
       <Modal
         open={capexOpen}
@@ -788,7 +772,7 @@ export default function PresidenciaDashboardPage() {
         }
       >
         <div className="grid grid-cols-2 gap-3">
-          <label className="text-xs text-slate-400">
+          <label className="text-xs text-brand-text-secondary">
             Unidades
             <input
               type="number"
@@ -797,7 +781,7 @@ export default function PresidenciaDashboardPage() {
               onChange={(e) => setUnits(Number(e.target.value) || 1)}
             />
           </label>
-          <label className="text-xs text-slate-400">
+          <label className="text-xs text-brand-text-secondary">
             Costo unitario COP
             <input
               type="number"
@@ -808,7 +792,7 @@ export default function PresidenciaDashboardPage() {
           </label>
         </div>
         {capexOut ? (
-          <p className="mt-4 text-sm text-slate-200">{capexOut}</p>
+          <p className="mt-4 text-sm text-brand-text-primary">{capexOut}</p>
         ) : null}
       </Modal>
 
@@ -821,7 +805,7 @@ export default function PresidenciaDashboardPage() {
           <Button
             type="button"
             variant="primary"
-            className="w-auto px-4 py-2 !bg-[#FF2A5F] !text-white"
+            className="w-auto px-4 py-2 !bg-brand-danger !text-white"
             disabled={busy}
             onClick={() => void activarDefcon()}
           >
@@ -829,7 +813,7 @@ export default function PresidenciaDashboardPage() {
           </Button>
         }
       >
-        <label className="block text-xs text-slate-400">
+        <label className="block text-xs text-brand-text-secondary">
           Zonas de conflicto
           <input
             className="field mt-1 w-full"
@@ -839,7 +823,7 @@ export default function PresidenciaDashboardPage() {
           />
         </label>
         {defconOut ? (
-          <p className="mt-4 text-sm text-rose-300">{defconOut}</p>
+          <p className="mt-4 text-sm text-brand-danger">{defconOut}</p>
         ) : null}
       </SlideOver>
     </div>

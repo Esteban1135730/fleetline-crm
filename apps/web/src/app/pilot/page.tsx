@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
 import { api } from "@/lib/api";
-import { HowToBox, PageIntro } from "@/components/page-intro";
 
 type Dash = {
   speedLockKph: number;
@@ -38,7 +37,7 @@ export default function PilotAppPage() {
       setDash(d);
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Conexión fallida");
+      setError(e instanceof Error ? e.message : "ConexiÃƒÂ³n fallida");
     }
   }, []);
 
@@ -91,7 +90,7 @@ export default function PilotAppPage() {
         "/api/v1/pilot/sos",
         { category, plate: dash?.trips[0]?.plate, speedKph: speed },
       );
-      setMsg(`${res.message} · ${res.voipChannel}`);
+      setMsg(`${res.message} Ã‚Â· ${res.voipChannel}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "SOS fallido");
     } finally {
@@ -106,7 +105,7 @@ export default function PilotAppPage() {
         "/api/v1/pilot/viatico/token",
         { amountCop: 150000, plate: dash?.trips[0]?.plate },
       );
-      setMsg(`${res.message} · ${res.tokenQr}`);
+      setMsg(`${res.message} Ã‚Â· ${res.tokenQr}`);
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Token fallido");
@@ -117,16 +116,16 @@ export default function PilotAppPage() {
 
   if (locked) {
     return (
-      <div className="flex min-h-[70vh] flex-col items-center justify-center bg-[var(--bg-canvas)] p-6 text-center text-[var(--text-primary)]">
-        <p className="font-mono text-5xl text-[#FFB800]">{speed} km/h</p>
-        <p className="mt-4 text-lg text-[var(--text-secondary)]">
-          Modo conductor · pantalla bloqueada
+      <div className="flex min-h-[70vh] flex-col items-center justify-center bg-[var(--brand-canvas)] p-6 text-center text-[var(--brand-text-primary)]">
+        <p className="font-mono text-5xl text-brand-warning">{speed} km/h</p>
+        <p className="mt-4 text-lg text-[var(--brand-text-secondary)]">
+          Modo conductor Ã‚Â· pantalla bloqueada
         </p>
-        <p className="mt-2 text-sm text-[var(--text-secondary)]">
+        <p className="mt-2 text-sm text-[var(--brand-text-secondary)]">
           Umbral {dash?.speedLockKph ?? 15} km/h
         </p>
         <Button
-          className="mt-10 !h-16 !min-w-[12rem] !bg-[#FF2A5F]"
+          className="mt-10 !h-16 !min-w-[12rem] !bg-brand-danger"
           disabled={busy}
           onClick={() => void sos("CHOQUE")}
         >
@@ -134,10 +133,10 @@ export default function PilotAppPage() {
         </Button>
         <button
           type="button"
-          className="mt-6 text-xs text-[var(--text-secondary)] underline"
+          className="mt-6 text-xs text-[var(--brand-text-secondary)] underline"
           onClick={() => void checkSpeed(0)}
         >
-          Simular detención
+          Simular detenciÃƒÂ³n
         </button>
       </div>
     );
@@ -145,22 +144,22 @@ export default function PilotAppPage() {
 
   return (
     <div className="mx-auto max-w-lg space-y-6 p-4 pb-24">
-      <PageIntro module="apps" title="App del conductor" />
-      <HowToBox
-        steps={[
-          "Preoperacional fotográfico obligatorio antes del encendido.",
-          "A > 15 km/h la UI entra en blackout (solo SOS).",
-          "Token QR para tanqueo sin efectivo.",
-        ]}
-      />
+      <header>
+        <h1 className="font-sans text-lg font-semibold tracking-tight text-brand-text-primary">
+          NEXA Pilot
+        </h1>
+        <p className="mt-1 font-data text-[10px] uppercase tracking-[0.14em] text-brand-text-secondary">
+          App del conductor
+        </p>
+      </header>
 
       {error && (
-        <p className="rounded-xl border border-[var(--fl-critical)]/40 bg-[var(--fl-critical)]/10 p-4 font-mono text-sm text-[var(--fl-critical)]">
+        <p className="rounded-xl border border-[var(--brand-danger)]/40 bg-[var(--brand-danger)]/10 p-4 font-mono text-sm text-[var(--brand-danger)]">
           {error}
         </p>
       )}
       {msg && (
-        <p className="rounded-xl border border-[var(--fl-accent)]/30 bg-[var(--fl-accent)]/10 p-4 text-sm">
+        <p className="rounded-xl border border-[var(--brand-primary)]/30 bg-[var(--brand-primary)]/10 p-4 text-sm">
           {msg}
         </p>
       )}
@@ -182,7 +181,7 @@ export default function PilotAppPage() {
         {(dash?.trips || []).map((t) => (
           <div
             key={t.id}
-            className="rounded-xl border border-[var(--fl-border)] bg-[var(--fl-surface)] p-4"
+            className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4"
           >
             <div className="flex justify-between">
               <span className="font-mono">{t.code}</span>
@@ -190,8 +189,8 @@ export default function PilotAppPage() {
                 {t.preopDone ? "Preoperacional listo" : "Preoperacional pendiente"}
               </Badge>
             </div>
-            <p className="mt-1 font-mono text-sm text-[var(--fl-subtext)]">
-              {t.plate || "—"} · {t.origin} → {t.destination}
+            <p className="mt-1 font-mono text-sm text-[var(--brand-text-secondary)]">
+              {t.plate || "Ã¢â‚¬â€"} Ã‚Â· {t.origin} Ã¢â€ â€™ {t.destination}
             </p>
             {!t.preopDone && (
               <Button
@@ -205,15 +204,15 @@ export default function PilotAppPage() {
           </div>
         ))}
         {!dash?.trips?.length && (
-          <p className="text-sm text-[var(--fl-subtext)]">
-            Sin viajes activos — score card disponible
+          <p className="text-sm text-[var(--brand-text-secondary)]">
+            Sin viajes activos Ã¢â‚¬â€ score card disponible
           </p>
         )}
       </section>
 
       <section className="grid grid-cols-3 gap-3">
         <Button
-          className="!h-16 !bg-[var(--fl-critical)]"
+          className="!h-16 !bg-[var(--brand-danger)]"
           disabled={busy}
           onClick={() => void sos("CHOQUE")}
         >
@@ -240,26 +239,26 @@ export default function PilotAppPage() {
       </Button>
 
       {dash?.scoreCard && (
-        <section className="rounded-xl border border-[var(--fl-border)] bg-[var(--fl-surface)] p-5">
-          <h2 className="mb-3 font-display text-lg">Tarjeta de puntaje del día</h2>
+        <section className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5">
+          <h2 className="mb-3 font-display text-lg">Tarjeta de puntaje del dÃƒÂ­a</h2>
           <div className="grid grid-cols-3 gap-3 text-center">
             <div>
-              <p className="font-mono text-2xl text-[var(--fl-accent)]">
+              <p className="font-mono text-2xl text-[var(--brand-primary)]">
                 {dash.scoreCard.safety}
               </p>
-              <p className="text-xs text-[var(--fl-subtext)]">Seguridad</p>
+              <p className="text-xs text-[var(--brand-text-secondary)]">Seguridad</p>
             </div>
             <div>
-              <p className="font-mono text-2xl text-[var(--fl-amber)]">
+              <p className="font-mono text-2xl text-[var(--brand-warning)]">
                 {dash.scoreCard.punctuality}
               </p>
-              <p className="text-xs text-[var(--fl-subtext)]">Puntualidad</p>
+              <p className="text-xs text-[var(--brand-text-secondary)]">Puntualidad</p>
             </div>
             <div>
-              <p className="font-mono text-2xl text-[var(--fl-text)]">
+              <p className="font-mono text-2xl text-[var(--brand-text-primary)]">
                 {dash.scoreCard.fuelEfficiency}
               </p>
-              <p className="text-xs text-[var(--fl-subtext)]">Combustible</p>
+              <p className="text-xs text-[var(--brand-text-secondary)]">Combustible</p>
             </div>
           </div>
         </section>

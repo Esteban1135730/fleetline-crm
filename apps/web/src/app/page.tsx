@@ -14,8 +14,8 @@ export default function HomePage() {
   }, [user, loading, homePath, router]);
 
   return (
-    <div className="flex h-screen items-center justify-center text-[var(--brand-muted)]">
-      Redirigiendo…
+    <div className="flex h-screen items-center justify-center text-[var(--brand-text-secondary)]">
+      Redirigiendoâ€¦
     </div>
   );
 }

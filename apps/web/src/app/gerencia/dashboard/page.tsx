@@ -1,8 +1,7 @@
-"use client";
+﻿"use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
-import { GERENTE_DEMO_EXECUTIVE_PIN } from "@fsg/shared";
 import Link from "next/link";
 import { Map, Wrench, Wallet, ShieldAlert, Clock } from "lucide-react";
 import {
@@ -17,7 +16,10 @@ import {
 } from "recharts";
 import { api } from "@/lib/api";
 import { KpiCard } from "@/components/audit";
-import { PageIntro } from "@/components/page-intro";
+import { BentoPanel } from "@/components/nexa/bento-panel";
+import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
+import { StatusPulseBadge } from "@/components/audit/KpiCard";
+import { useThemeColors } from "@/lib/use-theme-colors";
 
 type Approval = {
   id: string;
@@ -101,20 +103,32 @@ function money(n: number) {
   }).format(n);
 }
 
-function lightTone(light: string): "emerald" | "amber" | "rose" | "slate" {
-  if (light === "GREEN") return "emerald";
-  if (light === "AMBER") return "amber";
-  if (light === "RED") return "rose";
-  return "slate";
+function lightTone(light: string): "success" | "warning" | "danger" | "info" {
+  if (light === "GREEN") return "success";
+  if (light === "AMBER") return "warning";
+  if (light === "RED") return "danger";
+  return "info";
 }
 
 export default function GerenciaDashboardPage() {
+  const colors = useThemeColors();
   const [dash, setDash] = useState<Dash | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pin, setPin] = useState("");
   const [selectedApproval, setSelectedApproval] = useState("");
+
+  const chartTipStyle = useMemo(
+    () => ({
+      borderRadius: 12,
+      border: `1px solid ${colors.border}`,
+      background: colors.surface,
+      color: colors.textPrimary,
+      fontSize: 12,
+    }),
+    [colors],
+  );
 
   const load = useCallback(async () => {
     try {
@@ -209,15 +223,35 @@ export default function GerenciaDashboardPage() {
   const maxBar = Math.max(salesBar, maintBar, 1);
 
   return (
-    <div className="space-y-8">
-      <PageIntro module="gerencia" title="Tablero de Gerencia General" />
+    <div className="fade-in space-y-6">
+      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-brand-border pb-4">
+        <div>
+          <p className="font-data text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-primary">
+            Gerencia General
+          </p>
+          <h1 className="font-sans text-2xl font-semibold tracking-tight text-brand-text-primary md:text-3xl">
+            Tablero táctico
+          </h1>
+          <p className="mt-1 font-sans text-sm text-brand-text-secondary">
+            Centro de mando operativo · KPIs cruzados y bandeja de firmas
+          </p>
+        </div>
+        <Button variant="ghost" className="w-auto px-4 py-2">
+          <Clock className="mr-1.5 inline h-4 w-4" aria-hidden />
+          Reporte de turno
+        </Button>
+      </header>
 
-      {error && (
-        <p className="font-mono text-sm text-[var(--fl-critical)]">{error}</p>
-      )}
-      {msg && (
-        <p className="font-mono text-sm text-[var(--fl-accent)]">{msg}</p>
-      )}
+      {error ? (
+        <p className="rounded-lg border border-brand-danger/40 bg-brand-danger/10 px-4 py-3 font-data text-sm text-brand-danger">
+          {error}
+        </p>
+      ) : null}
+      {msg ? (
+        <p className="rounded-lg border border-brand-primary/40 bg-brand-primary/10 px-4 py-3 font-data text-sm text-brand-primary">
+          {msg}
+        </p>
+      ) : null}
 
       {dash?.tacticalPanel ? (
         <>
@@ -234,7 +268,7 @@ export default function GerenciaDashboardPage() {
               value={dash.tacticalPanel.kpis.openWorkOrders}
               delta={
                 dash.tacticalPanel.kpis.delayedWorkOrders > 0
-                  ? `${dash.tacticalPanel.kpis.delayedWorkOrders} con retraso de entrega`
+                  ? `${dash.tacticalPanel.kpis.delayedWorkOrders} con retraso`
                   : "Sin retrasos críticos"
               }
               tone={
@@ -258,184 +292,192 @@ export default function GerenciaDashboardPage() {
             />
           </section>
 
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <section className="rounded-xl border border-[var(--fl-border)] bg-[var(--fl-surface)] p-4">
-              <h3 className="mb-3 text-sm font-semibold">Picos de operación</h3>
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-12 lg:gap-4">
+            <BentoPanel
+              title="Picos de operación"
+              subtitle="Viajes activos por franja"
+              className="lg:col-span-6"
+            >
               <div className="h-52">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={dash.tacticalPanel.hourlyActivity}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
-                    <XAxis dataKey="hora" tick={{ fontSize: 11 }} />
-                    <YAxis tick={{ fontSize: 11 }} width={32} />
-                    <Tooltip />
-                    <Bar dataKey="viajes" name="Viajes activos" fill="#0D9488" radius={[4, 4, 0, 0]} />
+                    <CartesianGrid strokeDasharray="3 3" stroke={colors.chartGrid} />
+                    <XAxis
+                      dataKey="hora"
+                      tick={{ fill: colors.textSecondary, fontSize: 11 }}
+                    />
+                    <YAxis tick={{ fill: colors.textSecondary, fontSize: 11 }} width={32} />
+                    <Tooltip contentStyle={chartTipStyle} />
+                    <Bar
+                      dataKey="viajes"
+                      name="Viajes activos"
+                      fill={colors.secondary}
+                      radius={[4, 4, 0, 0]}
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-            </section>
+            </BentoPanel>
 
-            <section className="rounded-xl border border-[var(--fl-border)] bg-[var(--fl-surface)] p-4">
-              <h3 className="mb-3 text-sm font-semibold">Disponibilidad de flota</h3>
+            <BentoPanel
+              title="Disponibilidad de flota"
+              subtitle="Operativo · taller · bloqueado"
+              className="lg:col-span-6"
+            >
               <div className="h-52">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={dash.tacticalPanel.fleetByType}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
-                    <XAxis dataKey="tipo" tick={{ fontSize: 11 }} />
-                    <YAxis tick={{ fontSize: 11 }} width={32} />
-                    <Tooltip />
+                    <CartesianGrid strokeDasharray="3 3" stroke={colors.chartGrid} />
+                    <XAxis
+                      dataKey="tipo"
+                      tick={{ fill: colors.textSecondary, fontSize: 11 }}
+                    />
+                    <YAxis tick={{ fill: colors.textSecondary, fontSize: 11 }} width={32} />
+                    <Tooltip contentStyle={chartTipStyle} />
                     <Legend />
-                    <Bar dataKey="operativo" stackId="a" name="Operativo" fill="#10B981" />
-                    <Bar dataKey="taller" stackId="a" name="Taller" fill="#D97706" />
-                    <Bar dataKey="bloqueado" stackId="a" name="Bloqueado" fill="#DC2626" />
+                    <Bar dataKey="operativo" stackId="a" name="Operativo" fill={colors.success} />
+                    <Bar dataKey="taller" stackId="a" name="Taller" fill={colors.warning} />
+                    <Bar dataKey="bloqueado" stackId="a" name="Bloqueado" fill={colors.danger} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-            </section>
+            </BentoPanel>
 
-            <section className="rounded-xl border border-[var(--fl-border)] bg-[var(--fl-surface)] p-4">
-              <h3 className="mb-1 text-sm font-semibold">Flujo de caja a corto plazo</h3>
-              {dash.tacticalPanel.cashAgingSource === "trip_fares" ? (
-                <p className="mb-3 text-[11px] text-[var(--text-secondary)]">
-                  Estimación operativa por tarifas de viaje (aún sin facturas
-                  CxC/CxP).
-                </p>
-              ) : (
-                <p className="mb-3 text-[11px] text-[var(--text-secondary)]">
-                  Aging por facturas abiertas.
-                </p>
-              )}
+            <BentoPanel
+              title="Flujo de caja a corto plazo"
+              subtitle={
+                dash.tacticalPanel.cashAgingSource === "trip_fares"
+                  ? "Estimación por tarifas de viaje"
+                  : "Aging por facturas abiertas"
+              }
+              className="lg:col-span-6"
+            >
               <div className="h-52">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={dash.tacticalPanel.cashAging}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
-                    <XAxis dataKey="rango" tick={{ fontSize: 10 }} />
-                    <YAxis tick={{ fontSize: 11 }} width={32} />
-                    <Tooltip />
+                    <CartesianGrid strokeDasharray="3 3" stroke={colors.chartGrid} />
+                    <XAxis
+                      dataKey="rango"
+                      tick={{ fill: colors.textSecondary, fontSize: 10 }}
+                    />
+                    <YAxis tick={{ fill: colors.textSecondary, fontSize: 11 }} width={32} />
+                    <Tooltip contentStyle={chartTipStyle} />
                     <Legend />
-                    <Bar dataKey="cxc" name="Por cobrar (M)" fill="#10B981" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="cxp" name="Por pagar (M)" fill="#64748B" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="cxc" name="Por cobrar (M)" fill={colors.success} radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="cxp" name="Por pagar (M)" fill={colors.chartMuted} radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-            </section>
+            </BentoPanel>
 
-            <section className="rounded-xl border border-[var(--fl-border)] bg-[var(--fl-surface)] p-4">
-              <div className="mb-3 flex items-center justify-between gap-2">
-                <h3 className="text-sm font-semibold">Cuellos de botella</h3>
+            <BentoPanel
+              title="Cuellos de botella"
+              action={
                 <Link href="/logistica/servicios">
                   <Button variant="primary" className="w-auto px-3 py-1.5 text-xs">
-                    Resolver bloqueos
+                    Resolver
                   </Button>
                 </Link>
-              </div>
+              }
+              className="lg:col-span-6"
+            >
               {(dash.scorecard.bottlenecks ?? []).length > 0 ? (
                 <ul className="space-y-2">
                   {dash.scorecard.bottlenecks.map((b) => (
                     <li
                       key={b.area + b.message}
-                      className="rounded-lg border border-[var(--fl-border)] px-3 py-2 text-sm"
+                      className="rounded-lg border border-brand-border px-3 py-2 transition-colors hover:border-brand-border-active hover:bg-brand-surface-hover"
                     >
-                      <Badge tone={b.severity === "RED" ? "rose" : "amber"}>
+                      <StatusPulseBadge
+                        tone={b.severity === "RED" ? "danger" : "fatiga"}
+                      >
                         {b.area}
-                      </Badge>
-                      <p className="mt-1 text-[var(--fl-text)]">{b.message}</p>
-                      <p className="mt-1 text-xs text-[var(--fl-subtext)]">
+                      </StatusPulseBadge>
+                      <p className="mt-1 font-sans text-sm text-brand-text-primary">
+                        {b.message}
+                      </p>
+                      <p className="mt-1 font-data text-[11px] text-brand-text-secondary">
                         {b.warRoomHint}
                       </p>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="text-sm text-[var(--fl-subtext)]">
-                  Sin cuellos de botella detectados — operación fluida.
+                <p className="font-sans text-sm text-brand-text-secondary">
+                  Sin cuellos de botella — operación fluida.
                 </p>
               )}
-            </section>
+            </BentoPanel>
           </div>
         </>
       ) : null}
 
-      <div className="flex flex-wrap justify-end gap-2">
-        <Button variant="ghost" className="w-auto px-4 py-2">
-          <Clock className="mr-1.5 inline h-4 w-4" aria-hidden />
-          Reporte de turno
-        </Button>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-3">
-        {/* Top Left — Aprobaciones */}
-        <section
+      <div className="grid gap-4 lg:grid-cols-12">
+        <BentoPanel
           id="aprobaciones"
-          className="space-y-3 rounded-xl border border-[var(--fl-border)] bg-[var(--fl-surface)] p-5 lg:col-span-1"
+          title="Bandeja de aprobaciones"
+          subtitle="Firma ejecutiva con PIN"
+          className="lg:col-span-5"
         >
-          <h2 className="text-sm font-semibold text-[var(--fl-text)]">
-            Bandeja de aprobaciones
-          </h2>
-          <ul className="space-y-2">
+          <NexaTable columns={["Concepto", "Código", "Monto", "Impacto CF"]}>
             {(dash?.approvalsInbox ?? []).map((a) => (
-              <li
+              <NexaRow
                 key={a.id}
+                active={selectedApproval === a.id}
                 onClick={() => setSelectedApproval(a.id)}
-                className={`cursor-pointer rounded-lg border px-3 py-2 text-sm ${
-                  selectedApproval === a.id
-                    ? "border-[var(--fl-accent)] bg-[var(--fl-canvas)]"
-                    : "border-[var(--fl-border)] bg-[var(--fl-canvas)]"
-                }`}
               >
-                <p className="text-[var(--fl-text)]">{a.title}</p>
-                <p className="font-mono text-[10px] text-[var(--fl-subtext)]">
+                <NexaCell>{a.title}</NexaCell>
+                <NexaCell mono className="text-brand-text-secondary">
                   {a.code} · {a.kind}
-                </p>
-                <p className="mt-1 font-mono text-xs text-[var(--fl-amber)]">
-                  {money(a.amountCop)} · CF {money(a.cashflowImpactCop)}
-                </p>
-              </li>
+                </NexaCell>
+                <NexaCell mono className="text-brand-warning">
+                  {money(a.amountCop)}
+                </NexaCell>
+                <NexaCell mono>{money(a.cashflowImpactCop)}</NexaCell>
+              </NexaRow>
             ))}
-            {(dash?.approvalsInbox ?? []).length === 0 && (
-              <li className="text-xs text-[var(--fl-subtext)]">
-                Inbox vacío
-              </li>
-            )}
-          </ul>
-          <label className="block text-xs text-[var(--fl-subtext)]">
+          </NexaTable>
+          {(dash?.approvalsInbox ?? []).length === 0 ? (
+            <p className="mt-3 font-data text-xs text-brand-text-secondary">
+              Inbox vacío
+            </p>
+          ) : null}
+          <label className="mt-4 block font-data text-[10px] uppercase tracking-[0.12em] text-brand-text-secondary">
             PIN de seguridad
             <input
               type="password"
               inputMode="numeric"
               maxLength={6}
-              className="mt-1 w-full rounded-lg border border-[var(--fl-border)] bg-[var(--fl-canvas)] px-3 py-2 font-mono text-sm tracking-widest"
+              className="login-field mt-1 font-data tracking-widest"
               value={pin}
               onChange={(e) => setPin(e.target.value)}
               placeholder="••••••"
             />
           </label>
-          <Button disabled={busy} onClick={() => void firmar()}>
-            Firmar con PIN
-          </Button>
-        </section>
+          <div className="mt-3 flex justify-end">
+            <Button disabled={busy} onClick={() => void firmar()} className="w-auto px-4 py-2">
+              Firmar con PIN
+            </Button>
+          </div>
+        </BentoPanel>
 
-        {/* Centro — KPIs cruzados */}
-        <section
+        <BentoPanel
           id="scorecard"
-          className="space-y-3 rounded-xl border border-[var(--fl-border)] bg-[var(--fl-surface)] p-5 lg:col-span-1"
+          title="KPIs cruzados"
+          subtitle="Ventas vs mantenimiento de flota"
+          className="lg:col-span-4"
         >
-          <h2 className="text-sm font-semibold text-[var(--fl-text)]">
-            KPIs cruzados
-          </h2>
-          <p className="text-xs text-[var(--fl-subtext)]">
-            Crecimiento de Ventas vs. Mantenimiento de Flota
-          </p>
           <div className="space-y-3">
             {(dash?.scorecard.crossKpis.salesVsFleetMaintenance ?? []).map(
               (k) => (
                 <div key={k.label}>
-                  <div className="mb-1 flex justify-between text-xs text-[var(--fl-subtext)]">
+                  <div className="mb-1 flex justify-between font-data text-xs text-brand-text-secondary">
                     <span>{k.label}</span>
-                    <span className="font-mono">{k.value}</span>
+                    <span className="tabular-nums">{k.value}</span>
                   </div>
-                  <div className="h-3 overflow-hidden rounded bg-[var(--fl-canvas)]">
+                  <div className="h-3 overflow-hidden rounded bg-brand-canvas">
                     <div
-                      className="h-full bg-[var(--fl-accent)]"
+                      className="h-full bg-brand-primary"
                       style={{ width: `${(k.value / maxBar) * 100}%` }}
                     />
                   </div>
@@ -443,130 +485,126 @@ export default function GerenciaDashboardPage() {
               ),
             )}
           </div>
-          <div className="grid grid-cols-2 gap-2 pt-2 text-xs">
-            <div className="rounded-lg border border-[var(--fl-border)] p-2">
-              <p className="text-[var(--fl-subtext)]">Viajes</p>
-              <p className="font-mono text-lg text-[var(--fl-text)]">
-                {dash?.scorecard.perspectives.internalProcess.tripsInFlight ?? 0}
-              </p>
-            </div>
-            <div className="rounded-lg border border-[var(--fl-border)] p-2">
-              <p className="text-[var(--fl-subtext)]">OT Taller</p>
-              <p className="font-mono text-lg text-[var(--fl-amber)]">
-                {dash?.scorecard.perspectives.internalProcess.openWorkOrders ?? 0}
-              </p>
-            </div>
-            <div className="rounded-lg border border-[var(--fl-border)] p-2">
-              <p className="text-[var(--fl-subtext)]">Oportunidades abiertas</p>
-              <p className="font-mono text-lg text-[var(--fl-text)]">
-                {dash?.scorecard.perspectives.customer.openDeals ?? 0}
-              </p>
-            </div>
-            <div className="rounded-lg border border-[var(--fl-border)] p-2">
-              <p className="text-[var(--fl-subtext)]">Ganados</p>
-              <p className="font-mono text-lg text-[var(--fl-accent)]">
-                {dash?.scorecard.perspectives.customer.wonDeals ?? 0}
-              </p>
-            </div>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            {[
+              {
+                label: "Viajes",
+                value: dash?.scorecard.perspectives.internalProcess.tripsInFlight ?? 0,
+                tone: "text-brand-text-primary",
+              },
+              {
+                label: "OT Taller",
+                value: dash?.scorecard.perspectives.internalProcess.openWorkOrders ?? 0,
+                tone: "text-brand-warning",
+              },
+              {
+                label: "Oport. abiertas",
+                value: dash?.scorecard.perspectives.customer.openDeals ?? 0,
+                tone: "text-brand-text-primary",
+              },
+              {
+                label: "Ganados",
+                value: dash?.scorecard.perspectives.customer.wonDeals ?? 0,
+                tone: "text-brand-primary",
+              },
+            ].map((item) => (
+              <div
+                key={item.label}
+                className="rounded-lg border border-brand-border bg-brand-canvas p-2 transition-colors hover:border-brand-border-active"
+              >
+                <p className="font-data text-[10px] uppercase tracking-wider text-brand-text-secondary">
+                  {item.label}
+                </p>
+                <p className={`font-data text-lg tabular-nums ${item.tone}`}>
+                  {item.value}
+                </p>
+              </div>
+            ))}
           </div>
-          {(dash?.scorecard.bottlenecks ?? []).length > 0 && (
-            <ul className="space-y-1 pt-2">
-              {dash!.scorecard.bottlenecks.map((b) => (
-                <li
-                  key={b.area + b.message}
-                  className="rounded border border-[var(--fl-border)] px-2 py-1 text-xs"
-                >
-                  <Badge tone={b.severity === "RED" ? "rose" : "amber"}>
-                    {b.area}
-                  </Badge>{" "}
-                  {b.message}
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+        </BentoPanel>
 
-        {/* Radar */}
-        <section className="space-y-3 rounded-xl border border-[var(--fl-border)] bg-[var(--fl-surface)] p-5 lg:col-span-1">
-          <h2 className="text-sm font-semibold text-[var(--fl-text)]">
-            Radar satisfacción y riesgo
-          </h2>
-          <div className="flex flex-wrap gap-3">
-            <div className="rounded-lg border border-[var(--fl-border)] p-3">
-              <p className="text-xs text-[var(--fl-subtext)]">Satisfacción VIP</p>
-              <p className="font-mono text-2xl text-[var(--fl-text)]">
+        <BentoPanel
+          title="Radar satisfacción y riesgo"
+          className="lg:col-span-3"
+        >
+          <div className="space-y-3">
+            <div className="rounded-lg border border-brand-border p-3">
+              <p className="font-data text-[10px] uppercase tracking-wider text-brand-text-secondary">
+                Satisfacción VIP
+              </p>
+              <p className="font-data text-2xl tabular-nums text-brand-text-primary">
                 {dash?.riskRadar.vipNps ?? "—"}
               </p>
               <Badge tone={lightTone(dash?.riskRadar.vipLight ?? "")}>
                 {dash?.riskRadar.vipLight ?? "—"}
               </Badge>
             </div>
-            <div className="rounded-lg border border-[var(--fl-border)] p-3">
-              <p className="text-xs text-[var(--fl-subtext)]">Min. Transporte</p>
-              <Badge
-                tone={lightTone(dash?.riskRadar.ministryAuditLight ?? "")}
-              >
+            <div className="rounded-lg border border-brand-border p-3">
+              <p className="font-data text-[10px] uppercase tracking-wider text-brand-text-secondary">
+                Min. Transporte
+              </p>
+              <Badge tone={lightTone(dash?.riskRadar.ministryAuditLight ?? "")}>
                 {dash?.riskRadar.ministryAuditLight ?? "—"}
               </Badge>
-              <p className="mt-2 text-xs text-[var(--fl-subtext)]">
+              <p className="mt-2 font-sans text-xs text-brand-text-secondary">
                 {dash?.riskRadar.message}
               </p>
             </div>
           </div>
-
-          <h3 className="pt-2 text-xs font-semibold uppercase tracking-wider text-[var(--fl-subtext)]">
+          <h3 className="mb-2 mt-4 font-data text-[10px] font-semibold uppercase tracking-[0.14em] text-brand-text-secondary">
             Overrides pendientes
           </h3>
           <ul className="space-y-2">
             {(dash?.pendingOverrides ?? []).map((o) => (
               <li
                 key={o.id}
-                className="rounded-lg border border-[var(--fl-border)] bg-[var(--fl-canvas)] p-2 text-sm"
+                className="rounded-lg border border-brand-border bg-brand-canvas p-2 text-sm transition-colors hover:border-brand-border-active"
               >
-                <p className="text-[var(--fl-text)]">{o.title}</p>
-                <p className="font-mono text-[10px] text-[var(--fl-subtext)]">
+                <p className="font-sans text-brand-text-primary">{o.title}</p>
+                <p className="font-data text-[10px] text-brand-text-secondary">
                   {o.code}
                 </p>
                 <Button
                   disabled={busy}
+                  className="mt-2 w-auto px-3 py-1.5 text-xs"
                   onClick={() => void resolverOverride(o.id)}
                 >
                   Resolver óptimo
                 </Button>
               </li>
             ))}
-            {(dash?.pendingOverrides ?? []).length === 0 && (
-              <li className="text-xs text-[var(--fl-subtext)]">
+            {(dash?.pendingOverrides ?? []).length === 0 ? (
+              <li className="font-data text-xs text-brand-text-secondary">
                 Sin conflictos en cola
               </li>
-            )}
+            ) : null}
           </ul>
-        </section>
+        </BentoPanel>
       </div>
 
-      <section
+      <BentoPanel
         id="comando"
-        className="rounded-xl border border-[var(--fl-border)] bg-[var(--fl-surface)] p-5"
+        title="Directorio de comando"
+        subtitle="Sala de crisis · canales ejecutivos"
       >
-        <h2 className="text-sm font-semibold text-[var(--fl-text)]">
-          Directorio de comando · Sala de crisis
-        </h2>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {(dash?.commandDirectory ?? []).map((d) => (
             <div
               key={d.role}
-              className="rounded-lg border border-[var(--fl-border)] bg-[var(--fl-canvas)] p-3"
+              className="rounded-lg border border-brand-border bg-brand-canvas p-3 transition-colors hover:border-brand-border-active hover:bg-brand-surface-hover"
             >
-              <p className="text-sm text-[var(--fl-text)]">{d.name}</p>
-              <p className="font-mono text-[10px] text-[var(--fl-subtext)]">
+              <p className="font-sans text-sm text-brand-text-primary">{d.name}</p>
+              <p className="font-data text-[10px] text-brand-text-secondary">
                 {d.role}
               </p>
-              <p className="mt-2 text-xs text-[var(--fl-accent)]">{d.channel}</p>
-              <p className="text-xs text-[var(--fl-subtext)]">{d.video}</p>
+              <p className="mt-2 font-sans text-xs text-brand-primary">{d.channel}</p>
+              <p className="font-data text-[11px] text-brand-text-secondary">
+                {d.video}
+              </p>
             </div>
           ))}
         </div>
-      </section>
+      </BentoPanel>
     </div>
   );
 }

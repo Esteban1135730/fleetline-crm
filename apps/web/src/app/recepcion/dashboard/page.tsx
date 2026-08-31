@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -12,13 +12,14 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { statusEs } from "@fsg/shared";
-import { PageIntro } from "@/components/page-intro";
 import {
   EmptyState,
   KpiCard,
   SlideOver,
   StatusPulseBadge,
 } from "@/components/audit";
+import { BentoPanel } from "@/components/nexa/bento-panel";
+import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
 
 type InboxItem = {
   id: string;
@@ -65,7 +66,7 @@ const DEFCON_KEYWORDS = [
   "herido",
   "muerte",
   "choque",
-  "fiscalía",
+  "fiscalÃƒÂ­a",
   "denuncia",
 ];
 
@@ -77,7 +78,7 @@ function isDefcon1(text: string) {
 const VISIT_CLASS_LABEL: Record<string, string> = {
   DRIVER_CANDIDATE: "Candidato conductor",
   SUPPLIER: "Proveedor/contratista",
-  B2B_MEETING: "Cliente empresa / reunión",
+  B2B_MEETING: "Cliente empresa / reuniÃƒÂ³n",
   OTHER: "Otro",
 };
 
@@ -154,7 +155,7 @@ export default function RecepcionDashboardPage() {
       setVisitors(vis);
       setMetrics(met);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error de conexión");
+      setError(e instanceof Error ? e.message : "Error de conexiÃƒÂ³n");
     }
   }, [boardFilter]);
 
@@ -251,7 +252,7 @@ export default function RecepcionDashboardPage() {
         }),
       });
       setInfo(
-        `${res.message} · llega a Comercial (${res.destination?.label || "cotización en borrador"}).`,
+        `${res.message} Ã‚Â· llega a Comercial (${res.destination?.label || "cotizaciÃƒÂ³n en borrador"}).`,
       );
       setInfoHref(res.destination?.href || "/comercial");
       setSelectedChat(null);
@@ -326,48 +327,52 @@ export default function RecepcionDashboardPage() {
 
   return (
     <div className="fade-in mx-auto max-w-[1800px] space-y-4">
-      <PageIntro
-        module="call_center"
-        title="Recepción · Atención omnicanal"
-        action={
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <Button
-              type="button"
-              variant="primary"
-              className="inline-flex w-auto items-center px-4 py-2"
-              onClick={() => setPanel("visit")}
-            >
-              <UserPlus className="mr-1.5 h-4 w-4" aria-hidden />
-              Nuevo visitante
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              className="w-auto border border-amber-500/50 px-4 py-2 text-amber-300 hover:bg-amber-500/10"
-              onClick={() => {
-                setError("");
-                setPanel("lead");
-              }}
-            >
-              + Nuevo prospecto
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              className="w-auto border border-rose-500/35 px-4 py-2 text-rose-300/90 hover:bg-rose-500/10"
-              onClick={() => setPanel("pqrs")}
-            >
-              + Nueva PQRS
-            </Button>
-          </div>
-        }
-      />
+      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-brand-border pb-4">
+        <div>
+          <p className="font-data text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-primary">
+            Recepción
+          </p>
+          <h1 className="font-sans text-2xl font-semibold tracking-tight text-brand-text-primary md:text-3xl">
+            Atención omnicanal
+          </h1>
+        </div>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button
+            type="button"
+            variant="primary"
+            className="inline-flex w-auto items-center px-4 py-2"
+            onClick={() => setPanel("visit")}
+          >
+            <UserPlus className="mr-1.5 h-4 w-4" aria-hidden />
+            Nuevo visitante
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            className="w-auto border border-brand-warning/50 px-4 py-2 text-brand-warning hover:bg-brand-warning/10"
+            onClick={() => {
+              setError("");
+              setPanel("lead");
+            }}
+          >
+            + Nuevo prospecto
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            className="w-auto border border-brand-danger/35 px-4 py-2 text-brand-danger/90 hover:bg-brand-danger/10"
+            onClick={() => setPanel("pqrs")}
+          >
+            + Nueva PQRS
+          </Button>
+        </div>
+      </header>
 
       {error ? (
-        <p className="text-sm text-[var(--brand-signal,#FF2A5F)]">{error}</p>
+        <p className="text-sm text-[var(--brand-danger)]">{error}</p>
       ) : null}
       {info ? (
-        <p className="text-sm text-[var(--brand-amber,#FFB800)]">
+        <p className="text-sm text-[var(--brand-warning)]">
           {info}{" "}
           {infoHref.startsWith("/") ? (
             <Link
@@ -387,21 +392,21 @@ export default function RecepcionDashboardPage() {
       <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           label="Visitas hoy"
-          value={metrics?.visitors ?? "—"}
+          value={metrics?.visitors ?? "Ã¢â‚¬â€"}
           tone="ok"
           icon={<Users />}
           delta={waiting > 0 ? `${waiting} en espera` : "Destino: tablero de visitantes"}
         />
         <KpiCard
           label="Prospectos convertidos"
-          value={metrics?.leadsConverted ?? "—"}
+          value={metrics?.leadsConverted ?? "Ã¢â‚¬â€"}
           tone="warn"
           icon={<UserPlus />}
           delta="Destino: Comercial"
         />
         <KpiCard
-          label="PQRS rápidas"
-          value={metrics?.pqrsQuick ?? "—"}
+          label="PQRS rÃƒÂ¡pidas"
+          value={metrics?.pqrsQuick ?? "Ã¢â‚¬â€"}
           tone="danger"
           icon={<AlertTriangle />}
           delta="Destino: QHSE"
@@ -411,17 +416,17 @@ export default function RecepcionDashboardPage() {
           value={defconCount}
           tone={defconCount > 0 ? "danger" : "ok"}
           icon={<AlertTriangle />}
-          delta="accidente · abogado · peligro"
+          delta="accidente Ã‚Â· abogado Ã‚Â· peligro"
         />
       </section>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
         <section
           id="omnicanal"
-          className="fsg-panel xl:col-span-4 flex max-h-[78vh] flex-col overflow-hidden"
+          className="nexa-panel xl:col-span-4 flex max-h-[78vh] flex-col overflow-hidden"
         >
-          <div className="flex items-center gap-2 border-b border-[var(--brand-line)] px-4 py-3 font-display text-sm font-semibold">
-            <MessageSquare className="h-4 w-4 text-slate-500" aria-hidden />
+          <div className="flex items-center gap-2 border-b border-[var(--brand-border)] px-4 py-3 font-display text-sm font-semibold">
+            <MessageSquare className="h-4 w-4 text-brand-text-secondary" aria-hidden />
             Bandeja omnicanal
           </div>
           {inbox.length === 0 ? (
@@ -429,7 +434,7 @@ export default function RecepcionDashboardPage() {
               <EmptyState
                 icon={<MessageSquare className="h-7 w-7" />}
                 title="Sin chats entrantes"
-                description="La cola omnicanal está vacía. Los mensajes aparecerán aquí."
+                description="La cola omnicanal estÃƒÂ¡ vacÃƒÂ­a. Los mensajes aparecerÃƒÂ¡n aquÃƒÂ­."
               />
             </div>
           ) : (
@@ -447,30 +452,30 @@ export default function RecepcionDashboardPage() {
                     }}
                     className={`flex w-full items-start gap-3 rounded-lg border px-3 py-2.5 text-left transition duration-150 ease-in-out ${
                       selectedChat?.id === c.id
-                        ? "border-[var(--accent-primary)] bg-[color-mix(in_srgb,var(--accent-primary)_12%,transparent)]"
-                        : "border-[var(--brand-line)] hover:border-[var(--accent-primary)]/40"
+                        ? "border-[var(--brand-primary)] bg-[color-mix(in_srgb,var(--brand-primary)_12%,transparent)]"
+                        : "border-[var(--brand-border)] hover:border-[var(--brand-primary)]/40"
                     }`}
                   >
                     <span
-                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-700 bg-slate-800 font-mono text-xs font-semibold text-slate-200"
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-brand-border bg-brand-surface-elevated font-mono text-xs font-semibold text-brand-text-primary"
                       aria-hidden
                     >
                       {initials(c.requester)}
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center justify-between gap-2">
-                        <span className="font-data text-[10px] uppercase tracking-wide text-[var(--text-secondary)]">
+                        <span className="font-data text-[10px] uppercase tracking-wide text-[var(--brand-text-secondary)]">
                           {statusEs(c.channel)}
                         </span>
                         <StatusPulseBadge tone="fatiga">{c.tagLabel}</StatusPulseBadge>
                       </span>
-                      <span className="mt-1 block text-sm font-medium text-slate-100">
+                      <span className="mt-1 block text-sm font-medium text-brand-text-primary">
                         {c.subject}
                       </span>
-                      <span className="mt-0.5 block font-data text-xs text-[var(--text-secondary)]">
-                        {c.requester} · {c.code}
+                      <span className="mt-0.5 block font-data text-xs text-[var(--brand-text-secondary)]">
+                        {c.requester} Ã‚Â· {c.code}
                       </span>
-                      <span className="mt-1 block font-mono text-[11px] tabular-nums text-slate-500">
+                      <span className="mt-1 block font-mono text-[11px] tabular-nums text-brand-text-secondary">
                         {formatTs(c.createdAt)}
                       </span>
                     </span>
@@ -480,14 +485,14 @@ export default function RecepcionDashboardPage() {
             </ul>
           )}
           {selectedChat ? (
-            <div className="border-t border-[var(--brand-line)] p-3">
-              <p className="mb-2 line-clamp-3 text-xs text-[var(--text-secondary)]">
+            <div className="border-t border-[var(--brand-border)] p-3">
+              <p className="mb-2 line-clamp-3 text-xs text-[var(--brand-text-secondary)]">
                 {selectedChat.message}
               </p>
               <div className="flex justify-end">
                 <Button
                   variant="ghost"
-                  className="w-auto border border-amber-500/50 px-4 py-2 text-amber-300 hover:bg-amber-500/10"
+                  className="w-auto border border-brand-warning/50 px-4 py-2 text-brand-warning hover:bg-brand-warning/10"
                   onClick={() => setPanel("lead")}
                 >
                   Convertir a Lead
@@ -499,12 +504,12 @@ export default function RecepcionDashboardPage() {
 
         <section
           id="visitantes"
-          className="fsg-panel xl:col-span-8 flex max-h-[78vh] flex-col overflow-hidden"
+          className="nexa-panel xl:col-span-8 flex max-h-[78vh] flex-col overflow-hidden"
         >
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--brand-line)] px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--brand-border)] px-4 py-3">
             <div className="font-display text-sm font-semibold">
               Tablero de visitantes
-              <span className="ml-2 font-data text-xs text-[var(--text-secondary)]">
+              <span className="ml-2 font-data text-xs text-[var(--brand-text-secondary)]">
                 espera {waiting}
               </span>
             </div>
@@ -521,8 +526,8 @@ export default function RecepcionDashboardPage() {
                     : s === "WAITING"
                       ? "En espera"
                       : s === "CHECKED_IN"
-                        ? "Ingresó"
-                        : "Salió"}
+                        ? "IngresÃƒÂ³"
+                        : "SaliÃƒÂ³"}
                 </button>
               ))}
             </div>
@@ -533,68 +538,56 @@ export default function RecepcionDashboardPage() {
                 <EmptyState
                   icon={<Users className="h-7 w-7" />}
                   title="Sin visitas registradas"
-                  description="Registra el primer visitante del día."
+                  description="Registra el primer visitante del dÃƒÂ­a."
                   actionLabel="+ Nuevo visitante"
                   onAction={() => setPanel("visit")}
                 />
               </div>
             ) : (
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="text-xs text-[var(--text-secondary)]">
-                    <th className="px-3 py-2">Visitante</th>
-                    <th className="px-3 py-2">Clase</th>
-                    <th className="px-3 py-2">Estado</th>
-                    <th className="px-3 py-2">RFID</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {visitors.map((v) => (
-                    <tr key={v.id} className="border-t border-[var(--brand-line)]">
-                      <td className="px-3 py-2">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-700 bg-slate-800 font-mono text-[10px] font-semibold text-slate-200"
-                            aria-hidden
-                          >
-                            {initials(v.name)}
-                          </span>
-                          <div>
-                            <div className="font-medium">{v.name}</div>
-                            <div className="font-data text-[11px] text-[var(--text-secondary)]">
-                              {v.document} · {v.hostName}
-                            </div>
+              <NexaTable columns={["Visitante", "Clase", "Estado", "RFID"]}>
+                {visitors.map((v) => (
+                  <NexaRow key={v.id}>
+                    <NexaCell>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-brand-border bg-brand-surface-elevated font-data text-[10px] font-semibold text-brand-text-primary"
+                          aria-hidden
+                        >
+                          {initials(v.name)}
+                        </span>
+                        <div>
+                          <div className="font-medium">{v.name}</div>
+                          <div className="font-data text-[11px] text-brand-text-secondary">
+                            {v.document} · {v.hostName}
                           </div>
                         </div>
-                      </td>
-                      <td className="px-3 py-2 text-xs">
-                        {VISIT_CLASS_LABEL[v.visitClass] || v.visitClass}
-                      </td>
-                      <td className="px-3 py-2">
-                        <StatusPulseBadge
-                          tone={
-                            v.boardStatus === "CHECKED_OUT"
-                              ? "danger"
-                              : v.boardStatus === "WAITING"
-                                ? "fatiga"
-                                : "active"
-                          }
-                        >
-                          {v.boardStatus}
-                        </StatusPulseBadge>
-                      </td>
-                      <td className="px-3 py-2 font-data text-xs">
-                        {v.badgeRfid || "—"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      </div>
+                    </NexaCell>
+                    <NexaCell className="text-xs">
+                      {VISIT_CLASS_LABEL[v.visitClass] || v.visitClass}
+                    </NexaCell>
+                    <NexaCell>
+                      <StatusPulseBadge
+                        tone={
+                          v.boardStatus === "CHECKED_OUT"
+                            ? "danger"
+                            : v.boardStatus === "WAITING"
+                              ? "fatiga"
+                              : "active"
+                        }
+                      >
+                        {v.boardStatus}
+                      </StatusPulseBadge>
+                    </NexaCell>
+                    <NexaCell mono>{v.badgeRfid || "—"}</NexaCell>
+                  </NexaRow>
+                ))}
+              </NexaTable>
             )}
           </div>
 
-          <div id="radar" className="border-t border-[var(--brand-line)] p-3">
-            <div className="mb-2 flex items-center gap-1.5 font-display text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+          <div id="radar" className="border-t border-[var(--brand-border)] p-3">
+            <div className="mb-2 flex items-center gap-1.5 font-display text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-secondary)]">
               <Radar className="h-3.5 w-3.5" aria-hidden />
               Radar de rutas (solo lectura)
             </div>
@@ -614,19 +607,19 @@ export default function RecepcionDashboardPage() {
               </Button>
             </div>
             {radar.length === 0 ? (
-              <p className="text-xs text-slate-500">Sin resultados de radar</p>
+              <p className="text-xs text-brand-text-secondary">Sin resultados de radar</p>
             ) : (
               <ul className="max-h-36 space-y-1 overflow-y-auto text-xs">
                 {radar.map((r) => (
                   <li
                     key={r.tripId}
-                    className="rounded border border-[var(--brand-line)] px-2 py-1.5"
+                    className="rounded border border-[var(--brand-border)] px-2 py-1.5"
                   >
                     <span className="font-data">{r.vehicle?.plate || "s/p"}</span>
-                    {" · "}
-                    {r.schoolOrRoute} · {statusEs(r.status)}
+                    {" Ã‚Â· "}
+                    {r.schoolOrRoute} Ã‚Â· {statusEs(r.status)}
                     {r.vehicle ? (
-                      <span className="font-data text-[var(--text-secondary)]">
+                      <span className="font-data text-[var(--brand-text-secondary)]">
                         {" "}
                         ({r.vehicle.lat.toFixed(4)}, {r.vehicle.lng.toFixed(4)})
                       </span>
@@ -643,7 +636,7 @@ export default function RecepcionDashboardPage() {
         open={panel === "visit"}
         onClose={() => setPanel("none")}
         title="Nuevo visitante"
-        description="Ingreso con cédula, clasificación y gafete RFID."
+        description="Ingreso con cÃƒÂ©dula, clasificaciÃƒÂ³n y gafete RFID."
         footer={
           <>
             <Button
@@ -668,7 +661,7 @@ export default function RecepcionDashboardPage() {
         <form id="visit-form" onSubmit={submitVisit} className="space-y-3">
           <input
             className="field h-11 min-h-[44px] font-data"
-            placeholder="Cédula"
+            placeholder="CÃƒÂ©dula"
             value={visitForm.document}
             onChange={(e) =>
               setVisitForm((f) => ({ ...f, document: e.target.value }))
@@ -695,7 +688,7 @@ export default function RecepcionDashboardPage() {
           />
           <input
             className="field h-11 min-h-[44px]"
-            placeholder="Anfitrión"
+            placeholder="AnfitriÃƒÂ³n"
             value={visitForm.hostName}
             onChange={(e) =>
               setVisitForm((f) => ({ ...f, hostName: e.target.value }))
@@ -732,8 +725,8 @@ export default function RecepcionDashboardPage() {
         title="Nuevo prospecto"
         description={
           selectedChat
-            ? `Chat ${selectedChat.code} · pase a Comercial`
-            : "Prospecto presencial (llegada directa). Llega a Comercial como cotización en borrador."
+            ? `Chat ${selectedChat.code} Ã‚Â· pase a Comercial`
+            : "Prospecto presencial (llegada directa). Llega a Comercial como cotizaciÃƒÂ³n en borrador."
         }
         footer={
           <>
@@ -778,7 +771,7 @@ export default function RecepcionDashboardPage() {
           />
           <input
             className="field h-11 min-h-[44px] font-data"
-            placeholder="Teléfono"
+            placeholder="TelÃƒÂ©fono"
             value={leadForm.phone}
             onChange={(e) =>
               setLeadForm((f) => ({ ...f, phone: e.target.value }))
@@ -801,8 +794,8 @@ export default function RecepcionDashboardPage() {
         title="Nueva PQRS"
         description={
           pqrsDefcon
-            ? "DEFCON 1 — lenguaje crítico detectado. Escala inmediata a QHSE."
-            : "Radicación rápida hacia Torre de Control / QHSE."
+            ? "DEFCON 1 Ã¢â‚¬â€ lenguaje crÃƒÂ­tico detectado. Escala inmediata a QHSE."
+            : "RadicaciÃƒÂ³n rÃƒÂ¡pida hacia Torre de Control / QHSE."
         }
         footer={
           <>
@@ -862,9 +855,9 @@ export default function RecepcionDashboardPage() {
           {pqrsDefcon ? (
             <p
               role="alert"
-              className="rounded-md border border-[var(--accent-alert)]/40 bg-[color-mix(in_srgb,var(--accent-alert)_12%,transparent)] px-3 py-2 text-xs font-medium text-[var(--accent-alert)]"
+              className="rounded-md border border-[var(--brand-danger)]/40 bg-[color-mix(in_srgb,var(--brand-danger)_12%,transparent)] px-3 py-2 text-xs font-medium text-[var(--brand-danger)]"
             >
-              DEFCON 1 — keywords críticas. Priorizar escalamiento a QHSE.
+              DEFCON 1 Ã¢â‚¬â€ keywords crÃƒÂ­ticas. Priorizar escalamiento a QHSE.
             </p>
           ) : null}
         </form>

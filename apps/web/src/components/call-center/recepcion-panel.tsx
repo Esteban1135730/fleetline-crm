@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, useEffect, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
@@ -48,18 +48,18 @@ export default function RecepcionPanel() {
   return (
     <div className="fade-in mx-auto max-w-[1600px] space-y-6">
       <div>
-        <h2 className="page-title text-3xl md:text-4xl">Recepción</h2>
+        <h2 className="page-title text-3xl md:text-4xl">RecepciÃ³n</h2>
         <p className="page-sub">Control de visitantes y triage</p>
       </div>
-      <form onSubmit={onCreate} className="fsg-panel grid grid-cols-1 gap-3 p-4 md:grid-cols-3">
+      <form onSubmit={onCreate} className="nexa-panel grid grid-cols-1 gap-3 p-4 md:grid-cols-3">
         <input className="field" placeholder="Nombre" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
         <input className="field" placeholder="Documento" value={form.document} onChange={(e) => setForm({ ...form, document: e.target.value })} required />
         <input className="field" placeholder="Empresa" value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} />
         <input className="field" placeholder="Motivo" value={form.purpose} onChange={(e) => setForm({ ...form, purpose: e.target.value })} required />
-        <input className="field" placeholder="Anfitrión" value={form.hostName} onChange={(e) => setForm({ ...form, hostName: e.target.value })} required />
+        <input className="field" placeholder="AnfitriÃ³n" value={form.hostName} onChange={(e) => setForm({ ...form, hostName: e.target.value })} required />
         <Button type="submit" variant="primary">Registrar ingreso</Button>
       </form>
-      <div className="fsg-panel data-shell overflow-hidden">
+      <div className="nexa-panel data-shell overflow-hidden">
         <table className="w-full text-left text-sm">
           <thead>
             <tr>
@@ -72,22 +72,22 @@ export default function RecepcionPanel() {
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.id} className="border-t border-[var(--brand-line)]">
+              <tr key={r.id} className="border-t border-[var(--brand-border)]">
                 <td className="px-4 py-2.5">
                   {r.name}
-                  <div className="text-[11px] text-[var(--brand-muted)]">
+                  <div className="text-[11px] text-[var(--brand-text-secondary)]">
                     {r.document}
-                    {r.company ? ` · ${r.company}` : ""}
+                    {r.company ? ` Â· ${r.company}` : ""}
                   </div>
                 </td>
                 <td className="px-4 py-2.5">
-                  {r.purpose} → {r.hostName}
+                  {r.purpose} â†’ {r.hostName}
                 </td>
                 <td className="px-4 py-2.5 font-data text-xs">
                   {new Date(r.checkedInAt).toLocaleString("es-CO")}
                 </td>
                 <td className="px-4 py-2.5">
-                  <Badge tone={r.checkedOutAt ? "slate" : "emerald"}>
+                  <Badge tone={r.checkedOutAt ? "info" : "success"}>
                     {r.checkedOutAt ? "SALIDA" : "EN SEDE"}
                   </Badge>
                 </td>
@@ -126,7 +126,7 @@ export default function RecepcionPanel() {
             {rows
               .filter((r) => editingId === r.id && !r.checkedOutAt)
               .map((r) => (
-                <tr key={`edit-${r.id}`} className="border-t border-[var(--brand-line)] bg-[var(--brand-surface)]">
+                <tr key={`edit-${r.id}`} className="border-t border-[var(--brand-border)] bg-[var(--brand-surface)]">
                   <td colSpan={5} className="px-4 py-3">
                     <div className="grid grid-cols-1 gap-2 md:grid-cols-4">
                       <input
@@ -139,7 +139,7 @@ export default function RecepcionPanel() {
                       />
                       <input
                         className="field py-1 text-xs"
-                        placeholder="Anfitrión"
+                        placeholder="AnfitriÃ³n"
                         value={editForm.hostName}
                         onChange={(e) =>
                           setEditForm({ ...editForm, hostName: e.target.value })

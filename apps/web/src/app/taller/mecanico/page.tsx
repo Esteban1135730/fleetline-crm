@@ -1,10 +1,12 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
+import { Camera, Timer } from "lucide-react";
 import { api } from "@/lib/api";
 import { statusEs } from "@fsg/shared";
-import { HowToBox, PageIntro } from "@/components/page-intro";
+import { EmptyState } from "@/components/audit";
+import { BentoPanel } from "@/components/nexa/bento-panel";
 
 type Order = {
   id: string;
@@ -81,75 +83,80 @@ export default function MecanicoTechAppPage() {
   }
 
   return (
-    <div className="mx-auto max-w-lg space-y-6 px-2 py-4">
-      <PageIntro module="taller" title="App del mecánico" />
-      <HowToBox
-        steps={[
-          "Modo Grease-Proof: botones grandes, alto contraste.",
-          "Inicie/detenga el cronómetro por tarea.",
-          "Capture hallazgo con foto + voz (IA a texto) para el Coordinador.",
-        ]}
-      />
+    <div className="fade-in mx-auto max-w-lg space-y-5 px-3 py-4">
+      <header className="border-b border-brand-border pb-4">
+        <p className="font-data text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-primary">
+          Taller · Técnico
+        </p>
+        <h1 className="font-sans text-2xl font-semibold tracking-tight text-brand-text-primary">
+          App del mecánico
+        </h1>
+        <p className="mt-1 font-sans text-sm text-brand-text-secondary">
+          Grease-proof · botones grandes · alto contraste
+        </p>
+      </header>
 
-      {error && (
-        <p className="rounded-xl bg-[var(--fl-critical)]/15 p-4 font-mono text-base text-[var(--fl-critical)]">
+      {error ? (
+        <p className="rounded-xl border border-brand-danger/40 bg-brand-danger/15 p-4 font-data text-base text-brand-danger">
           {error}
         </p>
-      )}
-      {msg && (
-        <p className="rounded-xl bg-[var(--fl-accent)]/15 p-4 font-mono text-base text-[var(--fl-accent)]">
+      ) : null}
+      {msg ? (
+        <p className="rounded-xl border border-brand-primary/40 bg-brand-primary/15 p-4 font-data text-base text-brand-primary">
           {msg}
         </p>
-      )}
+      ) : null}
 
-      <ul className="space-y-4">
-        {orders.map((o) => {
-          const running =
-            (o.timeEntries?.length ?? 0) > 0 || activeId === o.id;
-          return (
-            <li
-              key={o.id}
-              className="rounded-2xl border-2 border-[var(--fl-border)] bg-[var(--fl-surface)] p-5"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <p className="font-mono text-xl font-bold text-[var(--fl-text)]">
-                    {o.vehicle.plate}
-                  </p>
-                  <p className="font-mono text-sm text-[var(--fl-subtext)]">
-                    {o.code} · {o.bayCode ?? "—"}
-                  </p>
-                </div>
-                <Badge tone={running ? "amber" : "slate"}>{statusEs(o.status)}</Badge>
-              </div>
-              <p className="mt-3 text-base text-[var(--fl-text)]">
-                {o.description}
-              </p>
-              <div className="mt-5 grid grid-cols-1 gap-3">
-                <Button
-                  className="!min-h-[64px] !text-lg"
-                  disabled={busy}
-                  onClick={() => void toggleTimer(o.id, running)}
+      {!orders.length ? (
+        <EmptyState
+          icon={<Timer className="h-7 w-7" />}
+          title="Sin OT asignadas"
+          description="El coordinador asignará órdenes a su bahía."
+        />
+      ) : (
+        <ul className="space-y-4">
+          {orders.map((o) => {
+            const running =
+              (o.timeEntries?.length ?? 0) > 0 || activeId === o.id;
+            return (
+              <li key={o.id}>
+                <BentoPanel
+                  title={o.vehicle.plate}
+                  subtitle={`${o.code} · ${o.bayCode ?? "—"}`}
+                  action={
+                    <Badge tone={running ? "warning" : "info"}>
+                      {statusEs(o.status)}
+                    </Badge>
+                  }
                 >
-                  {running ? "DETENER TIMER" : "INICIAR TIMER"}
-                </Button>
-                <Button
-                  className="!min-h-[64px] !text-lg"
-                  disabled={busy}
-                  onClick={() => void hallazgo(o.id)}
-                >
-                  FOTO + VOZ
-                </Button>
-              </div>
-            </li>
-          );
-        })}
-        {!orders.length && (
-          <li className="rounded-2xl border border-[var(--fl-border)] p-6 text-center text-[var(--fl-subtext)]">
-            Sin OT asignadas
-          </li>
-        )}
-      </ul>
+                  <p className="font-sans text-base text-brand-text-primary">
+                    {o.description}
+                  </p>
+                  <div className="mt-5 grid grid-cols-1 gap-3">
+                    <Button
+                      className="!min-h-[64px] w-full !text-lg"
+                      disabled={busy}
+                      onClick={() => void toggleTimer(o.id, running)}
+                    >
+                      <Timer className="mr-2 inline h-5 w-5" aria-hidden />
+                      {running ? "DETENER TIMER" : "INICIAR TIMER"}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      className="!min-h-[64px] w-full !text-lg"
+                      disabled={busy}
+                      onClick={() => void hallazgo(o.id)}
+                    >
+                      <Camera className="mr-2 inline h-5 w-5" aria-hidden />
+                      FOTO + VOZ
+                    </Button>
+                  </div>
+                </BentoPanel>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }

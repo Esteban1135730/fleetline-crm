@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useState } from "react";
 import { useDropzone } from "react-dropzone";
@@ -9,10 +9,10 @@ type EvidenceDropzoneProps = {
   acceptLabel?: string;
 };
 
-/** Zona drag & drop PDF/imágenes — evidencia forense / QHSE. */
+/** Zona drag & drop PDF/imÃ¡genes â€” evidencia forense / QHSE. */
 export function EvidenceDropzone({
   onFiles,
-  acceptLabel = "PDF o imágenes",
+  acceptLabel = "PDF o imÃ¡genes",
 }: EvidenceDropzoneProps) {
   const [names, setNames] = useState<string[]>([]);
 
@@ -38,22 +38,22 @@ export function EvidenceDropzone({
       {...getRootProps()}
       className={`cursor-pointer rounded-xl border border-dashed px-4 py-8 text-center transition ${
         isDragActive
-          ? "border-emerald-500 bg-emerald-500/10"
-          : "border-[var(--border-subtle)] bg-[color-mix(in_srgb,var(--bg-surface-2)_55%,transparent)] hover:border-[var(--text-secondary)]"
+          ? "border-brand-success bg-brand-success/10"
+          : "border-[var(--brand-border)] bg-[color-mix(in_srgb,var(--brand-surface-elevated)_55%,transparent)] hover:border-[var(--brand-text-secondary)]"
       }`}
     >
       <input {...getInputProps()} />
       <FileUp
-        className="mx-auto mb-2 h-8 w-8 text-[var(--text-secondary)]"
+        className="mx-auto mb-2 h-8 w-8 text-[var(--brand-text-secondary)]"
         aria-hidden
       />
-      <p className="text-sm text-[var(--text-secondary)]">
+      <p className="text-sm text-[var(--brand-text-secondary)]">
         {isDragActive
-          ? "Suelte la evidencia…"
+          ? "Suelte la evidenciaâ€¦"
           : `Arrastre ${acceptLabel} o haga clic`}
       </p>
       {names.length > 0 ? (
-        <ul className="mt-3 space-y-1 font-mono text-xs text-emerald-400">
+        <ul className="mt-3 space-y-1 font-mono text-xs text-brand-success">
           {names.map((n) => (
             <li key={n}>{n}</li>
           ))}

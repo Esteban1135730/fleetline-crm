@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -21,8 +21,14 @@ import {
   Target,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { PageIntro } from "@/components/page-intro";
-import { EmptyState, KpiCard, Modal, SlideOver, StatusPulseBadge } from "@/components/audit";
+import { EmptyState, KpiCard, SlideOver, StatusPulseBadge } from "@/components/audit";
+import { BentoPanel } from "@/components/nexa/bento-panel";
+import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
+import {
+  WorkbenchSearch,
+  WorkbenchTabs,
+  WorkbenchToolbar,
+} from "@/components/workbench-toolbar";
 import { useShell } from "@/lib/shell-context";
 
 type Customer = {
@@ -57,9 +63,9 @@ function sarlaftTrust(c: Customer): {
 }
 
 function marginTone(pct: number): string {
-  if (pct >= 25) return "text-[var(--brand-primary)]";
-  if (pct >= 15) return "text-[var(--brand-amber)]";
-  return "text-[var(--brand-signal)]";
+  if (pct >= 25) return "text-brand-primary";
+  if (pct >= 15) return "text-brand-warning";
+  return "text-brand-danger";
 }
 
 type Quote = {
@@ -93,15 +99,9 @@ const CHANNEL_ES: Record<string, string> = {
   PUBLIC_TENDER: "Licitación pública",
 };
 
-const TABS: { id: TabId; label: string; icon: typeof Calculator }[] = [
-  { id: "cotizador", label: "Cotizador", icon: Calculator },
-  { id: "contratos", label: "Contratos Operativos", icon: FileText },
-  { id: "clientes", label: "Directorio de Clientes", icon: Users },
-];
-
 function customerOrigin(c: Customer): {
   label: string;
-  tone: "emerald" | "amber" | "info";
+  tone: "success" | "warning" | "info";
   detail: string;
 } {
   const contracts = c._count?.contracts ?? 0;
@@ -109,7 +109,7 @@ function customerOrigin(c: Customer): {
   if (contracts > 0) {
     return {
       label: "Contrato",
-      tone: "emerald",
+      tone: "success",
       detail:
         quotes > 0
           ? `${contracts} contrato${contracts === 1 ? "" : "s"} · ${quotes} cotización${quotes === 1 ? "" : "es"}`
@@ -119,7 +119,7 @@ function customerOrigin(c: Customer): {
   if (quotes > 0) {
     return {
       label: "Solo cotización",
-      tone: "amber",
+      tone: "warning",
       detail: `${quotes} cotización${quotes === 1 ? "" : "es"} · sin contrato`,
     };
   }
@@ -154,7 +154,9 @@ const MARGIN_TIP =
 export default function ComercialPage() {
   const { openInspector } = useShell();
   const [tab, setTab] = useState<TabId>("cotizador");
-  const [customerModalOpen, setCustomerModalOpen] = useState(false);
+  const [customerSlideOpen, setCustomerSlideOpen] = useState(false);
+  const [contractSlideOpen, setContractSlideOpen] = useState(false);
+  const [clientQuery, setClientQuery] = useState("");
   const [editingCustomerId, setEditingCustomerId] = useState<string | null>(null);
   const [customerError, setCustomerError] = useState("");
   const [customerBusy, setCustomerBusy] = useState(false);
@@ -306,8 +308,8 @@ export default function ComercialPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [calcPayload]);
 
-  function closeCustomerModal() {
-    setCustomerModalOpen(false);
+  function closeCustomerSlide() {
+    setCustomerSlideOpen(false);
     setEditingCustomerId(null);
     setCustomerError("");
     setCustomerForm({
@@ -329,7 +331,7 @@ export default function ComercialPage() {
       phone: "",
       segment: "B2B",
     });
-    setCustomerModalOpen(true);
+    setCustomerSlideOpen(true);
   }
 
   function openEditCustomer(c: Customer) {
@@ -345,7 +347,7 @@ export default function ComercialPage() {
           ? c.segment
           : "B2B",
     });
-    setCustomerModalOpen(true);
+    setCustomerSlideOpen(true);
   }
 
   async function onSaveCustomer(e: FormEvent) {
@@ -375,7 +377,7 @@ export default function ComercialPage() {
           }),
         });
       }
-      closeCustomerModal();
+      closeCustomerSlide();
       await load();
     } catch (err) {
       setCustomerError(
@@ -418,6 +420,7 @@ export default function ComercialPage() {
         route: "",
         monthlyValue: "",
       }));
+      setContractSlideOpen(false);
       await load();
     } catch (err) {
       setContractError(
@@ -562,71 +565,71 @@ export default function ComercialPage() {
       `${q.code} · cotización`,
       <div className="space-y-4 text-sm">
         <div>
-          <p className="font-data text-[10px] uppercase tracking-[0.14em] text-[var(--accent-primary)]">
+          <p className="font-data text-[10px] uppercase tracking-[0.14em] text-[var(--brand-primary)]">
             {q.customer.name}
           </p>
-          <p className="mt-1 font-data text-lg font-bold text-[var(--text-primary)]">
+          <p className="mt-1 font-data text-lg font-bold text-[var(--brand-text-primary)]">
             {money(Number(q.amount))}
           </p>
-          <p className="text-xs text-[var(--text-secondary)]">{statusEs(q.status)}</p>
+          <p className="text-xs text-[var(--brand-text-secondary)]">{statusEs(q.status)}</p>
         </div>
         {calc ? (
           <dl className="space-y-2 font-data text-xs">
             <div className="flex justify-between gap-2">
-              <dt className="text-[var(--text-secondary)]">Ruta</dt>
+              <dt className="text-[var(--brand-text-secondary)]">Ruta</dt>
               <dd>
                 {calc.origen} → {calc.destino}
               </dd>
             </div>
             <div className="flex justify-between gap-2">
-              <dt className="text-[var(--text-secondary)]">Costo ruta</dt>
+              <dt className="text-[var(--brand-text-secondary)]">Costo ruta</dt>
               <dd>{money(calc.costoDistancia)}</dd>
             </div>
             <div className="flex justify-between gap-2">
-              <dt className="text-[var(--text-secondary)]">Peajes</dt>
+              <dt className="text-[var(--brand-text-secondary)]">Peajes</dt>
               <dd>{money(calc.costoPeajes)}</dd>
             </div>
             <div className="flex justify-between gap-2">
-              <dt className="text-[var(--text-secondary)]">Conductor</dt>
+              <dt className="text-[var(--brand-text-secondary)]">Conductor</dt>
               <dd>{money(calc.pagoConductor)}</dd>
             </div>
             <div className="flex justify-between gap-2">
-              <dt className="text-[var(--text-secondary)]">Costo operativo</dt>
+              <dt className="text-[var(--brand-text-secondary)]">Costo operativo</dt>
               <dd>{money(calc.costoOperativo)}</dd>
             </div>
             <div className="flex justify-between gap-2">
-              <dt className="text-[var(--text-secondary)]">Utilidad bruta</dt>
-              <dd className="text-[var(--accent-metric)]">
+              <dt className="text-[var(--brand-text-secondary)]">Utilidad bruta</dt>
+              <dd className="text-[var(--brand-warning)]">
                 {money(calc.utilidadBruta)}
               </dd>
             </div>
-            <div className="flex justify-between gap-2 border-t border-[var(--border-subtle)] pt-2">
-              <dt className="text-[var(--text-secondary)]">Precio cliente</dt>
-              <dd className="font-bold text-[var(--accent-primary)]">
+            <div className="flex justify-between gap-2 border-t border-[var(--brand-border)] pt-2">
+              <dt className="text-[var(--brand-text-secondary)]">Precio cliente</dt>
+              <dd className="font-bold text-[var(--brand-primary)]">
                 {money(calc.precioSugerido)}
               </dd>
             </div>
-            <p className="text-[10px] text-[var(--text-secondary)]">
+            <p className="text-[10px] text-[var(--brand-text-secondary)]">
               Margen {calc.margenDeseado}%
             </p>
           </dl>
         ) : (
-          <p className="text-[var(--text-secondary)]">
+          <p className="text-[var(--brand-text-secondary)]">
             {q.notes || "Sin desglose de cotizador"}
           </p>
         )}
         {q.draftTrip ? (
-          <div className="space-y-2 border-t border-[var(--border-subtle)] pt-3">
-            <p className="font-data text-xs text-[var(--text-primary)]">
+          <div className="space-y-2 border-t border-[var(--brand-border)] pt-3">
+            <p className="font-data text-xs text-[var(--brand-text-primary)]">
               Viaje {q.draftTrip.code} · {q.draftTrip.status}
             </p>
-            <p className="text-xs text-[var(--text-secondary)]">
+            <p className="text-xs text-brand-text-secondary">
               Logística → Programación de servicios y seguimiento GPS. Sin
               conductor ni placa hasta que despacho lo asigne.
             </p>
             <Link
               href={`/logistica/servicios?code=${encodeURIComponent(q.draftTrip.code)}`}
-              className="inline-flex w-auto items-center rounded-md bg-[var(--brand-primary)] px-3 py-2 text-xs font-semibold text-[#04110c]"
+              className="inline-flex w-auto items-center rounded-md bg-[var(--brand-primary)] px-3 py-2 text-xs font-semibold text-brand-on-primary"
             >
               Abrir en programación
             </Link>
@@ -652,51 +655,94 @@ export default function ComercialPage() {
     );
   }
 
-  return (
-    <div className="fade-in mx-auto max-w-[1600px] space-y-6">
-      <PageIntro
-        module="comercial"
-        title="Comercial y contratos"
-        action={
-          <Button
-            type="button"
-            variant="primary"
-            className="w-auto"
-            onClick={openNewCustomer}
-          >
-            <Plus className="mr-1 h-4 w-4" />
-            Nuevo Cliente
-          </Button>
-        }
-      />
+  const filteredCustomers = useMemo(() => {
+    const q = clientQuery.trim().toLowerCase();
+    if (!q) return customers;
+    return customers.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        c.nit.includes(q) ||
+        (c.email ?? "").toLowerCase().includes(q),
+    );
+  }, [customers, clientQuery]);
 
-      <div
-        className="flex flex-wrap gap-1 border-b border-[var(--brand-line)]"
-        role="tablist"
-        aria-label="Secciones comercial"
-      >
-        {TABS.map((t) => {
-          const Icon = t.icon;
-          const active = tab === t.id;
-          return (
-            <button
-              key={t.id}
+  const workbenchTabs = useMemo(
+    () => [
+      {
+        id: "cotizador" as const,
+        label: "Cotizador",
+        count: quotes.length,
+        tip: "Pipeline, cotizador inteligente e historial",
+      },
+      {
+        id: "contratos" as const,
+        label: "Contratos",
+        count: contracts.length,
+        tip: "Contratos operativos B2B y licitación",
+      },
+      {
+        id: "clientes" as const,
+        label: "Clientes",
+        count: customers.length,
+        tip: "Directorio comercial y SARLAFT",
+      },
+    ],
+    [quotes.length, contracts.length, customers.length],
+  );
+
+  return (
+    <div className="fade-in mx-auto max-w-[1600px] space-y-6 p-4 md:p-6">
+      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-brand-border pb-4">
+        <div>
+          <p className="font-data text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-primary">
+            Comercial · Revenue
+          </p>
+          <h1 className="font-sans text-2xl font-semibold tracking-tight text-brand-text-primary md:text-3xl">
+            Comercial y contratos
+          </h1>
+          <p className="mt-1 font-sans text-sm text-brand-text-secondary">
+            Pipeline · cotizador · MRR · SARLAFT
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {tab === "contratos" ? (
+            <Button
               type="button"
-              role="tab"
-              aria-selected={active}
-              className={`inline-flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors duration-150 ${
-                active
-                  ? "border-[var(--brand-primary)] text-[var(--brand-primary)]"
-                  : "border-transparent text-[var(--brand-muted)] hover:text-[var(--brand-fg)]"
-              }`}
-              onClick={() => setTab(t.id)}
+              variant="primary"
+              className="w-auto px-4 py-2"
+              onClick={() => setContractSlideOpen(true)}
             >
-              <Icon className="h-4 w-4" />
-              {t.label}
-            </button>
-          );
-        })}
-      </div>
+              <Plus className="mr-1.5 h-4 w-4" aria-hidden />
+              Nuevo contrato
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="primary"
+              className="w-auto px-4 py-2"
+              onClick={openNewCustomer}
+            >
+              <Plus className="mr-1.5 h-4 w-4" aria-hidden />
+              Nuevo cliente
+            </Button>
+          )}
+        </div>
+      </header>
+
+      <WorkbenchToolbar>
+        <WorkbenchTabs
+          tabs={workbenchTabs}
+          value={tab}
+          onChange={(id) => setTab(id as TabId)}
+        />
+        {tab === "clientes" ? (
+          <WorkbenchSearch
+            value={clientQuery}
+            onChange={setClientQuery}
+            placeholder="Buscar por nombre, NIT o correo…"
+          />
+        ) : null}
+      </WorkbenchToolbar>
 
       {tab === "cotizador" ? (
         <div className="space-y-4">
@@ -728,33 +774,29 @@ export default function ComercialPage() {
             />
           </div>
 
-          <section className="fsg-panel space-y-4 p-4">
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <div>
-                <h2 className="font-display text-lg font-semibold tracking-tight">
-                  Cotizador inteligente
-                </h2>
-                <p className="text-sm text-[var(--text-secondary)]">
-                  Algoritmo: (km × costo/km + peajes + conductor) / (1 − margen)
-                </p>
-              </div>
+          <BentoPanel
+            title="Cotizador inteligente"
+            subtitle="(km × costo/km + peajes + conductor) / (1 − margen)"
+            icon={<Calculator aria-hidden />}
+            action={
               <Button
                 type="button"
                 variant="secondary"
-                className="w-auto"
+                className="w-auto px-3 py-1.5"
                 loading={calcBusy}
                 title="Recalcular tarifa sugerida"
                 onClick={() => void runCalculate()}
               >
                 Recalcular
               </Button>
-            </div>
-
+            }
+          >
+            <div className="space-y-4">
             <form
               onSubmit={(e) => void saveQuoteFromCalc(e)}
               className="grid grid-cols-1 gap-3 md:grid-cols-3 lg:grid-cols-4"
             >
-              <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+              <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--brand-text-secondary)]">
                 Cliente
                 <select
                   className="field"
@@ -772,7 +814,7 @@ export default function ComercialPage() {
                   ))}
                 </select>
               </label>
-              <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+              <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
                 Origen
                 <input
                   className="field"
@@ -785,7 +827,7 @@ export default function ComercialPage() {
                   title="Origen de la ruta"
                 />
               </label>
-              <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+              <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--brand-text-secondary)]">
                 Destino
                 <input
                   className="field"
@@ -798,7 +840,7 @@ export default function ComercialPage() {
                   title="Destino de la ruta"
                 />
               </label>
-              <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+              <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--brand-text-secondary)]">
                 Tipo de vehículo
                 <select
                   className="field"
@@ -820,10 +862,10 @@ export default function ComercialPage() {
                   )}
                 </select>
               </label>
-              <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+              <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--brand-text-secondary)]">
                 Kilómetros recorridos
                 <input
-                  className="field font-data"
+                  className="field font-data tabular-nums"
                   type="number"
                   min={1}
                   placeholder="Ej. 360"
@@ -835,7 +877,7 @@ export default function ComercialPage() {
                   title="Kilómetros recorridos en la ruta"
                 />
               </label>
-              <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+              <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--brand-text-secondary)]">
                 Peajes
                 <input
                   className="field font-data"
@@ -849,7 +891,7 @@ export default function ComercialPage() {
                   title="Número de peajes en la ruta"
                 />
               </label>
-              <label className="flex flex-col gap-2 text-[11px] uppercase tracking-wide text-[var(--text-secondary)] md:col-span-2">
+              <label className="flex flex-col gap-2 text-[11px] uppercase tracking-wide text-[var(--brand-text-secondary)] md:col-span-2">
                 Margen objetivo
                 <div className="flex items-center gap-3">
                   <input
@@ -865,21 +907,21 @@ export default function ComercialPage() {
                       })
                     }
                     title={MARGIN_TIP}
-                    className="h-2 w-full cursor-pointer appearance-none rounded-full bg-[var(--border-subtle)] accent-[var(--brand-primary)] [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--brand-primary)]"
+                    className="h-2 w-full cursor-pointer appearance-none rounded-full bg-[var(--brand-border)] accent-[var(--brand-primary)] [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--brand-primary)]"
                     style={{
                       background: `linear-gradient(to right, ${
                         marginPct >= 25
                           ? "var(--brand-primary)"
                           : marginPct >= 15
-                            ? "var(--brand-amber)"
-                            : "var(--brand-signal)"
+                            ? "var(--brand-warning)"
+                            : "var(--brand-danger)"
                       } 0%, ${
                         marginPct >= 25
                           ? "var(--brand-primary)"
                           : marginPct >= 15
-                            ? "var(--brand-amber)"
-                            : "var(--brand-signal)"
-                      } ${((marginPct - 5) / 45) * 100}%, var(--border-subtle) ${((marginPct - 5) / 45) * 100}%)`,
+                            ? "var(--brand-warning)"
+                            : "var(--brand-danger)"
+                      } ${((marginPct - 5) / 45) * 100}%, var(--brand-border) ${((marginPct - 5) / 45) * 100}%)`,
                     }}
                   />
                   <span
@@ -888,7 +930,7 @@ export default function ComercialPage() {
                     {marginPct}%
                   </span>
                 </div>
-                <span className="normal-case text-[10px] text-[var(--text-secondary)]">
+                <span className="normal-case text-[10px] text-[var(--brand-text-secondary)]">
                   {marginPct >= 25
                     ? "Zona verde — margen saludable"
                     : marginPct >= 15
@@ -909,7 +951,7 @@ export default function ComercialPage() {
             </form>
 
             {calcError ? (
-              <p className="text-sm text-[var(--accent-alert)]">{calcError}</p>
+              <p className="text-sm text-[var(--brand-danger)]">{calcError}</p>
             ) : null}
 
             {breakdown ? (
@@ -918,11 +960,11 @@ export default function ComercialPage() {
                   content="Costo de distancia: km × costo/km del tipo de unidad"
                   side="top"
                 >
-                  <div className="w-full rounded-lg border border-[var(--border-subtle)] p-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--text-secondary)]">
+                  <div className="w-full rounded-lg border border-[var(--brand-border)] p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--brand-text-secondary)]">
                       Costo estimado ruta
                     </p>
-                    <p className="mt-1 font-data text-xl font-bold text-[var(--text-primary)]">
+                    <p className="mt-1 font-data text-xl font-bold text-[var(--brand-text-primary)]">
                       {money(breakdown.costoDistancia)}
                     </p>
                   </div>
@@ -931,53 +973,54 @@ export default function ComercialPage() {
                   content={`Peajes aprox.: ${breakdown.cantidadPeajes} × ${money(breakdown.costoPromedioPeaje)}`}
                   side="top"
                 >
-                  <div className="w-full rounded-lg border border-[var(--border-subtle)] p-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--text-secondary)]">
+                  <div className="w-full rounded-lg border border-[var(--brand-border)] p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--brand-text-secondary)]">
                       Peajes aproximados
                     </p>
-                    <p className="mt-1 font-data text-xl font-bold text-[var(--text-primary)]">
+                    <p className="mt-1 font-data text-xl font-bold text-[var(--brand-text-primary)]">
                       {money(breakdown.costoPeajes)}
                     </p>
                   </div>
                 </Tooltip>
                 <Tooltip content={MARGIN_TIP} side="top">
-                  <div className="w-full rounded-lg border border-[var(--border-subtle)] border-l-[3px] border-l-[var(--accent-metric)] p-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--text-secondary)]">
+                  <div className="w-full rounded-lg border border-[var(--brand-border)] border-l-[3px] border-l-[var(--brand-warning)] p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--brand-text-secondary)]">
                       Utilidad bruta est.
                     </p>
-                    <p className="mt-1 font-data text-xl font-bold text-[var(--accent-metric)]">
+                    <p className="mt-1 font-data text-xl font-bold text-[var(--brand-warning)]">
                       {money(breakdown.utilidadBruta)}
                     </p>
                   </div>
                 </Tooltip>
                 <Tooltip content={MARGIN_TIP} side="top">
-                  <div className="w-full rounded-lg border border-[var(--border-subtle)] border-l-[3px] border-l-[var(--accent-primary)] p-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--text-secondary)]">
+                  <div className="w-full rounded-lg border border-[var(--brand-border)] border-l-[3px] border-l-[var(--brand-primary)] p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--brand-text-secondary)]">
                       Precio final sugerido
                     </p>
-                    <p className="mt-1 font-data text-xl font-extrabold text-[var(--accent-primary)]">
+                    <p className="mt-1 font-data text-xl font-extrabold text-[var(--brand-primary)]">
                       {money(breakdown.precioSugerido)}
                     </p>
                   </div>
                 </Tooltip>
               </div>
             ) : (
-              <p className="text-sm text-[var(--text-secondary)]">
+              <p className="text-sm text-brand-text-secondary">
                 Ajuste ruta y distancia para ver el desglose en tiempo real…
               </p>
             )}
-          </section>
+            </div>
+          </BentoPanel>
 
-          <div className="fsg-panel overflow-hidden">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--brand-line)] px-4 py-3">
-              <span className="font-display text-sm font-semibold">
-                Deal Desk · Cotizaciones ({quotes.length})
-              </span>
+          <BentoPanel
+            title="Deal Desk · Cotizaciones"
+            subtitle={`${quotes.length} registro(s) · pipeline ${money(pipelineStats.pipelineValue)}`}
+            icon={<FileText aria-hidden />}
+            action={
               <div className="flex gap-1">
                 <Button
                   type="button"
                   variant={quoteView === "pipeline" ? "primary" : "ghost"}
-                  className="w-auto"
+                  className="w-auto px-3 py-1.5"
                   onClick={() => setQuoteView("pipeline")}
                 >
                   Pipeline
@@ -985,61 +1028,59 @@ export default function ComercialPage() {
                 <Button
                   type="button"
                   variant={quoteView === "historial" ? "primary" : "ghost"}
-                  className="w-auto"
+                  className="w-auto px-3 py-1.5"
                   onClick={() => setQuoteView("historial")}
                 >
                   Historial
                 </Button>
               </div>
-            </div>
-
+            }
+          >
             {quoteView === "pipeline" ? (
               !pipelineQuotes.length ? (
-                <div className="p-6">
-                  <EmptyState
-                    icon={<Calculator className="h-7 w-7" />}
-                    title="Pipeline vacío"
-                    description="Calcule una tarifa y guarde la cotización en borrador."
-                  />
-                </div>
+                <EmptyState
+                  icon={<Calculator className="h-7 w-7" />}
+                  title="Pipeline vacío"
+                  description="Calcule una tarifa y guarde la cotización en borrador."
+                />
               ) : (
-                <div className="grid grid-cols-1 gap-4 p-4 md:grid-cols-3">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                   {PIPELINE_COLUMNS.map((col) => {
                     const colQuotes = pipelineQuotes.filter(
                       (q) => q.status === col.key,
                     );
+                    const colValue = colQuotes.reduce(
+                      (sum, q) => sum + Number(q.amount),
+                      0,
+                    );
                     return (
-                      <div
+                      <BentoPanel
                         key={col.key}
-                        className="flex min-h-[12rem] flex-col rounded-lg border border-[var(--border-subtle)] bg-[color-mix(in_srgb,var(--bg-surface-2)_60%,transparent)]"
+                        title={col.label}
+                        subtitle={`${colQuotes.length} · ${money(colValue)}`}
+                        className="!p-3"
                       >
-                        <div className="flex items-center justify-between border-b border-[var(--border-subtle)] px-3 py-2">
-                          <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-                            {col.label}
-                          </span>
-                          <Badge tone="info">{colQuotes.length}</Badge>
-                        </div>
-                        <div className="flex flex-1 flex-col gap-2 p-2">
+                        <div className="flex flex-1 flex-col gap-2">
                           {!colQuotes.length ? (
-                            <p className="px-2 py-4 text-center text-xs text-[var(--text-secondary)]">
+                            <p className="px-2 py-4 text-center text-xs text-[var(--brand-text-secondary)]">
                               Sin cotizaciones
                             </p>
                           ) : (
                             colQuotes.map((q) => (
                               <article
                                 key={q.id}
-                                className="cursor-pointer rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-3 transition-colors duration-150 hover:border-[color-mix(in_srgb,var(--accent-primary)_35%,transparent)]"
+                                className="cursor-pointer rounded-md border border-[var(--brand-border)] bg-[var(--brand-surface)] p-3 transition-colors duration-150 hover:border-[color-mix(in_srgb,var(--brand-primary)_35%,transparent)]"
                                 onClick={() => openQuoteInspector(q)}
                                 title="Abrir desglose en el inspector"
                               >
                                 <div className="flex items-start justify-between gap-2">
-                                  <p className="font-data text-[10px] text-[var(--accent-primary)]">
+                                  <p className="font-data text-[10px] text-[var(--brand-primary)]">
                                     {q.code}
                                   </p>
                                   <Badge
                                     tone={
                                       q.status === "APPROVED"
-                                        ? "emerald"
+                                        ? "success"
                                         : q.status === "SENT"
                                           ? "info"
                                           : "neutral"
@@ -1048,85 +1089,80 @@ export default function ComercialPage() {
                                     {statusEs(q.status)}
                                   </Badge>
                                 </div>
-                                <p className="mt-1 text-sm font-medium text-[var(--text-primary)]">
+                                <p className="mt-1 text-sm font-medium text-[var(--brand-text-primary)]">
                                   {q.customer.name}
                                 </p>
-                                <p className="mt-1 font-data text-base font-bold tabular-nums text-[var(--text-primary)]">
+                                <p className="mt-1 font-data text-base font-bold tabular-nums text-[var(--brand-text-primary)]">
                                   {money(Number(q.amount))}
                                 </p>
                                 {q.calcJson ? (
-                                  <p className="mt-1 text-[10px] text-[var(--text-secondary)]">
-                                    {q.calcJson.origen} → {q.calcJson.destino}
-                                  </p>
+                                  <>
+                                    <p className="mt-1 text-[10px] text-brand-text-secondary">
+                                      {q.calcJson.origen} → {q.calcJson.destino}
+                                    </p>
+                                    <p
+                                      className={`mt-0.5 font-data text-[10px] tabular-nums ${marginTone(q.calcJson.margenDeseado)}`}
+                                    >
+                                      Margen {q.calcJson.margenDeseado}%
+                                    </p>
+                                  </>
                                 ) : null}
-                                <div className="mt-2 border-t border-[var(--border-subtle)] pt-2">
+                                <div className="mt-2 border-t border-[var(--brand-border)] pt-2">
                                   {renderQuoteActions(q, true)}
                                 </div>
                               </article>
                             ))
                           )}
                         </div>
-                      </div>
+                      </BentoPanel>
                     );
                   })}
                 </div>
               )
             ) : !historyQuotes.length ? (
-              <div className="p-6">
-                <EmptyState
-                  icon={<FileText className="h-7 w-7" />}
-                  title="Sin historial"
-                  description="Las cotizaciones ganadas, rechazadas o vencidas aparecerán aquí."
-                />
-              </div>
+              <EmptyState
+                icon={<FileText className="h-7 w-7" />}
+                title="Sin historial"
+                description="Las cotizaciones ganadas, rechazadas o vencidas aparecerán aquí."
+              />
             ) : (
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr>
-                    <th className="px-4 py-2">Código</th>
-                    <th className="px-4 py-2">Cliente</th>
-                    <th className="px-4 py-2">Monto</th>
-                    <th className="px-4 py-2">Estado</th>
-                    <th className="px-4 py-2" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {historyQuotes.map((q) => (
-                    <tr
-                      key={q.id}
-                      className="cursor-pointer border-t border-[var(--brand-line)] hover:bg-[color-mix(in_srgb,var(--accent-primary)_6%,transparent)]"
-                      onClick={() => openQuoteInspector(q)}
-                      title="Abrir desglose en el inspector"
-                    >
-                      <td className="px-4 py-2.5 font-data text-xs">
-                        {q.code}
-                      </td>
-                      <td className="px-4 py-2.5">{q.customer.name}</td>
-                      <td className="px-4 py-2.5 font-data text-xs">
-                        {money(Number(q.amount))}
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <Badge
-                          tone={
-                            q.status === "WON"
-                              ? "emerald"
-                              : q.status === "REJECTED"
-                                ? "rose"
-                                : "info"
-                          }
-                        >
-                          {statusEs(q.status)}
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-2.5">
+              <NexaTable
+                columns={["Código", "Cliente", "Monto", "Margen", "Estado", ""]}
+              >
+                {historyQuotes.map((q) => (
+                  <NexaRow
+                    key={q.id}
+                    onClick={() => openQuoteInspector(q)}
+                  >
+                    <NexaCell mono>{q.code}</NexaCell>
+                    <NexaCell>{q.customer.name}</NexaCell>
+                    <NexaCell mono>{money(Number(q.amount))}</NexaCell>
+                    <NexaCell mono>
+                      {q.calcJson ? `${q.calcJson.margenDeseado}%` : "—"}
+                    </NexaCell>
+                    <NexaCell>
+                      <Badge
+                        tone={
+                          q.status === "WON"
+                            ? "success"
+                            : q.status === "REJECTED"
+                              ? "danger"
+                              : "info"
+                        }
+                      >
+                        {statusEs(q.status)}
+                      </Badge>
+                    </NexaCell>
+                    <NexaCell>
+                      <div onClick={(e) => e.stopPropagation()}>
                         {renderQuoteActions(q)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      </div>
+                    </NexaCell>
+                  </NexaRow>
+                ))}
+              </NexaTable>
             )}
-          </div>
+          </BentoPanel>
         </div>
       ) : null}
 
@@ -1159,371 +1195,209 @@ export default function ComercialPage() {
             />
           </div>
 
-          <form
-            onSubmit={onCreateContract}
-            className="fsg-panel grid grid-cols-1 gap-3 p-4 md:grid-cols-3 lg:grid-cols-4"
+          <BentoPanel
+            title="Contratos operativos"
+            subtitle={`${contracts.length} registro(s)`}
+            icon={<FileText aria-hidden />}
           >
-            <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)] md:col-span-2">
-              Nombre del contrato
-              <input
-                className="field"
-                data-field="legalName"
-                placeholder="Ej. SKETCHERS"
-                value={contractForm.name}
-                onChange={(e) =>
-                  setContractForm({ ...contractForm, name: e.target.value })
-                }
-                required
-                title="Nombre comercial del contrato"
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
-              Cliente
-              <select
-                className="field"
-                value={contractForm.customerId}
-                onChange={(e) =>
-                  setContractForm({
-                    ...contractForm,
-                    customerId: e.target.value,
-                  })
-                }
-                required
-                title="Cliente del contrato"
-              >
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
-              Canal
-              <select
-                className="field"
-                value={contractForm.channel}
-                onChange={(e) =>
-                  setContractForm({
-                    ...contractForm,
-                    channel: e.target.value as "PRIVATE" | "PUBLIC_TENDER",
-                  })
-                }
-                title="Empresa privada o licitación pública"
-              >
-                <option value="PRIVATE">Empresa privada</option>
-                <option value="PUBLIC_TENDER">Licitación pública</option>
-              </select>
-            </label>
-            <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
-              Ruta
-              <input
-                className="field"
-                data-field="text"
-                placeholder="Ej. RUTA 80"
-                value={contractForm.route}
-                onChange={(e) =>
-                  setContractForm({ ...contractForm, route: e.target.value })
-                }
-                title="Corredor o ruta del contrato"
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
-              Fecha inicio
-              <input
-                className="field"
-                type="date"
-                value={contractForm.startDate}
-                onChange={(e) =>
-                  setContractForm({
-                    ...contractForm,
-                    startDate: e.target.value,
-                  })
-                }
-                required
-                title="Inicio de vigencia"
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
-              Fecha fin
-              <input
-                className="field"
-                type="date"
-                value={contractForm.endDate}
-                onChange={(e) =>
-                  setContractForm({ ...contractForm, endDate: e.target.value })
-                }
-                required
-                title="Fin de vigencia"
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
-              Valor mensual
-              <input
-                className="field font-data"
-                data-field="skip"
-                inputMode="decimal"
-                placeholder="$11´000.000"
-                value={
-                  contractForm.monthlyValue
-                    ? formatCop(Number(contractForm.monthlyValue))
-                    : ""
-                }
-                onChange={(e) =>
-                  setContractForm({
-                    ...contractForm,
-                    monthlyValue: e.target.value.replace(/\D/g, "").slice(0, 12),
-                  })
-                }
-                title="Canon mensual en pesos colombianos"
-              />
-            </label>
-            {contractError ? (
-              <p
-                role="alert"
-                className="md:col-span-3 lg:col-span-4 rounded border border-[var(--brand-signal)]/40 bg-[var(--brand-signal)]/10 px-3 py-2 text-sm text-[var(--brand-signal)]"
-              >
-                {contractError}
-              </p>
-            ) : null}
-            <div className="flex justify-end md:col-span-3 lg:col-span-4">
-              <Button
-                type="submit"
-                variant="primary"
-                className="w-auto"
-                disabled={contractBusy}
-              >
-                Crear contrato operativo
-              </Button>
-            </div>
-          </form>
-
-          <div className="fsg-panel data-shell overflow-hidden">
-            <div className="border-b border-[var(--brand-line)] px-4 py-3 font-display text-sm font-semibold">
-              Contratos operativos ({contracts.length})
-            </div>
             {!contracts.length ? (
-              <div className="p-6">
-                <EmptyState
-                  icon={<FileText className="h-7 w-7" />}
-                  title="Sin contratos"
-                  description="Registra un contrato operativo de empresa o licitación."
-                />
-              </div>
+              <EmptyState
+                icon={<FileText className="h-7 w-7" />}
+                title="Sin contratos"
+                description="Registra un contrato operativo de empresa o licitación."
+                actionLabel="+ Nuevo contrato"
+                onAction={() => setContractSlideOpen(true)}
+              />
             ) : (
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr>
-                    <th className="px-4 py-2">Código</th>
-                    <th className="px-4 py-2">Cliente</th>
-                    <th className="px-4 py-2">Canal</th>
-                    <th className="px-4 py-2">Viajes</th>
-                    <th className="px-4 py-2">Valor/mes</th>
-                    <th className="px-4 py-2">Estado</th>
-                    <th className="px-4 py-2">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {contracts.map((ctr) => (
-                    <tr
-                      key={ctr.id}
-                      className="border-t border-[var(--brand-line)]"
-                    >
-                      <td className="px-4 py-2.5">
-                        <span className="font-data text-xs text-[var(--brand-primary)]">
-                          {ctr.code}
-                        </span>
-                        <div>{ctr.name}</div>
-                      </td>
-                      <td className="px-4 py-2.5">{ctr.customer.name}</td>
-                      <td className="px-4 py-2.5">
-                        <Badge
-                          tone={
-                            ctr.channel === "PUBLIC_TENDER" ? "info" : "emerald"
-                          }
+              <NexaTable
+                columns={[
+                  "Código",
+                  "Cliente",
+                  "Canal",
+                  "Viajes",
+                  "Valor/mes",
+                  "Estado",
+                  "Acciones",
+                ]}
+              >
+                {contracts.map((ctr) => (
+                  <NexaRow key={ctr.id}>
+                    <NexaCell>
+                      <span className="font-data text-xs text-brand-primary">
+                        {ctr.code}
+                      </span>
+                      <div>{ctr.name}</div>
+                    </NexaCell>
+                    <NexaCell>{ctr.customer.name}</NexaCell>
+                    <NexaCell>
+                      <Badge
+                        tone={
+                          ctr.channel === "PUBLIC_TENDER" ? "info" : "success"
+                        }
+                      >
+                        {CHANNEL_ES[ctr.channel] || ctr.channel}
+                      </Badge>
+                    </NexaCell>
+                    <NexaCell mono>{ctr._count.trips}</NexaCell>
+                    <NexaCell mono>
+                      {ctr.monthlyValue
+                        ? formatCop(Number(ctr.monthlyValue))
+                        : "—"}
+                    </NexaCell>
+                    <NexaCell>
+                      <StatusPulseBadge
+                        tone={
+                          ctr.status === "ACTIVE"
+                            ? "active"
+                            : ctr.status === "SUSPENDED"
+                              ? "fatiga"
+                              : "neutral"
+                        }
+                        pulse={false}
+                      >
+                        {statusEs(ctr.status)}
+                      </StatusPulseBadge>
+                    </NexaCell>
+                    <NexaCell>
+                      <div className="flex flex-wrap justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          className="w-auto"
+                          onClick={async () => {
+                            const n = window.prompt("Nombre", ctr.name);
+                            if (n === null) return;
+                            const route = window.prompt(
+                              "Ruta",
+                              ctr.route || "",
+                            );
+                            if (route === null) return;
+                            const monthlyValue = window.prompt(
+                              "Valor mensual COP",
+                              ctr.monthlyValue
+                                ? String(ctr.monthlyValue)
+                                : "",
+                            );
+                            if (monthlyValue === null) return;
+                            const endDate = window.prompt(
+                              "Fecha fin (YYYY-MM-DD)",
+                              ctr.endDate ? ctr.endDate.slice(0, 10) : "",
+                            );
+                            if (endDate === null) return;
+                            await api(`/comercial/contracts/${ctr.id}`, {
+                              method: "PATCH",
+                              body: JSON.stringify({
+                                name: n.trim() || ctr.name,
+                                route: route.trim() || undefined,
+                                monthlyValue: monthlyValue.trim()
+                                  ? Number(monthlyValue)
+                                  : undefined,
+                                endDate: endDate.trim() || undefined,
+                              }),
+                            });
+                            await load();
+                          }}
                         >
-                          {CHANNEL_ES[ctr.channel] || ctr.channel}
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-2.5 font-data">
-                        {ctr._count.trips}
-                      </td>
-                      <td className="px-4 py-2.5 font-data text-xs">
-                        {ctr.monthlyValue
-                          ? formatCop(Number(ctr.monthlyValue))
-                          : "—"}
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <StatusPulseBadge
-                          tone={
-                            ctr.status === "ACTIVE"
-                              ? "active"
-                              : ctr.status === "SUSPENDED"
-                                ? "fatiga"
-                                : "neutral"
-                          }
-                          pulse={false}
-                        >
-                          {statusEs(ctr.status)}
-                        </StatusPulseBadge>
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <div className="flex flex-wrap justify-end gap-1">
+                          Editar
+                        </Button>
+                        {ctr.status !== "ACTIVE" ? (
                           <Button
                             variant="ghost"
                             className="w-auto"
                             onClick={async () => {
-                              const n = window.prompt("Nombre", ctr.name);
-                              if (n === null) return;
-                              const route = window.prompt(
-                                "Ruta",
-                                ctr.route || "",
-                              );
-                              if (route === null) return;
-                              const monthlyValue = window.prompt(
-                                "Valor mensual COP",
-                                ctr.monthlyValue
-                                  ? String(ctr.monthlyValue)
-                                  : "",
-                              );
-                              if (monthlyValue === null) return;
-                              const endDate = window.prompt(
-                                "Fecha fin (YYYY-MM-DD)",
-                                ctr.endDate ? ctr.endDate.slice(0, 10) : "",
-                              );
-                              if (endDate === null) return;
+                              await api(`/comercial/contracts/${ctr.id}`, {
+                                method: "PATCH",
+                                body: JSON.stringify({ status: "ACTIVE" }),
+                              });
+                              await load();
+                            }}
+                          >
+                            Activar
+                          </Button>
+                        ) : null}
+                        {ctr.status === "ACTIVE" ? (
+                          <Button
+                            variant="ghost"
+                            className="w-auto"
+                            onClick={async () => {
                               await api(`/comercial/contracts/${ctr.id}`, {
                                 method: "PATCH",
                                 body: JSON.stringify({
-                                  name: n.trim() || ctr.name,
-                                  route: route.trim() || undefined,
-                                  monthlyValue: monthlyValue.trim()
-                                    ? Number(monthlyValue)
-                                    : undefined,
-                                  endDate: endDate.trim() || undefined,
+                                  status: "SUSPENDED",
                                 }),
                               });
                               await load();
                             }}
                           >
-                            Editar
+                            Suspender
                           </Button>
-                          {ctr.status !== "ACTIVE" ? (
-                            <Button
-                              variant="ghost"
-                              className="w-auto"
-                              onClick={async () => {
-                                await api(`/comercial/contracts/${ctr.id}`, {
-                                  method: "PATCH",
-                                  body: JSON.stringify({ status: "ACTIVE" }),
-                                });
-                                await load();
-                              }}
-                            >
-                              Activar
-                            </Button>
-                          ) : null}
-                          {ctr.status === "ACTIVE" ? (
-                            <Button
-                              variant="ghost"
-                              className="w-auto"
-                              onClick={async () => {
-                                await api(`/comercial/contracts/${ctr.id}`, {
-                                  method: "PATCH",
-                                  body: JSON.stringify({
-                                    status: "SUSPENDED",
-                                  }),
-                                });
-                                await load();
-                              }}
-                            >
-                              Suspender
-                            </Button>
-                          ) : null}
-                          {ctr.status !== "ENDED" ? (
-                            <Button
-                              variant="ghost"
-                              className="w-auto"
-                              onClick={async () => {
-                                await api(`/comercial/contracts/${ctr.id}`, {
-                                  method: "PATCH",
-                                  body: JSON.stringify({ status: "ENDED" }),
-                                });
-                                await load();
-                              }}
-                            >
-                              Cerrar
-                            </Button>
-                          ) : null}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                        ) : null}
+                        {ctr.status !== "ENDED" ? (
+                          <Button
+                            variant="ghost"
+                            className="w-auto"
+                            onClick={async () => {
+                              await api(`/comercial/contracts/${ctr.id}`, {
+                                method: "PATCH",
+                                body: JSON.stringify({ status: "ENDED" }),
+                              });
+                              await load();
+                            }}
+                          >
+                            Cerrar
+                          </Button>
+                        ) : null}
+                      </div>
+                    </NexaCell>
+                  </NexaRow>
+                ))}
+              </NexaTable>
             )}
-          </div>
+          </BentoPanel>
         </div>
       ) : null}
 
       {tab === "clientes" ? (
-        <div className="fsg-panel data-shell overflow-hidden" id="clientes">
-          <div className="flex items-center justify-between border-b border-[var(--brand-line)] px-4 py-3">
-            <span className="font-display text-sm font-semibold">
-              Clientes ({customers.length})
-            </span>
-            <Button
-              type="button"
-              variant="primary"
-              className="w-auto"
-              onClick={openNewCustomer}
-            >
-              <Plus className="mr-1 h-4 w-4" />
-              Nuevo Cliente
-            </Button>
-          </div>
-          {!customers.length ? (
-            <div className="p-6">
-              <EmptyState
-                icon={<Users className="h-7 w-7" />}
-                title="Sin clientes en directorio"
-                description="Registra el primer cliente empresa, escolar o turismo."
-                actionLabel="+ Nuevo Cliente"
-                onAction={openNewCustomer}
-              />
-            </div>
+        <BentoPanel
+          id="clientes"
+          title="Directorio de clientes"
+          subtitle={`${filteredCustomers.length} registro(s)`}
+          icon={<Users aria-hidden />}
+        >
+          {!filteredCustomers.length ? (
+            <EmptyState
+              icon={<Users className="h-7 w-7" />}
+              title="Sin clientes en directorio"
+              description="Registra el primer cliente empresa, escolar o turismo."
+              actionLabel="+ Nuevo cliente"
+              onAction={openNewCustomer}
+            />
           ) : (
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr>
-                    <th className="px-4 py-2">Nombre</th>
-                    <th className="px-4 py-2">Confianza SARLAFT</th>
-                    <th className="px-4 py-2">Vínculo</th>
-                    <th className="px-4 py-2">Segmento</th>
-                    <th className="px-4 py-2" />
-                </tr>
-              </thead>
-              <tbody>
-                {customers.map((c) => {
-                  const origin = customerOrigin(c);
-                  const trust = sarlaftTrust(c);
-                  return (
-                  <tr
-                    key={c.id}
-                    className="border-t border-[var(--brand-line)]"
-                  >
-                    <td className="px-4 py-2.5">
+            <NexaTable
+              columns={[
+                "Nombre",
+                "Confianza SARLAFT",
+                "Vínculo",
+                "Segmento",
+                "",
+              ]}
+            >
+              {filteredCustomers.map((c) => {
+                const origin = customerOrigin(c);
+                const trust = sarlaftTrust(c);
+                return (
+                  <NexaRow key={c.id}>
+                    <NexaCell>
                       {c.name}
-                      <div className="font-data text-[10px] text-[var(--brand-muted)]">
+                      <div className="font-data text-[10px] text-brand-text-secondary">
                         {c.nit}
                       </div>
                       {c.email || c.phone ? (
-                        <div className="text-[10px] text-[var(--brand-muted)]">
+                        <div className="text-[10px] text-brand-text-secondary">
                           {[c.email, c.phone].filter(Boolean).join(" · ")}
                         </div>
                       ) : null}
-                    </td>
-                    <td className="px-4 py-2.5">
+                    </NexaCell>
+                    <NexaCell>
                       <StatusPulseBadge
                         tone={trust.tone}
                         pulse={trust.tone === "danger"}
@@ -1531,23 +1405,23 @@ export default function ComercialPage() {
                         {trust.label}
                       </StatusPulseBadge>
                       {c.sarlaftRiskScore != null ? (
-                        <div className="mt-1 font-data text-[10px] text-[var(--brand-muted)]">
+                        <div className="mt-1 font-data text-[10px] tabular-nums text-brand-text-secondary">
                           Score {c.sarlaftRiskScore}/100
                         </div>
                       ) : null}
-                    </td>
-                    <td className="px-4 py-2.5">
+                    </NexaCell>
+                    <NexaCell>
                       <Badge tone={origin.tone} title={origin.detail}>
                         {origin.label}
                       </Badge>
-                      <div className="mt-1 font-data text-[10px] text-[var(--brand-muted)]">
+                      <div className="mt-1 font-data text-[10px] text-brand-text-secondary">
                         {origin.detail}
                       </div>
-                    </td>
-                    <td className="px-4 py-2.5">
+                    </NexaCell>
+                    <NexaCell>
                       <Badge>{c.segment}</Badge>
-                    </td>
-                    <td className="px-4 py-2.5">
+                    </NexaCell>
+                    <NexaCell>
                       <div className="flex justify-end">
                         <Button
                           variant="ghost"
@@ -1557,32 +1431,32 @@ export default function ComercialPage() {
                           Editar
                         </Button>
                       </div>
-                    </td>
-                  </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                    </NexaCell>
+                  </NexaRow>
+                );
+              })}
+            </NexaTable>
           )}
-        </div>
+        </BentoPanel>
       ) : null}
 
-      <Modal
-        open={customerModalOpen}
-        onClose={closeCustomerModal}
+      <SlideOver
+        open={customerSlideOpen}
+        onClose={closeCustomerSlide}
         title={editingCustomerId ? "Editar cliente" : "Nuevo cliente"}
         description={
           editingCustomerId
             ? "Actualiza razón social, contacto y segmento."
             : "Registro sujeto a chequeo SARLAFT por NIT."
         }
+        widthClass="max-w-lg"
         footer={
-          <>
+          <div className="flex flex-wrap justify-end gap-2">
             <Button
               type="button"
               variant="ghost"
-              className="w-auto"
-              onClick={closeCustomerModal}
+              className="w-auto px-4 py-2"
+              onClick={closeCustomerSlide}
             >
               Cancelar
             </Button>
@@ -1590,12 +1464,12 @@ export default function ComercialPage() {
               type="submit"
               form="comercial-customer-form"
               variant="primary"
-              className="w-auto"
+              className="w-auto px-4 py-2"
               disabled={customerBusy}
             >
               {editingCustomerId ? "Guardar cambios" : "Crear cliente"}
             </Button>
-          </>
+          </div>
         }
       >
         <form
@@ -1603,7 +1477,7 @@ export default function ComercialPage() {
           onSubmit={(e) => void onSaveCustomer(e)}
           className="grid gap-3"
         >
-          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
             Razón social
             <input
               className="field"
@@ -1617,7 +1491,7 @@ export default function ComercialPage() {
               title="Razón social del cliente"
             />
           </label>
-          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
             NIT
             <input
               className="field font-data"
@@ -1632,7 +1506,7 @@ export default function ComercialPage() {
               title="NIT sujeto a chequeo SARLAFT"
             />
           </label>
-          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
             Correo
             <input
               className="field"
@@ -1646,7 +1520,7 @@ export default function ComercialPage() {
               title="Correo de contacto"
             />
           </label>
-          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
             Teléfono
             <input
               className="field font-data"
@@ -1660,7 +1534,7 @@ export default function ComercialPage() {
               title="Teléfono de contacto"
             />
           </label>
-          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
             Segmento
             <select
               className="field"
@@ -1681,13 +1555,175 @@ export default function ComercialPage() {
           {customerError ? (
             <p
               role="alert"
-              className="rounded border border-[var(--brand-signal)]/40 bg-[var(--brand-signal)]/10 px-3 py-2 text-sm text-[var(--brand-signal)]"
+              className="rounded border border-brand-danger/40 bg-brand-danger/10 px-3 py-2 text-sm text-brand-danger"
             >
               {customerError}
             </p>
           ) : null}
         </form>
-      </Modal>
+      </SlideOver>
+
+      <SlideOver
+        open={contractSlideOpen}
+        onClose={() => {
+          setContractSlideOpen(false);
+          setContractError("");
+        }}
+        title="Nuevo contrato operativo"
+        description="Contrato B2B o licitación pública con MRR"
+        widthClass="max-w-2xl"
+        footer={
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-auto px-4 py-2"
+              onClick={() => setContractSlideOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              form="comercial-contract-form"
+              variant="primary"
+              className="w-auto px-4 py-2"
+              disabled={contractBusy}
+            >
+              Crear contrato
+            </Button>
+          </div>
+        }
+      >
+        <form
+          id="comercial-contract-form"
+          onSubmit={onCreateContract}
+          className="grid grid-cols-1 gap-3 md:grid-cols-2"
+        >
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary md:col-span-2">
+            Nombre del contrato
+            <input
+              className="field"
+              data-field="legalName"
+              placeholder="Ej. SKETCHERS"
+              value={contractForm.name}
+              onChange={(e) =>
+                setContractForm({ ...contractForm, name: e.target.value })
+              }
+              required
+              title="Nombre comercial del contrato"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
+            Cliente
+            <select
+              className="field"
+              value={contractForm.customerId}
+              onChange={(e) =>
+                setContractForm({
+                  ...contractForm,
+                  customerId: e.target.value,
+                })
+              }
+              required
+              title="Cliente del contrato"
+            >
+              {customers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
+            Canal
+            <select
+              className="field"
+              value={contractForm.channel}
+              onChange={(e) =>
+                setContractForm({
+                  ...contractForm,
+                  channel: e.target.value as "PRIVATE" | "PUBLIC_TENDER",
+                })
+              }
+              title="Empresa privada o licitación pública"
+            >
+              <option value="PRIVATE">Empresa privada</option>
+              <option value="PUBLIC_TENDER">Licitación pública</option>
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary md:col-span-2">
+            Ruta
+            <input
+              className="field"
+              data-field="text"
+              placeholder="Ej. RUTA 80"
+              value={contractForm.route}
+              onChange={(e) =>
+                setContractForm({ ...contractForm, route: e.target.value })
+              }
+              title="Corredor o ruta del contrato"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
+            Fecha inicio
+            <input
+              className="field"
+              type="date"
+              value={contractForm.startDate}
+              onChange={(e) =>
+                setContractForm({
+                  ...contractForm,
+                  startDate: e.target.value,
+                })
+              }
+              required
+              title="Inicio de vigencia"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
+            Fecha fin
+            <input
+              className="field"
+              type="date"
+              value={contractForm.endDate}
+              onChange={(e) =>
+                setContractForm({ ...contractForm, endDate: e.target.value })
+              }
+              required
+              title="Fin de vigencia"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary md:col-span-2">
+            Valor mensual
+            <input
+              className="field font-data tabular-nums"
+              data-field="skip"
+              inputMode="decimal"
+              placeholder="$11´000.000"
+              value={
+                contractForm.monthlyValue
+                  ? formatCop(Number(contractForm.monthlyValue))
+                  : ""
+              }
+              onChange={(e) =>
+                setContractForm({
+                  ...contractForm,
+                  monthlyValue: e.target.value.replace(/\D/g, "").slice(0, 12),
+                })
+              }
+              title="Canon mensual en pesos colombianos"
+            />
+          </label>
+          {contractError ? (
+            <p
+              role="alert"
+              className="md:col-span-2 rounded border border-brand-danger/40 bg-brand-danger/10 px-3 py-2 text-sm text-brand-danger"
+            >
+              {contractError}
+            </p>
+          ) : null}
+        </form>
+      </SlideOver>
 
       <SlideOver
         open={conversionOpen}
@@ -1739,32 +1775,32 @@ export default function ComercialPage() {
         {conversionQuote ? (
           <div className="space-y-4">
             <div>
-              <p className="font-data text-xs uppercase tracking-[0.12em] text-[var(--text-secondary)]">
+              <p className="font-data text-xs uppercase tracking-[0.12em] text-[var(--brand-text-secondary)]">
                 {conversionQuote.code}
               </p>
-              <p className="mt-1 text-lg font-semibold text-[var(--text-primary)]">
+              <p className="mt-1 text-lg font-semibold text-[var(--brand-text-primary)]">
                 {conversionQuote.customer.name}
               </p>
-              <p className="mt-2 font-data text-2xl font-bold tabular-nums text-[var(--accent-primary)]">
+              <p className="mt-2 font-data text-2xl font-bold tabular-nums text-[var(--brand-primary)]">
                 {money(Number(conversionQuote.amount))}
               </p>
             </div>
             {conversionTripCode ? (
-              <div className="rounded-lg border border-[var(--border-subtle)] p-3">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
+              <div className="rounded-lg border border-[var(--brand-border)] p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--brand-text-secondary)]">
                   Viaje borrador generado
                 </p>
-                <p className="mt-1 font-data text-lg font-bold text-[var(--accent-primary)]">
+                <p className="mt-1 font-data text-lg font-bold text-[var(--brand-primary)]">
                   {conversionTripCode}
                 </p>
               </div>
             ) : (
-              <div className="flex items-start gap-2 rounded-lg border border-[color-mix(in_srgb,var(--accent-metric)_35%,transparent)] bg-[color-mix(in_srgb,var(--accent-metric)_8%,transparent)] p-3 text-sm text-[var(--accent-metric)]">
+              <div className="flex items-start gap-2 rounded-lg border border-[color-mix(in_srgb,var(--brand-warning)_35%,transparent)] bg-[color-mix(in_srgb,var(--brand-warning)_8%,transparent)] p-3 text-sm text-[var(--brand-warning)]">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                 Viaje en cola — verifique Logística si no aparece en unos segundos.
               </div>
             )}
-            <ol className="list-decimal space-y-2 pl-4 text-sm text-[var(--text-secondary)]">
+            <ol className="list-decimal space-y-2 pl-4 text-sm text-[var(--brand-text-secondary)]">
               <li>Confirmar despacho y asignación de unidad en Logística</li>
               <li>Formalizar contrato operativo si el servicio es recurrente</li>
               <li>Activar facturación y seguimiento de MRR en Tesorería</li>

@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Tooltip } from "@fsg/ui";
-import { PageIntro } from "@/components/page-intro";
 import AtencionPanel from "@/components/call-center/atencion-panel";
 import RecepcionPanel from "@/components/call-center/recepcion-panel";
 
@@ -13,7 +12,14 @@ export default function CallCenterPage() {
 
   return (
     <div className="fade-in mx-auto max-w-[1600px] space-y-4">
-      <PageIntro module="call_center" title="Recepción y centro de llamadas" />
+      <header className="border-b border-brand-border pb-4">
+        <p className="font-data text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-primary">
+          Call Center
+        </p>
+        <h1 className="font-sans text-2xl font-semibold tracking-tight text-brand-text-primary md:text-3xl">
+          Recepción y centro de llamadas
+        </h1>
+      </header>
       <div className="flex flex-wrap gap-2">
         <Tooltip content="Tickets de atención al cliente y asignación de agentes">
           <button

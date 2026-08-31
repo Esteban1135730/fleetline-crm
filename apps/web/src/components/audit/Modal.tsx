@@ -12,7 +12,7 @@ type ModalProps = {
   description?: string;
   children: ReactNode;
   footer?: ReactNode;
-  /** md = max-w-lg · lg = max-w-3xl · xl = max-w-5xl */
+  /** md = max-w-lg Â· lg = max-w-3xl Â· xl = max-w-5xl */
   size?: "md" | "lg" | "xl";
 };
 
@@ -22,7 +22,7 @@ const sizeClass: Record<NonNullable<ModalProps["size"]>, string> = {
   xl: "max-w-5xl",
 };
 
-/** Formulario largo / edición — flotante, no inline en la vista principal. */
+/** Formulario largo / ediciÃ³n â€” flotante, no inline en la vista principal. */
 export function Modal({
   open,
   onClose,
@@ -66,18 +66,18 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className={`relative z-[1] flex max-h-[min(92dvh,92vh)] w-full ${sizeClass[size]} flex-col overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] shadow-2xl`}
+        className={`relative z-[1] flex max-h-[min(92dvh,92vh)] w-full ${sizeClass[size]} flex-col overflow-hidden rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-2xl`}
       >
-        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[var(--border-subtle)] px-5 py-4">
+        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[var(--brand-border)] px-5 py-4">
           <div className="min-w-0">
             <h2
               id={titleId}
-              className="text-lg font-semibold text-[var(--text-primary)]"
+              className="text-lg font-semibold text-[var(--brand-text-primary)]"
             >
               {title}
             </h2>
             {description ? (
-              <p className="mt-1 text-sm text-[var(--text-secondary)]">
+              <p className="mt-1 text-sm text-[var(--brand-text-secondary)]">
                 {description}
               </p>
             ) : null}
@@ -88,14 +88,14 @@ export function Modal({
             className="w-auto shrink-0 px-2 py-1"
             onClick={onClose}
           >
-            ✕
+            âœ•
           </Button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4 pb-8">
           {children}
         </div>
         {footer ? (
-          <div className="flex shrink-0 justify-end gap-2 border-t border-[var(--border-subtle)] px-5 py-4">
+          <div className="flex shrink-0 justify-end gap-2 border-t border-[var(--brand-border)] px-5 py-4">
             {footer}
           </div>
         ) : null}

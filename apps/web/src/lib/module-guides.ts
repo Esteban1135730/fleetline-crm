@@ -11,7 +11,7 @@ export type ModuleGuide = {
 
 const FALLBACK: ModuleGuide = {
   title: "Guía del área",
-  summary: "Tres pasos para operar sin fricción en Inretrans OS.",
+  summary: "Tres pasos para operar sin fricción en NEXA OS.",
   steps: [
     "Use el menú de áreas corporativas a la izquierda para cambiar de módulo.",
     "Busque placa, conductor o cliente con Cmd/Ctrl+K.",

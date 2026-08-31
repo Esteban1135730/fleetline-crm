@@ -5,7 +5,6 @@ import { Button } from "@fsg/ui";
 import { ClipboardList, Plus, ShieldAlert } from "lucide-react";
 import { api } from "@/lib/api";
 import { statusEs } from "@fsg/shared";
-import { PageIntro } from "@/components/page-intro";
 import {
   EmptyState,
   EvidenceDropzone,
@@ -42,7 +41,7 @@ function statusTone(status: string): "active" | "fatiga" | "danger" | "neutral" 
 }
 
 function severityLabel(s: string) {
-  if (s === "CRITICAL") return "Crítica";
+  if (s === "CRITICAL") return "CrÃ­tica";
   if (s === "HIGH") return "Alta";
   if (s === "MEDIUM") return "Media";
   if (s === "LOW") return "Baja";
@@ -77,7 +76,7 @@ export default function RevisoriaPage() {
 
   useEffect(() => {
     void load().catch((e) =>
-      setError((e as Error).message || "Señal perdida — bitácora forense"),
+      setError((e as Error).message || "SeÃ±al perdida â€” bitÃ¡cora forense"),
     );
   }, [load]);
 
@@ -143,35 +142,39 @@ export default function RevisoriaPage() {
 
   return (
     <div className="fade-in mx-auto max-w-[1600px] space-y-6">
-      <PageIntro
-        module="revisoria_fiscal"
-        title="Revisoría forense"
-        action={
-          <Button
-            type="button"
-            variant="primary"
-            className="w-auto px-4 py-2"
-            onClick={() => setAltaOpen(true)}
-          >
-            <Plus className="mr-1.5 inline h-4 w-4" aria-hidden />
-            Registrar hallazgo
-          </Button>
-        }
-      />
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="font-sans text-xl font-semibold tracking-tight text-brand-text-primary">
+            Revisoría forense
+          </h1>
+          <p className="mt-1 font-data text-[10px] uppercase tracking-[0.14em] text-brand-text-secondary">
+            Bitácora inmutable · NEXA OS
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="primary"
+          className="w-auto px-4 py-2"
+          onClick={() => setAltaOpen(true)}
+        >
+          <Plus className="mr-1.5 inline h-4 w-4" aria-hidden />
+          Registrar hallazgo
+        </Button>
+      </header>
 
       <div
-        className="fsg-panel flex flex-wrap items-center gap-3 border border-[color-mix(in_srgb,var(--accent-primary)_25%,transparent)] bg-[color-mix(in_srgb,var(--accent-primary)_6%,transparent)] p-3"
+        className="nexa-panel flex flex-wrap items-center gap-3 border border-[color-mix(in_srgb,var(--brand-primary)_25%,transparent)] bg-[color-mix(in_srgb,var(--brand-primary)_6%,transparent)] p-3"
         data-testid="revisoria-immutable-banner"
       >
-        <ShieldAlert className="h-5 w-5 shrink-0 text-[var(--accent-primary)]" />
-        <p className="text-sm text-[var(--text-primary)]">
-          Bitácora inmutable — los hallazgos no pueden eliminarse. Solo cierre con
+        <ShieldAlert className="h-5 w-5 shrink-0 text-[var(--brand-primary)]" />
+        <p className="text-sm text-[var(--brand-text-primary)]">
+          BitÃ¡cora inmutable â€” los hallazgos no pueden eliminarse. Solo cierre con
           evidencia adjunta.
         </p>
       </div>
 
       {error ? (
-        <p role="alert" className="text-sm text-[var(--brand-signal)]">
+        <p role="alert" className="text-sm text-[var(--brand-danger)]">
           {error}
         </p>
       ) : null}
@@ -184,7 +187,7 @@ export default function RevisoriaPage() {
           icon={<ClipboardList className="h-10 w-10" />}
         />
         <KpiCard
-          label="Críticos / alta gravedad"
+          label="CrÃ­ticos / alta gravedad"
           value={stats.critical}
           tone={stats.critical > 0 ? "danger" : "ok"}
           icon={<ShieldAlert className="h-10 w-10" />}
@@ -196,17 +199,17 @@ export default function RevisoriaPage() {
         />
       </div>
 
-      <div className="fsg-panel flex flex-wrap items-end gap-3 p-4">
-        <label className="min-w-[200px] flex-1 text-xs text-[var(--text-secondary)]">
-          Búsqueda forense
+      <div className="nexa-panel flex flex-wrap items-end gap-3 p-4">
+        <label className="min-w-[200px] flex-1 text-xs text-[var(--brand-text-secondary)]">
+          BÃºsqueda forense
           <input
             className="field mt-1 w-full"
-            placeholder="Título, código RF-xxx o detalle"
+            placeholder="TÃ­tulo, cÃ³digo RF-xxx o detalle"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </label>
-        <label className="text-xs text-[var(--text-secondary)]">
+        <label className="text-xs text-[var(--brand-text-secondary)]">
           Gravedad
           <select
             className="field mt-1"
@@ -214,13 +217,13 @@ export default function RevisoriaPage() {
             onChange={(e) => setFilterSeverity(e.target.value)}
           >
             <option value="ALL">Todas</option>
-            <option value="CRITICAL">Crítica</option>
+            <option value="CRITICAL">CrÃ­tica</option>
             <option value="HIGH">Alta</option>
             <option value="MEDIUM">Media</option>
             <option value="LOW">Baja</option>
           </select>
         </label>
-        <label className="text-xs text-[var(--text-secondary)]">
+        <label className="text-xs text-[var(--brand-text-secondary)]">
           Estado
           <select
             className="field mt-1"
@@ -238,7 +241,7 @@ export default function RevisoriaPage() {
         <EmptyState
           icon={<ClipboardList className="h-7 w-7" />}
           title="Sin hallazgos indexados"
-          description="La bitácora forense está vacía. Registra el primer hallazgo."
+          description="La bitÃ¡cora forense estÃ¡ vacÃ­a. Registra el primer hallazgo."
           actionLabel="Registrar hallazgo"
           onAction={() => setAltaOpen(true)}
         />
@@ -249,7 +252,7 @@ export default function RevisoriaPage() {
           description="Ajusta los filtros o el buscador forense."
         />
       ) : (
-        <div className="fsg-panel data-shell overflow-x-auto">
+        <div className="nexa-panel data-shell overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead>
               <tr>
@@ -262,28 +265,28 @@ export default function RevisoriaPage() {
             </thead>
             <tbody>
               {filteredRows.map((r) => (
-                <tr key={r.id} className="border-t border-[var(--brand-line)]">
-                  <td className="px-4 py-2.5 font-data text-xs tabular-nums text-[var(--text-secondary)]">
+                <tr key={r.id} className="border-t border-[var(--brand-border)]">
+                  <td className="px-4 py-2.5 font-data text-xs tabular-nums text-[var(--brand-text-secondary)]">
                     {r.createdAt
                       ? new Date(r.createdAt).toLocaleDateString("es-CO")
-                      : "—"}
+                      : "â€”"}
                   </td>
                   <td className="px-4 py-2.5">
                     {r.code ? (
-                      <div className="font-data text-xs font-bold text-[var(--accent-primary)]">
+                      <div className="font-data text-xs font-bold text-[var(--brand-primary)]">
                         {r.code}
                       </div>
                     ) : null}
-                    <div className="font-semibold text-[var(--text-primary)]">
+                    <div className="font-semibold text-[var(--brand-text-primary)]">
                       {r.title}
                     </div>
                     {r.detail ? (
-                      <p className="mt-1 line-clamp-2 text-xs text-[var(--text-secondary)]">
+                      <p className="mt-1 line-clamp-2 text-xs text-[var(--brand-text-secondary)]">
                         {r.detail}
                       </p>
                     ) : null}
                     {r.amount != null && r.amount !== "" ? (
-                      <p className="mt-1 font-data text-sm font-bold tabular-nums text-[var(--accent-metric)]">
+                      <p className="mt-1 font-data text-sm font-bold tabular-nums text-[var(--brand-warning)]">
                         {formatCop(Number(r.amount))}
                       </p>
                     ) : null}
@@ -316,7 +319,7 @@ export default function RevisoriaPage() {
                         Cerrar hallazgo
                       </Button>
                     ) : (
-                      <span className="text-xs text-[var(--text-secondary)]">
+                      <span className="text-xs text-[var(--brand-text-secondary)]">
                         Inmutable
                       </span>
                     )}
@@ -332,7 +335,7 @@ export default function RevisoriaPage() {
         open={altaOpen}
         onClose={() => setAltaOpen(false)}
         title="Nuevo hallazgo"
-        description="Evidencia forense · registro inmutable"
+        description="Evidencia forense Â· registro inmutable"
         widthClass="max-w-lg"
         footer={
           <Button
@@ -351,17 +354,17 @@ export default function RevisoriaPage() {
           onSubmit={onCreate}
           className="grid grid-cols-1 gap-3"
         >
-          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
-            Título
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--brand-text-secondary)]">
+            TÃ­tulo
             <input
               className="field"
-              placeholder="Título del hallazgo"
+              placeholder="TÃ­tulo del hallazgo"
               value={form.title}
               onChange={(e) => setForm({ ...form, title: e.target.value })}
               required
             />
           </label>
-          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--brand-text-secondary)]">
             Gravedad
             <select
               className="field"
@@ -371,21 +374,21 @@ export default function RevisoriaPage() {
               <option value="LOW">Baja</option>
               <option value="MEDIUM">Media</option>
               <option value="HIGH">Alta</option>
-              <option value="CRITICAL">Crítica</option>
+              <option value="CRITICAL">CrÃ­tica</option>
             </select>
           </label>
-          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--brand-text-secondary)]">
             Detalle
             <textarea
               className="field"
               rows={4}
-              placeholder="Descripción forense del hallazgo"
+              placeholder="DescripciÃ³n forense del hallazgo"
               value={form.detail}
               onChange={(e) => setForm({ ...form, detail: e.target.value })}
               required
             />
           </label>
-          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--brand-text-secondary)]">
             Monto expuesto (COP)
             <input
               className="field font-data"
@@ -395,15 +398,15 @@ export default function RevisoriaPage() {
             />
           </label>
           <div>
-            <p className="mb-2 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+            <p className="mb-2 text-[11px] uppercase tracking-wide text-[var(--brand-text-secondary)]">
               Evidencia / adjuntos
             </p>
             <EvidenceDropzone
-              acceptLabel="PDF o imágenes de soporte"
+              acceptLabel="PDF o imÃ¡genes de soporte"
               onFiles={setEvidence}
             />
             {evidence.length > 0 ? (
-              <p className="mt-2 font-data text-xs text-[var(--text-secondary)]">
+              <p className="mt-2 font-data text-xs text-[var(--brand-text-secondary)]">
                 {evidence.length} archivo(s) en cola local
               </p>
             ) : null}

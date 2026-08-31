@@ -18,8 +18,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { darkTheme, lightTheme } from "@/lib/brand";
-import { useTheme } from "@/lib/theme";
+import { useThemeColors } from "@/lib/use-theme-colors";
 
 const TRIP_LABEL: Record<string, string> = {
   PENDING: "Pendiente",
@@ -43,21 +42,29 @@ const SEG_LABEL: Record<string, string> = {
   TURISMO: "Turismo",
 };
 
-/** Colores fijos por significado (viajes / flota) */
-const TRIP_COLOR: Record<string, "emerald" | "amber" | "info" | "signal" | "primary" | "muted"> = {
-  COMPLETED: "emerald",
-  ASSIGNED: "amber",
-  PENDING: "amber",
+type TokenKey =
+  | "success"
+  | "warning"
+  | "danger"
+  | "primary"
+  | "secondary"
+  | "info"
+  | "muted";
+
+const TRIP_COLOR: Record<string, TokenKey> = {
+  COMPLETED: "success",
+  ASSIGNED: "warning",
+  PENDING: "warning",
   IN_TRANSIT: "info",
-  INCIDENT: "signal",
+  INCIDENT: "danger",
   CANCELLED: "muted",
 };
 
-const FLEET_COLOR: Record<string, "emerald" | "info" | "amber" | "signal"> = {
-  AVAILABLE: "emerald",
+const FLEET_COLOR: Record<string, TokenKey> = {
+  AVAILABLE: "success",
   IN_SERVICE: "info",
-  MAINTENANCE: "amber",
-  OUT_OF_SERVICE: "signal",
+  MAINTENANCE: "warning",
+  OUT_OF_SERVICE: "danger",
 };
 
 function ChartCard({
@@ -68,25 +75,27 @@ function ChartCard({
 }: {
   title: string;
   subtitle?: string;
-  accent?: "primary" | "emerald" | "amber" | "signal" | "info";
+  accent?: TokenKey;
   children: React.ReactNode;
 }) {
   const border = {
-    primary: "border-t-[var(--brand-primary)]",
-    emerald: "border-t-[var(--brand-emerald)]",
-    amber: "border-t-[var(--brand-amber)]",
-    signal: "border-t-[var(--brand-signal)]",
-    info: "border-t-[var(--brand-info)]",
+    primary: "border-t-brand-primary",
+    secondary: "border-t-brand-secondary",
+    success: "border-t-brand-success",
+    warning: "border-t-brand-warning",
+    danger: "border-t-brand-danger",
+    info: "border-t-brand-info",
+    muted: "border-t-brand-info",
   }[accent];
 
   return (
-    <div className={`fsg-panel flex h-[320px] flex-col border-t-4 ${border} p-4`}>
+    <div className={`nexa-panel bento-panel-accent flex h-[320px] flex-col border-t-4 backdrop-blur-md ${border} p-4`}>
       <div className="mb-3">
-        <h3 className="font-display text-sm font-bold tracking-tight text-[var(--brand-ink)]">
+        <h3 className="font-display text-sm font-bold tracking-tight text-brand-text-primary">
           {title}
         </h3>
         {subtitle ? (
-          <p className="mt-0.5 text-[11px] text-[var(--brand-muted)]">{subtitle}</p>
+          <p className="mt-0.5 text-[11px] text-brand-text-secondary">{subtitle}</p>
         ) : null}
       </div>
       <div className="min-h-0 flex-1">{children}</div>
@@ -108,27 +117,26 @@ export type ChartsPayload = {
 };
 
 export function DashboardCharts({ data }: { data: ChartsPayload }) {
-  const { mode } = useTheme();
-  const t = mode === "dark" ? darkTheme : lightTheme;
+  const t = useThemeColors();
 
-  const pick = (key: string) => {
-    const map: Record<string, string> = {
-      emerald: t.emerald,
-      amber: t.amber,
-      signal: t.signal,
+  const pick = (key: TokenKey) => {
+    const map: Record<TokenKey, string> = {
+      success: t.success,
+      warning: t.warning,
+      danger: t.danger,
       primary: t.primary,
+      secondary: t.secondary,
       info: t.info,
-      muted: t.muted,
-      lime: t.lime,
+      muted: t.chartMuted,
     };
-    return map[key] || t.primary;
+    return map[key] ?? t.primary;
   };
 
   const tipStyle = {
     borderRadius: 12,
-    border: `1px solid ${mode === "dark" ? "#212D42" : "#E2E8F0"}`,
+    border: `1px solid ${t.border}`,
     background: t.surface,
-    color: t.ink,
+    color: t.textPrimary,
     fontSize: 12,
   };
 
@@ -147,7 +155,7 @@ export function DashboardCharts({ data }: { data: ChartsPayload }) {
   const segments = data.customersBySegment.map((c, i) => ({
     name: SEG_LABEL[c.segment] || c.segment,
     value: c.count,
-    fill: [t.primary, t.info, t.amber][i % 3],
+    fill: [t.primary, t.info, t.warning][i % 3],
   }));
 
   const nps = data.npsByMonth.map((n) => ({
@@ -156,7 +164,7 @@ export function DashboardCharts({ data }: { data: ChartsPayload }) {
   }));
 
   const pieColors = useMemo(
-    () => [t.emerald, t.info, t.amber, t.signal, t.primary, t.lime],
+    () => [t.success, t.info, t.warning, t.danger, t.primary, t.secondary],
     [t],
   );
 
@@ -164,8 +172,8 @@ export function DashboardCharts({ data }: { data: ChartsPayload }) {
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <ChartCard
         title="Dinero de los últimos 6 meses"
-        subtitle="Turquesa = cobrado · Dorado = por cobrar · Magenta = gastos"
-        accent="emerald"
+        subtitle="Cian = cobrado · Ámbar = por cobrar · Rojo = gastos"
+        accent="success"
       >
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data.revenueByMonth}>
@@ -176,14 +184,14 @@ export function DashboardCharts({ data }: { data: ChartsPayload }) {
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke={t.chartGrid} />
-            <XAxis dataKey="month" tick={{ fill: t.muted, fontSize: 11 }} />
+            <XAxis dataKey="month" tick={{ fill: t.textSecondary, fontSize: 11 }} />
             <YAxis
-              tick={{ fill: t.muted, fontSize: 11 }}
+              tick={{ fill: t.textSecondary, fontSize: 11 }}
               label={{
                 value: "Millones COP",
                 angle: -90,
                 position: "insideLeft",
-                style: { fill: t.muted, fontSize: 10 },
+                style: { fill: t.textSecondary, fontSize: 10 },
               }}
             />
             <Tooltip
@@ -197,7 +205,7 @@ export function DashboardCharts({ data }: { data: ChartsPayload }) {
             <Area
               type="monotone"
               dataKey="cobrado"
-              name="Cobrado (turquesa)"
+              name="Cobrado"
               stroke={t.primary}
               fill="url(#gCobrado)"
               strokeWidth={2.5}
@@ -205,16 +213,16 @@ export function DashboardCharts({ data }: { data: ChartsPayload }) {
             <Area
               type="monotone"
               dataKey="porCobrar"
-              name="Por cobrar (dorado)"
-              stroke={t.amber}
+              name="Por cobrar"
+              stroke={t.warning}
               fill="transparent"
               strokeWidth={2.5}
             />
             <Area
               type="monotone"
               dataKey="gastos"
-              name="Gastos (magenta)"
-              stroke={t.signal}
+              name="Gastos"
+              stroke={t.danger}
               fill="transparent"
               strokeWidth={2.5}
               strokeDasharray="5 4"
@@ -223,16 +231,12 @@ export function DashboardCharts({ data }: { data: ChartsPayload }) {
         </ResponsiveContainer>
       </ChartCard>
 
-      <ChartCard
-        title="Viajes por estado"
-        subtitle="Turquesa correcto · Índigo en ruta · Dorado pendiente · Magenta novedad"
-        accent="info"
-      >
+      <ChartCard title="Viajes por estado" accent="info">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={trips}>
             <CartesianGrid strokeDasharray="3 3" stroke={t.chartGrid} />
-            <XAxis dataKey="name" tick={{ fill: t.muted, fontSize: 10 }} />
-            <YAxis allowDecimals={false} tick={{ fill: t.muted, fontSize: 11 }} />
+            <XAxis dataKey="name" tick={{ fill: t.textSecondary, fontSize: 10 }} />
+            <YAxis allowDecimals={false} tick={{ fill: t.textSecondary, fontSize: 11 }} />
             <Tooltip contentStyle={tipStyle} />
             <Bar dataKey="value" name="Cantidad de viajes" radius={[3, 3, 0, 0]}>
               {trips.map((row, i) => (
@@ -243,11 +247,7 @@ export function DashboardCharts({ data }: { data: ChartsPayload }) {
         </ResponsiveContainer>
       </ChartCard>
 
-      <ChartCard
-        title="Estado de la flota"
-        subtitle="Turquesa libre · Índigo en servicio · Dorado taller · Magenta fuera"
-        accent="amber"
-      >
+      <ChartCard title="Estado de la flota" accent="warning">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
@@ -268,16 +268,12 @@ export function DashboardCharts({ data }: { data: ChartsPayload }) {
         </ResponsiveContainer>
       </ChartCard>
 
-      <ChartCard
-        title="Satisfacción del cliente"
-        subtitle="Promedio mensual · escala de 0 a 5"
-        accent="emerald"
-      >
+      <ChartCard title="Satisfacción del cliente" accent="success">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={nps}>
             <CartesianGrid strokeDasharray="3 3" stroke={t.chartGrid} />
-            <XAxis dataKey="month" tick={{ fill: t.muted, fontSize: 11 }} />
-            <YAxis domain={[0, 5]} tick={{ fill: t.muted, fontSize: 11 }} />
+            <XAxis dataKey="month" tick={{ fill: t.textSecondary, fontSize: 11 }} />
+            <YAxis domain={[0, 5]} tick={{ fill: t.textSecondary, fontSize: 11 }} />
             <Tooltip contentStyle={tipStyle} />
             <Line
               type="monotone"
@@ -285,30 +281,26 @@ export function DashboardCharts({ data }: { data: ChartsPayload }) {
               name="Satisfacción"
               stroke={t.primary}
               strokeWidth={3}
-              dot={{ r: 5, fill: t.amber, stroke: t.primary, strokeWidth: 2 }}
+              dot={{ r: 5, fill: t.warning, stroke: t.primary, strokeWidth: 2 }}
             />
           </LineChart>
         </ResponsiveContainer>
       </ChartCard>
 
-      <ChartCard
-        title="Clientes por segmento"
-        subtitle="Turquesa · Índigo · Dorado por segmento"
-        accent="primary"
-      >
+      <ChartCard title="Clientes por segmento" accent="primary">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={segments} layout="vertical" margin={{ left: 12 }}>
             <CartesianGrid strokeDasharray="3 3" stroke={t.chartGrid} />
             <XAxis
               type="number"
               allowDecimals={false}
-              tick={{ fill: t.muted, fontSize: 11 }}
+              tick={{ fill: t.textSecondary, fontSize: 11 }}
             />
             <YAxis
               type="category"
               dataKey="name"
               width={84}
-              tick={{ fill: t.ink, fontSize: 11 }}
+              tick={{ fill: t.textPrimary, fontSize: 11 }}
             />
             <Tooltip contentStyle={tipStyle} />
             <Bar dataKey="value" name="Clientes" radius={[0, 3, 3, 0]}>

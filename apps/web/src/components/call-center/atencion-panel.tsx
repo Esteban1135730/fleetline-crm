@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 
 
@@ -103,13 +103,13 @@ export default function AtencionPanel() {
 
       <div>
 
-        <h2 className="page-title text-3xl md:text-4xl">Atención omnicanal</h2>
+        <h2 className="page-title text-3xl md:text-4xl">AtenciÃ³n omnicanal</h2>
 
-        <p className="page-sub">Tickets WhatsApp, correo, teléfono y web</p>
+        <p className="page-sub">Tickets WhatsApp, correo, telÃ©fono y web</p>
 
       </div>
 
-      <form onSubmit={onCreate} className="fsg-panel grid grid-cols-1 gap-3 p-4 md:grid-cols-2">
+      <form onSubmit={onCreate} className="nexa-panel grid grid-cols-1 gap-3 p-4 md:grid-cols-2">
 
         <input className="field" placeholder="Asunto" value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} required />
 
@@ -121,7 +121,7 @@ export default function AtencionPanel() {
 
           <option value="EMAIL">Correo</option>
 
-          <option value="PHONE">Teléfono</option>
+          <option value="PHONE">TelÃ©fono</option>
 
           <option value="WEB">Web</option>
 
@@ -137,7 +137,7 @@ export default function AtencionPanel() {
 
         {rows.map((t) => (
 
-          <div key={t.id} className="fsg-panel flex flex-wrap items-start justify-between gap-3 p-4">
+          <div key={t.id} className="nexa-panel flex flex-wrap items-start justify-between gap-3 p-4">
 
             <div className="min-w-0 flex-1">
 
@@ -147,13 +147,13 @@ export default function AtencionPanel() {
 
                 <Badge>{statusEs(t.channel)}</Badge>
 
-                <Badge tone={t.status === "OPEN" || t.status === "IN_PROGRESS" ? "rose" : "emerald"}>{statusEs(t.status)}</Badge>
+                <Badge tone={t.status === "OPEN" || t.status === "IN_PROGRESS" ? "danger" : "success"}>{statusEs(t.status)}</Badge>
 
-                <Badge tone={t.priority === "HIGH" ? "rose" : t.priority === "LOW" ? "cyan" : "amber"}>{statusEs(t.priority)}</Badge>
+                <Badge tone={t.priority === "HIGH" ? "danger" : t.priority === "LOW" ? "info" : "warning"}>{statusEs(t.priority)}</Badge>
 
                 {t.assignee ? (
 
-                  <span className="text-xs text-[var(--brand-muted)]">→ {t.assignee.name}</span>
+                  <span className="text-xs text-[var(--brand-text-secondary)]">â†’ {t.assignee.name}</span>
 
                 ) : null}
 
@@ -161,7 +161,7 @@ export default function AtencionPanel() {
 
               <h3 className="mt-1 font-semibold">{t.subject}</h3>
 
-              <p className="text-sm text-[var(--brand-muted)]">{t.requester}: {t.message}</p>
+              <p className="text-sm text-[var(--brand-text-secondary)]">{t.requester}: {t.message}</p>
 
             </div>
 

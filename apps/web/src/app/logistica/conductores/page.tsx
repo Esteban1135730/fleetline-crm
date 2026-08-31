@@ -13,14 +13,14 @@ import {
   Users,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { PageIntro } from "@/components/page-intro";
 import {
   EmptyState,
-  KpiCard,
   Modal,
   SlideOver,
   StatusPulseBadge,
 } from "@/components/audit";
+import { BentoPanel } from "@/components/nexa/bento-panel";
+import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
 import { DriverMonthCalendar } from "@/components/logistica/driver-month-calendar";
 import { ServicioDetailDrawer } from "@/components/logistica/servicio-detail-drawer";
 import {
@@ -52,6 +52,14 @@ type NominaGeneral = {
   rows: NominaRow[];
 };
 
+function money(n: number) {
+  return new Intl.NumberFormat("es-CO", {
+    style: "currency",
+    currency: "COP",
+    maximumFractionDigits: 0,
+  }).format(n);
+}
+
 function FatigueBar({
   score,
   blocked,
@@ -63,19 +71,19 @@ function FatigueBar({
   const pct = Math.min(100, Math.round((score / max) * 100));
   const tone =
     blocked || score >= max
-      ? "bg-[var(--accent-alert)]"
+      ? "bg-brand-danger"
       : score >= HARD_RULES.FATIGUE_YELLOW_MIN
-        ? "bg-[var(--accent-metric)]"
-        : "bg-[var(--accent-primary)]";
+        ? "bg-brand-warning"
+        : "bg-brand-primary";
   return (
     <div className="min-w-[7rem]">
       <div className="flex items-center justify-between gap-2">
         <span className="font-data text-xs tabular-nums">{score}</span>
         {(blocked || score >= max) && (
-          <ShieldAlert className="h-3.5 w-3.5 text-[var(--accent-alert)]" />
+          <ShieldAlert className="h-3.5 w-3.5 text-brand-danger" />
         )}
       </div>
-      <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-[var(--border-subtle)]">
+      <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-brand-border">
         <div
           className={`h-full transition-all duration-150 ${tone}`}
           style={{ width: `${pct}%` }}
@@ -92,14 +100,14 @@ function OvertimeBar({ hours }: { hours: number }) {
   );
   const tone =
     pct >= 90
-      ? "bg-[var(--accent-alert)]"
+      ? "bg-brand-danger"
       : pct >= 70
-        ? "bg-[var(--accent-metric)]"
-        : "bg-[var(--accent-primary)]";
+        ? "bg-brand-warning"
+        : "bg-brand-primary";
   return (
     <div className="min-w-[5rem]">
       <span className="font-data text-xs tabular-nums">{hours.toFixed(1)}h</span>
-      <div className="mt-1 h-1 overflow-hidden rounded-full bg-[var(--border-subtle)]">
+      <div className="mt-1 h-1 overflow-hidden rounded-full bg-brand-border">
         <div className={`h-full ${tone}`} style={{ width: `${pct}%` }} />
       </div>
     </div>
@@ -322,118 +330,139 @@ export default function LogisticaConductoresPage() {
       Number(liquidacion.totals.henfHours ?? 0)
     : 0;
 
+  const overtimeTone =
+    overtimePct >= 90
+      ? "text-brand-danger"
+      : overtimePct >= 70
+        ? "text-brand-warning"
+        : "text-brand-primary";
+
+  const overtimeBarTone =
+    overtimePct >= 90
+      ? "bg-brand-danger"
+      : overtimePct >= 70
+        ? "bg-brand-warning"
+        : "bg-brand-primary";
+
   return (
     <div className="fade-in mx-auto max-w-[1600px] space-y-6">
-      <PageIntro
-        module="logistica"
-        title="Conductores y nómina operativa"
-        subtitle="Liquidación por telemetría · monitor PESV · kill-switch logística"
-        action={<ServerClockBadge clock={clock} />}
-      />
-
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <KpiCard
-          label="Horas extras mes"
-          value={totalExtrasHours.toFixed(1)}
-          delta={`${overtimePct}% del límite ${MONTHLY_OVERTIME_LIMIT_H}h`}
-          tone={
-            overtimePct >= 90 ? "danger" : overtimePct >= 70 ? "warn" : "ok"
-          }
-          icon={<Clock className="h-10 w-10" />}
-        />
-        <KpiCard
-          label="Costo extras"
-          value={`$${Math.round(nomina?.metrics.totalExtrasAmount ?? 0).toLocaleString("es-CO")}`}
-          tone="warn"
-          icon={<Activity className="h-10 w-10" />}
-        />
-        <KpiCard
-          label="Bloqueo PESV"
-          value={blockedCount}
-          delta="Fatiga ≥80 · kill-switch logística"
-          tone={blockedCount > 0 ? "danger" : "ok"}
-          icon={<ShieldAlert className="h-10 w-10" />}
-        />
-        <KpiCard
-          label="Incapacidades activas"
-          value={incapacityCount}
-          tone={incapacityCount > 0 ? "danger" : "ok"}
-          icon={<Users className="h-10 w-10" />}
-        />
+      <div
+        className="grid grid-cols-2 gap-3 lg:grid-cols-4"
+        data-testid="conductores-kpis"
+      >
+        <BentoPanel
+          title="Horas extras mes"
+          subtitle={`${overtimePct}% del límite ${MONTHLY_OVERTIME_LIMIT_H}h`}
+          icon={<Clock aria-hidden />}
+        >
+          <p
+            className={`font-data text-3xl font-bold tabular-nums ${overtimeTone}`}
+          >
+            {totalExtrasHours.toFixed(1)}
+          </p>
+        </BentoPanel>
+        <BentoPanel
+          title="Costo extras"
+          subtitle="Liquidación telemétrica"
+          icon={<Activity aria-hidden />}
+        >
+          <p className="font-data text-2xl font-bold tabular-nums text-brand-warning md:text-3xl">
+            {money(nomina?.metrics.totalExtrasAmount ?? 0)}
+          </p>
+        </BentoPanel>
+        <BentoPanel
+          title="Bloqueo PESV"
+          subtitle="Fatiga ≥80 · kill-switch"
+          icon={<ShieldAlert aria-hidden />}
+        >
+          <p
+            className={`font-data text-3xl font-bold tabular-nums ${
+              blockedCount > 0 ? "text-brand-danger" : "text-brand-success"
+            }`}
+          >
+            {blockedCount}
+          </p>
+        </BentoPanel>
+        <BentoPanel
+          title="Incapacidades activas"
+          subtitle="Novedades vigentes"
+          icon={<Users aria-hidden />}
+          action={<ServerClockBadge clock={clock} />}
+        >
+          <p
+            className={`font-data text-3xl font-bold tabular-nums ${
+              incapacityCount > 0 ? "text-brand-danger" : "text-brand-success"
+            }`}
+          >
+            {incapacityCount}
+          </p>
+        </BentoPanel>
       </div>
 
-      <div className="fsg-panel p-4">
-        <div className="mb-2 flex items-center justify-between gap-2">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-            Termómetro horas extras · flota
-          </span>
+      <BentoPanel
+        title="Termómetro horas extras"
+        subtitle="Flota · referencia legal 48h/mes"
+        icon={<AlertTriangle aria-hidden />}
+        action={
           <span
-            className={`font-data text-sm font-bold tabular-nums ${
-              overtimePct >= 90
-                ? "text-[var(--accent-alert)]"
-                : overtimePct >= 70
-                  ? "text-[var(--accent-metric)]"
-                  : "text-[var(--accent-primary)]"
-            }`}
+            className={`font-data text-sm font-bold tabular-nums ${overtimeTone}`}
           >
             {totalExtrasHours.toFixed(1)} / {MONTHLY_OVERTIME_LIMIT_H}h
           </span>
-        </div>
-        <div className="h-3 overflow-hidden rounded-full bg-[var(--border-subtle)]">
+        }
+      >
+        <div className="h-3 overflow-hidden rounded-full bg-brand-border">
           <div
-            className={`h-full transition-all duration-150 ${
-              overtimePct >= 90
-                ? "bg-[var(--accent-alert)]"
-                : overtimePct >= 70
-                  ? "bg-[var(--accent-metric)]"
-                  : "bg-[var(--accent-primary)]"
-            }`}
+            className={`h-full transition-all duration-150 ${overtimeBarTone}`}
             style={{ width: `${overtimePct}%` }}
           />
         </div>
         {overtimePct >= 70 ? (
-          <p className="mt-2 flex items-center gap-1 text-xs text-[var(--accent-metric)]">
-            <AlertTriangle className="h-3.5 w-3.5" />
+          <p className="mt-2 flex items-center gap-1 text-xs text-brand-warning">
+            <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
             Alerta de sobrecosto — revise turnos y telemetría GPS
           </p>
         ) : null}
-      </div>
+      </BentoPanel>
 
       {statusMsg ? (
         <p
           role="status"
-          className="rounded-lg border border-[color-mix(in_srgb,var(--accent-primary)_30%,transparent)] bg-[color-mix(in_srgb,var(--accent-primary)_8%,transparent)] px-3 py-2 text-sm text-[var(--accent-primary)]"
+          className="rounded-lg border border-brand-border-active bg-brand-primary/10 px-3 py-2 text-sm text-brand-primary"
         >
           {statusMsg}
         </p>
       ) : null}
       {error ? (
-        <p role="alert" className="text-sm text-[var(--brand-signal)]">
+        <p role="alert" className="text-sm text-brand-danger">
           {error}
         </p>
       ) : null}
 
       <section className="space-y-4" data-testid="panel-conductores">
         {substitutes.length ? (
-          <div className="fsg-panel space-y-3 p-4">
-            <p className="text-sm font-semibold">Sustitutos sugeridos (relevo)</p>
-            {impacted.length ? (
-              <p className="text-xs text-[var(--brand-amber)]">
-                {impacted.length} servicio(s) impactado(s)
-              </p>
-            ) : null}
+          <BentoPanel
+            title="Sustitutos sugeridos"
+            subtitle={
+              impacted.length
+                ? `${impacted.length} servicio(s) impactado(s)`
+                : "Relevo automático"
+            }
+          >
             <ul className="space-y-2">
               {substitutes.map((s) => (
                 <li
                   key={s.id}
-                  className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--brand-line)] py-2"
+                  className="flex flex-wrap items-center justify-between gap-2 border-b border-brand-border py-2 last:border-0"
                 >
                   <div>
-                    <div className="text-sm">{s.name}</div>
-                    <div className="font-data text-[10px] text-[var(--brand-muted)]">
+                    <div className="text-sm font-semibold text-brand-text-primary">
+                      {s.name}
+                    </div>
+                    <div className="font-data text-[10px] tabular-nums text-brand-text-secondary">
                       Fatiga {s.fatigueScore}
                       {s.fatigueWarning ? (
-                        <span className="ml-2 text-[var(--brand-signal)]">
+                        <span className="ml-2 text-brand-danger">
                           · {s.pesvMessage}
                         </span>
                       ) : null}
@@ -451,148 +480,145 @@ export default function LogisticaConductoresPage() {
                 </li>
               ))}
             </ul>
-          </div>
+          </BentoPanel>
         ) : null}
 
-        <div className="fsg-panel flex flex-wrap items-end gap-3 p-4">
-          <label className="min-w-[220px] flex-1 text-xs text-[var(--text-secondary)]">
-            Buscar conductor
-            <div className="relative mt-1">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-secondary)]" />
-              <input
-                className="field w-full pl-9"
-                placeholder="Nombre o documento"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
-          </label>
-          <Button
-            type="button"
-            variant="primary"
-            className="w-auto px-4 py-2"
-            onClick={() => {
-              setNovelty((n) => ({ ...n, driverId: "" }));
-              setNoveltyOpen(true);
-            }}
-          >
-            Registrar novedad
-          </Button>
-        </div>
+        <BentoPanel
+          title="Flota operativa"
+          subtitle={`${filteredDrivers.length} conductor(es)`}
+          icon={<Users aria-hidden />}
+          action={
+            <Button
+              type="button"
+              variant="primary"
+              className="w-auto px-4 py-2"
+              onClick={() => {
+                setNovelty((n) => ({ ...n, driverId: "" }));
+                setNoveltyOpen(true);
+              }}
+            >
+              Registrar novedad
+            </Button>
+          }
+        >
+          <div className="mb-3">
+            <label className="block text-xs text-brand-text-secondary">
+              <span className="sr-only">Buscar conductor</span>
+              <div className="relative mt-1 max-w-md">
+                <Search
+                  className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-text-secondary"
+                  aria-hidden
+                />
+                <input
+                  className="field w-full pl-9"
+                  placeholder="Nombre o documento"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+            </label>
+          </div>
 
-        <div className="fsg-panel data-shell overflow-x-auto">
           {filteredDrivers.length === 0 ? (
-            <div className="p-4">
-              <EmptyState
-                icon={<Users className="h-7 w-7" aria-hidden />}
-                title="Sin conductores"
-                description="No hay conductores cargados en la flota."
-              />
-            </div>
+            <EmptyState
+              icon={<Users className="h-7 w-7" aria-hidden />}
+              title="Sin conductores"
+              description="No hay conductores cargados en la flota."
+            />
           ) : (
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr>
-                  <th className="px-3 py-2">Conductor</th>
-                  <th className="px-3 py-2">Fatiga PESV</th>
-                  <th className="px-3 py-2">Extras mes</th>
-                  <th className="px-3 py-2">Estado</th>
-                  <th className="px-3 py-2">Despacho</th>
-                  <th className="px-3 py-2">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredDrivers.map((dr) => {
-                  const activeNov = calendar?.novelties.find(
-                    (n) =>
-                      n.driverId === dr.id &&
-                      new Date(n.dateFrom) <= new Date() &&
-                      new Date(n.dateTo) >= new Date(),
-                  );
-                  const extras = extrasByDriver.get(dr.id);
-                  const blocked =
-                    dr.dispatchBlocked ||
-                    dr.fatigueScore >= HARD_RULES.FATIGUE_BLOCK_SCORE;
-                  return (
-                    <tr
-                      key={dr.id}
-                      className={`border-t border-[var(--brand-line)] ${
-                        selectedDriverId === dr.id
-                          ? "bg-[color-mix(in_srgb,var(--accent-primary)_8%,transparent)]"
-                          : ""
-                      }`}
-                    >
-                      <td className="px-3 py-2.5">
-                        <div className="font-semibold text-[var(--text-primary)]">
-                          {dr.name}
-                        </div>
-                        <div className="font-data text-[10px] text-[var(--text-secondary)]">
-                          {dr.document}
-                        </div>
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <FatigueBar
-                          score={dr.fatigueScore}
-                          blocked={dr.dispatchBlocked}
-                        />
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <OvertimeBar
-                          hours={extras?.totalExtrasHours ?? 0}
-                        />
-                      </td>
-                      <td className="px-3 py-2.5">
-                        {activeNov ? (
-                          <span
-                            className={`rounded px-2 py-0.5 text-[10px] font-semibold uppercase ${noveltyColor(activeNov.kind)}`}
-                          >
-                            {NOVELTY_KINDS.find(
-                              (k) => k.value === activeNov.kind,
-                            )?.label ?? activeNov.kind}
-                          </span>
-                        ) : (
-                          <StatusPulseBadge tone="active" pulse={false}>
-                            Disponible
-                          </StatusPulseBadge>
-                        )}
-                      </td>
-                      <td className="px-3 py-2.5">
-                        {blocked ? (
-                          <StatusPulseBadge tone="danger" pulse>
-                            Bloqueado
-                          </StatusPulseBadge>
-                        ) : (
-                          <StatusPulseBadge tone="active" pulse={false}>
-                            Liberado
-                          </StatusPulseBadge>
-                        )}
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <div className="flex flex-wrap gap-1">
-                          <Button
-                            variant="ghost"
-                            className="w-auto"
-                            onClick={() => openNoveltyFor(dr.id)}
-                          >
-                            Novedad
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            className="w-auto"
-                            onClick={() => void openDriverCalendar(dr.id)}
-                          >
-                            <Calendar className="mr-1 h-3.5 w-3.5" />
-                            Calendario
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <NexaTable
+              columns={[
+                "Conductor",
+                "Fatiga PESV",
+                "Extras mes",
+                "Estado",
+                "Despacho",
+                "Acciones",
+              ]}
+            >
+              {filteredDrivers.map((dr) => {
+                const activeNov = calendar?.novelties.find(
+                  (n) =>
+                    n.driverId === dr.id &&
+                    new Date(n.dateFrom) <= new Date() &&
+                    new Date(n.dateTo) >= new Date(),
+                );
+                const extras = extrasByDriver.get(dr.id);
+                const blocked =
+                  dr.dispatchBlocked ||
+                  dr.fatigueScore >= HARD_RULES.FATIGUE_BLOCK_SCORE;
+                return (
+                  <NexaRow
+                    key={dr.id}
+                    active={selectedDriverId === dr.id}
+                  >
+                    <NexaCell>
+                      <div className="font-semibold text-brand-text-primary">
+                        {dr.name}
+                      </div>
+                      <div className="font-data text-[10px] tabular-nums text-brand-text-secondary">
+                        {dr.document}
+                      </div>
+                    </NexaCell>
+                    <NexaCell>
+                      <FatigueBar
+                        score={dr.fatigueScore}
+                        blocked={dr.dispatchBlocked}
+                      />
+                    </NexaCell>
+                    <NexaCell>
+                      <OvertimeBar hours={extras?.totalExtrasHours ?? 0} />
+                    </NexaCell>
+                    <NexaCell>
+                      {activeNov ? (
+                        <span
+                          className={`rounded px-2 py-0.5 text-[10px] font-semibold uppercase ${noveltyColor(activeNov.kind)}`}
+                        >
+                          {NOVELTY_KINDS.find((k) => k.value === activeNov.kind)
+                            ?.label ?? activeNov.kind}
+                        </span>
+                      ) : (
+                        <StatusPulseBadge tone="active" pulse={false}>
+                          Disponible
+                        </StatusPulseBadge>
+                      )}
+                    </NexaCell>
+                    <NexaCell>
+                      {blocked ? (
+                        <StatusPulseBadge tone="danger" pulse>
+                          Bloqueado
+                        </StatusPulseBadge>
+                      ) : (
+                        <StatusPulseBadge tone="active" pulse={false}>
+                          Liberado
+                        </StatusPulseBadge>
+                      )}
+                    </NexaCell>
+                    <NexaCell>
+                      <div className="flex flex-wrap gap-1">
+                        <Button
+                          variant="ghost"
+                          className="w-auto"
+                          onClick={() => openNoveltyFor(dr.id)}
+                        >
+                          Novedad
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          className="w-auto"
+                          onClick={() => void openDriverCalendar(dr.id)}
+                        >
+                          <Calendar className="mr-1 h-3.5 w-3.5" aria-hidden />
+                          Calendario
+                        </Button>
+                      </div>
+                    </NexaCell>
+                  </NexaRow>
+                );
+              })}
+            </NexaTable>
           )}
-        </div>
+        </BentoPanel>
 
         <Modal
           open={Boolean(selectedDriver && calendar)}
@@ -608,27 +634,39 @@ export default function LogisticaConductoresPage() {
           {selectedDriver && calendar ? (
             <div className="space-y-4">
               {liquidacion ? (
-                <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                  <KpiCard
-                    label="Horas conducidas"
-                    value={`${drivenHoursMonth.toFixed(0)}h`}
-                    tone="neutral"
-                  />
-                  <KpiCard
-                    label="Horas extras"
-                    value={`${extrasHoursDriver.toFixed(1)}h`}
-                    tone="warn"
-                  />
-                  <KpiCard
-                    label="Recargo nocturno"
-                    value={`${Number(liquidacion.totals.rnHours ?? 0).toFixed(1)}h`}
-                    tone="neutral"
-                  />
-                  <KpiCard
-                    label="Liquidación COP"
-                    value={`$${Math.round(Number(liquidacion.totals.totalAmount ?? 0)).toLocaleString("es-CO")}`}
-                    tone="ok"
-                  />
+                <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+                  <div className="rounded-lg border border-brand-border bg-brand-surface-elevated/50 p-2">
+                    <p className="font-data text-[9px] uppercase text-brand-text-secondary">
+                      Horas conducidas
+                    </p>
+                    <p className="font-data text-lg font-bold tabular-nums text-brand-text-primary">
+                      {drivenHoursMonth.toFixed(0)}h
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-brand-border bg-brand-surface-elevated/50 p-2">
+                    <p className="font-data text-[9px] uppercase text-brand-text-secondary">
+                      Horas extras
+                    </p>
+                    <p className="font-data text-lg font-bold tabular-nums text-brand-warning">
+                      {extrasHoursDriver.toFixed(1)}h
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-brand-border bg-brand-surface-elevated/50 p-2">
+                    <p className="font-data text-[9px] uppercase text-brand-text-secondary">
+                      Recargo nocturno
+                    </p>
+                    <p className="font-data text-lg font-bold tabular-nums text-brand-text-primary">
+                      {Number(liquidacion.totals.rnHours ?? 0).toFixed(1)}h
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-brand-border bg-brand-surface-elevated/50 p-2">
+                    <p className="font-data text-[9px] uppercase text-brand-text-secondary">
+                      Liquidación COP
+                    </p>
+                    <p className="font-data text-lg font-bold tabular-nums text-brand-primary">
+                      {money(Number(liquidacion.totals.totalAmount ?? 0))}
+                    </p>
+                  </div>
                 </div>
               ) : null}
               <DriverMonthCalendar
@@ -683,7 +721,7 @@ export default function LogisticaConductoresPage() {
           onSubmit={onNovelty}
           className="grid gap-3"
         >
-          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
             Conductor
             <select
               className="field"
@@ -701,7 +739,7 @@ export default function LogisticaConductoresPage() {
               ))}
             </select>
           </label>
-          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
             Tipo
             <select
               className="field"
@@ -718,7 +756,7 @@ export default function LogisticaConductoresPage() {
             </select>
           </label>
           <div className="grid grid-cols-2 gap-3">
-            <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+            <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
               Desde
               <input
                 type="date"
@@ -730,7 +768,7 @@ export default function LogisticaConductoresPage() {
                 required
               />
             </label>
-            <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+            <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
               Hasta
               <input
                 type="date"
@@ -743,7 +781,7 @@ export default function LogisticaConductoresPage() {
               />
             </label>
           </div>
-          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
             Notas
             <textarea
               className="field"

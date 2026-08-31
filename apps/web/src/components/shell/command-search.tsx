@@ -14,7 +14,7 @@ type NavItem = {
 };
 
 type CommandRow = NavItem & {
-  group: "MÓDULOS" | "CONDUCTORES" | "VEHÍCULOS/PLACAS" | "ACCIONES RÁPIDAS";
+  group: "MÃ“DULOS" | "CONDUCTORES" | "VEHÃCULOS/PLACAS" | "ACCIONES RÃPIDAS";
 };
 
 function itemLabel(item: NavItem) {
@@ -41,32 +41,32 @@ function classify(item: NavItem): CommandRow["group"] {
     href.includes("parqueadero") ||
     href.includes("patio") ||
     label.includes("placa") ||
-    label.includes("vehículo") ||
+    label.includes("vehÃ­culo") ||
     label.includes("vehiculo")
   ) {
-    return "VEHÍCULOS/PLACAS";
+    return "VEHÃCULOS/PLACAS";
   }
   if (
     href.includes("cuenta") ||
     href.includes("usuarios") ||
     label.includes("nueva") ||
     label.includes("crear") ||
-    section.includes("acción") ||
+    section.includes("acciÃ³n") ||
     section.includes("accion")
   ) {
-    return "ACCIONES RÁPIDAS";
+    return "ACCIONES RÃPIDAS";
   }
-  return "MÓDULOS";
+  return "MÃ“DULOS";
 }
 
 const GROUP_ORDER: CommandRow["group"][] = [
-  "MÓDULOS",
+  "MÃ“DULOS",
   "CONDUCTORES",
-  "VEHÍCULOS/PLACAS",
-  "ACCIONES RÁPIDAS",
+  "VEHÃCULOS/PLACAS",
+  "ACCIONES RÃPIDAS",
 ];
 
-/** Placa típica CO: ABC123 / ABC12D */
+/** Placa tÃ­pica CO: ABC123 / ABC12D */
 function looksLikePlate(q: string) {
   return /^[A-Za-z]{3}\d{2,3}[A-Za-z0-9]?$/.test(q.replace(/\s|-/g, ""));
 }
@@ -90,16 +90,16 @@ export function CommandSearch({ items }: { items: NavItem[] }) {
       base.unshift({
         href: `/tramites?q=${encodeURIComponent(q.toUpperCase())}`,
         view: "tramites",
-        label: `Placa ${q.toUpperCase()} · semáforo documental`,
+        label: `Placa ${q.toUpperCase()} Â· semÃ¡foro documental`,
         section: "placa",
-        group: "VEHÍCULOS/PLACAS",
+        group: "VEHÃCULOS/PLACAS",
       });
       base.unshift({
         href: `/logistica/servicios?plate=${encodeURIComponent(q.toUpperCase())}`,
         view: "logistica",
-        label: `Placa ${q.toUpperCase()} · mapa / tracking`,
+        label: `Placa ${q.toUpperCase()} Â· mapa / tracking`,
         section: "placa",
-        group: "VEHÍCULOS/PLACAS",
+        group: "VEHÃCULOS/PLACAS",
       });
     }
 
@@ -157,12 +157,12 @@ export function CommandSearch({ items }: { items: NavItem[] }) {
       <button
         type="button"
         className="flt-command-backdrop"
-        aria-label="Cerrar búsqueda"
+        aria-label="Cerrar bÃºsqueda"
         onClick={() => setCommandOpen(false)}
       />
       <div className="flt-command-panel">
-        <div className="flex items-center gap-3 border-b border-[var(--border-subtle)] px-4 py-3">
-          <NavIcon view="search" className="h-4 w-4 text-[var(--text-secondary)]" />
+        <div className="flex items-center gap-3 border-b border-[var(--brand-border)] px-4 py-3">
+          <NavIcon view="search" className="h-4 w-4 text-[var(--brand-text-secondary)]" />
           <input
             ref={inputRef}
             data-testid="command-search-input"
@@ -182,8 +182,8 @@ export function CommandSearch({ items }: { items: NavItem[] }) {
                 go(flat[active].href);
               }
             }}
-            placeholder="Buscar módulo, placa, conductor o acción…"
-            className="w-full bg-transparent text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-secondary)]"
+            placeholder="Buscar mÃ³dulo, placa, conductor o acciÃ³nâ€¦"
+            className="w-full bg-transparent text-sm text-[var(--brand-text-primary)] outline-none placeholder:text-[var(--brand-text-secondary)]"
           />
           <kbd className="flt-kbd rounded-md border px-2 py-0.5 font-mono text-[10px]">
             ESC
@@ -191,13 +191,13 @@ export function CommandSearch({ items }: { items: NavItem[] }) {
         </div>
         <div className="max-h-[420px] overflow-y-auto py-2">
           {flat.length === 0 ? (
-            <p className="px-4 py-6 text-center text-sm text-[var(--text-secondary)]">
+            <p className="px-4 py-6 text-center text-sm text-[var(--brand-text-secondary)]">
               Sin coincidencias en el nodo
             </p>
           ) : (
             grouped.map((section) => (
               <div key={section.group} className="mb-1">
-                <p className="px-4 py-1.5 font-data text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--text-secondary)]">
+                <p className="px-4 py-1.5 font-data text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--brand-text-secondary)]">
                   {section.group}
                 </p>
                 <ul>
@@ -214,20 +214,20 @@ export function CommandSearch({ items }: { items: NavItem[] }) {
                           type="button"
                           className={`flex w-full items-start gap-3 px-4 py-2.5 text-left transition-colors duration-150 ${
                             idx === active
-                              ? "bg-[color-mix(in_srgb,var(--accent-primary)_12%,transparent)]"
-                              : "hover:bg-[color-mix(in_srgb,var(--accent-primary)_7%,transparent)]"
+                              ? "bg-[color-mix(in_srgb,var(--brand-primary)_12%,transparent)]"
+                              : "hover:bg-[color-mix(in_srgb,var(--brand-primary)_7%,transparent)]"
                           }`}
                           onMouseEnter={() => setActive(idx)}
                           onClick={() => go(item.href)}
                         >
-                          <span className="mt-0.5 text-[var(--accent-primary)]">
+                          <span className="mt-0.5 text-[var(--brand-primary)]">
                             <NavIcon view={item.view} className="h-4 w-4" />
                           </span>
                           <span className="min-w-0">
-                            <span className="block text-sm font-medium text-[var(--text-primary)]">
+                            <span className="block text-sm font-medium text-[var(--brand-text-primary)]">
                               {label}
                             </span>
-                            <span className="mt-0.5 block truncate text-xs text-[var(--text-secondary)]">
+                            <span className="mt-0.5 block truncate text-xs text-[var(--brand-text-secondary)]">
                               {help}
                             </span>
                           </span>

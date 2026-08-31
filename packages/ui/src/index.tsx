@@ -9,9 +9,9 @@ export function UplinkSpinner({
 }) {
   const toneClass =
     tone === "primary"
-      ? "border-[color-mix(in_srgb,var(--accent-primary)_35%,transparent)] border-t-[var(--accent-primary)]"
+      ? "border-[color-mix(in_srgb,var(--brand-primary)_35%,transparent)] border-t-brand-primary"
       : tone === "muted"
-        ? "border-[color-mix(in_srgb,var(--text-secondary)_35%,transparent)] border-t-[var(--text-secondary)]"
+        ? "border-[color-mix(in_srgb,var(--brand-text-secondary)_35%,transparent)] border-t-brand-text-secondary"
         : "border-[color-mix(in_srgb,currentColor_35%,transparent)] border-t-current";
 
   return (
@@ -75,41 +75,6 @@ export function Panel({
 
 export type StatusTone = "success" | "warning" | "danger" | "info" | "neutral";
 
-/** @deprecated Use StatusTone — kept for module pages already using cyan/emerald/etc. */
-export type LegacyBadgeTone =
-  | "cyan"
-  | "emerald"
-  | "amber"
-  | "rose"
-  | "slate"
-  | "info"
-  | "signal";
-
-function resolveTone(
-  tone?: StatusTone | LegacyBadgeTone,
-): StatusTone {
-  switch (tone) {
-    case "success":
-    case "cyan":
-    case "emerald":
-      return "success";
-    case "warning":
-    case "amber":
-      return "warning";
-    case "danger":
-    case "rose":
-    case "signal":
-      return "danger";
-    case "info":
-    case "slate":
-      return "info";
-    case "neutral":
-      return "neutral";
-    default:
-      return "success";
-  }
-}
-
 export function Badge({
   children,
   tone = "success",
@@ -117,12 +82,12 @@ export function Badge({
   title,
 }: {
   children: ReactNode;
-  tone?: StatusTone | LegacyBadgeTone;
+  tone?: StatusTone;
   dot?: boolean;
   /** Explicación contextual (semáforo, estado) */
   title?: string;
 }) {
-  const resolved = resolveTone(tone);
+  const resolved = tone ?? "success";
   return (
     <span className={`flt-badge flt-badge-${resolved}`} title={title}>
       {dot ? <span className="flt-badge-dot" aria-hidden /> : null}
@@ -191,7 +156,7 @@ export function FieldLabel({
   );
 }
 
-export type KpiAccent = "primary" | "amber" | "rose" | "cyan" | "emerald";
+export type KpiAccent = "primary" | "warning" | "danger" | "success" | "secondary";
 
 export function StatCard({
   label,
@@ -208,10 +173,10 @@ export function StatCard({
   accent?: KpiAccent;
 }) {
   const tone =
-    accent === "amber"
-      ? "amber"
-      : accent === "rose"
-        ? "rose"
+    accent === "warning"
+      ? "warning"
+      : accent === "danger"
+        ? "danger"
         : "primary";
 
   const trendPositive = trend?.trim().startsWith("+");
@@ -226,10 +191,10 @@ export function StatCard({
           <span
             className={`font-data text-xs font-semibold tabular-nums ${
               trendPositive
-                ? "text-[var(--accent-primary)]"
+                ? "text-brand-primary"
                 : trendNegative
-                  ? "text-[var(--accent-alert)]"
-                  : "text-[var(--text-secondary)]"
+                  ? "text-brand-danger"
+                  : "text-brand-text-secondary"
             }`}
           >
             {trend}
@@ -266,7 +231,7 @@ export function WorkbenchHeader({
     <div className="flt-workbench-header mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0 max-w-3xl">
         {eyebrow ? (
-          <p className="font-data text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--accent-primary)]">
+          <p className="font-data text-[10px] font-semibold uppercase tracking-[0.18em] text-brand-primary">
             {eyebrow}
           </p>
         ) : null}

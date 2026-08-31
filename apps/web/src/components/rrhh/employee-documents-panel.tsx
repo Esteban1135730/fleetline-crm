@@ -51,7 +51,7 @@ type Props = {
   employeeId: string;
   onError?: (msg: string) => void;
   onStatus?: (msg: string) => void;
-  /** Recargar tabla RRHH (semáforo licencia) tras actualizar datos */
+  /** Recargar tabla RRHH (semÃ¡foro licencia) tras actualizar datos */
   onLicenseUpdated?: () => void;
 };
 
@@ -131,7 +131,7 @@ export function EmployeeDocumentsPanel({
       setPendingFile(null);
       onStatus?.(
         slot.key === "LICENCIA"
-          ? "Licencia guardada · datos del conductor actualizados"
+          ? "Licencia guardada Â· datos del conductor actualizados"
           : `Documento cargado: ${slot.label}`,
       );
       if (slot.key === "LICENCIA") onLicenseUpdated?.();
@@ -159,7 +159,7 @@ export function EmployeeDocumentsPanel({
     const expiresAt = licenseForm.expiresAt.trim();
     if (!number || !category || !expiresAt) {
       onError?.(
-        "Completa número, categoría y vencimiento de la licencia antes de guardar",
+        "Completa nÃºmero, categorÃ­a y vencimiento de la licencia antes de guardar",
       );
       return;
     }
@@ -172,8 +172,8 @@ export function EmployeeDocumentsPanel({
 
   if (loading && !dossier) {
     return (
-      <p className="text-sm text-[var(--text-secondary)]">
-        Cargando expediente documental…
+      <p className="text-sm text-[var(--brand-text-secondary)]">
+        Cargando expediente documentalâ€¦
       </p>
     );
   }
@@ -190,27 +190,27 @@ export function EmployeeDocumentsPanel({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border border-[var(--brand-line)] bg-[color-mix(in_srgb,var(--accent-primary)_6%,transparent)] p-3">
+      <div className="rounded-lg border border-[var(--brand-border)] bg-[color-mix(in_srgb,var(--brand-primary)_6%,transparent)] p-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <div className="text-sm font-semibold text-[var(--text-primary)]">
+            <div className="text-sm font-semibold text-[var(--brand-text-primary)]">
               {dossier.employee.name}
             </div>
-            <div className="text-xs text-[var(--text-secondary)]">
-              {dossier.employee.title} · {dossier.profileLabel}
+            <div className="text-xs text-[var(--brand-text-secondary)]">
+              {dossier.employee.title} Â· {dossier.profileLabel}
             </div>
           </div>
           <div className="text-right">
             <div className="font-data text-lg text-[var(--brand-primary)]">
               {pct}%
             </div>
-            <div className="text-[10px] uppercase tracking-wide text-[var(--text-secondary)]">
+            <div className="text-[10px] uppercase tracking-wide text-[var(--brand-text-secondary)]">
               Obligatorios {dossier.progress.requiredDone}/
               {dossier.progress.requiredTotal}
             </div>
           </div>
         </div>
-        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[var(--border-subtle)]">
+        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[var(--brand-border)]">
           <div
             className="h-full rounded-full bg-[var(--brand-primary)] transition-all"
             style={{ width: `${pct}%` }}
@@ -219,21 +219,21 @@ export function EmployeeDocumentsPanel({
       </div>
 
       {pendingFile?.slot.key === "LICENCIA" ? (
-        <div className="space-y-3 rounded-lg border border-[var(--brand-primary)]/40 bg-[color-mix(in_srgb,var(--accent-primary)_8%,transparent)] p-3">
+        <div className="space-y-3 rounded-lg border border-[var(--brand-primary)]/40 bg-[color-mix(in_srgb,var(--brand-primary)_8%,transparent)] p-3">
           <div>
-            <div className="text-sm font-semibold text-[var(--text-primary)]">
+            <div className="text-sm font-semibold text-[var(--brand-text-primary)]">
               Datos de la licencia
             </div>
-            <p className="mt-1 text-xs text-[var(--text-secondary)]">
+            <p className="mt-1 text-xs text-[var(--brand-text-secondary)]">
               Archivo:{" "}
               <span className="font-data">{pendingFile.file.name}</span>
-              . Escribe los datos que ves en el documento (así se quita el
+              . Escribe los datos que ves en el documento (asÃ­ se quita el
               BLOQUEO).
             </p>
           </div>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-            <label className="flex flex-col gap-1 text-[10px] uppercase tracking-wide text-[var(--text-secondary)]">
-              Número
+            <label className="flex flex-col gap-1 text-[10px] uppercase tracking-wide text-[var(--brand-text-secondary)]">
+              NÃºmero
               <input
                 className="field font-data"
                 value={licenseForm.number}
@@ -244,8 +244,8 @@ export function EmployeeDocumentsPanel({
                 required
               />
             </label>
-            <label className="flex flex-col gap-1 text-[10px] uppercase tracking-wide text-[var(--text-secondary)]">
-              Categoría
+            <label className="flex flex-col gap-1 text-[10px] uppercase tracking-wide text-[var(--brand-text-secondary)]">
+              CategorÃ­a
               <select
                 className="field"
                 value={licenseForm.category}
@@ -260,7 +260,7 @@ export function EmployeeDocumentsPanel({
                 ))}
               </select>
             </label>
-            <label className="flex flex-col gap-1 text-[10px] uppercase tracking-wide text-[var(--text-secondary)]">
+            <label className="flex flex-col gap-1 text-[10px] uppercase tracking-wide text-[var(--brand-text-secondary)]">
               Vence
               <input
                 className="field font-data"
@@ -276,7 +276,7 @@ export function EmployeeDocumentsPanel({
           <div className="flex flex-wrap justify-end gap-2">
             <button
               type="button"
-              className="rounded-md px-3 py-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              className="rounded-md px-3 py-1.5 text-xs text-[var(--brand-text-secondary)] hover:text-[var(--brand-text-primary)]"
               onClick={() => setPendingFile(null)}
               disabled={uploadingKey === "LICENCIA"}
             >
@@ -284,12 +284,12 @@ export function EmployeeDocumentsPanel({
             </button>
             <button
               type="button"
-              className="rounded-md bg-[var(--brand-primary)] px-3 py-1.5 text-xs font-semibold text-[#04110c]"
+              className="rounded-md bg-[var(--brand-primary)] px-3 py-1.5 text-xs font-semibold text-brand-on-primary"
               onClick={confirmLicenseUpload}
               disabled={uploadingKey === "LICENCIA"}
             >
               {uploadingKey === "LICENCIA"
-                ? "Guardando…"
+                ? "Guardandoâ€¦"
                 : "Guardar licencia y datos"}
             </button>
           </div>
@@ -303,7 +303,7 @@ export function EmployeeDocumentsPanel({
           return (
             <li
               key={slot.key}
-              className="rounded-lg border border-[var(--brand-line)] p-3"
+              className="rounded-lg border border-[var(--brand-border)] p-3"
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
@@ -314,46 +314,46 @@ export function EmployeeDocumentsPanel({
                       <CircleAlert
                         className={`h-4 w-4 shrink-0 ${
                           slot.required
-                            ? "text-[var(--brand-amber)]"
-                            : "text-[var(--brand-muted)]"
+                            ? "text-[var(--brand-warning)]"
+                            : "text-[var(--brand-text-secondary)]"
                         }`}
                       />
                     )}
-                    <span className="text-sm font-semibold text-[var(--text-primary)]">
+                    <span className="text-sm font-semibold text-[var(--brand-text-primary)]">
                       {slot.label}
                       {slot.required ? (
-                        <span className="ml-1 text-[10px] uppercase text-[var(--brand-amber)]">
+                        <span className="ml-1 text-[10px] uppercase text-[var(--brand-warning)]">
                           Obligatorio
                         </span>
                       ) : (
-                        <span className="ml-1 text-[10px] uppercase text-[var(--brand-muted)]">
+                        <span className="ml-1 text-[10px] uppercase text-[var(--brand-text-secondary)]">
                           Opcional
                         </span>
                       )}
                     </span>
                   </div>
-                  <p className="mt-1 text-xs text-[var(--text-secondary)]">
+                  <p className="mt-1 text-xs text-[var(--brand-text-secondary)]">
                     {isLicense
-                      ? "Sube el PDF/foto y completa número, categoría y vencimiento"
+                      ? "Sube el PDF/foto y completa nÃºmero, categorÃ­a y vencimiento"
                       : slot.description}
                   </p>
                   {isLicense && dossier.license?.expiresAt ? (
                     <p className="mt-1 font-data text-[11px] text-[var(--brand-primary)]">
-                      Vigente · {dossier.license.category || "—"} · vence{" "}
+                      Vigente Â· {dossier.license.category || "â€”"} Â· vence{" "}
                       {new Date(dossier.license.expiresAt).toLocaleDateString(
                         "es-CO",
                       )}
                     </p>
                   ) : null}
                   {slot.document ? (
-                    <p className="mt-1 font-data text-[11px] text-[var(--text-secondary)]">
-                      {slot.document.originalName || slot.document.title} ·{" "}
+                    <p className="mt-1 font-data text-[11px] text-[var(--brand-text-secondary)]">
+                      {slot.document.originalName || slot.document.title} Â·{" "}
                       {new Date(slot.document.createdAt).toLocaleDateString(
                         "es-CO",
                       )}
                       {slot.document.fileRef ? (
                         <>
-                          {" · "}
+                          {" Â· "}
                           <a
                             href={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000"}${slot.document.fileRef}`}
                             target="_blank"
@@ -367,7 +367,7 @@ export function EmployeeDocumentsPanel({
                     </p>
                   ) : null}
                 </div>
-                <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-[var(--brand-line)] px-3 py-1.5 text-xs font-medium text-[var(--text-primary)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]">
+                <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-[var(--brand-border)] px-3 py-1.5 text-xs font-medium text-[var(--brand-text-primary)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]">
                   <input
                     type="file"
                     className="sr-only"
@@ -381,7 +381,7 @@ export function EmployeeDocumentsPanel({
                   />
                   <FileUp className="h-3.5 w-3.5" />
                   {uploadingKey === slot.key
-                    ? "Subiendo…"
+                    ? "Subiendoâ€¦"
                     : done
                       ? "Reemplazar"
                       : "Subir"}

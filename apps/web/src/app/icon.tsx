@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { darkTokens } from "@/lib/design-tokens";
 
 export const size = { width: 32, height: 32 };
 export const contentType = "image/png";
@@ -14,7 +15,7 @@ export default function Icon() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#0A0D14",
+          background: darkTokens.canvas,
           borderRadius: 6,
         }}
       >
@@ -23,7 +24,7 @@ export default function Icon() {
             width: 18,
             height: 18,
             borderRadius: 999,
-            border: "3px solid #10B981",
+            border: `3px solid ${darkTokens.primary}`,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -34,7 +35,7 @@ export default function Icon() {
               width: 6,
               height: 6,
               borderRadius: 999,
-              background: "#10B981",
+              background: darkTokens.primary,
             }}
           />
         </div>

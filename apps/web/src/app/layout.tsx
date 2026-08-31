@@ -1,19 +1,19 @@
 import type { Metadata, Viewport } from "next";
-import { Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
 import { ThemeProvider } from "@/lib/theme";
 import { AppShell } from "@/components/app-shell";
 import { ForcePasswordGate } from "@/components/force-password-gate";
-import { brand } from "@/lib/brand";
+import { brand, darkTokens } from "@/lib/brand";
 
-const display = Plus_Jakarta_Sans({
+const display = Inter({
   subsets: ["latin"],
   variable: "--font-display",
   weight: ["500", "600", "700", "800"],
 });
 
-const body = Plus_Jakarta_Sans({
+const body = Inter({
   subsets: ["latin"],
   variable: "--font-body",
   weight: ["400", "500", "600", "700"],
@@ -45,7 +45,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0A0D14",
+  themeColor: darkTokens.canvas,
 };
 
 const themeBootScript = `

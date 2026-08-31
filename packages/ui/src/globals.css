@@ -1,4 +1,4 @@
-/* @fsg/ui — Fleetline Aero-Tech component primitives */
+/* @fsg/ui — NEXA component primitives (token-driven, zero hardcoded palette) */
 
 .flt-spinner {
   animation: flt-spin 0.7s linear infinite;
@@ -10,25 +10,26 @@
   }
 }
 
-.flt-panel,
-.fsg-panel {
-  background: var(--bg-surface-1, #121722);
-  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.07));
-  border-radius: 12px;
+.nexa-panel,
+.flt-panel {
+  background: var(--brand-surface-glass);
+  border: 1px solid var(--brand-border);
+  border-radius: var(--panel-radius, 12px);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   padding: 1.25rem;
 }
 
-html.light .flt-panel,
-html.light .fsg-panel {
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+html.light .nexa-panel,
+html.light .flt-panel {
+  box-shadow: var(--brand-shadow-panel);
 }
 
-html.dark .flt-panel,
-html.dark .fsg-panel {
-  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.04);
+html.dark .nexa-panel,
+html.dark .flt-panel {
+  box-shadow: inset 0 1px 0 0 color-mix(in srgb, var(--brand-contrast-fg) 3%, transparent);
 }
 
-/* ── Buttons ── */
 .flt-btn {
   display: inline-flex;
   align-items: center;
@@ -50,49 +51,48 @@ html.dark .fsg-panel {
 }
 
 .flt-btn-primary {
-  background: var(--accent-primary, #10b981);
-  color: var(--brand-primary-fg, #0a0d14);
-  border: 1px solid color-mix(in srgb, var(--accent-primary) 75%, #000);
+  background: var(--brand-primary);
+  color: var(--brand-primary-fg);
+  border: 1px solid color-mix(in srgb, var(--brand-primary) 70%, var(--brand-canvas));
 }
 
 .flt-btn-primary:hover:not(:disabled) {
   filter: brightness(1.05);
-  box-shadow: 0 0 16px var(--brand-primary-glow, rgba(16, 185, 129, 0.18));
+  box-shadow: var(--brand-glow-active);
 }
 
 .flt-btn-secondary {
   background: transparent;
-  color: var(--text-primary, #f8fafc);
-  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.07));
+  color: var(--brand-text-primary);
+  border: 1px solid var(--brand-border);
 }
 
 .flt-btn-secondary:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--accent-primary) 45%, var(--border-subtle));
-  color: var(--accent-primary);
+  border-color: color-mix(in srgb, var(--brand-primary) 45%, var(--brand-border));
+  color: var(--brand-primary);
 }
 
 .flt-btn-danger {
-  background: color-mix(in srgb, #ef4444 12%, transparent);
-  color: #ef4444;
-  border: 1px solid color-mix(in srgb, #ef4444 45%, transparent);
+  background: color-mix(in srgb, var(--brand-danger) 12%, transparent);
+  color: var(--brand-danger);
+  border: 1px solid color-mix(in srgb, var(--brand-danger) 45%, transparent);
 }
 
 .flt-btn-danger:hover:not(:disabled) {
-  background: color-mix(in srgb, #ef4444 18%, transparent);
+  background: color-mix(in srgb, var(--brand-danger) 18%, transparent);
 }
 
 .flt-btn-ghost {
   background: transparent;
-  color: var(--text-secondary);
+  color: var(--brand-text-secondary);
   border: 1px solid transparent;
 }
 
 .flt-btn-ghost:hover:not(:disabled) {
-  color: var(--text-primary);
-  background: color-mix(in srgb, var(--accent-primary) 8%, transparent);
+  color: var(--brand-text-primary);
+  background: color-mix(in srgb, var(--brand-primary) 8%, transparent);
 }
 
-/* Legacy bridge */
 .btn-brand {
   display: inline-flex;
   align-items: center;
@@ -102,33 +102,32 @@ html.dark .fsg-panel {
   padding: 0.5rem 1rem;
   border-radius: 8px;
   font-weight: 500;
-  background: var(--accent-primary);
+  background: var(--brand-primary);
   color: var(--brand-primary-fg);
-  border: 1px solid color-mix(in srgb, var(--accent-primary) 75%, #000);
+  border: 1px solid color-mix(in srgb, var(--brand-primary) 70%, var(--brand-canvas));
   transition: all 150ms ease-in-out;
 }
 
 .btn-brand:hover:not(:disabled) {
   filter: brightness(1.05);
-  box-shadow: 0 0 16px var(--brand-primary-glow);
+  box-shadow: var(--brand-glow-active);
 }
 
 .btn-brand:disabled {
   opacity: 0.55;
 }
 
-/* ── Fields ── */
 .flt-field,
 .field {
   width: 100%;
   height: 40px;
-  border: 1px solid var(--border-subtle);
-  background: var(--brand-field, var(--bg-surface-2));
-  color: var(--text-primary);
+  border: 1px solid var(--brand-border);
+  background: var(--brand-field);
+  color: var(--brand-text-primary);
   border-radius: 8px;
   padding: 0 0.85rem;
   font-size: 0.875rem;
-  font-family: var(--font-body), "Plus Jakarta Sans", sans-serif;
+  font-family: var(--font-body), Inter, sans-serif;
   outline: none;
   transition:
     border-color 150ms ease-in-out,
@@ -137,10 +136,10 @@ html.dark .fsg-panel {
 
 .flt-field:focus,
 .field:focus {
-  border-color: var(--accent-primary);
+  border-color: var(--brand-primary);
   box-shadow:
     0 0 0 3px var(--brand-primary-glow),
-    var(--glow-active);
+    var(--brand-glow-active);
 }
 
 .flt-field-label,
@@ -151,10 +150,9 @@ html.dark .fsg-panel {
   font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: var(--text-secondary);
+  color: var(--brand-text-secondary);
 }
 
-/* ── Status badges ── */
 .flt-badge,
 .badge-status {
   display: inline-flex;
@@ -180,37 +178,36 @@ html.dark .fsg-panel {
 
 .flt-badge-success,
 .badge-ok {
-  background: color-mix(in srgb, var(--accent-primary) 10%, transparent);
-  color: var(--accent-primary);
-  border-color: color-mix(in srgb, var(--accent-primary) 45%, transparent);
+  background: color-mix(in srgb, var(--brand-success) 10%, transparent);
+  color: var(--brand-success);
+  border-color: color-mix(in srgb, var(--brand-success) 45%, transparent);
 }
 
 .flt-badge-warning,
 .badge-warn {
-  background: color-mix(in srgb, var(--accent-metric) 12%, transparent);
-  color: var(--accent-metric);
-  border-color: color-mix(in srgb, var(--accent-metric) 45%, transparent);
+  background: color-mix(in srgb, var(--brand-warning) 12%, transparent);
+  color: var(--brand-warning);
+  border-color: color-mix(in srgb, var(--brand-warning) 45%, transparent);
 }
 
 .flt-badge-danger,
 .badge-crit {
-  background: color-mix(in srgb, var(--accent-alert) 12%, transparent);
-  color: var(--accent-alert);
-  border-color: color-mix(in srgb, var(--accent-alert) 45%, transparent);
+  background: color-mix(in srgb, var(--brand-danger) 12%, transparent);
+  color: var(--brand-danger);
+  border-color: color-mix(in srgb, var(--brand-danger) 45%, transparent);
 }
 
 .flt-badge-info,
 .flt-badge-neutral,
 .badge-info {
-  background: color-mix(in srgb, var(--text-secondary) 12%, transparent);
-  color: var(--text-secondary);
-  border-color: color-mix(in srgb, var(--text-secondary) 35%, transparent);
+  background: color-mix(in srgb, var(--brand-text-secondary) 12%, transparent);
+  color: var(--brand-text-secondary);
+  border-color: color-mix(in srgb, var(--brand-text-secondary) 35%, transparent);
 }
 
-/* ── KPI cards ── */
 .flt-kpi {
-  background: var(--bg-surface-1);
-  border: 1px solid var(--border-subtle);
+  background: var(--brand-surface);
+  border: 1px solid var(--brand-border);
   border-radius: 12px;
   padding: 1.25rem 1.35rem;
   position: relative;
@@ -221,7 +218,7 @@ html.dark .fsg-panel {
 }
 
 html.light .flt-kpi {
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+  box-shadow: var(--brand-shadow-panel);
 }
 
 .flt-kpi::before {
@@ -229,20 +226,24 @@ html.light .flt-kpi {
   position: absolute;
   inset: 0 auto 0 0;
   width: 3px;
-  background: var(--kpi-accent, var(--accent-primary));
+  background: var(--kpi-accent, var(--brand-primary));
 }
 
 .flt-kpi-primary,
-.flt-kpi-teal {
-  --kpi-accent: var(--accent-primary);
+.flt-kpi-secondary {
+  --kpi-accent: var(--brand-primary);
 }
 
-.flt-kpi-amber {
-  --kpi-accent: var(--accent-metric);
+.flt-kpi-success {
+  --kpi-accent: var(--brand-success);
 }
 
-.flt-kpi-rose {
-  --kpi-accent: var(--accent-alert);
+.flt-kpi-warning {
+  --kpi-accent: var(--brand-warning);
+}
+
+.flt-kpi-danger {
+  --kpi-accent: var(--brand-danger);
 }
 
 .flt-kpi-label {
@@ -251,7 +252,7 @@ html.light .flt-kpi {
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--text-secondary);
+  color: var(--brand-text-secondary);
 }
 
 .flt-kpi-value {
@@ -260,36 +261,35 @@ html.light .flt-kpi {
   font-weight: 800;
   letter-spacing: -0.03em;
   line-height: 1;
-  color: var(--text-primary);
+  color: var(--brand-text-primary);
   font-variant-numeric: tabular-nums;
+  text-shadow: var(--brand-glow-text);
 }
 
 .flt-kpi-primary .flt-kpi-value {
-  color: var(--accent-primary);
+  color: var(--brand-primary);
 }
 
-.flt-kpi-amber .flt-kpi-value {
-  color: var(--accent-metric);
+.flt-kpi-warning .flt-kpi-value {
+  color: var(--brand-warning);
 }
 
-.flt-kpi-rose .flt-kpi-value {
-  color: var(--accent-alert);
+.flt-kpi-danger .flt-kpi-value {
+  color: var(--brand-danger);
 }
 
 .flt-kpi-hint {
   margin: 0.55rem 0 0;
   font-size: 12px;
-  color: var(--text-secondary);
+  color: var(--brand-text-secondary);
   line-height: 1.35;
 }
 
-/* Legacy StatCard bridge */
 .kpi-card {
   position: relative;
   overflow: hidden;
 }
 
-/* Tooltip Hyper-Explained */
 .flt-tip {
   position: relative;
   display: inline-flex;
@@ -305,13 +305,13 @@ html.light .flt-kpi {
   max-width: min(280px, 70vw);
   padding: 0.45rem 0.65rem;
   border-radius: 8px;
-  border: 1px solid var(--border-subtle);
-  background: var(--bg-surface-1);
-  color: var(--text-primary);
+  border: 1px solid var(--brand-border);
+  background: var(--brand-surface);
+  color: var(--brand-text-primary);
   font-size: 11.5px;
   font-weight: 500;
   line-height: 1.35;
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22);
+  box-shadow: var(--brand-shadow-panel);
   opacity: 0;
   visibility: hidden;
   pointer-events: none;

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
@@ -17,8 +17,8 @@ import {
   UserX,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { PageIntro } from "@/components/page-intro";
 import { EmptyState, KpiCard, SlideOver, StatusPulseBadge } from "@/components/audit";
+import { BentoPanel } from "@/components/nexa/bento-panel";
 
 type SearchHit = {
   kind?: "document" | "vehicle" | "driver" | "employee" | "customer";
@@ -120,8 +120,8 @@ function hitKind(h: SearchHit): NonNullable<SearchHit["kind"]> {
 }
 
 function shortHash(h?: string | null) {
-  if (!h) return "—";
-  return `${h.slice(0, 8)}…`;
+  if (!h) return "â€”";
+  return `${h.slice(0, 8)}â€¦`;
 }
 
 function ingestionTone(status: IngestionItem["status"]) {
@@ -170,7 +170,7 @@ export default function ArchivoDashboardPage() {
       const d = await api<Dashboard>("/api/v1/archivo/dashboard");
       setDash(d);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Conexión de archivo fallida");
+      setError(e instanceof Error ? e.message : "ConexiÃ³n de archivo fallida");
     }
   }, []);
 
@@ -205,7 +205,7 @@ export default function ArchivoDashboardPage() {
       setSearched(true);
       setOpen(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Búsqueda fallida");
+      setError(err instanceof Error ? err.message : "BÃºsqueda fallida");
       setHits([]);
       setSearched(true);
       setOpen(true);
@@ -254,7 +254,7 @@ export default function ArchivoDashboardPage() {
           notes: despachoForm.notes || undefined,
         }),
       });
-      setOpsMsg("Despacho de papelería registrado");
+      setOpsMsg("Despacho de papelerÃ­a registrado");
       setOpsPanel("none");
       setDespachoForm({ itemId: "", quantity: "1", ticketRef: "", notes: "" });
       await loadDash();
@@ -281,7 +281,7 @@ export default function ArchivoDashboardPage() {
           dueDays: Number(prestamoForm.dueDays) || 7,
         }),
       });
-      setOpsMsg("Préstamo de carpeta registrado");
+      setOpsMsg("PrÃ©stamo de carpeta registrado");
       setOpsPanel("none");
       setPrestamoForm({
         documentId: "",
@@ -291,7 +291,7 @@ export default function ArchivoDashboardPage() {
       });
       await loadDash();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Préstamo fallido");
+      setError(err instanceof Error ? err.message : "PrÃ©stamo fallido");
     } finally {
       setOpsBusy(false);
     }
@@ -299,48 +299,51 @@ export default function ArchivoDashboardPage() {
 
   return (
     <div className="fade-in mx-auto max-w-[1600px] space-y-6">
-      <PageIntro
-        module="archivo"
-        title="Quantum Vault & Assets"
-        subtitle="OCR cognitivo activo · cero-knowledge encryption"
-        action={
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              className="w-auto px-3 py-2"
-              onClick={() => setOpsPanel("despacho")}
-            >
-              Despachar papelería
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              className="w-auto px-3 py-2"
-              onClick={() => setOpsPanel("prestamo")}
-            >
-              Préstamo carpeta
-            </Button>
-            {metrics ? (
-              <div className="rounded-lg border border-[var(--brand-line)] bg-[var(--brand-surface)] px-3 py-2 text-right">
-                <p className="text-[10px] uppercase tracking-wider text-[var(--brand-muted)]">
-                  Almacenamiento global
-                </p>
-                <p className="font-data text-sm font-bold text-[var(--brand-primary)]">
-                  {metrics.storageMb} MB · {metrics.totalDocuments.toLocaleString("es-CO")} docs
-                </p>
-              </div>
-            ) : null}
-            <Button type="button" variant="primary" className="w-auto">
-              <ScanLine className="mr-1.5 inline h-4 w-4" aria-hidden />
-              Ingesta masiva (AI)
-            </Button>
-          </div>
-        }
-      />
+      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-brand-border pb-4">
+        <div>
+          <p className="font-data text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-primary">
+            Archivo
+          </p>
+          <h1 className="font-sans text-2xl font-semibold tracking-tight text-brand-text-primary md:text-3xl">
+            Quantum Vault & Assets
+          </h1>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-auto px-3 py-2"
+            onClick={() => setOpsPanel("despacho")}
+          >
+            Despachar papelería
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-auto px-3 py-2"
+            onClick={() => setOpsPanel("prestamo")}
+          >
+            Préstamo carpeta
+          </Button>
+          {metrics ? (
+            <div className="rounded-lg border border-brand-border bg-brand-surface px-3 py-2 text-right">
+              <p className="text-[10px] uppercase tracking-wider text-brand-text-secondary">
+                Almacenamiento global
+              </p>
+              <p className="font-data text-sm font-bold text-brand-primary">
+                {metrics.storageMb} MB · {metrics.totalDocuments.toLocaleString("es-CO")} docs
+              </p>
+            </div>
+          ) : null}
+          <Button type="button" variant="primary" className="w-auto">
+            <ScanLine className="mr-1.5 inline h-4 w-4" aria-hidden />
+            Ingesta masiva (AI)
+          </Button>
+        </div>
+      </header>
 
       {error ? (
-        <p role="alert" className="text-sm text-[var(--brand-signal)]">
+        <p role="alert" className="text-sm text-[var(--brand-danger)]">
           {error}
         </p>
       ) : null}
@@ -348,32 +351,32 @@ export default function ArchivoDashboardPage() {
       {metrics ? (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <KpiCard
-            label="Precisión OCR (auto-indexado)"
+            label="PrecisiÃ³n OCR (auto-indexado)"
             value={`${metrics.ocrPrecisionPct}%`}
-            delta="Cero intervención humana"
+            delta="Cero intervenciÃ³n humana"
             tone="ok"
-            icon={<Cpu className="h-5 w-5 text-indigo-400" aria-hidden />}
+            icon={<Cpu className="h-5 w-5 text-brand-secondary" aria-hidden />}
           />
           <KpiCard
             label="Habeas Data (auto-shred)"
             value={String(metrics.habeasShreddedToday)}
-            delta="Docs destruidos hoy (fin retención)"
+            delta="Docs destruidos hoy (fin retenciÃ³n)"
             tone="neutral"
-            icon={<Trash2 className="h-5 w-5 text-[var(--brand-muted)]" aria-hidden />}
+            icon={<Trash2 className="h-5 w-5 text-[var(--brand-text-secondary)]" aria-hidden />}
           />
           <KpiCard
             label="Activos operativos"
             value={metrics.operationalAssets.toLocaleString("es-CO")}
-            delta="Tablets, dotación, papelería"
+            delta="Tablets, dotaciÃ³n, papelerÃ­a"
             tone="ok"
-            icon={<Smartphone className="h-5 w-5 text-[var(--accent-primary)]" aria-hidden />}
+            icon={<Smartphone className="h-5 w-5 text-[var(--brand-primary)]" aria-hidden />}
           />
           <KpiCard
-            label="Bloqueos de liquidación"
+            label="Bloqueos de liquidaciÃ³n"
             value={String(metrics.liquidationBlocks)}
             delta="Activos pendientes por devolver"
             tone={metrics.liquidationBlocks > 0 ? "danger" : "ok"}
-            icon={<UserX className="h-5 w-5 text-[var(--accent-alert)]" aria-hidden />}
+            icon={<UserX className="h-5 w-5 text-[var(--brand-danger)]" aria-hidden />}
           />
         </div>
       ) : null}
@@ -381,10 +384,10 @@ export default function ArchivoDashboardPage() {
       <form onSubmit={onSearch} className="relative z-10">
         <div ref={boxRef} className="relative">
           <label className="sr-only" htmlFor="archivo-search">
-            Búsqueda profunda
+            BÃºsqueda profunda
           </label>
-          <div className="fsg-panel flex items-center gap-2 p-2 shadow-lg">
-            <Search className="ml-2 h-5 w-5 shrink-0 text-[var(--brand-muted)]" aria-hidden />
+          <div className="nexa-panel flex items-center gap-2 p-2 shadow-lg">
+            <Search className="ml-2 h-5 w-5 shrink-0 text-[var(--brand-text-secondary)]" aria-hidden />
             <input
               id="archivo-search"
               type="search"
@@ -392,7 +395,7 @@ export default function ArchivoDashboardPage() {
               autoComplete="off"
               data-testid="archivo-universal-search"
               className="field flex-1 border-0 bg-transparent text-sm shadow-none focus:ring-0"
-              placeholder="Búsqueda profunda: contrato, placa, cédula, serial tablet…"
+              placeholder="BÃºsqueda profunda: contrato, placa, cÃ©dula, serial tabletâ€¦"
               value={q}
               onChange={(e) => onQueryChange(e.target.value)}
               onFocus={() => {
@@ -405,17 +408,17 @@ export default function ArchivoDashboardPage() {
           </div>
           {open && q.trim().length >= 2 ? (
             <ul
-              className="absolute z-40 mt-1 max-h-80 w-full overflow-auto rounded-xl border border-[var(--brand-line)] bg-[var(--brand-surface)] shadow-xl"
+              className="absolute z-40 mt-1 max-h-80 w-full overflow-auto rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-xl"
               role="listbox"
             >
               {searching ? (
-                <li className="px-4 py-3 text-sm text-[var(--brand-muted)]">
-                  Buscando en flota, personal y bóveda…
+                <li className="px-4 py-3 text-sm text-[var(--brand-text-secondary)]">
+                  Buscando en flota, personal y bÃ³vedaâ€¦
                 </li>
               ) : null}
               {!searching && searched && hits.length === 0 ? (
-                <li className="px-4 py-3 text-sm text-[var(--brand-muted)]">
-                  Sin coincidencias para «{q.trim()}».
+                <li className="px-4 py-3 text-sm text-[var(--brand-text-secondary)]">
+                  Sin coincidencias para Â«{q.trim()}Â».
                 </li>
               ) : null}
               {!searching
@@ -429,16 +432,16 @@ export default function ArchivoDashboardPage() {
                       >
                         <span>
                           <span className="block text-sm font-medium">{h.title}</span>
-                          <span className="mt-0.5 block font-data text-[11px] text-[var(--brand-muted)]">
-                            {KIND_LABEL[hitKind(h)]} ·{" "}
+                          <span className="mt-0.5 block font-data text-[11px] text-[var(--brand-text-secondary)]">
+                            {KIND_LABEL[hitKind(h)]} Â·{" "}
                             {h.plate || h.documentNumber || h.docType}
-                            {h.locationLabel ? ` · ${h.locationLabel}` : ""}
+                            {h.locationLabel ? ` Â· ${h.locationLabel}` : ""}
                           </span>
                         </span>
                         {h.digitalPdf ? (
-                          <Badge tone="emerald">PDF</Badge>
+                          <Badge tone="success">PDF</Badge>
                         ) : hitKind(h) === "document" ? (
-                          <Badge tone="amber">Sin PDF</Badge>
+                          <Badge tone="warning">Sin PDF</Badge>
                         ) : null}
                       </button>
                     </li>
@@ -450,10 +453,10 @@ export default function ArchivoDashboardPage() {
       </form>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-        <section className="fsg-panel flex flex-col overflow-hidden lg:col-span-7">
-          <header className="flex items-center justify-between border-b border-[var(--brand-line)] px-4 py-3">
+        <section className="nexa-panel flex flex-col overflow-hidden lg:col-span-7">
+          <header className="flex items-center justify-between border-b border-[var(--brand-border)] px-4 py-3">
             <div className="flex items-center gap-2">
-              <ScanLine className="h-4 w-4 text-indigo-400" aria-hidden />
+              <ScanLine className="h-4 w-4 text-brand-secondary" aria-hidden />
               <h2 className="text-sm font-semibold uppercase tracking-wider">
                 Cognitive Ingestion Pipeline
               </h2>
@@ -466,7 +469,7 @@ export default function ArchivoDashboardPage() {
             {(dash?.ingestionQueue ?? []).length === 0 ? (
               <EmptyState
                 icon={<Database className="h-7 w-7" aria-hidden />}
-                title="Cola vacía"
+                title="Cola vacÃ­a"
                 description="Suba documentos para activar el enrutador OCR."
               />
             ) : (
@@ -475,32 +478,32 @@ export default function ArchivoDashboardPage() {
                   key={item.id}
                   className={`rounded-lg border p-4 ${
                     item.status === "validated"
-                      ? "border-[var(--accent-primary)]/30 bg-[var(--accent-primary)]/5 opacity-80"
-                      : "border-[var(--brand-line)]"
+                      ? "border-[var(--brand-primary)]/30 bg-[var(--brand-primary)]/5 opacity-80"
+                      : "border-[var(--brand-border)]"
                   }`}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-start gap-3">
                       {item.status === "validated" ? (
-                        <CheckCircle2 className="mt-0.5 h-5 w-5 text-[var(--accent-primary)]" aria-hidden />
+                        <CheckCircle2 className="mt-0.5 h-5 w-5 text-[var(--brand-primary)]" aria-hidden />
                       ) : (
-                        <ScanLine className="mt-0.5 h-5 w-5 animate-pulse text-indigo-400" aria-hidden />
+                        <ScanLine className="mt-0.5 h-5 w-5 animate-pulse text-brand-secondary" aria-hidden />
                       )}
                       <div>
                         <h3 className="text-sm font-semibold">{item.title}</h3>
-                        <p className="mt-0.5 text-[10px] font-mono text-[var(--brand-muted)]">
+                        <p className="mt-0.5 text-[10px] font-mono text-[var(--brand-text-secondary)]">
                           {item.docType}
-                          {item.routedTo ? ` → ${item.routedTo}` : ""}
+                          {item.routedTo ? ` â†’ ${item.routedTo}` : ""}
                         </p>
                         {item.status === "processing" ? (
-                          <p className="mt-2 text-[10px] text-indigo-400">
-                            Clasificando y enrutando…
+                          <p className="mt-2 text-[10px] text-brand-secondary">
+                            Clasificando y enrutandoâ€¦
                           </p>
                         ) : item.status === "validated" ? (
-                          <p className="mt-2 text-[10px] font-semibold text-[var(--accent-primary)]">
+                          <p className="mt-2 text-[10px] font-semibold text-[var(--brand-primary)]">
                             Indexado
                             {item.confidence
-                              ? ` · confianza ${Math.round(item.confidence * 100)}%`
+                              ? ` Â· confianza ${Math.round(item.confidence * 100)}%`
                               : ""}
                           </p>
                         ) : null}
@@ -511,7 +514,7 @@ export default function ArchivoDashboardPage() {
                         {ingestionLabel(item.status)}
                       </StatusPulseBadge>
                       {item.contentHash ? (
-                        <p className="mt-1 flex items-center justify-end gap-1 font-data text-[10px] text-[var(--brand-muted)]">
+                        <p className="mt-1 flex items-center justify-end gap-1 font-data text-[10px] text-[var(--brand-text-secondary)]">
                           <Lock className="h-3 w-3" aria-hidden />
                           {shortHash(item.contentHash)}
                         </p>
@@ -525,10 +528,10 @@ export default function ArchivoDashboardPage() {
         </section>
 
         <section className="flex flex-col gap-4 lg:col-span-5">
-          <div className="fsg-panel flex flex-1 flex-col overflow-hidden">
-            <header className="flex items-center justify-between border-b border-[var(--brand-line)] px-4 py-3">
+          <div className="nexa-panel flex flex-1 flex-col overflow-hidden">
+            <header className="flex items-center justify-between border-b border-[var(--brand-border)] px-4 py-3">
               <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider">
-                <Box className="h-4 w-4 text-[var(--accent-primary)]" aria-hidden />
+                <Box className="h-4 w-4 text-[var(--brand-primary)]" aria-hidden />
                 Asset Control (HR Sync)
               </h2>
               {(dash?.assetAlerts.length ?? 0) > 0 ? (
@@ -548,27 +551,27 @@ export default function ArchivoDashboardPage() {
                 dash!.assetAlerts.map((a) => (
                   <article
                     key={a.employeeId}
-                    className="rounded-lg border border-[var(--accent-alert)]/40 bg-[var(--accent-alert)]/5 p-4"
+                    className="rounded-lg border border-[var(--brand-danger)]/40 bg-[var(--brand-danger)]/5 p-4"
                   >
-                    <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[var(--accent-alert)]">
+                    <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[var(--brand-danger)]">
                       <UserX className="h-3 w-3" aria-hidden />
                       Baja de personal detectada
                     </p>
                     <h3 className="mt-1 text-sm font-semibold">
                       {a.name}{" "}
-                      <span className="text-xs font-normal text-[var(--brand-muted)]">
+                      <span className="text-xs font-normal text-[var(--brand-text-secondary)]">
                         ({a.role})
                       </span>
                     </h3>
-                    <ul className="mt-2 space-y-1 rounded-md border border-[var(--accent-alert)]/20 bg-[var(--brand-surface)]/50 p-2 font-mono text-[11px] text-[var(--accent-alert)]">
+                    <ul className="mt-2 space-y-1 rounded-md border border-[var(--brand-danger)]/20 bg-[var(--brand-surface)]/50 p-2 font-mono text-[11px] text-[var(--brand-danger)]">
                       {a.pendingAssets.map((asset) => (
-                        <li key={asset}>· {asset}</li>
+                        <li key={asset}>Â· {asset}</li>
                       ))}
                     </ul>
                     {a.liquidationBlocked ? (
-                      <p className="mt-2 flex items-center gap-1 text-[9px] font-bold text-[var(--accent-alert)]">
+                      <p className="mt-2 flex items-center gap-1 text-[9px] font-bold text-[var(--brand-danger)]">
                         <Lock className="h-3 w-3" aria-hidden />
-                        Pago de liquidación bloqueado en Tesorería
+                        Pago de liquidaciÃ³n bloqueado en TesorerÃ­a
                       </p>
                     ) : null}
                   </article>
@@ -580,33 +583,33 @@ export default function ArchivoDashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <section className="fsg-panel p-4 lg:col-span-1">
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--brand-muted)]">
+        <section className="nexa-panel p-4 lg:col-span-1">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--brand-text-secondary)]">
             Pendientes de digitalizar
           </h2>
           <div className="space-y-2">
             {(dash?.pendingDigitization ?? []).slice(0, 6).map((p) => (
               <article
                 key={p.id}
-                className="rounded-md border border-[var(--brand-line)] px-3 py-2"
+                className="rounded-md border border-[var(--brand-border)] px-3 py-2"
               >
                 <p className="text-sm">{p.title}</p>
-                <p className="font-data text-[10px] text-[var(--brand-muted)]">
-                  {p.plate || p.documentNumber || "—"} · {p.locationLabel || "Sin ubicación"}
+                <p className="font-data text-[10px] text-[var(--brand-text-secondary)]">
+                  {p.plate || p.documentNumber || "â€”"} Â· {p.locationLabel || "Sin ubicaciÃ³n"}
                 </p>
               </article>
             ))}
             {!dash?.pendingDigitization?.length ? (
-              <p className="text-xs text-[var(--brand-muted)]">Bandeja vacía.</p>
+              <p className="text-xs text-[var(--brand-text-secondary)]">Bandeja vacÃ­a.</p>
             ) : null}
           </div>
         </section>
 
-        <section className="fsg-panel p-4 lg:col-span-1">
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--brand-muted)]">
-            Carpetas en préstamo
+        <section className="nexa-panel p-4 lg:col-span-1">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--brand-text-secondary)]">
+            Carpetas en prÃ©stamo
             {(dash?.overdueLoanCount ?? 0) > 0 ? (
-              <span className="ml-2 text-[var(--accent-alert)]">
+              <span className="ml-2 text-[var(--brand-danger)]">
                 ({dash!.overdueLoanCount} vencidas)
               </span>
             ) : null}
@@ -615,13 +618,13 @@ export default function ArchivoDashboardPage() {
             {(dash?.loansOnHand ?? []).slice(0, 6).map((l) => (
               <article
                 key={l.loanId}
-                className="rounded-md border border-[var(--brand-line)] px-3 py-2"
+                className="rounded-md border border-[var(--brand-border)] px-3 py-2"
               >
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-sm">{l.title}</p>
-                  <Badge tone={l.overdue ? "rose" : "amber"}>{l.daysOut}d</Badge>
+                  <Badge tone={l.overdue ? "danger" : "warning"}>{l.daysOut}d</Badge>
                 </div>
-                <p className="text-xs text-[var(--brand-muted)]">
+                <p className="text-xs text-[var(--brand-text-secondary)]">
                   {l.borrowerName || "Solicitante"}
                 </p>
               </article>
@@ -629,17 +632,17 @@ export default function ArchivoDashboardPage() {
             {!dash?.loansOnHand?.length ? (
               <EmptyState
                 icon={<Lock className="h-6 w-6" aria-hidden />}
-                title="Sin préstamos activos"
-                description="Registre el check-out de una carpeta física."
-                actionLabel="Préstamo carpeta"
+                title="Sin prÃ©stamos activos"
+                description="Registre el check-out de una carpeta fÃ­sica."
+                actionLabel="PrÃ©stamo carpeta"
                 onAction={() => setOpsPanel("prestamo")}
               />
             ) : null}
           </div>
         </section>
 
-        <section className="fsg-panel p-4 lg:col-span-1">
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--brand-muted)]">
+        <section className="nexa-panel p-4 lg:col-span-1">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--brand-text-secondary)]">
             Inventario administrativo
           </h2>
           <div className="space-y-2">
@@ -647,24 +650,24 @@ export default function ArchivoDashboardPage() {
               <article
                 key={i.id}
                 className={`rounded-md border px-3 py-2 ${
-                  i.critical ? "border-[var(--accent-alert)]/40 bg-[var(--accent-alert)]/5" : "border-[var(--brand-line)]"
+                  i.critical ? "border-[var(--brand-danger)]/40 bg-[var(--brand-danger)]/5" : "border-[var(--brand-border)]"
                 }`}
               >
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-sm">{i.name}</p>
-                  {i.critical ? <Badge tone="rose">Crítico</Badge> : null}
+                  {i.critical ? <Badge tone="danger">CrÃ­tico</Badge> : null}
                 </div>
-                <p className="font-data text-xs text-[var(--brand-muted)]">
-                  {i.sku} · {i.quantity}/{i.minStock} {i.unit}
+                <p className="font-data text-xs text-[var(--brand-text-secondary)]">
+                  {i.sku} Â· {i.quantity}/{i.minStock} {i.unit}
                 </p>
               </article>
             ))}
             {!dash?.inventory?.length ? (
               <EmptyState
                 icon={<Box className="h-6 w-6" aria-hidden />}
-                title="Sin ítems de papelería"
+                title="Sin Ã­tems de papelerÃ­a"
                 description="Cargue el inventario administrativo para despachar."
-                actionLabel="Despachar papelería"
+                actionLabel="Despachar papelerÃ­a"
                 onAction={() => setOpsPanel("despacho")}
               />
             ) : null}
@@ -672,11 +675,11 @@ export default function ArchivoDashboardPage() {
         </section>
       </div>
 
-      <section className="fsg-panel overflow-hidden">
-        <header className="border-b border-[var(--brand-line)] px-4 py-3">
+      <section className="nexa-panel overflow-hidden">
+        <header className="border-b border-[var(--brand-border)] px-4 py-3">
           <h2 className="text-sm font-semibold">Cadena de custodia inmutable</h2>
-          <p className="text-xs text-[var(--brand-muted)]">
-            Descargas, sellados e indexaciones · trazabilidad legal
+          <p className="text-xs text-[var(--brand-text-secondary)]">
+            Descargas, sellados e indexaciones Â· trazabilidad legal
           </p>
         </header>
         {!dash?.accessLog?.length ? (
@@ -684,14 +687,14 @@ export default function ArchivoDashboardPage() {
             <EmptyState
               icon={<FileArchive className="h-7 w-7" aria-hidden />}
               title="Sin eventos"
-              description="Los accesos a la bóveda aparecerán aquí."
+              description="Los accesos a la bÃ³veda aparecerÃ¡n aquÃ­."
             />
           </div>
         ) : (
           <table className="w-full text-left text-sm">
             <thead>
-              <tr className="text-[11px] uppercase tracking-wider text-[var(--brand-muted)]">
-                <th className="px-4 py-2">Acción</th>
+              <tr className="text-[11px] uppercase tracking-wider text-[var(--brand-text-secondary)]">
+                <th className="px-4 py-2">AcciÃ³n</th>
                 <th className="px-4 py-2">Documento</th>
                 <th className="px-4 py-2">Hash</th>
                 <th className="px-4 py-2">Operador</th>
@@ -700,7 +703,7 @@ export default function ArchivoDashboardPage() {
             </thead>
             <tbody>
               {dash.accessLog.map((a) => (
-                <tr key={a.id} className="border-t border-[var(--brand-line)]">
+                <tr key={a.id} className="border-t border-[var(--brand-border)]">
                   <td className="px-4 py-2">
                     <StatusPulseBadge
                       tone={
@@ -715,7 +718,7 @@ export default function ArchivoDashboardPage() {
                       {a.action}
                     </StatusPulseBadge>
                   </td>
-                  <td className="px-4 py-2 text-xs">{a.title || "—"}</td>
+                  <td className="px-4 py-2 text-xs">{a.title || "â€”"}</td>
                   <td className="px-4 py-2 font-data text-xs">{shortHash(a.contentHash)}</td>
                   <td className="px-4 py-2 text-xs">{a.userName}</td>
                   <td className="px-4 py-2 font-data text-xs">
@@ -729,14 +732,14 @@ export default function ArchivoDashboardPage() {
       </section>
 
       {opsMsg ? (
-        <p className="text-sm text-[var(--accent-primary)]">{opsMsg}</p>
+        <p className="text-sm text-[var(--brand-primary)]">{opsMsg}</p>
       ) : null}
 
       <SlideOver
         open={opsPanel === "despacho"}
         onClose={() => setOpsPanel("none")}
-        title="Despachar papelería"
-        description="Salida de stock con ticket y hard lock si cantidad inválida."
+        title="Despachar papelerÃ­a"
+        description="Salida de stock con ticket y hard lock si cantidad invÃ¡lida."
         footer={
           <>
             <Button
@@ -764,8 +767,8 @@ export default function ArchivoDashboardPage() {
           onSubmit={(e) => void submitDespacho(e)}
           className="space-y-3"
         >
-          <label className="flex flex-col gap-1 text-xs uppercase text-[var(--text-secondary)]">
-            Ítem
+          <label className="flex flex-col gap-1 text-xs uppercase text-[var(--brand-text-secondary)]">
+            Ãtem
             <select
               className="field"
               value={despachoForm.itemId}
@@ -774,15 +777,15 @@ export default function ArchivoDashboardPage() {
               }
               required
             >
-              <option value="">Seleccione…</option>
+              <option value="">Seleccioneâ€¦</option>
               {(dash?.inventory ?? []).map((i) => (
                 <option key={i.id} value={i.id}>
-                  {i.name} · {i.sku} ({i.quantity})
+                  {i.name} Â· {i.sku} ({i.quantity})
                 </option>
               ))}
             </select>
           </label>
-          <label className="flex flex-col gap-1 text-xs uppercase text-[var(--text-secondary)]">
+          <label className="flex flex-col gap-1 text-xs uppercase text-[var(--brand-text-secondary)]">
             Cantidad
             <input
               className="field font-mono"
@@ -795,7 +798,7 @@ export default function ArchivoDashboardPage() {
               required
             />
           </label>
-          <label className="flex flex-col gap-1 text-xs uppercase text-[var(--text-secondary)]">
+          <label className="flex flex-col gap-1 text-xs uppercase text-[var(--brand-text-secondary)]">
             Ticket / referencia
             <input
               className="field"
@@ -805,7 +808,7 @@ export default function ArchivoDashboardPage() {
               }
             />
           </label>
-          <label className="flex flex-col gap-1 text-xs uppercase text-[var(--text-secondary)]">
+          <label className="flex flex-col gap-1 text-xs uppercase text-[var(--brand-text-secondary)]">
             Notas
             <textarea
               className="field min-h-[72px]"
@@ -821,8 +824,8 @@ export default function ArchivoDashboardPage() {
       <SlideOver
         open={opsPanel === "prestamo"}
         onClose={() => setOpsPanel("none")}
-        title="Préstamo de carpeta"
-        description="Hard lock si el expediente ya está en custodia de otro usuario."
+        title="PrÃ©stamo de carpeta"
+        description="Hard lock si el expediente ya estÃ¡ en custodia de otro usuario."
         footer={
           <>
             <Button
@@ -840,7 +843,7 @@ export default function ArchivoDashboardPage() {
               className="w-auto px-4 py-2"
               loading={opsBusy}
             >
-              Registrar préstamo
+              Registrar prÃ©stamo
             </Button>
           </>
         }
@@ -850,7 +853,7 @@ export default function ArchivoDashboardPage() {
           onSubmit={(e) => void submitPrestamo(e)}
           className="space-y-3"
         >
-          <label className="flex flex-col gap-1 text-xs uppercase text-[var(--text-secondary)]">
+          <label className="flex flex-col gap-1 text-xs uppercase text-[var(--brand-text-secondary)]">
             ID documento
             <input
               className="field font-mono"
@@ -862,7 +865,7 @@ export default function ArchivoDashboardPage() {
               required
             />
           </label>
-          <label className="flex flex-col gap-1 text-xs uppercase text-[var(--text-secondary)]">
+          <label className="flex flex-col gap-1 text-xs uppercase text-[var(--brand-text-secondary)]">
             ID usuario solicitante
             <input
               className="field font-mono"
@@ -876,8 +879,8 @@ export default function ArchivoDashboardPage() {
               required
             />
           </label>
-          <label className="flex flex-col gap-1 text-xs uppercase text-[var(--text-secondary)]">
-            Días de préstamo
+          <label className="flex flex-col gap-1 text-xs uppercase text-[var(--brand-text-secondary)]">
+            DÃ­as de prÃ©stamo
             <input
               className="field font-mono"
               type="number"
@@ -889,8 +892,8 @@ export default function ArchivoDashboardPage() {
               }
             />
           </label>
-          <label className="flex flex-col gap-1 text-xs uppercase text-[var(--text-secondary)]">
-            Propósito
+          <label className="flex flex-col gap-1 text-xs uppercase text-[var(--brand-text-secondary)]">
+            PropÃ³sito
             <textarea
               className="field min-h-[72px]"
               value={prestamoForm.purpose}

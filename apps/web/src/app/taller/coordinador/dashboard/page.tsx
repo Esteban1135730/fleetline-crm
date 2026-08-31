@@ -1,12 +1,13 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
 import { AlertTriangle, ClipboardList, Gauge, Wrench } from "lucide-react";
 import { api } from "@/lib/api";
 import { statusEs } from "@fsg/shared";
-import { PageIntro } from "@/components/page-intro";
 import { EmptyState, KpiCard, SlideOver } from "@/components/audit";
+import { BentoPanel } from "@/components/nexa/bento-panel";
+import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
 
 type Wo = {
   id: string;
@@ -131,8 +132,15 @@ export default function CoordinadorTallerDashboard() {
 
   return (
     <div className="fade-in mx-auto max-w-[1600px] space-y-6 p-4 md:p-6">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <PageIntro module="taller" title="Torre de Taller 4.0" />
+      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-brand-border pb-4">
+        <div>
+          <p className="font-data text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-primary">
+            Taller · Coordinación
+          </p>
+          <h1 className="font-sans text-2xl font-semibold tracking-tight text-brand-text-primary md:text-3xl">
+            Torre de Taller 4.0
+          </h1>
+        </div>
         <Button
           type="button"
           variant="primary"
@@ -144,10 +152,14 @@ export default function CoordinadorTallerDashboard() {
       </header>
 
       {error ? (
-        <p className="font-mono text-sm text-[var(--accent-alert)]">{error}</p>
+        <p className="rounded-lg border border-brand-danger/40 bg-brand-danger/10 px-4 py-3 font-data text-sm text-brand-danger">
+          {error}
+        </p>
       ) : null}
       {msg ? (
-        <p className="font-mono text-sm text-[var(--accent-primary)]">{msg}</p>
+        <p className="rounded-lg border border-brand-primary/40 bg-brand-primary/10 px-4 py-3 font-data text-sm text-brand-primary">
+          {msg}
+        </p>
       ) : null}
 
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -178,104 +190,117 @@ export default function CoordinadorTallerDashboard() {
         />
       </section>
 
-      <section id="bahias" className="space-y-3">
-        <h2 className="text-lg font-semibold text-[var(--text-primary)]">
-          Floor Plan — Bahías
-        </h2>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {(dash?.bays ?? []).map((b) => (
-            <article
-              key={`${b.bayCode}-${b.code}`}
-              className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-4"
-            >
-              <div className="flex items-center justify-between">
-                <span className="font-mono text-sm text-[var(--accent-primary)]">
-                  {b.bayCode}
-                </span>
-                {b.timerActive ? <Badge tone="amber">Cronómetro</Badge> : null}
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-12 lg:gap-4">
+        <BentoPanel
+          id="bahias"
+          title="Floor plan · Bahías"
+          subtitle="Ocupación en tiempo real"
+          icon={<Gauge />}
+          className="lg:col-span-12"
+        >
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {(dash?.bays ?? []).map((b) => (
+              <article
+                key={`${b.bayCode}-${b.code}`}
+                className="rounded-lg border border-brand-border bg-brand-canvas p-3 transition-colors hover:border-brand-border-active"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-data text-sm text-brand-primary">
+                    {b.bayCode}
+                  </span>
+                  {b.timerActive ? <Badge tone="warning">Cronómetro</Badge> : null}
+                </div>
+                <p className="mt-2 font-data text-xs tabular-nums text-brand-text-primary">
+                  {b.code} · {b.plate}
+                </p>
+                <p className="font-sans text-xs text-brand-text-secondary">
+                  {b.mechanic ?? "Sin mecánico"} · {statusEs(b.status)}
+                </p>
+              </article>
+            ))}
+            {!dash?.bays?.length ? (
+              <div className="col-span-full">
+                <EmptyState
+                  icon={<Wrench className="h-7 w-7" aria-hidden />}
+                  title="Sin bahías ocupadas"
+                  description="Cree una OT para asignar bahía y mecánico."
+                  actionLabel="+ Nueva OT"
+                  onAction={() => setOtOpen(true)}
+                />
               </div>
-              <p className="mt-2 font-mono text-xs text-[var(--text-primary)]">
-                {b.code} · {b.plate}
-              </p>
-              <p className="text-xs text-[var(--text-secondary)]">
-                {b.mechanic ?? "Sin mecánico"} · {statusEs(b.status)}
-              </p>
-            </article>
-          ))}
-          {!dash?.bays?.length ? (
-            <div className="col-span-full">
-              <EmptyState
-                icon={<Wrench className="h-7 w-7" aria-hidden />}
-                title="Sin bahías ocupadas"
-                description="Cree una OT para asignar bahía y mecánico."
-                actionLabel="+ Nueva OT"
-                onAction={() => setOtOpen(true)}
-              />
-            </div>
-          ) : null}
-        </div>
-      </section>
+            ) : null}
+          </div>
+        </BentoPanel>
 
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold text-[var(--text-primary)]">
-          Tablero de órdenes
-        </h2>
-        <div className="grid gap-3 lg:grid-cols-4">
-          {COLS.map((col) => (
-            <div
-              key={col}
-              className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] p-3"
-            >
-              <p className="mb-2 font-mono text-xs text-[var(--text-secondary)]">
-                {statusEs(col)}
-              </p>
-              <ul className="space-y-2">
-                {(dash?.kanban?.[col] ?? []).map((o) => (
-                  <li
-                    key={o.id}
-                    className="rounded-lg border border-[var(--border-subtle)] px-3 py-2"
-                  >
-                    <p className="font-mono text-xs text-[var(--text-primary)]">
-                      {o.code} · {o.vehicle.plate}
-                    </p>
-                    <p className="mt-1 line-clamp-2 text-xs text-[var(--text-secondary)]">
-                      {o.description}
-                    </p>
-                    {col !== "DONE" ? (
+        {COLS.map((col) => (
+          <BentoPanel
+            key={col}
+            title={statusEs(col)}
+            subtitle={`${(dash?.kanban?.[col] ?? []).length} órdenes`}
+            className="lg:col-span-3"
+          >
+            <ul className="space-y-2">
+              {(dash?.kanban?.[col] ?? []).map((o) => (
+                <li
+                  key={o.id}
+                  className="rounded-lg border border-brand-border px-3 py-2 transition-colors hover:border-brand-border-active hover:bg-brand-surface-hover"
+                >
+                  <p className="font-data text-xs text-brand-text-primary">
+                    {o.code} · {o.vehicle.plate}
+                  </p>
+                  <p className="mt-1 line-clamp-2 font-sans text-xs text-brand-text-secondary">
+                    {o.description}
+                  </p>
+                  {col !== "DONE" ? (
+                    <div className="mt-2 flex justify-end">
                       <Button
-                        className="mt-2 w-auto"
+                        className="w-auto px-3 py-1 text-xs"
                         disabled={busy}
                         onClick={() => void liberarQc(o.id)}
                       >
                         Liberar QC
                       </Button>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-      </section>
+                    </div>
+                  ) : null}
+                </li>
+              ))}
+              {(dash?.kanban?.[col] ?? []).length === 0 ? (
+                <li className="font-data text-xs text-brand-text-secondary">
+                  Columna vacía
+                </li>
+              ) : null}
+            </ul>
+          </BentoPanel>
+        ))}
 
-      <section id="qc" className="space-y-2">
-        <h2 className="text-lg font-semibold text-[var(--text-primary)]">
-          Alertas predictivas (≤500 km)
-        </h2>
-        {(dash?.predictiveAlerts ?? []).length === 0 ? (
-          <p className="text-sm text-[var(--text-secondary)]">
-            Sin alertas predictivas en ventana de 500 km.
-          </p>
-        ) : (
-          <ul className="space-y-1 font-mono text-xs text-[var(--accent-metric)]">
-            {(dash?.predictiveAlerts ?? []).map((a) => (
-              <li key={a.plate}>
-                {a.plate} · faltan {a.kmLeft} km · odómetro {a.odometerKm}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+        <BentoPanel
+          id="qc"
+          title="Alertas predictivas"
+          subtitle="Ventana ≤500 km"
+          icon={<AlertTriangle />}
+          className="lg:col-span-12"
+        >
+          {(dash?.predictiveAlerts ?? []).length === 0 ? (
+            <p className="font-sans text-sm text-brand-text-secondary">
+              Sin alertas predictivas en ventana de 500 km.
+            </p>
+          ) : (
+            <NexaTable columns={["Placa", "Km restantes", "Odómetro"]}>
+              {(dash?.predictiveAlerts ?? []).map((a) => (
+                <NexaRow key={a.plate}>
+                  <NexaCell mono className="text-brand-warning">
+                    {a.plate}
+                  </NexaCell>
+                  <NexaCell mono>{a.kmLeft}</NexaCell>
+                  <NexaCell mono>
+                    {a.odometerKm.toLocaleString("es-CO")} km
+                  </NexaCell>
+                </NexaRow>
+              ))}
+            </NexaTable>
+          )}
+        </BentoPanel>
+      </div>
 
       <SlideOver
         open={otOpen}
@@ -305,10 +330,10 @@ export default function CoordinadorTallerDashboard() {
           </>
         }
       >
-        <label className="flex flex-col gap-1 text-xs uppercase text-[var(--text-secondary)]">
+        <label className="flex flex-col gap-1 font-data text-[10px] uppercase tracking-[0.12em] text-brand-text-secondary">
           Unidad
           <select
-            className="field font-mono"
+            className="field font-data"
             value={vehicleId}
             onChange={(e) => setVehicleId(e.target.value)}
           >
@@ -319,10 +344,10 @@ export default function CoordinadorTallerDashboard() {
             ))}
           </select>
         </label>
-        <label className="mt-3 flex flex-col gap-1 text-xs uppercase text-[var(--text-secondary)]">
+        <label className="mt-3 flex flex-col gap-1 font-data text-[10px] uppercase tracking-[0.12em] text-brand-text-secondary">
           Descripción
           <textarea
-            className="field min-h-[96px]"
+            className="field min-h-[96px] font-sans"
             value={desc}
             onChange={(e) => setDesc(e.target.value)}
           />

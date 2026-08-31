@@ -10,9 +10,8 @@ import {
   type ReactNode,
 } from "react";
 import {
-  darkTheme,
-  lightTheme,
   themeToCssVars,
+  tokensForMode,
   type ThemeMode,
 } from "@/lib/brand";
 
@@ -31,13 +30,14 @@ function applyDomTheme(mode: ThemeMode) {
   root.classList.remove("dark", "light");
   root.classList.add(mode);
   root.dataset.theme = mode;
-  const tokens = mode === "dark" ? darkTheme : lightTheme;
-  const vars = themeToCssVars(tokens);
+  const vars = themeToCssVars(mode);
   for (const [k, v] of Object.entries(vars)) {
     root.style.setProperty(k, v);
   }
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute("content", tokens.canvas);
+  if (meta) {
+    meta.setAttribute("content", tokensForMode(mode).canvas);
+  }
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {

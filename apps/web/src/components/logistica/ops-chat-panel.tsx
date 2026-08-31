@@ -50,7 +50,7 @@ export function OpsChatPanel({
       setMessages(rows);
       setError("");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Chat sin conexión");
+      setError(e instanceof Error ? e.message : "Chat sin conexiÃ³n");
     }
   }, [path]);
 
@@ -111,7 +111,7 @@ export function OpsChatPanel({
       );
       setText("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se envió");
+      setError(err instanceof Error ? err.message : "No se enviÃ³");
     } finally {
       setSending(false);
     }
@@ -119,53 +119,53 @@ export function OpsChatPanel({
 
   const title =
     mode === "support"
-      ? "Chat soporte · flota / app"
+      ? "Chat soporte Â· flota / app"
       : tripCode
         ? `Chat servicio ${tripCode}`
         : "Chat del servicio";
 
   return (
-    <div className={`fsg-panel flex ${heightClass} min-h-0 flex-col overflow-hidden`}>
-      <div className="border-b border-[var(--brand-line)] px-3 py-2">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--brand-muted)]">
+    <div className={`nexa-panel flex ${heightClass} min-h-0 flex-col overflow-hidden`}>
+      <div className="border-b border-[var(--brand-border)] px-3 py-2">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--brand-text-secondary)]">
           {title}
         </p>
-        <p className="text-[10px] text-[var(--brand-muted)]">
-          Tiempo real con la app móvil (mismo canal)
+        <p className="text-[10px] text-[var(--brand-text-secondary)]">
+          Tiempo real con la app mÃ³vil (mismo canal)
         </p>
       </div>
 
       {!path ? (
-        <div className="flex flex-1 items-center justify-center p-4 text-sm text-[var(--brand-muted)]">
+        <div className="flex flex-1 items-center justify-center p-4 text-sm text-[var(--brand-text-secondary)]">
           Selecciona un servicio para abrir su chat.
         </div>
       ) : (
         <>
           <ul className="flex-1 space-y-2 overflow-auto px-3 py-2">
             {messages.length === 0 ? (
-              <li className="text-sm text-[var(--brand-muted)]">
-                Sin mensajes — escribe el primer mensaje.
+              <li className="text-sm text-[var(--brand-text-secondary)]">
+                Sin mensajes â€” escribe el primer mensaje.
               </li>
             ) : (
               messages.map((m) => (
                 <li
                   key={m.id}
-                  className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-canvas)] px-3 py-2"
+                  className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-canvas)] px-3 py-2"
                 >
                   <div className="flex items-baseline justify-between gap-2">
-                    <span className="text-xs font-semibold text-[var(--accent-primary)]">
+                    <span className="text-xs font-semibold text-[var(--brand-primary)]">
                       {m.authorName}
-                      <span className="ml-1 font-mono text-[10px] text-[var(--text-secondary)]">
+                      <span className="ml-1 font-mono text-[10px] text-[var(--brand-text-secondary)]">
                         {m.authorRole}
                       </span>
                     </span>
-                    <span className="font-mono text-[10px] text-[var(--text-secondary)]">
+                    <span className="font-mono text-[10px] text-[var(--brand-text-secondary)]">
                       {new Date(
                         m.serverTime || m.createdAt || Date.now(),
                       ).toLocaleTimeString("es-CO", { hour12: false })}
                     </span>
                   </div>
-                  <p className="mt-1 text-sm leading-snug text-[var(--text-primary)]">
+                  <p className="mt-1 text-sm leading-snug text-[var(--brand-text-primary)]">
                     {m.body}
                   </p>
                 </li>
@@ -174,17 +174,17 @@ export function OpsChatPanel({
             <div ref={bottomRef} />
           </ul>
           {error ? (
-            <p className="px-3 text-xs text-[var(--brand-signal)]">{error}</p>
+            <p className="px-3 text-xs text-[var(--brand-danger)]">{error}</p>
           ) : null}
           <form
             onSubmit={send}
-            className="flex gap-2 border-t border-[var(--brand-line)] p-2"
+            className="flex gap-2 border-t border-[var(--brand-border)] p-2"
           >
             <input
               className="field flex-1"
               value={text}
               onChange={(e) => setText(e.target.value)}
-              placeholder="Mensaje operativo…"
+              placeholder="Mensaje operativoâ€¦"
               maxLength={4000}
             />
             <Button type="submit" variant="primary" disabled={sending || !text.trim()}>

@@ -70,21 +70,7 @@ type FlatNavItem = {
   label: string;
 };
 
-function BrandMark({ className = "h-7 w-7" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 32 32" className={`brand-mark ${className}`} aria-hidden>
-      <rect width="32" height="32" rx="2" fill="var(--accent-primary)" />
-      <path
-        d="M8 22 L8 10 L16 18 L24 10 L24 22"
-        fill="none"
-        stroke="var(--brand-primary-fg)"
-        strokeWidth="2.2"
-        strokeLinecap="square"
-        strokeLinejoin="miter"
-      />
-    </svg>
-  );
-}
+import { NexaLogoIcon } from "@/components/ui/assets";
 
 function currentModuleLabel(pathname: string): string {
   const seg = pathname.split("/").filter(Boolean)[0] || "dashboard";
@@ -151,14 +137,14 @@ function TopBar({
     const isApple = /Mac|iPhone|iPad|iPod/.test(
       navigator.platform || navigator.userAgent,
     );
-    setModLabel(isApple ? "⌘K" : "Ctrl K");
+    setModLabel(isApple ? "âŒ˜K" : "Ctrl K");
   }, []);
   const statusClass =
     systemStatus === "NOMINAL"
-      ? "text-[var(--accent-primary)]"
+      ? "text-[var(--brand-primary)]"
       : systemStatus === "ALERT"
-        ? "text-[var(--accent-metric)]"
-        : "text-[var(--accent-alert)]";
+        ? "text-[var(--brand-warning)]"
+        : "text-[var(--brand-danger)]";
 
   return (
     <header className="flt-topbar">
@@ -167,13 +153,13 @@ function TopBar({
           type="button"
           className="flt-icon-btn lg:hidden"
           onClick={toggleSidebar}
-          aria-label="Abrir menú"
-          title="Abrir menú"
+          aria-label="Abrir menÃº"
+          title="Abrir menÃº"
         >
           <NavIcon view="menu" className="h-4 w-4" />
         </button>
-        <BrandMark className="hidden h-7 w-7 sm:block" />
-        <p className="hidden truncate font-display text-sm font-bold tracking-tight text-[var(--text-primary)] sm:block">
+        <NexaLogoIcon className="brand-mark hidden h-7 w-7 sm:block" />
+        <p className="hidden truncate font-display text-sm font-bold tracking-tight text-[var(--brand-text-primary)] sm:block">
           {brand.name}
         </p>
         <span className="flt-module-badge">{moduleBadge}</span>
@@ -186,7 +172,7 @@ function TopBar({
         title={`Buscar (${modLabel})`}
       >
         <NavIcon view="search" className="h-4 w-4 shrink-0" />
-        <span className="min-w-0 flex-1 truncate">Buscar…</span>
+        <span className="min-w-0 flex-1 truncate">Buscarâ€¦</span>
         <kbd className="flt-kbd hidden md:inline-flex" suppressHydrationWarning>
           {modLabel}
         </kbd>
@@ -229,12 +215,12 @@ function TopBar({
         ) : null}
         <div
           className="flt-user-chip"
-          title={`${userName} · ${roleLabel}${activeOrgName ? ` · ${activeOrgName}` : ""}`}
+          title={`${userName} Â· ${roleLabel}${activeOrgName ? ` Â· ${activeOrgName}` : ""}`}
         >
           <span className="flt-avatar" aria-hidden>
             {(userName || "?").slice(0, 1).toUpperCase()}
           </span>
-          <p className="hidden min-w-0 max-w-[120px] truncate text-xs font-semibold text-[var(--text-primary)] lg:block">
+          <p className="hidden min-w-0 max-w-[120px] truncate text-xs font-semibold text-[var(--brand-text-primary)] lg:block">
             {userName}
           </p>
         </div>
@@ -303,38 +289,38 @@ function SideNav({
         <button
           type="button"
           className="flt-sidebar-scrim lg:hidden"
-          aria-label="Cerrar navegación"
-          title="Cerrar menú"
+          aria-label="Cerrar navegaciÃ³n"
+          title="Cerrar menÃº"
           onClick={() => setSidebarCollapsed(true)}
         />
       ) : null}
       <aside
         className={`flt-sidebar ${sidebarCollapsed ? "is-collapsed" : "is-expanded"}`}
       >
-        <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-[var(--border-subtle)] px-3">
+        <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-[var(--brand-border)] px-3">
           {!sidebarCollapsed ? (
-            <p className="min-w-0 truncate px-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-              Áreas
+            <p className="min-w-0 truncate px-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--brand-text-secondary)]">
+              Ãreas
             </p>
           ) : (
-            <span className="mx-auto text-[var(--accent-primary)]">
-              <BrandMark className="h-6 w-6" />
+            <span className="mx-auto text-[var(--brand-primary)]">
+              <NexaLogoIcon className="brand-mark h-6 w-6" />
             </span>
           )}
           <Tooltip
             content={
               sidebarCollapsed
-                ? "Expandir menú lateral"
-                : "Colapsar menú lateral (iconos)"
+                ? "Expandir menÃº lateral"
+                : "Colapsar menÃº lateral (iconos)"
             }
           >
             <button
               type="button"
               className="flt-icon-btn"
               onClick={toggleSidebar}
-              title={sidebarCollapsed ? "Expandir menú" : "Colapsar menú"}
+              title={sidebarCollapsed ? "Expandir menÃº" : "Colapsar menÃº"}
               aria-label={
-                sidebarCollapsed ? "Expandir menú lateral" : "Colapsar menú lateral"
+                sidebarCollapsed ? "Expandir menÃº lateral" : "Colapsar menÃº lateral"
               }
             >
               <NavIcon
@@ -347,7 +333,7 @@ function SideNav({
           </Tooltip>
         </div>
 
-        <nav className="flex-1 overflow-y-auto py-2" aria-label="Áreas corporativas">
+        <nav className="flex-1 overflow-y-auto py-2" aria-label="Ãreas corporativas">
           {departments.map((dept) => {
             const multi = dept.items.length > 1;
             const anyActive = dept.items.some((i) =>
@@ -467,7 +453,7 @@ function SideNav({
           })}
         </nav>
 
-        <div className="border-t border-[var(--border-subtle)] p-2">
+        <div className="border-t border-[var(--brand-border)] p-2">
           <Link
             href="/cuenta"
             className={`flt-nav-item ${pathname.startsWith("/cuenta") ? "is-active" : ""}`}
@@ -482,14 +468,14 @@ function SideNav({
             type="button"
             className="flt-nav-item w-[calc(100%-1rem)] border-0 bg-transparent text-left"
             onClick={onLogout}
-            title="Cerrar sesión"
+            title="Cerrar sesiÃ³n"
           >
             {sidebarCollapsed ? (
               <NavIcon view="close" className="h-4 w-4 shrink-0" />
             ) : (
               <>
                 <NavIcon view="close" className="h-3.5 w-3.5 shrink-0" />
-                <span className="min-w-0 flex-1 truncate">Cerrar sesión</span>
+                <span className="min-w-0 flex-1 truncate">Cerrar sesiÃ³n</span>
               </>
             )}
           </button>
@@ -500,11 +486,11 @@ function SideNav({
 }
 
 function HelpStepText({ text }: { text: string }) {
-  const parts = text.split(/(Cmd\/Ctrl\+[K/]|Ctrl\+K|Esc|⌘K)/g);
+  const parts = text.split(/(Cmd\/Ctrl\+[K/]|Ctrl\+K|Esc|âŒ˜K)/g);
   return (
-    <p className="text-sm leading-relaxed text-[var(--text-primary)]">
+    <p className="text-sm leading-relaxed text-[var(--brand-text-primary)]">
       {parts.map((part, i) =>
-        /^(Cmd\/Ctrl\+[K/]|Ctrl\+K|Esc|⌘K)$/.test(part) ? (
+        /^(Cmd\/Ctrl\+[K/]|Ctrl\+K|Esc|âŒ˜K)$/.test(part) ? (
           <kbd
             key={`${part}-${i}`}
             className="flt-kbd mx-0.5 rounded-md border px-2 py-0.5 font-mono text-xs"
@@ -536,16 +522,16 @@ function HelpSheet() {
         aria-hidden={!helpOpen}
         aria-label="Centro de ayuda"
       >
-        <div className="flex h-[60px] items-center justify-between border-b border-[var(--border-subtle)] px-4">
+        <div className="flex h-[60px] items-center justify-between border-b border-[var(--brand-border)] px-4">
           <div className="min-w-0">
-            <p className="font-data text-[9px] uppercase tracking-[0.16em] text-[var(--text-secondary)]">
+            <p className="font-data text-[9px] uppercase tracking-[0.16em] text-[var(--brand-text-secondary)]">
               Asistencia contextual
             </p>
-            <h2 className="truncate text-sm font-semibold text-[var(--text-primary)]">
+            <h2 className="truncate text-sm font-semibold text-[var(--brand-text-primary)]">
               {guide.title}
             </h2>
           </div>
-          <Tooltip content="Cerrar guía (Esc)">
+          <Tooltip content="Cerrar guÃ­a (Esc)">
             <button
               type="button"
               className="flt-icon-btn"
@@ -558,7 +544,7 @@ function HelpSheet() {
           </Tooltip>
         </div>
         <div className="flex-1 space-y-5 overflow-y-auto p-4">
-          <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
+          <p className="text-sm leading-relaxed text-[var(--brand-text-secondary)]">
             {guide.summary}
           </p>
           <ol className="space-y-3">
@@ -569,12 +555,12 @@ function HelpSheet() {
               </li>
             ))}
           </ol>
-          <p className="font-data text-[10px] uppercase tracking-[0.12em] text-[var(--text-secondary)]">
+          <p className="font-data text-[10px] uppercase tracking-[0.12em] text-[var(--brand-text-secondary)]">
             Atajo:{" "}
             <kbd className="flt-kbd rounded-md border px-2 py-0.5 font-mono text-xs normal-case tracking-normal">
               Cmd/Ctrl+/
             </kbd>{" "}
-            ·{" "}
+            Â·{" "}
             <kbd className="flt-kbd rounded-md border px-2 py-0.5 font-mono text-xs normal-case tracking-normal">
               Esc
             </kbd>{" "}
@@ -601,12 +587,12 @@ function InspectorDrawer() {
         className={`flt-inspector ${inspectorOpen ? "is-open" : ""}`}
         aria-hidden={!inspectorOpen}
       >
-        <div className="flex h-[60px] items-center justify-between border-b border-[var(--border-subtle)] px-4">
+        <div className="flex h-[60px] items-center justify-between border-b border-[var(--brand-border)] px-4">
           <div className="min-w-0">
-            <p className="font-data text-[9px] uppercase tracking-[0.16em] text-[var(--text-secondary)]">
+            <p className="font-data text-[9px] uppercase tracking-[0.16em] text-[var(--brand-text-secondary)]">
               Inspector
             </p>
-            <h2 className="truncate text-sm font-semibold text-[var(--text-primary)]">
+            <h2 className="truncate text-sm font-semibold text-[var(--brand-text-primary)]">
               {inspectorTitle || "Detalle"}
             </h2>
           </div>
@@ -675,8 +661,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     if (role === "recepcionista") {
       const dept: NavDepartment = {
         id: "call_center",
-        label: "Recepción",
-        tip: "Recepción omnicanal · visitas · PQRS · radar de lectura",
+        label: "RecepciÃ³n",
+        tip: "RecepciÃ³n omnicanal Â· visitas Â· PQRS Â· radar de lectura",
         items: RECEPCIONISTA_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -690,8 +676,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     if (role === "lider_ti") {
       const dept: NavDepartment = {
         id: "tecnologia_ti",
-        label: "Tecnología e infraestructura",
-        tip: "Centro de control · usuarios · mesa de ayuda · supervisión",
+        label: "TecnologÃ­a e infraestructura",
+        tip: "Centro de control Â· usuarios Â· mesa de ayuda Â· supervisiÃ³n",
         items: LIDER_TI_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -705,8 +691,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     if (role === "gestor_documental") {
       const dept: NavDepartment = {
         id: "archivo",
-        label: "Archivo y Papelería",
-        tip: "Custodia · papelería · búsqueda universal",
+        label: "Archivo y PapelerÃ­a",
+        tip: "Custodia Â· papelerÃ­a Â· bÃºsqueda universal",
         items: GESTOR_DOCUMENTAL_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -720,8 +706,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     if (role === "auxiliar_contable") {
       const dept: NavDepartment = {
         id: "contabilidad",
-        label: "Operación financiera",
-        tip: "CxP · legalizaciones · conciliación bancaria",
+        label: "OperaciÃ³n financiera",
+        tip: "CxP Â· legalizaciones Â· conciliaciÃ³n bancaria",
         items: AUXILIAR_CONTABLE_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -736,7 +722,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       const dept: NavDepartment = {
         id: "contabilidad",
         label: "Contabilidad 4.0",
-        tip: "PUC · DIAN · cartera digital · costeo de flota",
+        tip: "PUC Â· DIAN Â· cartera digital Â· costeo de flota",
         items: GESTOR_CONTABLE_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -750,8 +736,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     if (role === "director_financiero") {
       const dept: NavDepartment = {
         id: "tesoreria",
-        label: "Dirección Financiera",
-        tip: "Dirección financiera · aprobación · resultados · contratos",
+        label: "DirecciÃ³n Financiera",
+        tip: "DirecciÃ³n financiera Â· aprobaciÃ³n Â· resultados Â· contratos",
         items: DIRECTOR_FINANCIERO_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -766,7 +752,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       const dept: NavDepartment = {
         id: "qhse",
         label: "Calidad y SST",
-        tip: "Radar · telemetría · siniestros · ambiental",
+        tip: "Radar Â· telemetrÃ­a Â· siniestros Â· ambiental",
         items: LIDER_QHSE_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -781,7 +767,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       const dept: NavDepartment = {
         id: "compras",
         label: "Compras inteligentes",
-        tip: "Proveedores · órdenes · almacén · SOAT",
+        tip: "Proveedores Â· Ã³rdenes Â· almacÃ©n Â· SOAT",
         items: LIDER_COMPRAS_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -795,8 +781,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     if (role === "director_operativo") {
       const dept: NavDepartment = {
         id: "logistica",
-        label: "Dirección Operativa",
-        tip: "Torre de control · cronograma · capacidad",
+        label: "DirecciÃ³n Operativa",
+        tip: "Torre de control Â· cronograma Â· capacidad",
         items: DIRECTOR_OPERATIVO_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -811,7 +797,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       const dept: NavDepartment = {
         id: "logistica",
         label: "Microdespacho",
-        tip: "Asignación · relevo rápido · bloqueos",
+        tip: "AsignaciÃ³n Â· relevo rÃ¡pido Â· bloqueos",
         items: GESTOR_OPERATIVO_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -826,7 +812,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       const dept: NavDepartment = {
         id: "logistica",
         label: "Comando de campo",
-        tip: "Geocerca · abordaje · auditoría en sitio",
+        tip: "Geocerca Â· abordaje Â· auditorÃ­a en sitio",
         items: COORDINADOR_CAMPO_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -841,7 +827,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       const dept: NavDepartment = {
         id: "logistica",
         label: "Torre de control 24/7",
-        tip: "Excepciones · emergencia · sensores",
+        tip: "Excepciones Â· emergencia Â· sensores",
         items: OPERADOR_CENTRO_CONTROL_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -856,7 +842,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       const dept: NavDepartment = {
         id: "revisoria_fiscal",
         label: "Centro forense",
-        tip: "Caja negra · hallazgos · auditoría",
+        tip: "Caja negra Â· hallazgos Â· auditorÃ­a",
         items: AUDITOR_CONTROL_INTERNO_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -871,7 +857,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       const dept: NavDepartment = {
         id: "presidencia",
         label: "Lienzo de presidencia",
-        tip: "Asistente · inversión · crisis",
+        tip: "Asistente Â· inversiÃ³n Â· crisis",
         items: PRESIDENTE_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -886,7 +872,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       const dept: NavDepartment = {
         id: "rrhh",
         label: "Alta de afiliados",
-        tip: "Afiliados · RUNT/SIMIT · lectura de documentos",
+        tip: "Afiliados Â· RUNT/SIMIT Â· lectura de documentos",
         items: GESTOR_VINCULACIONES_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -900,8 +886,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     if (role === "director_comercial") {
       const dept: NavDepartment = {
         id: "comercial",
-        label: "Dirección Comercial",
-        tip: "Embudo empresas · Cotizador · Firma digital",
+        label: "DirecciÃ³n Comercial",
+        tip: "Embudo empresas Â· Cotizador Â· Firma digital",
         items: DIRECTOR_COMERCIAL_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -915,8 +901,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     if (role === "gestor_comercial") {
       const dept: NavDepartment = {
         id: "comercial",
-        label: "Ejecución comercial",
-        tip: "Tareas · Marcador · Cobro anticipado",
+        label: "EjecuciÃ³n comercial",
+        tip: "Tareas Â· Marcador Â· Cobro anticipado",
         items: GESTOR_COMERCIAL_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -930,8 +916,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     if (role === "coordinador_comercial") {
       const dept: NavDepartment = {
         id: "comercial",
-        label: "Coordinación Comercial",
-        tip: "Tabla de posiciones · SECOP · asignación en ronda",
+        label: "CoordinaciÃ³n Comercial",
+        tip: "Tabla de posiciones Â· SECOP Â· asignaciÃ³n en ronda",
         items: COORDINADOR_COMERCIAL_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -946,7 +932,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       const dept: NavDepartment = {
         id: "gerencia",
         label: "Gerencia General",
-        tip: "Cuadro de mando · excepciones · PIN",
+        tip: "Cuadro de mando Â· excepciones Â· PIN",
         items: GERENTE_GENERAL_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -960,8 +946,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     if (role === "director_juridico" || role === "juridico") {
       const dept: NavDepartment = {
         id: "juridico",
-        label: "Centro jurídico",
-        tip: "Contratos · SARLAFT · Expedientes",
+        label: "Centro jurÃ­dico",
+        tip: "Contratos Â· SARLAFT Â· Expedientes",
         items: DIRECTOR_JURIDICO_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -975,8 +961,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     if (role === "revisor_fiscal") {
       const dept: NavDepartment = {
         id: "revisoria_fiscal",
-        label: "Centro de revisoría",
-        tip: "DIAN · Detalle · Cierre de periodo",
+        label: "Centro de revisorÃ­a",
+        tip: "DIAN Â· Detalle Â· Cierre de periodo",
         items: REVISOR_FISCAL_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -991,7 +977,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       const dept: NavDepartment = {
         id: "taller",
         label: "Taller 4.0",
-        tip: "Tablero · Bahías · control de calidad",
+        tip: "Tablero Â· BahÃ­as Â· control de calidad",
         items: COORDINADOR_TALLER_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -1005,8 +991,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     if (role === "auxiliar_almacen_taller") {
       const dept: NavDepartment = {
         id: "taller",
-        label: "Almacén del taller",
-        tip: "Código · despacho en mostrador",
+        label: "AlmacÃ©n del taller",
+        tip: "CÃ³digo Â· despacho en mostrador",
         items: AUXILIAR_ALMACEN_TALLER_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -1021,7 +1007,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       const dept: NavDepartment = {
         id: "taller",
         label: "App de taller",
-        tip: "Órdenes · cronómetro · foto y voz",
+        tip: "Ã“rdenes Â· cronÃ³metro Â· foto y voz",
         items: MECANICO_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -1036,7 +1022,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       const dept: NavDepartment = {
         id: "parqueadero",
         label: "Patio inteligente",
-        tip: "Mapa de patio · Talanquera",
+        tip: "Mapa de patio Â· Talanquera",
         items: COORDINADOR_PATIO_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -1051,7 +1037,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       const dept: NavDepartment = {
         id: "parqueadero",
         label: "App de patio",
-        tip: "Lavado · movimientos de patio",
+        tip: "Lavado Â· movimientos de patio",
         items: AUXILIAR_PATIO_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -1066,7 +1052,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       const dept: NavDepartment = {
         id: "logistica",
         label: "App del conductor",
-        tip: "Preoperacional · emergencia · viático",
+        tip: "Preoperacional Â· emergencia Â· viÃ¡tico",
         items: CONDUCTOR_PILOT_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -1080,8 +1066,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     if (role === "sub_gerente") {
       const dept: NavDepartment = {
         id: "gerencia",
-        label: "Ejecución Táctica",
-        tip: "Conflictos · kilómetros en vacío · Proyectos",
+        label: "EjecuciÃ³n TÃ¡ctica",
+        tip: "Conflictos Â· kilÃ³metros en vacÃ­o Â· Proyectos",
         items: SUBGERENTE_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -1129,15 +1115,22 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
 
   if (loading || !user) {
     return (
-      <div className="flex h-screen items-center justify-center bg-[var(--bg-canvas)] text-[var(--text-secondary)]">
+      <div className="flex h-screen items-center justify-center bg-brand-canvas text-brand-text-secondary">
         <div className="flex items-center gap-3">
-          <BrandMark />
+          <NexaLogoIcon className="brand-mark h-7 w-7" />
           <span className="font-display text-lg tracking-tight">
             Sincronizando {brand.name}…
           </span>
         </div>
       </div>
     );
+  }
+
+  if (
+    user.mustChangePassword &&
+    (pathname === "/cuenta" || pathname.startsWith("/cuenta"))
+  ) {
+    return <>{children}</>;
   }
 
   return (

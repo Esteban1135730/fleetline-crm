@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useMemo } from "react";
 import { Button } from "@fsg/ui";
@@ -8,7 +8,7 @@ import {
   type CalendarPayload,
 } from "@/components/logistica/logistica-shared";
 
-const WEEKDAYS = ["DOM", "LUN", "MAR", "MIÉ", "JUE", "VIE", "SÁB"] as const;
+const WEEKDAYS = ["DOM", "LUN", "MAR", "MIÃƒâ€°", "JUE", "VIE", "SÃƒÂB"] as const;
 
 const MONTH_NAMES = [
   "Enero",
@@ -32,20 +32,20 @@ function noveltyLabel(kind: string) {
 function chipClass(kind: "holiday" | "trip" | "novelty" | string) {
   switch (kind) {
     case "holiday":
-      return "bg-[var(--brand-amber)] text-[#1a1200]";
+      return "bg-[var(--brand-warning)] text-brand-on-warning";
     case "trip":
     case "ASSIGNED":
       return "bg-[var(--brand-primary)]/20 text-[var(--brand-primary)]";
     case "INCAPACITY":
-      return "bg-[var(--brand-signal)]/20 text-[var(--brand-signal)]";
+      return "bg-[var(--brand-danger)]/20 text-[var(--brand-danger)]";
     case "VACATION_PAID":
-      return "bg-[var(--brand-amber)]/25 text-[var(--brand-amber)]";
+      return "bg-[var(--brand-warning)]/25 text-[var(--brand-warning)]";
     case "REST":
-      return "bg-slate-500/20 text-[var(--brand-muted)]";
+      return "bg-brand-info/20 text-[var(--brand-text-secondary)]";
     case "UNJUSTIFIED_ABSENCE":
-      return "bg-[var(--brand-signal)]/35 text-[var(--brand-signal)]";
+      return "bg-[var(--brand-danger)]/35 text-[var(--brand-danger)]";
     case "AVAILABLE_NO_CONTRACT":
-      return "bg-cyan-500/15 text-cyan-400";
+      return "bg-brand-primary/15 text-brand-primary";
     default:
       return "bg-[var(--brand-primary)]/15 text-[var(--brand-primary)]";
   }
@@ -202,10 +202,10 @@ export function DriverMonthCalendar({
           minute: "2-digit",
           hour12: false,
         });
-        const plate = t.vehicle?.plate ? ` · ${t.vehicle.plate}` : "";
+        const plate = t.vehicle?.plate ? ` Ã‚Â· ${t.vehicle.plate}` : "";
         const route =
           t.origin && t.destination
-            ? `${t.origin} → ${t.destination}`
+            ? `${t.origin} Ã¢â€ â€™ ${t.destination}`
             : t.code;
         push(cell.year, cell.month, cell.day, {
           id: t.id,
@@ -221,29 +221,29 @@ export function DriverMonthCalendar({
 
   return (
     <div
-      className="fsg-panel overflow-hidden p-0"
+      className="nexa-panel overflow-hidden p-0"
       data-testid="driver-month-calendar"
     >
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--brand-line)] px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--brand-border)] px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="ghost" onClick={onToday}>
             Hoy
           </Button>
           <Button variant="ghost" onClick={onPrev} aria-label="Mes anterior">
-            ←
+            Ã¢â€ Â
           </Button>
           <Button variant="ghost" onClick={onNext} aria-label="Mes siguiente">
-            →
+            Ã¢â€ â€™
           </Button>
-          <h2 className="ml-1 text-lg font-semibold tracking-tight text-[var(--brand-fg)]">
+          <h2 className="ml-1 text-lg font-semibold tracking-tight text-[var(--brand-text-primary)]">
             {MONTH_NAMES[month - 1]} de {year}
           </h2>
         </div>
         <div className="flex items-center gap-3">
-          <span className="rounded-md border border-[var(--brand-line)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--brand-muted)]">
+          <span className="rounded-md border border-[var(--brand-border)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--brand-text-secondary)]">
             Mes
           </span>
-          <span className="text-sm text-[var(--brand-muted)]">
+          <span className="text-sm text-[var(--brand-text-secondary)]">
             {driverName}
           </span>
           <Button variant="ghost" onClick={onClose}>
@@ -252,11 +252,11 @@ export function DriverMonthCalendar({
         </div>
       </div>
 
-      <div className="grid grid-cols-7 border-b border-[var(--brand-line)] bg-[var(--brand-surface,#121722)]">
+      <div className="grid grid-cols-7 border-b border-[var(--brand-border)] bg-[var(--brand-surface)]">
         {WEEKDAYS.map((w) => (
           <div
             key={w}
-            className="px-2 py-2 text-center font-data text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--brand-muted)]"
+            className="px-2 py-2 text-center font-data text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--brand-text-secondary)]"
           >
             {w}
           </div>
@@ -284,37 +284,37 @@ export function DriverMonthCalendar({
                   : tripCount === 1
                     ? "bg-[color-mix(in_srgb,var(--brand-primary)_10%,transparent)]"
                     : events.some((e) => e.kind !== "trip")
-                      ? "bg-[color-mix(in_srgb,var(--brand-amber)_8%,transparent)]"
+                      ? "bg-[color-mix(in_srgb,var(--brand-warning)_8%,transparent)]"
                       : "";
 
           return (
             <div
               key={cell.key}
-              className={`min-h-[110px] border-b border-r border-[var(--brand-line)] p-1.5 ${heatBg} ${
+              className={`min-h-[110px] border-b border-r border-[var(--brand-border)] p-1.5 ${heatBg} ${
                 isFestivo
-                  ? "bg-[var(--brand-amber)]"
+                  ? "bg-[var(--brand-warning)]"
                   : cell.inMonth
-                    ? heatBg || "bg-[var(--brand-canvas,#0A0D14)]"
-                    : "bg-[var(--brand-surface,#121722)]/50"
+                    ? heatBg || "bg-[var(--brand-canvas)]"
+                    : "bg-[var(--brand-surface)]/50"
               }`}
             >
               <div className="mb-1 flex justify-center">
                 <span
                   className={`flex h-7 w-7 items-center justify-center font-data text-xs ${
                     cell.isToday
-                      ? "rounded-full bg-[var(--brand-primary)] font-semibold text-[#04110c]"
+                      ? "rounded-full bg-[var(--brand-primary)] font-semibold text-brand-on-primary"
                       : cell.inMonth
                         ? isFestivo
-                          ? "font-semibold text-[#1a1200]"
-                          : "text-[var(--brand-fg)]"
-                        : "text-[var(--brand-muted)]/50"
+                          ? "font-semibold text-brand-on-warning"
+                          : "text-[var(--brand-text-primary)]"
+                        : "text-[var(--brand-text-secondary)]/50"
                   }`}
                 >
                   {cell.day}
                 </span>
               </div>
               {isFestivo ? (
-                <div className="mb-1 rounded px-1.5 py-0.5 text-center text-[10px] font-semibold uppercase tracking-[0.08em] text-[#1a1200]">
+                <div className="mb-1 rounded px-1.5 py-0.5 text-center text-[10px] font-semibold uppercase tracking-[0.08em] text-brand-on-warning">
                   Festivo
                 </div>
               ) : null}
@@ -341,8 +341,8 @@ export function DriverMonthCalendar({
                   ),
                 )}
                 {more > 0 ? (
-                  <div className="px-1 font-data text-[10px] text-[var(--brand-muted)]">
-                    +{more} más
+                  <div className="px-1 font-data text-[10px] text-[var(--brand-text-secondary)]">
+                    +{more} mÃƒÂ¡s
                   </div>
                 ) : null}
               </div>
@@ -351,7 +351,7 @@ export function DriverMonthCalendar({
         })}
       </div>
 
-      <div className="flex flex-wrap gap-3 border-t border-[var(--brand-line)] px-4 py-2 text-[10px] text-[var(--brand-muted)]">
+      <div className="flex flex-wrap gap-3 border-t border-[var(--brand-border)] px-4 py-2 text-[10px] text-[var(--brand-text-secondary)]">
         <span className={`rounded px-2 py-0.5 ${chipClass("holiday")}`}>
           Festivo
         </span>
@@ -367,8 +367,8 @@ export function DriverMonthCalendar({
         <span className={`rounded px-2 py-0.5 ${chipClass("REST")}`}>
           Descanso
         </span>
-        <span className="text-[var(--text-secondary)]">
-          Intensidad verde = horas de conducción (telemetría/GPS)
+        <span className="text-[var(--brand-text-secondary)]">
+          Intensidad verde = horas de conducciÃƒÂ³n (telemetrÃƒÂ­a/GPS)
         </span>
       </div>
     </div>

@@ -1,10 +1,19 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
 import { HARD_RULES, statusEs } from "@fsg/shared";
+import {
+  AlertTriangle,
+  BarChart3,
+  ClipboardList,
+  Gavel,
+  Users,
+} from "lucide-react";
 import { api } from "@/lib/api";
-import { HowToBox, PageIntro } from "@/components/page-intro";
+import { EmptyState, KpiCard, SlideOver } from "@/components/audit";
+import { BentoPanel } from "@/components/nexa/bento-panel";
+import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
 
 type Leader = {
   userId: string;
@@ -67,6 +76,8 @@ export default function CoordinadorComercialDashboardPage() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [discountOpen, setDiscountOpen] = useState(false);
+  const [bidOpen, setBidOpen] = useState(false);
   const [quoteId, setQuoteId] = useState("");
   const [years, setYears] = useState("2");
   const [bidTitle, setBidTitle] = useState("");
@@ -108,6 +119,7 @@ export default function CoordinadorComercialDashboardPage() {
         },
       );
       setMsg(`${res.status}: ${res.message}`);
+      setDiscountOpen(false);
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Aprobación fallida");
@@ -126,13 +138,14 @@ export default function CoordinadorComercialDashboardPage() {
         "/api/v1/comercial/coordinador/licitaciones/crear-proyecto",
         {
           title: bidTitle || "Transporte especial — entidad territorial",
-          entityName: bidEntity || "Gobernación Demo",
+          entityName: bidEntity.trim() || "Entidad territorial",
           category: "ESPECIAL",
           estimatedValue: 920_000_000,
           closeAt: close.toISOString(),
         },
       );
       setMsg(`${res.status}: ${res.message}`);
+      setBidOpen(false);
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Licitación fallida");
@@ -162,258 +175,350 @@ export default function CoordinadorComercialDashboardPage() {
     (a, b) => a + b,
     0,
   );
+  const slaRed = (dash?.slaAlerts ?? []).filter((a) => a.slaStatus === "RED").length;
 
   return (
-    <div className="space-y-8">
-      <PageIntro module="comercial" title="Centro Analítico · Coordinación" />
-
-      <HowToBox
-        steps={[
-          `Aprobación Nivel 1 hasta ${HARD_RULES.COORDINADOR_COMERCIAL_MAX_DISCOUNT_PCT}% — superior escala a CFO.`,
-          `SLA ${HARD_RULES.COMERCIAL_LEAD_SLA_HOURS}h sin contacto → rojo y reasignación round-robin.`,
-          "Licitaciones SECOP: tareas Jurídico / Archivo / Finanzas con deadlines inamovibles.",
-        ]}
-      />
-
-      {error && (
-        <p className="font-mono text-sm text-[var(--fl-critical)]">{error}</p>
-      )}
-      {msg && (
-        <p className="font-mono text-sm text-[var(--fl-accent)]">{msg}</p>
-      )}
-
-      <section
-        id="leaderboard"
-        className="rounded-xl border border-[var(--fl-border)] bg-[var(--fl-surface)] p-5"
-      >
-        <h2 className="text-sm font-semibold text-[var(--fl-text)]">
-          Leaderboard del equipo
-        </h2>
-        <div className="mt-3 overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="text-xs uppercase text-[var(--fl-subtext)]">
-              <tr>
-                <th className="pb-2">#</th>
-                <th className="pb-2">Gestor</th>
-                <th className="pb-2">Abiertos</th>
-                <th className="pb-2">Ganados</th>
-                <th className="pb-2">Ventas</th>
-                <th className="pb-2">Conv.</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(dash?.leaderboard ?? []).map((l, i) => (
-                <tr
-                  key={l.userId}
-                  className="border-t border-[var(--fl-border)]"
-                >
-                  <td className="py-2 font-mono">{i + 1}</td>
-                  <td className="py-2 text-[var(--fl-text)]">{l.name}</td>
-                  <td className="py-2 font-mono">{l.openDeals}</td>
-                  <td className="py-2 font-mono">{l.wonDeals}</td>
-                  <td className="py-2 font-mono text-[var(--fl-amber)]">
-                    {money(l.wonValue)}
-                  </td>
-                  <td className="py-2 font-mono">{l.conversionRate}%</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+    <div className="fade-in mx-auto max-w-[1600px] space-y-6 p-4 md:p-6">
+      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-brand-border pb-4">
+        <div>
+          <p className="font-data text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-primary">
+            Comercial · Coordinación
+          </p>
+          <h1 className="font-sans text-2xl font-semibold tracking-tight text-brand-text-primary md:text-3xl">
+            Centro analítico · Coordinación
+          </h1>
         </div>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-auto px-4 py-2"
+            onClick={() => setDiscountOpen(true)}
+          >
+            Aprobar descuento
+          </Button>
+          <Button
+            type="button"
+            variant="primary"
+            className="w-auto px-4 py-2"
+            onClick={() => setBidOpen(true)}
+          >
+            <Gavel className="mr-1.5 h-4 w-4" aria-hidden />
+            Proyecto SECOP
+          </Button>
+        </div>
+      </header>
+
+      {error ? (
+        <p className="rounded-lg border border-brand-danger/40 bg-brand-danger/10 px-4 py-3 font-data text-sm text-brand-danger">
+          {error}
+        </p>
+      ) : null}
+      {msg ? (
+        <p className="rounded-lg border border-brand-primary/40 bg-brand-primary/10 px-4 py-3 font-data text-sm text-brand-primary">
+          {msg}
+        </p>
+      ) : null}
+
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <KpiCard
+          label="Pronóstico ponderado"
+          value={money(dash?.forecast.weightedMonthlyCop ?? 0)}
+          delta={`${dash?.forecast.openDeals ?? 0} abiertos`}
+          tone="ok"
+          icon={<BarChart3 />}
+        />
+        <KpiCard
+          label="Descuentos pendientes"
+          value={dash?.pendingDiscounts.length ?? 0}
+          tone={(dash?.pendingDiscounts.length ?? 0) > 0 ? "warn" : "ok"}
+          icon={<ClipboardList />}
+        />
+        <KpiCard
+          label="Licitaciones activas"
+          value={dash?.bidding.length ?? 0}
+          tone="neutral"
+          icon={<Gavel />}
+        />
+        <KpiCard
+          label={`SLA ${dash?.limits.slaHours ?? HARD_RULES.COMERCIAL_LEAD_SLA_HOURS}h`}
+          value={slaRed}
+          delta={slaRed > 0 ? "Alertas rojas" : "Nominal"}
+          tone={slaRed > 0 ? "danger" : "ok"}
+          icon={<AlertTriangle />}
+        />
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-xl border border-[var(--fl-border)] bg-[var(--fl-surface)] p-5">
-          <h2 className="text-sm font-semibold text-[var(--fl-text)]">
-            Embudo agregado · Pronóstico
-          </h2>
-          <p className="mt-2 font-mono text-2xl text-[var(--fl-accent)]">
+      <BentoPanel
+        id="leaderboard"
+        title="Leaderboard del equipo"
+        icon={<Users aria-hidden />}
+      >
+        {(dash?.leaderboard ?? []).length === 0 ? (
+          <EmptyState
+            icon={<Users className="h-7 w-7" />}
+            title="Sin datos de equipo"
+            description="El leaderboard se poblará con actividad comercial."
+          />
+        ) : (
+          <NexaTable
+            columns={["#", "Gestor", "Abiertos", "Ganados", "Ventas", "Conv."]}
+          >
+            {(dash?.leaderboard ?? []).map((l, i) => (
+              <NexaRow key={l.userId}>
+                <NexaCell mono>{i + 1}</NexaCell>
+                <NexaCell>{l.name}</NexaCell>
+                <NexaCell mono>{l.openDeals}</NexaCell>
+                <NexaCell mono>{l.wonDeals}</NexaCell>
+                <NexaCell mono className="text-brand-warning">
+                  {money(l.wonValue)}
+                </NexaCell>
+                <NexaCell mono>{l.conversionRate}%</NexaCell>
+              </NexaRow>
+            ))}
+          </NexaTable>
+        )}
+      </BentoPanel>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <BentoPanel title="Embudo agregado · Pronóstico" icon={<BarChart3 aria-hidden />}>
+          <p className="font-data text-2xl tabular-nums text-brand-primary">
             {money(dash?.forecast.weightedMonthlyCop ?? 0)}
           </p>
-          <p className="text-xs text-[var(--fl-subtext)]">
+          <p className="text-xs text-brand-text-secondary">
             Proyección ponderada · {dash?.forecast.openDeals ?? 0} abiertos
           </p>
           <div className="mt-4 space-y-2">
             {Object.entries(dash?.funnel ?? {}).map(([k, v]) => (
               <div key={k} className="flex items-center gap-2 text-xs">
-                <span className="w-36 truncate text-[var(--fl-subtext)]">
+                <span className="w-36 truncate text-brand-text-secondary">
                   {k.replace(/_/g, " ")}
                 </span>
-                <div className="h-2 flex-1 overflow-hidden rounded bg-[var(--fl-canvas)]">
+                <div className="h-2 flex-1 overflow-hidden rounded bg-brand-canvas">
                   <div
-                    className="h-full bg-[var(--fl-accent)]"
+                    className="h-full bg-brand-primary"
                     style={{
                       width: `${funnelTotal ? (v / funnelTotal) * 100 : 0}%`,
                     }}
                   />
                 </div>
-                <span className="font-mono w-6 text-right">{v}</span>
+                <span className="font-data w-6 text-right tabular-nums">{v}</span>
               </div>
             ))}
           </div>
-        </div>
+        </BentoPanel>
 
-        <div className="space-y-3 rounded-xl border border-[var(--fl-border)] bg-[var(--fl-surface)] p-5">
-          <h2 className="text-sm font-semibold text-[var(--fl-text)]">
-            Aprobación descuentos (Nivel 1)
-          </h2>
+        <BentoPanel
+          title={`Aprobación descuentos (Nivel 1 · máx ${HARD_RULES.COORDINADOR_COMERCIAL_MAX_DISCOUNT_PCT}%)`}
+          icon={<ClipboardList aria-hidden />}
+        >
           <ul className="space-y-2 text-sm">
             {(dash?.pendingDiscounts ?? []).map((q) => (
               <li
                 key={q.id}
-                className="flex cursor-pointer items-center justify-between gap-2 rounded-lg border border-[var(--fl-border)] bg-[var(--fl-canvas)] px-3 py-2"
+                className="flex cursor-pointer items-center justify-between gap-2 rounded-lg border border-brand-border bg-brand-canvas px-3 py-2"
                 onClick={() => setQuoteId(q.id)}
               >
                 <div>
-                  <p className="text-[var(--fl-text)]">{q.deal.accountName}</p>
-                  <p className="font-mono text-[10px] text-[var(--fl-subtext)]">
+                  <p className="text-brand-text-primary">{q.deal.accountName}</p>
+                  <p className="font-data text-[10px] tabular-nums text-brand-text-secondary">
                     {q.deal.code} · dcto {q.discountPct}%
                   </p>
                 </div>
-                <Badge tone={q.ebitdaImpactPct < -2 ? "rose" : "amber"}>
+                <Badge tone={q.ebitdaImpactPct < -2 ? "danger" : "warning"}>
                   EBITDA {q.ebitdaImpactPct}%
                 </Badge>
               </li>
             ))}
-            {(dash?.pendingDiscounts ?? []).length === 0 && (
-              <li className="text-xs text-[var(--fl-subtext)]">
+            {(dash?.pendingDiscounts ?? []).length === 0 ? (
+              <li className="text-xs text-brand-text-secondary">
                 Sin solicitudes pendientes
               </li>
-            )}
+            ) : null}
           </ul>
-          <label className="block text-xs text-[var(--fl-subtext)]">
-            Condición: años de contrato
-            <input
-              className="mt-1 w-24 rounded-lg border border-[var(--fl-border)] bg-[var(--fl-canvas)] px-2 py-1 font-mono"
-              value={years}
-              onChange={(e) => setYears(e.target.value)}
-            />
-          </label>
-          <div className="flex gap-2">
-            <Button disabled={busy} onClick={() => void aprobar(true)}>
-              Aprobar condicionado
-            </Button>
-            <Button disabled={busy} onClick={() => void aprobar(false)}>
-              Rechazar
-            </Button>
-          </div>
-        </div>
-      </section>
+        </BentoPanel>
+      </div>
 
-      <section
+      <BentoPanel
         id="secop"
-        className="space-y-3 rounded-xl border border-[var(--fl-border)] bg-[var(--fl-surface)] p-5"
+        title="Seguimiento SECOP · Cronograma"
+        icon={<Gavel aria-hidden />}
       >
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <h2 className="text-sm font-semibold text-[var(--fl-text)]">
-            Seguimiento SECOP · Cronograma
-          </h2>
-          <div className="flex flex-wrap gap-2">
-            <input
-              className="rounded-lg border border-[var(--fl-border)] bg-[var(--fl-canvas)] px-2 py-1 text-sm"
-              placeholder="Título proceso"
-              value={bidTitle}
-              onChange={(e) => setBidTitle(e.target.value)}
-            />
-            <input
-              className="rounded-lg border border-[var(--fl-border)] bg-[var(--fl-canvas)] px-2 py-1 text-sm"
-              placeholder="Entidad"
-              value={bidEntity}
-              onChange={(e) => setBidEntity(e.target.value)}
-            />
-            <Button disabled={busy} onClick={() => void crearBid()}>
-              Crear proyecto
-            </Button>
-          </div>
-        </div>
-        {(dash?.bidding ?? []).map((b) => (
-          <div
-            key={b.id}
-            className="rounded-lg border border-[var(--fl-border)] bg-[var(--fl-canvas)] p-4"
-          >
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div>
-                <p className="text-sm text-[var(--fl-text)]">{b.title}</p>
-                <p className="font-mono text-[10px] text-[var(--fl-subtext)]">
-                  {b.code} · {b.entityName}
-                </p>
-              </div>
-              <Badge tone={b.daysToClose <= 7 ? "rose" : "amber"}>
-                {b.daysToClose}d
-              </Badge>
-            </div>
-            <div className="mt-3 space-y-2">
-              {b.tasks.map((t) => {
-                const start = new Date(b.tasks[0]?.dueAt ?? t.dueAt).getTime();
-                const end = new Date(b.closeAt).getTime();
-                const due = new Date(t.dueAt).getTime();
-                const pct =
-                  end > start
-                    ? Math.min(100, Math.max(0, ((due - start) / (end - start)) * 100))
-                    : 50;
-                return (
-                  <div key={t.id} className="text-xs">
-                    <div className="mb-1 flex justify-between text-[var(--fl-subtext)]">
-                      <span>
-                        {t.department}: {t.title}
-                      </span>
-                      <span className="font-mono">{statusEs(t.status)}</span>
-                    </div>
-                    <div className="relative h-2 rounded bg-[var(--fl-surface)]">
-                      <div
-                        className="absolute top-0 h-2 w-2 rounded-full bg-[var(--fl-accent)]"
-                        style={{ left: `${pct}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-        {(dash?.bidding ?? []).length === 0 && (
-          <p className="text-xs text-[var(--fl-subtext)]">
+        {(dash?.bidding ?? []).length === 0 ? (
+          <p className="text-xs text-brand-text-secondary">
             Sin proyectos de licitación activos
           </p>
+        ) : (
+          (dash?.bidding ?? []).map((b) => (
+            <div
+              key={b.id}
+              className="mb-3 rounded-lg border border-brand-border bg-brand-canvas p-4 last:mb-0"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="text-sm text-brand-text-primary">{b.title}</p>
+                  <p className="font-data text-[10px] text-brand-text-secondary">
+                    {b.code} · {b.entityName}
+                  </p>
+                </div>
+                <Badge tone={b.daysToClose <= 7 ? "danger" : "warning"}>
+                  {b.daysToClose}d
+                </Badge>
+              </div>
+              <div className="mt-3 space-y-2">
+                {b.tasks.map((t) => {
+                  const start = new Date(b.tasks[0]?.dueAt ?? t.dueAt).getTime();
+                  const end = new Date(b.closeAt).getTime();
+                  const due = new Date(t.dueAt).getTime();
+                  const pct =
+                    end > start
+                      ? Math.min(
+                          100,
+                          Math.max(0, ((due - start) / (end - start)) * 100),
+                        )
+                      : 50;
+                  return (
+                    <div key={t.id} className="text-xs">
+                      <div className="mb-1 flex justify-between text-brand-text-secondary">
+                        <span>
+                          {t.department}: {t.title}
+                        </span>
+                        <span className="font-data">{statusEs(t.status)}</span>
+                      </div>
+                      <div className="relative h-2 rounded bg-brand-surface">
+                        <div
+                          className="absolute top-0 h-2 w-2 rounded-full bg-brand-primary"
+                          style={{ left: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))
         )}
-      </section>
+      </BentoPanel>
 
-      <section
+      <BentoPanel
         id="sla"
-        className="rounded-xl border border-[var(--fl-border)] bg-[var(--fl-surface)] p-5"
-      >
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="text-sm font-semibold text-[var(--fl-text)]">
-            SLA Ventas ({dash?.limits.slaHours ?? 2}h) · Round-Robin
-          </h2>
-          <Button disabled={busy} onClick={() => void roundRobin()}>
+        title={`SLA Ventas (${dash?.limits.slaHours ?? 2}h) · Round-Robin`}
+        icon={<AlertTriangle aria-hidden />}
+        action={
+          <Button
+            type="button"
+            variant="primary"
+            className="w-auto px-3 py-1.5"
+            disabled={busy}
+            onClick={() => void roundRobin()}
+          >
             Distribuir / Reasignar
           </Button>
-        </div>
-        <ul className="mt-3 space-y-2">
+        }
+      >
+        <ul className="space-y-2">
           {(dash?.slaAlerts ?? []).map((a) => (
             <li
               key={a.dealId}
-              className="flex items-center justify-between rounded-lg border border-[var(--fl-border)] bg-[var(--fl-canvas)] px-3 py-2 text-sm"
+              className="flex items-center justify-between rounded-lg border border-brand-border bg-brand-canvas px-3 py-2 text-sm"
             >
               <div>
-                <p className="text-[var(--fl-text)]">{a.accountName}</p>
-                <p className="font-mono text-[10px] text-[var(--fl-subtext)]">
+                <p className="text-brand-text-primary">{a.accountName}</p>
+                <p className="font-data text-[10px] tabular-nums text-brand-text-secondary">
                   {a.code} · {a.hoursElapsed}h
                 </p>
               </div>
-              <Badge tone={a.slaStatus === "RED" ? "rose" : "amber"}>
+              <Badge tone={a.slaStatus === "RED" ? "danger" : "warning"}>
                 {a.slaStatus}
               </Badge>
             </li>
           ))}
-          {(dash?.slaAlerts ?? []).length === 0 && (
-            <li className="text-xs text-[var(--fl-subtext)]">
+          {(dash?.slaAlerts ?? []).length === 0 ? (
+            <li className="text-xs text-brand-text-secondary">
               SLA nominal — sin alertas
             </li>
-          )}
+          ) : null}
         </ul>
-      </section>
+      </BentoPanel>
+
+      <SlideOver
+        open={discountOpen}
+        onClose={() => setDiscountOpen(false)}
+        title="Aprobación descuento · Nivel 1"
+        description={`Hasta ${HARD_RULES.COORDINADOR_COMERCIAL_MAX_DISCOUNT_PCT}% — superior escala a CFO`}
+        widthClass="max-w-md"
+        footer={
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="primary"
+              className="w-auto px-4 py-2"
+              disabled={busy}
+              onClick={() => void aprobar(true)}
+            >
+              Aprobar condicionado
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-auto px-4 py-2"
+              disabled={busy}
+              onClick={() => void aprobar(false)}
+            >
+              Rechazar
+            </Button>
+          </div>
+        }
+      >
+        <label className="block text-xs text-brand-text-secondary">
+          Condición: años de contrato
+          <input
+            className="field mt-1 w-24 font-data tabular-nums"
+            value={years}
+            onChange={(e) => setYears(e.target.value)}
+          />
+        </label>
+      </SlideOver>
+
+      <SlideOver
+        open={bidOpen}
+        onClose={() => setBidOpen(false)}
+        title="Crear proyecto SECOP"
+        description="Tareas Jurídico / Archivo / Finanzas con deadlines"
+        widthClass="max-w-lg"
+        footer={
+          <Button
+            type="button"
+            variant="primary"
+            className="w-auto px-4 py-2"
+            disabled={busy}
+            onClick={() => void crearBid()}
+          >
+            Crear proyecto
+          </Button>
+        }
+      >
+        <div className="space-y-3">
+          <label className="block text-xs text-brand-text-secondary">
+            Título proceso
+            <input
+              className="field mt-1 w-full"
+              placeholder="Transporte especial"
+              value={bidTitle}
+              onChange={(e) => setBidTitle(e.target.value)}
+            />
+          </label>
+          <label className="block text-xs text-brand-text-secondary">
+            Entidad
+            <input
+              className="field mt-1 w-full"
+              placeholder="Gobernación / Alcaldía"
+              value={bidEntity}
+              onChange={(e) => setBidEntity(e.target.value)}
+            />
+          </label>
+        </div>
+      </SlideOver>
     </div>
   );
 }

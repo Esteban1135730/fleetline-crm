@@ -1,8 +1,8 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
-import { Landmark, Plus, Receipt, Wallet } from "lucide-react";
+import { Landmark, Plus, Receipt, TrendingUp, Wallet } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -15,7 +15,7 @@ import {
 } from "recharts";
 import { api } from "@/lib/api";
 import { statusEs } from "@fsg/shared";
-import { PageIntro } from "@/components/page-intro";
+import { useThemeColors } from "@/lib/use-theme-colors";
 import {
   EmptyState,
   EvidenceDropzone,
@@ -23,6 +23,9 @@ import {
   SlideOver,
   StatusPulseBadge,
 } from "@/components/audit";
+import { BentoPanel } from "@/components/nexa/bento-panel";
+import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
+import { WorkbenchTabs, WorkbenchToolbar } from "@/components/workbench-toolbar";
 
 type InvoiceTab = "RECEIVABLE" | "PAYABLE";
 
@@ -81,7 +84,11 @@ function sparkFrom(values: number[], fallback: number): number[] {
 }
 
 function formatCop(n: number) {
-  return `$${Math.round(n).toLocaleString("es-CO")}`;
+  return new Intl.NumberFormat("es-CO", {
+    style: "currency",
+    currency: "COP",
+    maximumFractionDigits: 0,
+  }).format(Math.round(n));
 }
 
 function dueAging(dueDate?: string): {
@@ -101,13 +108,11 @@ function dueAging(dueDate?: string): {
   if (days <= 3) {
     return { label: `Vence en ${days}d`, tone: "fatiga", pulse: true };
   }
-  if (days <= 10) {
-    return { label: `Vence en ${days}d`, tone: "active", pulse: false };
-  }
   return { label: `Vence en ${days}d`, tone: "active", pulse: false };
 }
 
 export default function FinanzasPage() {
+  const colors = useThemeColors();
   const [summary, setSummary] = useState<Summary | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -187,6 +192,35 @@ export default function FinanzasPage() {
     summary?.netLiquidity ??
     bankBalance + (summary?.cxcOpen ?? 0) - (summary?.cxpOpen ?? 0);
 
+  const tipStyle = useMemo(
+    () => ({
+      borderRadius: 12,
+      border: `1px solid ${colors.border}`,
+      background: colors.surface,
+      color: colors.textPrimary,
+      fontSize: 12,
+    }),
+    [colors],
+  );
+
+  const invoiceTabs = useMemo(
+    () => [
+      {
+        id: "PAYABLE" as const,
+        label: "CxP",
+        count: invoices.filter((i) => i.type === "PAYABLE").length,
+        tip: "Cuentas por pagar · proveedores",
+      },
+      {
+        id: "RECEIVABLE" as const,
+        label: "CxC",
+        count: invoices.filter((i) => i.type === "RECEIVABLE").length,
+        tip: "Cuentas por cobrar · clientes",
+      },
+    ],
+    [invoices],
+  );
+
   function openRegistrar(type: "RECEIVABLE" | "PAYABLE") {
     setForm((f) => ({ ...f, type }));
     setRegistrarEvidence([]);
@@ -256,32 +290,39 @@ export default function FinanzasPage() {
 
   return (
     <div className="fade-in mx-auto max-w-[1600px] space-y-6">
-      <PageIntro
-        module="tesoreria"
-        title="Tesorería: centro de liquidez"
-        action={
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              className="w-auto px-4 py-2"
-              onClick={() => openRegistrar("RECEIVABLE")}
-            >
-              <Plus className="mr-1.5 inline h-4 w-4" aria-hidden />
-              CxC
-            </Button>
-            <Button
-              type="button"
-              variant="primary"
-              className="w-auto px-4 py-2"
-              onClick={() => openRegistrar("PAYABLE")}
-            >
-              <Plus className="mr-1.5 inline h-4 w-4" aria-hidden />
-              CxP
-            </Button>
-          </div>
-        }
-      />
+      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-brand-border pb-4">
+        <div>
+          <p className="font-data text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-primary">
+            Tesorería · Liquidez
+          </p>
+          <h1 className="font-sans text-2xl font-semibold tracking-tight text-brand-text-primary md:text-3xl">
+            Centro de liquidez
+          </h1>
+          <p className="mt-1 font-sans text-sm text-brand-text-secondary">
+            CxC · CxP · flujo de caja · bancos 1110
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-auto px-4 py-2"
+            onClick={() => openRegistrar("RECEIVABLE")}
+          >
+            <Plus className="mr-1.5 inline h-4 w-4" aria-hidden />
+            CxC
+          </Button>
+          <Button
+            type="button"
+            variant="primary"
+            className="w-auto px-4 py-2"
+            onClick={() => openRegistrar("PAYABLE")}
+          >
+            <Plus className="mr-1.5 inline h-4 w-4" aria-hidden />
+            CxP
+          </Button>
+        </div>
+      </header>
 
       {summary ? (
         <div className="stagger grid grid-cols-2 gap-3 lg:grid-cols-6">
@@ -327,87 +368,73 @@ export default function FinanzasPage() {
       ) : null}
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <div className="fsg-panel p-4 xl:col-span-2">
-          <h2 className="font-display text-sm font-semibold text-[var(--text-primary)]">
-            Flujo de caja proyectado · 30 días
-          </h2>
-          <p className="mt-1 text-xs text-[var(--text-secondary)]">
-            Millones COP por semana · vencimientos abiertos
-          </p>
-          <div className="mt-4 h-56">
+        <BentoPanel
+          className="xl:col-span-2"
+          title="Flujo de caja proyectado"
+          subtitle="30 días · millones COP por semana"
+          icon={<TrendingUp aria-hidden />}
+        >
+          <div className="h-56">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={cashFlowData} barGap={4}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
-                <XAxis dataKey="semana" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} />
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke={colors.chartGrid}
+                />
+                <XAxis
+                  dataKey="semana"
+                  tick={{ fontSize: 11, fill: colors.textSecondary }}
+                />
+                <YAxis tick={{ fontSize: 11, fill: colors.textSecondary }} />
                 <Tooltip
                   formatter={(v: number) => [`$${v}M`, ""]}
-                  contentStyle={{
-                    background: "var(--bg-surface-1)",
-                    border: "1px solid var(--border-subtle)",
-                  }}
+                  contentStyle={tipStyle}
                 />
                 <Legend />
                 <Bar
                   dataKey="ingresos"
                   name="Ingresos"
-                  fill="var(--accent-primary)"
+                  fill={colors.primary}
                   radius={[4, 4, 0, 0]}
                 />
                 <Bar
                   dataKey="egresos"
                   name="Egresos"
-                  fill="var(--accent-alert)"
+                  fill={colors.danger}
                   radius={[4, 4, 0, 0]}
                 />
               </BarChart>
             </ResponsiveContainer>
           </div>
-        </div>
+        </BentoPanel>
 
-        <div className="fsg-panel flex flex-col justify-center p-4">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-            Motor contable
-          </p>
-          <p className="mt-2 text-sm text-[var(--text-secondary)]">
+        <BentoPanel
+          title="Motor contable"
+          subtitle="Asiento automático 1110 ↔ CxC/CxP"
+          icon={<Landmark aria-hidden />}
+        >
+          <p className="text-sm text-brand-text-secondary">
             Al aprobar y pagar, el sistema descuenta saldo bancario virtual y
             genera asiento en Libro Mayor (1110 ↔ CxC/CxP).
           </p>
-          <p className="mt-3 font-data text-2xl font-bold tabular-nums text-[var(--accent-primary)]">
+          <p className="mt-3 font-data text-2xl font-bold tabular-nums text-brand-primary">
             {formatCop(bankBalance)}
           </p>
-          <p className="text-xs text-[var(--text-secondary)]">Saldo bancos hoy</p>
-        </div>
+          <p className="text-xs text-brand-text-secondary">Saldo bancos hoy</p>
+        </BentoPanel>
       </div>
 
-      <div className="flex flex-wrap gap-2 border-b border-[var(--brand-line)] pb-2">
-        {(
-          [
-            ["PAYABLE", "Cuentas por pagar"],
-            ["RECEIVABLE", "Cuentas por cobrar"],
-          ] as const
-        ).map(([id, label]) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => setInvoiceTab(id)}
-            className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors duration-150 ${
-              invoiceTab === id
-                ? "bg-[var(--brand-primary)]/15 text-[var(--brand-primary)]"
-                : "text-[var(--brand-muted)] hover:text-[var(--text-primary)]"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <BentoPanel title="Facturas operativas" subtitle="CxP · CxC · cobros y pagos">
+        <WorkbenchToolbar>
+          <WorkbenchTabs
+            tabs={invoiceTabs}
+            value={invoiceTab}
+            onChange={(id) => setInvoiceTab(id as InvoiceTab)}
+          />
+        </WorkbenchToolbar>
 
-      <div className="fsg-panel data-shell overflow-hidden">
-        <div className="border-b border-[var(--brand-line)] px-4 py-3 font-display text-sm font-semibold">
-          {invoiceTab === "PAYABLE" ? "CxP" : "CxC"} ({filteredInvoices.length})
-        </div>
-        {filteredInvoices.length === 0 ? (
-          <div className="p-4">
+        <div className="mt-3">
+          {filteredInvoices.length === 0 ? (
             <EmptyState
               icon={<Receipt className="h-7 w-7" aria-hidden />}
               title="Sin facturas en esta vista"
@@ -417,79 +444,78 @@ export default function FinanzasPage() {
               }
               onAction={() => openRegistrar(invoiceTab)}
             />
-          </div>
-        ) : (
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr>
-                <th className="px-4 py-2">Número</th>
-                <th className="px-4 py-2">Contraparte</th>
-                <th className="px-4 py-2">Monto</th>
-                <th className="px-4 py-2">Vencimiento</th>
-                <th className="px-4 py-2">Estado</th>
-                <th className="px-4 py-2" />
-              </tr>
-            </thead>
-            <tbody>
+          ) : (
+            <NexaTable
+              columns={[
+                "Número",
+                "Contraparte",
+                "Monto",
+                "Vencimiento",
+                "Estado",
+                "Acciones",
+              ]}
+            >
               {filteredInvoices.map((inv) => {
                 const aging = dueAging(inv.dueDate);
                 return (
-                  <tr key={inv.id} className="border-t border-[var(--brand-line)]">
-                    <td className="px-4 py-2.5 font-data text-xs text-[var(--accent-primary)]">
+                  <NexaRow key={inv.id}>
+                    <NexaCell mono className="text-xs text-brand-primary">
                       {inv.number}
-                    </td>
-                    <td className="px-4 py-2.5">
+                    </NexaCell>
+                    <NexaCell>
                       {inv.customer?.name ||
                         inv.supplierName ||
                         (inv as { counterparty?: string }).counterparty ||
                         "—"}
                       {inv.trip ? (
-                        <div className="font-data text-[10px] text-[var(--brand-muted)]">
+                        <div className="font-data text-[10px] text-brand-text-secondary">
                           Viaje {inv.trip.code}
                         </div>
                       ) : null}
                       {inv.description ? (
-                        <div className="text-[10px] text-[var(--brand-muted)]">
+                        <div className="text-[10px] text-brand-text-secondary">
                           {inv.description}
                         </div>
                       ) : null}
-                    </td>
-                    <td className="px-4 py-2.5 font-data text-xs tabular-nums">
-                      {formatCop(Number(inv.amount))}
-                    </td>
-                    <td className="px-4 py-2.5">
+                    </NexaCell>
+                    <NexaCell mono>{formatCop(Number(inv.amount))}</NexaCell>
+                    <NexaCell>
                       {inv.dueDate ? (
                         <div>
-                          <StatusPulseBadge tone={aging.tone} pulse={aging.pulse}>
+                          <StatusPulseBadge
+                            tone={aging.tone}
+                            pulse={aging.pulse}
+                          >
                             {aging.label}
                           </StatusPulseBadge>
-                          <div className="mt-1 font-data text-[10px] text-[var(--text-secondary)]">
+                          <div className="mt-1 font-data text-[10px] tabular-nums text-brand-text-secondary">
                             {new Date(inv.dueDate).toLocaleDateString("es-CO")}
                           </div>
                         </div>
                       ) : (
                         "—"
                       )}
-                    </td>
-                    <td className="px-4 py-2.5">
+                    </NexaCell>
+                    <NexaCell>
                       <Badge
                         tone={
                           inv.status === "PAID"
-                            ? "emerald"
+                            ? "success"
                             : inv.status === "OVERDUE"
-                              ? "rose"
-                              : "slate"
+                              ? "danger"
+                              : "info"
                         }
                       >
                         {statusEs(inv.status)}
                       </Badge>
                       {inv.type === "PAYABLE" && inv.paymentApprovedAt ? (
-                        <div className="mt-1 font-data text-[10px] text-[var(--accent-primary)]">
-                          Aprobado: {inv.paymentApprovedBy?.name || "registrado"}
+                        <div className="mt-1 font-data text-[10px] text-brand-primary">
+                          Aprobado:{" "}
+                          {inv.paymentApprovedBy?.name || "registrado"}
                         </div>
                       ) : null}
-                    </td>
-                    <td className="px-4 py-2.5">
+                    </NexaCell>
+                    <NexaCell>
                       {inv.status !== "PAID" && inv.status !== "CANCELLED" ? (
                         <div className="flex flex-wrap justify-end gap-1">
                           <Button
@@ -515,23 +541,19 @@ export default function FinanzasPage() {
                           </Button>
                         </div>
                       ) : null}
-                    </td>
-                  </tr>
+                    </NexaCell>
+                  </NexaRow>
                 );
               })}
-            </tbody>
-          </table>
-        )}
-      </div>
+            </NexaTable>
+          )}
+        </div>
+      </BentoPanel>
 
       <SlideOver
         open={registrarOpen}
         onClose={() => setRegistrarOpen(false)}
-        title={
-          form.type === "RECEIVABLE"
-            ? "Registrar CxC"
-            : "Registrar CxP"
-        }
+        title={form.type === "RECEIVABLE" ? "Registrar CxC" : "Registrar CxP"}
         description="Motor de transacciones · adjunte soporte documental"
         widthClass="max-w-lg"
         footer={
@@ -550,7 +572,7 @@ export default function FinanzasPage() {
           onSubmit={onCreate}
           className="grid gap-3"
         >
-          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+          <label className="flex flex-col gap-1 font-data text-[10px] uppercase tracking-wider text-brand-text-secondary">
             Tipo
             <select
               className="field"
@@ -567,7 +589,7 @@ export default function FinanzasPage() {
             </select>
           </label>
           {form.type === "RECEIVABLE" ? (
-            <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+            <label className="flex flex-col gap-1 font-data text-[10px] uppercase tracking-wider text-brand-text-secondary">
               Cliente
               <select
                 className="field"
@@ -586,7 +608,7 @@ export default function FinanzasPage() {
               </select>
             </label>
           ) : (
-            <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+            <label className="flex flex-col gap-1 font-data text-[10px] uppercase tracking-wider text-brand-text-secondary">
               Proveedor
               <input
                 className="field"
@@ -599,10 +621,10 @@ export default function FinanzasPage() {
               />
             </label>
           )}
-          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+          <label className="flex flex-col gap-1 font-data text-[10px] uppercase tracking-wider text-brand-text-secondary">
             Monto COP
             <input
-              className="field font-data"
+              className="field font-data tabular-nums"
               type="number"
               placeholder="Monto COP"
               value={form.amount}
@@ -610,17 +632,17 @@ export default function FinanzasPage() {
               required
             />
           </label>
-          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+          <label className="flex flex-col gap-1 font-data text-[10px] uppercase tracking-wider text-brand-text-secondary">
             Vencimiento
             <input
-              className="field"
+              className="field font-data"
               type="date"
               value={form.dueDate}
               onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
               required
             />
           </label>
-          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+          <label className="flex flex-col gap-1 font-data text-[10px] uppercase tracking-wider text-brand-text-secondary">
             Descripción
             <input
               className="field"
@@ -632,7 +654,7 @@ export default function FinanzasPage() {
             />
           </label>
           <div>
-            <p className="mb-2 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+            <p className="mb-2 font-data text-[10px] uppercase tracking-wider text-brand-text-secondary">
               Soporte documental
             </p>
             <EvidenceDropzone
@@ -640,7 +662,7 @@ export default function FinanzasPage() {
               onFiles={setRegistrarEvidence}
             />
             {registrarEvidence.length > 0 ? (
-              <p className="mt-2 font-data text-xs text-[var(--text-secondary)]">
+              <p className="mt-2 font-data text-xs text-brand-text-secondary">
                 {registrarEvidence.length} archivo(s) en cola
               </p>
             ) : null}
@@ -686,14 +708,14 @@ export default function FinanzasPage() {
         {payTarget ? (
           <div className="space-y-4">
             <div>
-              <p className="font-data text-xs text-[var(--accent-primary)]">
+              <p className="font-data text-xs text-brand-primary">
                 {payTarget.number}
               </p>
               <p className="mt-1 font-data text-2xl font-bold tabular-nums">
                 {formatCop(Number(payTarget.amount))}
               </p>
             </div>
-            <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+            <label className="flex flex-col gap-1 font-data text-[10px] uppercase tracking-wider text-brand-text-secondary">
               Cuenta bancaria origen
               <select
                 className="field"
@@ -712,11 +734,11 @@ export default function FinanzasPage() {
               onFiles={() => undefined}
             />
             {payError ? (
-              <p role="alert" className="text-sm text-[var(--accent-alert)]">
+              <p role="alert" className="text-sm text-brand-danger">
                 {payError}
               </p>
             ) : null}
-            <p className="text-xs text-[var(--text-secondary)]">
+            <p className="text-xs text-brand-text-secondary">
               Al confirmar se registra pago, se actualiza saldo 1110 y se
               contabiliza en Libro Mayor.
             </p>

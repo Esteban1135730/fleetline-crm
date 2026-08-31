@@ -1,9 +1,12 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
+import { Package, QrCode, Search } from "lucide-react";
 import { api } from "@/lib/api";
-import { PageIntro } from "@/components/page-intro";
+import { EmptyState } from "@/components/audit";
+import { BentoPanel } from "@/components/nexa/bento-panel";
+import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
 
 type Item = {
   id: string;
@@ -89,87 +92,127 @@ export default function AlmacenTallerDashboard() {
   }
 
   return (
-    <div className="space-y-8">
-      <PageIntro module="taller" title="Almacén del taller" />
-      <p className="rounded-lg border border-[var(--accent-metric)]/40 bg-[color-mix(in_srgb,var(--accent-metric)_8%,transparent)] px-3 py-2 text-sm text-[var(--text-primary)]">
-        Hard lock antifraude: el despacho exige <strong>QR/serial</strong> de
-        la pieza. Sin escaneo válido el API rechaza el movimiento.
-      </p>
-
-      {error && (
-        <p className="font-mono text-sm text-[var(--fl-critical)]">{error}</p>
-      )}
-      {msg && (
-        <p className="font-mono text-sm text-[var(--fl-accent)]">{msg}</p>
-      )}
-
-      <section id="despacho" className="space-y-3 rounded-xl border border-[var(--fl-border)] bg-[var(--fl-surface)] p-5">
-        <h2 className="text-lg font-semibold text-[var(--fl-text)]">
-          Despacho rápido POS
-        </h2>
-        <div className="flex flex-wrap gap-2">
-          <select
-            value={workOrderId}
-            onChange={(e) => setWorkOrderId(e.target.value)}
-            className="rounded-lg border border-[var(--fl-border)] bg-[var(--fl-canvas)] px-3 py-2 font-mono text-sm"
-          >
-            {(dash?.dispatchTray ?? []).map((t) => (
-              <option key={t.workOrderId} value={t.workOrderId}>
-                {t.code} · {t.plate} · {t.mechanic ?? "—"}
-              </option>
-            ))}
-          </select>
-          <input
-            value={partQr}
-            onChange={(e) => setPartQr(e.target.value)}
-            placeholder="Escanear QR"
-            className="min-w-[200px] flex-1 rounded-lg border border-[var(--fl-border)] bg-[var(--fl-canvas)] px-3 py-2 font-mono text-sm"
-          />
-          <Button disabled={busy} onClick={() => void despachar()}>
-            Despachar
-          </Button>
+    <div className="fade-in mx-auto max-w-[1600px] space-y-6 p-4 md:p-6">
+      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-brand-border pb-4">
+        <div>
+          <p className="font-data text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-primary">
+            Taller · Almacén
+          </p>
+          <h1 className="font-sans text-2xl font-semibold tracking-tight text-brand-text-primary md:text-3xl">
+            Inventario y despacho QR
+          </h1>
         </div>
-      </section>
+      </header>
 
-      <section className="space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-lg font-semibold text-[var(--fl-text)]">
-            Inventario
-          </h2>
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar QR / SKU…"
-            className="rounded-lg border border-[var(--fl-border)] bg-[var(--fl-surface)] px-3 py-2 font-mono text-sm"
-          />
-        </div>
-        <ul className="grid gap-2 md:grid-cols-2">
-          {filtered.map((i) => (
-            <li
-              key={i.id}
-              className="flex cursor-pointer items-center justify-between rounded-lg border border-[var(--fl-border)] bg-[var(--fl-surface)] px-4 py-3"
-              onClick={() => setPartQr(i.qrCode)}
+      <div className="rounded-lg border border-brand-warning/40 bg-brand-warning/10 px-4 py-3 font-sans text-sm text-brand-text-primary">
+        Hard lock antifraude: el despacho exige{" "}
+        <span className="font-semibold">QR/serial</span> de la pieza. Sin
+        escaneo válido el API rechaza el movimiento.
+      </div>
+
+      {error ? (
+        <p className="rounded-lg border border-brand-danger/40 bg-brand-danger/10 px-4 py-3 font-data text-sm text-brand-danger">
+          {error}
+        </p>
+      ) : null}
+      {msg ? (
+        <p className="rounded-lg border border-brand-primary/40 bg-brand-primary/10 px-4 py-3 font-data text-sm text-brand-primary">
+          {msg}
+        </p>
+      ) : null}
+
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-12 lg:gap-4">
+        <BentoPanel
+          id="despacho"
+          title="Despacho rápido POS"
+          subtitle="Bandeja OT · escaneo QR"
+          icon={<QrCode />}
+          className="lg:col-span-5"
+        >
+          <div className="flex flex-col gap-3">
+            <select
+              value={workOrderId}
+              onChange={(e) => setWorkOrderId(e.target.value)}
+              className="field font-data"
             >
-              <div>
-                <p className="font-mono text-sm text-[var(--fl-text)]">
-                  {i.sku} · {i.name}
-                </p>
-                <p className="font-mono text-[10px] text-[var(--fl-subtext)]">
-                  {i.qrCode}
-                </p>
-              </div>
-              <div className="text-right">
-                <Badge tone={i.quantity <= 4 ? "rose" : "emerald"}>
-                  {i.quantity} und
-                </Badge>
-                <p className="mt-1 font-mono text-[10px] text-[var(--fl-amber)]">
-                  {i.unitCost.toLocaleString("es-CO")}
-                </p>
-              </div>
-            </li>
-          ))}
-        </ul>
-      </section>
+              {(dash?.dispatchTray ?? []).map((t) => (
+                <option key={t.workOrderId} value={t.workOrderId}>
+                  {t.code} · {t.plate} · {t.mechanic ?? "—"}
+                </option>
+              ))}
+            </select>
+            <input
+              value={partQr}
+              onChange={(e) => setPartQr(e.target.value)}
+              placeholder="Escanear QR"
+              className="field font-data"
+            />
+            <div className="flex justify-end">
+              <Button
+                className="w-auto px-4 py-2"
+                disabled={busy}
+                onClick={() => void despachar()}
+              >
+                Despachar
+              </Button>
+            </div>
+          </div>
+        </BentoPanel>
+
+        <BentoPanel
+          title="Inventario"
+          subtitle={`${filtered.length} ítems`}
+          icon={<Package />}
+          className="lg:col-span-7"
+          action={
+            <div className="relative">
+              <Search
+                className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-brand-text-secondary"
+                aria-hidden
+              />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="QR / SKU…"
+                className="field w-40 py-1.5 pl-8 pr-2 font-data text-xs sm:w-48"
+                aria-label="Buscar inventario"
+              />
+            </div>
+          }
+        >
+          {!filtered.length ? (
+            <EmptyState
+              icon={<Package className="h-7 w-7" />}
+              title="Sin ítems en vista"
+              description="Ajuste la búsqueda o cargue stock al almacén."
+            />
+          ) : (
+            <NexaTable columns={["SKU", "QR", "Stock", "Costo"]}>
+              {filtered.map((i) => (
+                <NexaRow key={i.id} onClick={() => setPartQr(i.qrCode)}>
+                  <NexaCell>
+                    <span className="font-data text-xs">{i.sku}</span>
+                    <span className="mt-0.5 block font-sans text-[11px] text-brand-text-secondary">
+                      {i.name}
+                    </span>
+                  </NexaCell>
+                  <NexaCell mono className="text-[11px] text-brand-text-secondary">
+                    {i.qrCode}
+                  </NexaCell>
+                  <NexaCell>
+                    <Badge tone={i.quantity <= 4 ? "danger" : "success"}>
+                      {i.quantity} und
+                    </Badge>
+                  </NexaCell>
+                  <NexaCell mono className="text-brand-warning">
+                    {i.unitCost.toLocaleString("es-CO")}
+                  </NexaCell>
+                </NexaRow>
+              ))}
+            </NexaTable>
+          )}
+        </BentoPanel>
+      </div>
     </div>
   );
 }

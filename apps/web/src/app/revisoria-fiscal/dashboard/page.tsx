@@ -1,9 +1,9 @@
-"use client";
+﻿"use client";
 
 /**
- * Revisoría Fiscal · Truth Hub
+ * RevisorÃƒÂ­a Fiscal Ã‚Â· Truth Hub
  * Propuesta completa: @UI-UX-Architect + @Sales-Enabler + @Refactor-Engine + @QA-Linter
- * Cumple `.cursorrules` (KPIs / filtros / tabla · ayuda en SlideOver · forms en Modal · EmptyState).
+ * Cumple `.cursorrules` (KPIs / filtros / tabla Ã‚Â· ayuda en SlideOver Ã‚Â· forms en Modal Ã‚Â· EmptyState).
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -111,10 +111,10 @@ function money(n: number) {
 
 const HELP_STEPS = [
   "Panel DIAN consolida ventas/compras y resalta retenciones omitidas o mal calculadas.",
-  "Detalle forense: saldo PUC → factura → presupuesto → OC → almacén → egreso.",
-  `Muestreo automático del ${HARD_RULES.REVISORIA_SAMPLE_PCT}% de transacciones del mes.`,
+  "Detalle forense: saldo PUC Ã¢â€ â€™ factura Ã¢â€ â€™ presupuesto Ã¢â€ â€™ OC Ã¢â€ â€™ almacÃƒÂ©n Ã¢â€ â€™ egreso.",
+  `Muestreo automÃƒÂ¡tico del ${HARD_RULES.REVISORIA_SAMPLE_PCT}% de transacciones del mes.`,
   "Cierre de periodo: dictamen en PDF y bloqueo absoluto del periodo contable.",
-  "Navegación rápida: Ctrl/Cmd + K · Ayuda: tecla ?",
+  "NavegaciÃƒÂ³n rÃƒÂ¡pida: Ctrl/Cmd + K Ã‚Â· Ayuda: tecla ?",
 ];
 
 export default function RevisoriaFiscalDashboardPage() {
@@ -146,7 +146,7 @@ export default function RevisoriaFiscalDashboardPage() {
       setFlagged(impuestos.flagged);
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Conexión fallida");
+      setError(e instanceof Error ? e.message : "ConexiÃƒÂ³n fallida");
     }
   }, []);
 
@@ -179,7 +179,7 @@ export default function RevisoriaFiscalDashboardPage() {
           yearMonth: ym,
           pdfRef,
           opinion: "SIN_SALVEDADES",
-          notes: "Dictamen de revisoría — cierre absoluto del periodo",
+          notes: "Dictamen de revisorÃƒÂ­a Ã¢â‚¬â€ cierre absoluto del periodo",
         },
       );
       setMsg(`${res.status}: ${res.message}`);
@@ -210,7 +210,7 @@ export default function RevisoriaFiscalDashboardPage() {
         a.download = res.fileName || `truth-hub.${format}`;
         a.click();
         URL.revokeObjectURL(url);
-        setMsg(`Export ${format} · hash ${res.contentHash?.slice(0, 12) ?? "—"}`);
+        setMsg(`Export ${format} Ã‚Â· hash ${res.contentHash?.slice(0, 12) ?? "Ã¢â‚¬â€"}`);
       } else {
         const blob = new Blob([JSON.stringify(res.payload, null, 2)], {
           type: "application/json",
@@ -221,10 +221,10 @@ export default function RevisoriaFiscalDashboardPage() {
         a.download = `truth-hub-${ym}.json`;
         a.click();
         URL.revokeObjectURL(url);
-        setMsg("Exportación JSON lista");
+        setMsg("ExportaciÃƒÂ³n JSON lista");
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Exportación fallida");
+      setError(e instanceof Error ? e.message : "ExportaciÃƒÂ³n fallida");
     } finally {
       setBusy(false);
     }
@@ -271,15 +271,15 @@ export default function RevisoriaFiscalDashboardPage() {
 
   return (
     <div className="space-y-5">
-      {/* Header operativo — sin muro de protocolo */}
+      {/* Header operativo Ã¢â‚¬â€ sin muro de protocolo */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-500">
-            Revisoría fiscal
+          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-brand-success">
+            RevisorÃƒÂ­a fiscal
           </p>
-          <h1 className="text-2xl font-bold text-[var(--text-primary)]">Centro de revisoría</h1>
-          <p className="mt-1 font-mono text-xs text-[var(--text-secondary)]">
-            Periodo {ym} · Ctrl/Cmd+K navegación global
+          <h1 className="text-2xl font-bold text-[var(--brand-text-primary)]">Centro de revisorÃƒÂ­a</h1>
+          <p className="mt-1 font-mono text-xs text-[var(--brand-text-secondary)]">
+            Periodo {ym} Ã‚Â· Ctrl/Cmd+K navegaciÃƒÂ³n global
           </p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
@@ -288,15 +288,15 @@ export default function RevisoriaFiscalDashboardPage() {
           </StatusPulseBadge>
           {(dash?.impuestosSummary.flaggedCount ?? 0) > 0 ? (
             <StatusPulseBadge tone="fatiga">
-              FATIGA RETENCIÓN · {dash?.impuestosSummary.flaggedCount}
+              FATIGA RETENCIÃƒâ€œN Ã‚Â· {dash?.impuestosSummary.flaggedCount}
             </StatusPulseBadge>
           ) : (
             <StatusPulseBadge tone="active" pulse={false}>
-              Activo · DIAN correcto
+              Activo Ã‚Â· DIAN correcto
             </StatusPulseBadge>
           )}
           <SlideOverHelp
-            title="Cómo operar el centro de revisoría"
+            title="CÃƒÂ³mo operar el centro de revisorÃƒÂ­a"
             summary="Protocolo forense de cierre e impuestos."
             steps={HELP_STEPS}
           />
@@ -331,10 +331,10 @@ export default function RevisoriaFiscalDashboardPage() {
       </div>
 
       {error ? (
-        <p className="font-mono text-sm text-[var(--fl-critical)]">{error}</p>
+        <p className="font-mono text-sm text-[var(--brand-danger)]">{error}</p>
       ) : null}
       {msg ? (
-        <p className="font-mono text-sm text-emerald-400">{msg}</p>
+        <p className="font-mono text-sm text-brand-success">{msg}</p>
       ) : null}
 
       {/* KPIs */}
@@ -342,35 +342,35 @@ export default function RevisoriaFiscalDashboardPage() {
         <KpiCard
           label="Ventas DIAN"
           value={money(dash?.impuestosSummary.saleTotal ?? 0)}
-          delta="vs mes · tendencia"
+          delta="vs mes Ã‚Â· tendencia"
           tone="ok"
           spark={saleSpark}
         />
         <KpiCard
           label="Compras DIAN"
           value={money(dash?.impuestosSummary.purchaseTotal ?? 0)}
-          delta="vs mes · tendencia"
+          delta="vs mes Ã‚Â· tendencia"
           tone="neutral"
           spark={buySpark}
         />
         <KpiCard
-          label="Alertas retención"
+          label="Alertas retenciÃƒÂ³n"
           value={dash?.impuestosSummary.flaggedCount ?? 0}
-          delta={flagged.length ? "DANGER · revisar" : "Nominal"}
+          delta={flagged.length ? "DANGER Ã‚Â· revisar" : "Nominal"}
           tone={(dash?.impuestosSummary.flaggedCount ?? 0) > 0 ? "danger" : "ok"}
           spark={flagSpark}
         />
         <KpiCard
           label="Muestreo"
           value={`${dash?.sampling.sampleSize ?? 0}/${dash?.sampling.population ?? 0}`}
-          delta={`${dash?.sampling.samplePct ?? HARD_RULES.REVISORIA_SAMPLE_PCT}% población`}
+          delta={`${dash?.sampling.samplePct ?? HARD_RULES.REVISORIA_SAMPLE_PCT}% poblaciÃƒÂ³n`}
           tone="warn"
           spark={[3, 4, 5, 4, 6, 5, dash?.sampling.sampleSize ?? 4]}
         />
       </div>
 
       {/* Filtros + tabs */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)] px-3 py-2">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2">
         <div className="flex flex-wrap gap-1">
           {(
             [
@@ -385,8 +385,8 @@ export default function RevisoriaFiscalDashboardPage() {
               onClick={() => setTab(id)}
               className={`w-auto rounded-lg px-3 py-1.5 text-xs font-semibold ${
                 tab === id
-                  ? "bg-emerald-500/20 text-emerald-300"
-                  : "text-[var(--text-secondary)] hover:bg-[var(--bg-surface-2)]"
+                  ? "bg-brand-success/20 text-brand-success"
+                  : "text-[var(--brand-text-secondary)] hover:bg-[var(--brand-surface-elevated)]"
               }`}
             >
               {label}
@@ -396,44 +396,44 @@ export default function RevisoriaFiscalDashboardPage() {
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Filtrar factura, cuenta, tercero…"
-          className="w-full max-w-xs rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface-2)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] sm:w-auto"
+          placeholder="Filtrar factura, cuenta, terceroÃ¢â‚¬Â¦"
+          className="w-full max-w-xs rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface-elevated)] px-3 py-2 text-sm text-[var(--brand-text-primary)] placeholder:text-[var(--brand-text-secondary)] sm:w-auto"
         />
       </div>
 
-      {/* Tabla / módulo principal */}
+      {/* Tabla / mÃƒÂ³dulo principal */}
       {tab === "alertas" ? (
         filteredFlagged.length === 0 ? (
           <EmptyState
-            title="Sin alertas de retención"
-            description="El pre-validador DIAN no marcó omisiones en el periodo. Use el cierre de periodo cuando el dictamen esté listo."
+            title="Sin alertas de retenciÃƒÂ³n"
+            description="El pre-validador DIAN no marcÃƒÂ³ omisiones en el periodo. Use el cierre de periodo cuando el dictamen estÃƒÂ© listo."
             actionLabel="Abrir cierre de periodo"
             onAction={() => setLockOpen(true)}
           />
         ) : (
-          <div className="overflow-hidden rounded-xl border border-[var(--border-subtle)]">
+          <div className="overflow-hidden rounded-xl border border-[var(--brand-border)]">
             <table className="w-full text-left text-sm">
-              <thead className="border-b border-[var(--border-subtle)] bg-[var(--bg-surface-1)] text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+              <thead className="border-b border-[var(--brand-border)] bg-[var(--brand-surface)] text-[11px] uppercase tracking-wide text-[var(--brand-text-secondary)]">
                 <tr>
                   <th className="px-4 py-3">Factura</th>
                   <th className="px-4 py-3">Issue</th>
                   <th className="px-4 py-3">Detalle</th>
-                  <th className="px-4 py-3 text-right">Acción</th>
+                  <th className="px-4 py-3 text-right">AcciÃƒÂ³n</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredFlagged.map((f) => (
                   <tr
                     key={f.invoiceId}
-                    className="border-b border-[var(--border-subtle)]/80 bg-[color-mix(in_srgb,var(--bg-canvas)_50%,transparent)]"
+                    className="border-b border-[var(--brand-border)]/80 bg-[color-mix(in_srgb,var(--brand-canvas)_50%,transparent)]"
                   >
-                    <td className="px-4 py-3 font-mono text-[var(--text-primary)]">
+                    <td className="px-4 py-3 font-mono text-[var(--brand-text-primary)]">
                       {f.number}
                     </td>
                     <td className="px-4 py-3">
                       <StatusPulseBadge tone="danger">{f.issue}</StatusPulseBadge>
                     </td>
-                    <td className="px-4 py-3 text-[var(--text-secondary)]">{f.detail}</td>
+                    <td className="px-4 py-3 text-[var(--brand-text-secondary)]">{f.detail}</td>
                     <td className="px-4 py-3 text-right">
                       <Button
                         className="w-auto px-3 py-1.5"
@@ -462,7 +462,7 @@ export default function RevisoriaFiscalDashboardPage() {
             {filteredPuc.map((node) => (
               <div
                 key={node.id}
-                className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-1)]"
+                className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)]"
               >
                 <button
                   type="button"
@@ -471,37 +471,37 @@ export default function RevisoriaFiscalDashboardPage() {
                     setExpanded(expanded === node.id ? null : node.id)
                   }
                 >
-                  <span className="font-mono text-sm text-[var(--text-primary)]">
-                    {node.code} · {node.name}
+                  <span className="font-mono text-sm text-[var(--brand-text-primary)]">
+                    {node.code} Ã‚Â· {node.name}
                   </span>
-                  <span className="font-mono text-xs text-amber-400">
+                  <span className="font-mono text-xs text-brand-warning">
                     {money(node.balance)}
                   </span>
                 </button>
                 {expanded === node.id ? (
                   node.invoices.length === 0 ? (
-                    <div className="border-t border-[var(--border-subtle)] px-4 py-3">
+                    <div className="border-t border-[var(--brand-border)] px-4 py-3">
                       <EmptyState
                         title="Sin facturas vinculadas"
                         description="No hay movimientos en esta cuenta para la ventana actual."
                       />
                     </div>
                   ) : (
-                    <ul className="border-t border-[var(--border-subtle)] px-4 py-2">
+                    <ul className="border-t border-[var(--brand-border)] px-4 py-2">
                       {node.invoices.map((inv) => (
                         <li
                           key={inv.id}
-                          className="flex items-center justify-between py-2 font-mono text-xs text-[var(--text-secondary)]"
+                          className="flex items-center justify-between py-2 font-mono text-xs text-[var(--brand-text-secondary)]"
                         >
                           <span>
-                            {inv.number} · {inv.counterparty}
+                            {inv.number} Ã‚Â· {inv.counterparty}
                           </span>
                           <Button
                             variant="ghost"
-                            className="w-auto px-2 py-1 text-emerald-400"
+                            className="w-auto px-2 py-1 text-brand-success"
                             onClick={() => void openDrill(inv.id)}
                           >
-                            {money(inv.amount)} →
+                            {money(inv.amount)} Ã¢â€ â€™
                           </Button>
                         </li>
                       ))}
@@ -517,13 +517,13 @@ export default function RevisoriaFiscalDashboardPage() {
       {tab === "muestreo" ? (
         filteredSample.length === 0 ? (
           <EmptyState
-            title="Bandeja de muestreo vacía"
-            description="Aún no hay ítems seleccionados para revisión forense este mes."
+            title="Bandeja de muestreo vacÃƒÂ­a"
+            description="AÃƒÂºn no hay ÃƒÂ­tems seleccionados para revisiÃƒÂ³n forense este mes."
           />
         ) : (
-          <div className="overflow-hidden rounded-xl border border-[var(--border-subtle)]">
+          <div className="overflow-hidden rounded-xl border border-[var(--brand-border)]">
             <table className="w-full text-left text-sm">
-              <thead className="border-b border-[var(--border-subtle)] bg-[var(--bg-surface-1)] text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">
+              <thead className="border-b border-[var(--brand-border)] bg-[var(--brand-surface)] text-[11px] uppercase tracking-wide text-[var(--brand-text-secondary)]">
                 <tr>
                   <th className="px-4 py-3">Documento</th>
                   <th className="px-4 py-3">Tipo</th>
@@ -535,15 +535,15 @@ export default function RevisoriaFiscalDashboardPage() {
                 {filteredSample.map((i) => (
                   <tr
                     key={i.id}
-                    className="cursor-pointer border-b border-[var(--border-subtle)]/80 hover:bg-[color-mix(in_srgb,var(--accent-primary)_8%,transparent)]"
+                    className="cursor-pointer border-b border-[var(--brand-border)]/80 hover:bg-[color-mix(in_srgb,var(--brand-primary)_8%,transparent)]"
                     onClick={() => void openDrill(i.id)}
                   >
-                    <td className="px-4 py-3 font-mono text-[var(--text-primary)]">
+                    <td className="px-4 py-3 font-mono text-[var(--brand-text-primary)]">
                       {i.number}
                     </td>
-                    <td className="px-4 py-3 text-[var(--text-secondary)]">{i.type}</td>
-                    <td className="px-4 py-3 text-[var(--text-secondary)]">{i.counterparty}</td>
-                    <td className="px-4 py-3 text-right font-mono text-amber-400">
+                    <td className="px-4 py-3 text-[var(--brand-text-secondary)]">{i.type}</td>
+                    <td className="px-4 py-3 text-[var(--brand-text-secondary)]">{i.counterparty}</td>
+                    <td className="px-4 py-3 text-right font-mono text-brand-warning">
                       {money(i.amount)}
                     </td>
                   </tr>
@@ -558,7 +558,7 @@ export default function RevisoriaFiscalDashboardPage() {
       <Modal
         open={!!drill}
         onClose={() => setDrill(null)}
-        title={drill ? `Cadena de evidencia · ${drill.invoice.number}` : "Detalle forense"}
+        title={drill ? `Cadena de evidencia Ã‚Â· ${drill.invoice.number}` : "Detalle forense"}
         description={drill?.message}
         footer={
           <Button className="w-auto px-4 py-2" onClick={() => setDrill(null)}>
@@ -567,29 +567,29 @@ export default function RevisoriaFiscalDashboardPage() {
         }
       >
         {drill ? (
-          <ol className="list-decimal space-y-2 pl-5 text-sm text-[var(--text-primary)]">
+          <ol className="list-decimal space-y-2 pl-5 text-sm text-[var(--brand-text-primary)]">
             <li>
               Firma presupuesto:{" "}
-              <span className="font-mono text-amber-400">
-                {drill.thread.budgetSignature ?? "—"}
+              <span className="font-mono text-brand-warning">
+                {drill.thread.budgetSignature ?? "Ã¢â‚¬â€"}
               </span>
             </li>
             <li>
               OC:{" "}
               {drill.thread.purchaseOrder
-                ? `${drill.thread.purchaseOrder.code} · ${drill.thread.purchaseOrder.status} · ${drill.thread.purchaseOrder.approvedBy ?? "—"}`
+                ? `${drill.thread.purchaseOrder.code} Ã‚Â· ${drill.thread.purchaseOrder.status} Ã‚Â· ${drill.thread.purchaseOrder.approvedBy ?? "Ã¢â‚¬â€"}`
                 : "Sin OC"}
             </li>
             <li>
-              Almacén:{" "}
+              AlmacÃƒÂ©n:{" "}
               {drill.thread.warehouseReceipts.map((g) => g.code).join(", ") ||
-                "Sin remisión"}
+                "Sin remisiÃƒÂ³n"}
             </li>
             <li>
               Egreso:{" "}
               {drill.thread.egreso
                 .map((e) => `${statusEs(e.status)} ${money(e.amount)}`)
-                .join(" · ") || "Sin comprobante"}
+                .join(" Ã‚Â· ") || "Sin comprobante"}
             </li>
           </ol>
         ) : null}
@@ -600,7 +600,7 @@ export default function RevisoriaFiscalDashboardPage() {
         open={lockOpen}
         onClose={() => setLockOpen(false)}
         title="Dictamen y cierre de periodo"
-        description={`Sella el periodo ${ym}. Acción irreversible en la red.`}
+        description={`Sella el periodo ${ym}. AcciÃƒÂ³n irreversible en la red.`}
         footer={
           <>
             <Button
@@ -621,19 +621,19 @@ export default function RevisoriaFiscalDashboardPage() {
           </>
         }
       >
-        <label className="block text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+        <label className="block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-secondary)]">
           PDF dictamen
         </label>
         <input
           value={pdfRef}
           onChange={(e) => setPdfRef(e.target.value)}
-          className="mt-2 w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface-2)] px-3 py-2 font-mono text-sm text-[var(--text-primary)]"
-          placeholder="uploads/dictamen/…"
+          className="mt-2 w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface-elevated)] px-3 py-2 font-mono text-sm text-[var(--brand-text-primary)]"
+          placeholder="uploads/dictamen/Ã¢â‚¬Â¦"
         />
         {dash?.period.dictamen ? (
-          <p className="mt-3 font-mono text-xs text-[var(--text-secondary)]">
-            Dictamen {dash.period.dictamen.opinion} · hash{" "}
-            {dash.period.dictamen.signatureHash.slice(0, 16)}… ·{" "}
+          <p className="mt-3 font-mono text-xs text-[var(--brand-text-secondary)]">
+            Dictamen {dash.period.dictamen.opinion} Ã‚Â· hash{" "}
+            {dash.period.dictamen.signatureHash.slice(0, 16)}Ã¢â‚¬Â¦ Ã‚Â·{" "}
             {dash.period.dictamen.pdfRef}
           </p>
         ) : null}

@@ -27,7 +27,7 @@ export function SupervisorDeviationsPanel({
   embedded = false,
   onCountChange,
 }: {
-  /** Sin chrome de sección — para SlideOver. */
+  /** Sin chrome de secciÃƒÂ³n Ã¢â‚¬â€ para SlideOver. */
   embedded?: boolean;
   onCountChange?: (count: number) => void;
 }) {
@@ -44,7 +44,7 @@ export function SupervisorDeviationsPanel({
       onCountChange?.(data.length);
       setError("");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Conexión de desviaciones fallida");
+      setError(e instanceof Error ? e.message : "ConexiÃƒÂ³n de desviaciones fallida");
     }
   }, [onCountChange]);
 
@@ -72,36 +72,36 @@ export function SupervisorDeviationsPanel({
   const body = (
     <>
       {error ? (
-        <p className="text-sm text-[var(--brand-signal)]">{error}</p>
+        <p className="text-sm text-[var(--brand-danger)]">{error}</p>
       ) : null}
 
       {!rows.length ? (
         <EmptyState
           icon={<RouteIcon className="h-7 w-7" />}
           title="Sin desviaciones pendientes"
-          description="Inicio/fin fuera de geocerca u horario aparecerán aquí."
+          description="Inicio/fin fuera de geocerca u horario aparecerÃƒÂ¡n aquÃƒÂ­."
         />
       ) : (
         <ul className="space-y-3">
           {rows.map((d) => (
             <li
               key={d.id}
-              className="rounded-md border border-[var(--brand-line)] p-3"
+              className="rounded-md border border-[var(--brand-border)] p-3"
             >
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
-                  <p className="font-data text-sm text-[var(--brand-fg)]">
-                    {d.trip.code} · {d.action}
+                  <p className="font-data text-sm text-[var(--brand-text-primary)]">
+                    {d.trip.code} Ã‚Â· {d.action}
                   </p>
-                  <p className="text-xs text-[var(--brand-muted)]">
-                    {d.trip.origin} → {d.trip.destination}
-                    {d.trip.driver ? ` · ${d.trip.driver.name}` : ""}
+                  <p className="text-xs text-[var(--brand-text-secondary)]">
+                    {d.trip.origin} Ã¢â€ â€™ {d.trip.destination}
+                    {d.trip.driver ? ` Ã‚Â· ${d.trip.driver.name}` : ""}
                   </p>
-                  <p className="mt-1 text-xs text-[var(--brand-amber)]">
+                  <p className="mt-1 text-xs text-[var(--brand-warning)]">
                     {d.reasonDetail}
                   </p>
-                  <p className="font-data mt-1 text-[10px] text-[var(--brand-muted)]">
-                    GPS {d.lat.toFixed(5)}, {d.lng.toFixed(5)} ·{" "}
+                  <p className="font-data mt-1 text-[10px] text-[var(--brand-text-secondary)]">
+                    GPS {d.lat.toFixed(5)}, {d.lng.toFixed(5)} Ã‚Â·{" "}
                     {new Date(d.serverTime).toLocaleString("es-CO")}
                   </p>
                 </div>
@@ -153,16 +153,16 @@ export function SupervisorDeviationsPanel({
 
   return (
     <section
-      className="fsg-panel space-y-3 p-4"
+      className="nexa-panel space-y-3 p-4"
       data-testid="supervisor-deviations"
     >
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-[var(--brand-muted)]">
-            Desviaciones · aprobación supervisor
+          <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-[var(--brand-text-secondary)]">
+            Desviaciones Ã‚Â· aprobaciÃƒÂ³n supervisor
           </h2>
-          <p className="text-xs text-[var(--brand-muted)]">
-            Inicio/fin fuera de geocerca u horario — ACEPTAR autoriza seguimiento /
+          <p className="text-xs text-[var(--brand-text-secondary)]">
+            Inicio/fin fuera de geocerca u horario Ã¢â‚¬â€ ACEPTAR autoriza seguimiento /
             extras; CANCELAR restaura el estado previo.
           </p>
         </div>
