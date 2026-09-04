@@ -15,6 +15,7 @@ import {
   KpiCard,
   SlideOver,
 } from "@/components/audit";
+import { BlockStatusBadge } from "@/components/nexa/block-status-badge";
 
 type DriverRow = {
   id: string;
@@ -22,6 +23,7 @@ type DriverRow = {
   document: string;
   fatigueScore: number;
   dispatchBlocked: boolean;
+  blockReason?: string | null;
 };
 
 type VehicleRow = {
@@ -31,6 +33,7 @@ type VehicleRow = {
   model: string;
   status: string;
   complianceBlocked: boolean;
+  complianceReason?: string | null;
 };
 
 type LinkRow = {
@@ -279,8 +282,22 @@ export default function AsignacionesUnidadPage() {
                     </p>
                     <p className="font-mono text-xs text-[var(--brand-text-secondary)]">
                       {d.document}
-                      {d.dispatchBlocked ? " Â· BLOQUEADO" : ""}
                     </p>
+                    {d.dispatchBlocked ? (
+                      <div className="mt-1.5">
+                        <BlockStatusBadge
+                          blocked
+                          reasons={
+                            d.blockReason
+                              ? d.blockReason.split(/[,;]/).map((s) => s.trim())
+                              : ["DRIVER_DISPATCH_BLOCKED"]
+                          }
+                          blockedLabel="Bloqueo"
+                          entityTitle={`Bloqueo · ${d.name}`}
+                          entitySubtitle={d.document}
+                        />
+                      </div>
+                    ) : null}
                   </div>
                   <Button
                     type="button"
@@ -359,8 +376,25 @@ export default function AsignacionesUnidadPage() {
                     {v.plate}
                   </p>
                   <p className="text-xs text-[var(--brand-text-secondary)]">
-                    {v.brand} {v.model} Â· {v.status}
+                    {v.brand} {v.model} · {v.status}
                   </p>
+                  {v.complianceBlocked ? (
+                    <div className="mt-1.5">
+                      <BlockStatusBadge
+                        blocked
+                        reasons={
+                          v.complianceReason
+                            ? v.complianceReason
+                                .split(/[,;]/)
+                                .map((s) => s.trim())
+                            : ["VEHICLE_COMPLIANCE_BLOCKED"]
+                        }
+                        blockedLabel="Bloqueo"
+                        entityTitle={`Bloqueo · ${v.plate}`}
+                        entitySubtitle="Vehículo · compliance"
+                      />
+                    </div>
+                  ) : null}
                 </div>
                 <Button
                   type="button"

@@ -24,6 +24,7 @@ export type Driver = {
   document: string;
   fatigueScore: number;
   dispatchBlocked: boolean;
+  blockReason?: string | null;
   active?: boolean;
 };
 

@@ -300,15 +300,42 @@ export function EmployeeDocumentsPanel({
         {dossier.checklist.map((slot) => {
           const done = slot.status === "UPLOADED";
           const isLicense = slot.key === "LICENCIA";
+          const licenseExp = dossier.license?.expiresAt
+            ? new Date(dossier.license.expiresAt)
+            : null;
+          const licenseExpired =
+            isLicense &&
+            licenseExp !== null &&
+            !Number.isNaN(licenseExp.getTime()) &&
+            licenseExp.getTime() < Date.now();
+          const docExp = slot.document?.expiresAt
+            ? new Date(slot.document.expiresAt)
+            : null;
+          const docExpired =
+            docExp !== null &&
+            !Number.isNaN(docExp.getTime()) &&
+            docExp.getTime() < Date.now();
+          const validation = (slot.document?.validationStatus || "").toUpperCase();
+          const docError =
+            validation === "ERROR" ||
+            validation === "REJECTED" ||
+            validation === "INVALID" ||
+            validation === "FAILED";
+          const alertBorder =
+            licenseExpired || docExpired || docError || (!done && slot.required)
+              ? licenseExpired || docExpired || docError
+                ? "border-[var(--brand-danger)]/50 bg-[color-mix(in_srgb,var(--brand-danger)_6%,transparent)]"
+                : "border-[var(--brand-warning)]/40"
+              : "border-[var(--brand-border)]";
+
           return (
-            <li
-              key={slot.key}
-              className="rounded-lg border border-[var(--brand-border)] p-3"
-            >
+            <li key={slot.key} className={`rounded-lg border p-3 ${alertBorder}`}>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    {done ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    {licenseExpired || docExpired || docError ? (
+                      <CircleAlert className="h-4 w-4 shrink-0 text-[var(--brand-danger)]" />
+                    ) : done ? (
                       <CheckCircle2 className="h-4 w-4 shrink-0 text-[var(--brand-primary)]" />
                     ) : (
                       <CircleAlert
@@ -331,29 +358,67 @@ export function EmployeeDocumentsPanel({
                         </span>
                       )}
                     </span>
+                    {licenseExpired || docExpired ? (
+                      <span className="rounded px-1.5 py-0.5 font-data text-[9px] font-bold uppercase tracking-wide bg-[color-mix(in_srgb,var(--brand-danger)_18%,transparent)] text-[var(--brand-danger)]">
+                        Expirado
+                      </span>
+                    ) : null}
+                    {docError ? (
+                      <span className="rounded px-1.5 py-0.5 font-data text-[9px] font-bold uppercase tracking-wide bg-[color-mix(in_srgb,var(--brand-danger)_18%,transparent)] text-[var(--brand-danger)]">
+                        Error
+                      </span>
+                    ) : null}
+                    {!done && slot.required ? (
+                      <span className="rounded px-1.5 py-0.5 font-data text-[9px] font-bold uppercase tracking-wide bg-[color-mix(in_srgb,var(--brand-warning)_18%,transparent)] text-[var(--brand-warning)]">
+                        Ausente
+                      </span>
+                    ) : null}
                   </div>
                   <p className="mt-1 text-xs text-[var(--brand-text-secondary)]">
                     {isLicense
-                      ? "Sube el PDF/foto y completa nÃºmero, categorÃ­a y vencimiento"
+                      ? "Sube el PDF/foto y completa número, categoría y vencimiento"
                       : slot.description}
                   </p>
                   {isLicense && dossier.license?.expiresAt ? (
-                    <p className="mt-1 font-data text-[11px] text-[var(--brand-primary)]">
-                      Vigente Â· {dossier.license.category || "â€”"} Â· vence{" "}
+                    <p
+                      className={`mt-1 font-data text-[11px] ${
+                        licenseExpired
+                          ? "text-[var(--brand-danger)]"
+                          : "text-[var(--brand-primary)]"
+                      }`}
+                    >
+                      {licenseExpired ? "Expirada" : "Vigente"} ·{" "}
+                      {dossier.license.category || "—"} · vence{" "}
                       {new Date(dossier.license.expiresAt).toLocaleDateString(
                         "es-CO",
                       )}
                     </p>
+                  ) : isLicense && !done ? (
+                    <p className="mt-1 font-data text-[11px] text-[var(--brand-danger)]">
+                      Licencia ausente · genera bloqueo de despacho
+                    </p>
                   ) : null}
                   {slot.document ? (
                     <p className="mt-1 font-data text-[11px] text-[var(--brand-text-secondary)]">
-                      {slot.document.originalName || slot.document.title} Â·{" "}
+                      {slot.document.originalName || slot.document.title} ·{" "}
                       {new Date(slot.document.createdAt).toLocaleDateString(
                         "es-CO",
                       )}
+                      {docExpired ? (
+                        <span className="text-[var(--brand-danger)]">
+                          {" "}
+                          · documento expirado
+                        </span>
+                      ) : null}
+                      {docError ? (
+                        <span className="text-[var(--brand-danger)]">
+                          {" "}
+                          · validación con error
+                        </span>
+                      ) : null}
                       {slot.document.fileRef ? (
                         <>
-                          {" Â· "}
+                          {" · "}
                           <a
                             href={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000"}${slot.document.fileRef}`}
                             target="_blank"

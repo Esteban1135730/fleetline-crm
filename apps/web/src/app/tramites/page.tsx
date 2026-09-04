@@ -12,12 +12,14 @@ import {
   StatusPulseBadge,
 } from "@/components/audit";
 import { BentoPanel } from "@/components/nexa/bento-panel";
+import { BlockStatusBadge } from "@/components/nexa/block-status-badge";
 import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
 import {
   WorkbenchSearch,
   WorkbenchTabs,
   WorkbenchToolbar,
 } from "@/components/workbench-toolbar";
+import { humanizeBlockReason } from "@/lib/block-reasons";
 
 type Vehicle = { id: string; plate: string; brand: string; model: string };
 
@@ -433,26 +435,29 @@ export default function TramitesPage() {
                       {v.odometerKm.toLocaleString("es-CO")} km
                     </NexaCell>
                     <NexaCell>
-                      <StatusPulseBadge
-                        tone={
-                          v.semaphore === "GREEN"
-                            ? "active"
-                            : v.semaphore === "YELLOW"
-                              ? "fatiga"
-                              : "danger"
-                        }
-                        pulse={v.semaphore !== "GREEN"}
-                      >
-                        {v.semaphore === "GREEN"
-                          ? "Verde"
-                          : v.semaphore === "YELLOW"
-                            ? "Amarillo"
-                            : "Rojo · bloqueado"}
-                      </StatusPulseBadge>
+                      {v.semaphore === "RED" || !v.dispatchable ? (
+                        <BlockStatusBadge
+                          blocked
+                          reasons={[...v.blockReasons, ...v.warnings]}
+                          blockedLabel="Bloqueo"
+                          entityTitle={`Bloqueo · ${v.plate}`}
+                          entitySubtitle="Unidad · compliance documental"
+                        />
+                      ) : (
+                        <StatusPulseBadge
+                          tone={
+                            v.semaphore === "GREEN" ? "active" : "fatiga"
+                          }
+                          pulse={v.semaphore !== "GREEN"}
+                        >
+                          {v.semaphore === "GREEN" ? "Verde" : "Amarillo"}
+                        </StatusPulseBadge>
+                      )}
                     </NexaCell>
                     <NexaCell className="text-xs text-brand-text-secondary">
-                      {[...v.blockReasons, ...v.warnings].join(" · ") ||
-                        "Documentación al día"}
+                      {[...v.blockReasons, ...v.warnings]
+                        .map(humanizeBlockReason)
+                        .join(" · ") || "Documentación al día"}
                     </NexaCell>
                     <NexaCell>
                       <Button
@@ -540,9 +545,19 @@ export default function TramitesPage() {
                       : r.status === "EXPIRING"
                         ? "Por vencer"
                         : r.status === "EXPIRED"
-                          ? "Vencido"
+                          ? "Expirado"
                           : statusEs(r.status)}
                   </StatusPulseBadge>
+                  {r.status === "EXPIRED" ||
+                  (typeof r.daysLeft === "number" && r.daysLeft < 0) ? (
+                    <p className="mt-1 font-data text-[10px] text-brand-danger">
+                      Documento expirado · renueve o actualice
+                    </p>
+                  ) : r.status === "EXPIRING" ? (
+                    <p className="mt-1 font-data text-[10px] text-brand-warning">
+                      Por vencer · actualice vigencia
+                    </p>
+                  ) : null}
                 </NexaCell>
                 <NexaCell>
                   <div className="flex flex-wrap items-center gap-1">

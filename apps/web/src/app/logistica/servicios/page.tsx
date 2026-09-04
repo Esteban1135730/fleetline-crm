@@ -21,6 +21,7 @@ import {
   StatusPulseBadge,
 } from "@/components/audit";
 import { BentoPanel } from "@/components/nexa/bento-panel";
+import { BlockStatusBadge } from "@/components/nexa/block-status-badge";
 import { FleetHud } from "@/components/nexa/fleet-hud";
 import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
 import {
@@ -36,6 +37,10 @@ import {
 import type { PlacePin } from "@/components/logistica/servicio-map-planner";
 import { SupervisorDeviationsPanel } from "@/components/logistica/supervisor-deviations-panel";
 import { OpsChatPanel } from "@/components/logistica/ops-chat-panel";
+import {
+  humanizeBlockReason,
+  summarizeBlockReasons,
+} from "@/lib/block-reasons";
 
 const ServicioMapPlanner = dynamic(
   () =>
@@ -81,10 +86,7 @@ type CreateResult = Servicio & {
 };
 
 function blockerLabel(code: string) {
-  return code
-    .replace(/_/g, " ")
-    .replace(/\bSOAT\b/i, "SOAT")
-    .replace(/\bTECNOMECANICA\b/i, "TecnomecÃƒÂ¡nica");
+  return humanizeBlockReason(code);
 }
 
 function KillSwitchCard({ blockers }: { blockers: string[] }) {
@@ -97,11 +99,11 @@ function KillSwitchCard({ blockers }: { blockers: string[] }) {
       <div className="mb-2 flex items-center gap-2">
         <ShieldAlert className="h-4 w-4 animate-pulse text-[var(--brand-danger)]" />
         <h4 className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--brand-danger)]">
-          Despacho bloqueado Ã‚Â· Kill-Switch
+          Despacho bloqueado · Kill-Switch
         </h4>
       </div>
       <p className="mb-2 text-xs text-[var(--brand-text-secondary)]">
-        La validaciÃƒÂ³n normativa denegÃƒÂ³ la asignaciÃƒÂ³n. Corrija el expediente
+        La validación normativa denegó la asignación. Corrija el expediente
         antes de despachar.
       </p>
       <ul className="space-y-1 rounded-md bg-[color-mix(in_srgb,var(--brand-danger)_8%,transparent)] p-2 font-data text-[10px] text-[var(--brand-danger)]">
@@ -895,17 +897,33 @@ export default function LogisticaServiciosPage() {
                 >
                   <option value="">Sin asignar ahoraÃ¢â‚¬Â¦</option>
                   {drivers.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.ready ? "Ã¢Å“â€œ " : "Ã¢Å¡Â  "}
-                      {d.name} Ã‚Â· fatiga {d.fatigueScore}
-                      {!d.ready ? ` Ã‚Â· ${d.blockers[0] ?? "revisar"}` : ""}
+                    <option
+                      key={d.id}
+                      value={d.id}
+                      title={
+                        !d.ready
+                          ? summarizeBlockReasons(d.blockers)
+                          : "Disponible para despacho"
+                      }
+                    >
+                      {d.ready ? "✓ " : "⚠ "}
+                      {d.name} · fatiga {d.fatigueScore}
+                      {!d.ready
+                        ? ` · ${humanizeBlockReason(d.blockers[0] ?? "revisar")}`
+                        : ""}
                     </option>
                   ))}
                 </select>
                 {selectedDriver && !selectedDriver.ready ? (
-                  <p className="mt-1 text-[11px] text-[var(--brand-danger)]">
-                    Kill-Switch conductor.
-                  </p>
+                  <div className="mt-1.5">
+                    <BlockStatusBadge
+                      blocked
+                      reasons={selectedDriver.blockers}
+                      blockedLabel="Bloqueo"
+                      entityTitle={`Bloqueo · ${selectedDriver.name}`}
+                      entitySubtitle="Conductor · pool de despacho"
+                    />
+                  </div>
                 ) : null}
               </label>
 
@@ -921,17 +939,33 @@ export default function LogisticaServiciosPage() {
                 >
                   <option value="">Sin asignar ahoraÃ¢â‚¬Â¦</option>
                   {vehiclesForCreate.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.ready ? "Ã¢Å“â€œ " : "Ã¢Å¡Â  "}
+                    <option
+                      key={v.id}
+                      value={v.id}
+                      title={
+                        !v.ready
+                          ? summarizeBlockReasons(v.blockers)
+                          : "Unidad apta para despacho"
+                      }
+                    >
+                      {v.ready ? "✓ " : "⚠ "}
                       {v.plate}
-                      {!v.ready ? ` Ã‚Â· ${v.blockers[0] ?? "revisar"}` : ""}
+                      {!v.ready
+                        ? ` · ${humanizeBlockReason(v.blockers[0] ?? "revisar")}`
+                        : ""}
                     </option>
                   ))}
                 </select>
                 {selectedVehicle && !selectedVehicle.ready ? (
-                  <p className="mt-1 text-[11px] text-[var(--brand-danger)]">
-                    Kill-Switch vehÃƒÂ­culo.
-                  </p>
+                  <div className="mt-1.5">
+                    <BlockStatusBadge
+                      blocked
+                      reasons={selectedVehicle.blockers}
+                      blockedLabel="Bloqueo"
+                      entityTitle={`Bloqueo · ${selectedVehicle.plate}`}
+                      entitySubtitle="Vehículo · pool de despacho"
+                    />
+                  </div>
                 ) : null}
               </label>
 
@@ -997,27 +1031,67 @@ export default function LogisticaServiciosPage() {
                     setAssignVehicleId("");
                   }}
                 >
-                  <option value="">ConductorÃ¢â‚¬Â¦</option>
+                  <option value="">Conductor…</option>
                   {drivers.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.ready ? "Ã¢Å“â€œ " : "Ã¢Å¡Â  "}
-                      {d.name} Ã‚Â· fatiga {d.fatigueScore}
+                    <option
+                      key={d.id}
+                      value={d.id}
+                      title={
+                        !d.ready
+                          ? summarizeBlockReasons(d.blockers)
+                          : "Disponible"
+                      }
+                    >
+                      {d.ready ? "✓ " : "⚠ "}
+                      {d.name} · fatiga {d.fatigueScore}
+                      {!d.ready
+                        ? ` · ${humanizeBlockReason(d.blockers[0] ?? "revisar")}`
+                        : ""}
                     </option>
                   ))}
                 </select>
+                {assignDriver && !assignDriver.ready ? (
+                  <BlockStatusBadge
+                    blocked
+                    reasons={assignDriver.blockers}
+                    blockedLabel="Bloqueo"
+                    entityTitle={`Bloqueo · ${assignDriver.name}`}
+                    entitySubtitle="Conductor · asignación"
+                  />
+                ) : null}
                 <select
                   className="field"
                   value={assignVehicleId}
                   onChange={(e) => setAssignVehicleId(e.target.value)}
                 >
-                  <option value="">PlacaÃ¢â‚¬Â¦</option>
+                  <option value="">Placa…</option>
                   {vehiclesForAssign.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.ready ? "Ã¢Å“â€œ " : "Ã¢Å¡Â  "}
+                    <option
+                      key={v.id}
+                      value={v.id}
+                      title={
+                        !v.ready
+                          ? summarizeBlockReasons(v.blockers)
+                          : "Apta"
+                      }
+                    >
+                      {v.ready ? "✓ " : "⚠ "}
                       {v.plate}
+                      {!v.ready
+                        ? ` · ${humanizeBlockReason(v.blockers[0] ?? "revisar")}`
+                        : ""}
                     </option>
                   ))}
                 </select>
+                {assignVehicle && !assignVehicle.ready ? (
+                  <BlockStatusBadge
+                    blocked
+                    reasons={assignVehicle.blockers}
+                    blockedLabel="Bloqueo"
+                    entityTitle={`Bloqueo · ${assignVehicle.plate}`}
+                    entitySubtitle="Vehículo · asignación"
+                  />
+                ) : null}
                 {assignDriver &&
                 (assignDriver.authorizedVehicleIds?.length ?? 0) > 0 &&
                 vehiclesForAssign.length === 0 ? (

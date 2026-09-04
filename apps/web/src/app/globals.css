@@ -852,7 +852,7 @@ html.light .route-glow {
   filter: drop-shadow(0px 0px 8px rgba(0, 180, 216, 0.4));
 }
 
-/* Login â€” unified auth surface */
+/* Login — unified auth surface */
 .login-canvas {
   min-height: 100vh;
   width: 100%;
@@ -871,6 +871,173 @@ html.light .login-card {
 
 html.dark .login-card {
   box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.04);
+}
+
+.login-card-shell {
+  background: color-mix(in srgb, var(--brand-surface) 38%, transparent);
+  backdrop-filter: blur(10px) saturate(1.15);
+  -webkit-backdrop-filter: blur(10px) saturate(1.15);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--brand-primary) 14%, transparent),
+    0 24px 64px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+html.light .login-card-shell {
+  background: color-mix(in srgb, var(--brand-surface) 42%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--brand-primary) 12%, transparent),
+    0 20px 48px rgba(5, 11, 20, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+/* Escenario NEXA — margen seguro para que no se corte la A */
+.login-nexa-stage {
+  top: 0;
+  right: 0;
+  bottom: 3.25rem; /* deja aire sobre el footer */
+  left: 0;
+  z-index: 0;
+  overflow: visible;
+  padding: clamp(2.5rem, 6vh, 4.5rem) clamp(1.25rem, 3vw, 2.5rem);
+}
+
+/* NEXA watermark — grande, 3D sutil, colores con rebote */
+.login-nexa-stack {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: auto;
+  max-width: 100%;
+  font-family: inherit;
+  font-weight: 900;
+  letter-spacing: -0.035em;
+  line-height: 1;
+  /* vmin: crece sin pasarse de alto ni ancho; padding evita recorte de glifos */
+  font-size: clamp(5.5rem, 26vmin, 18rem);
+  padding: 0.12em 0.08em;
+  overflow: visible;
+  box-sizing: content-box;
+}
+
+.login-nexa-stack > * {
+  grid-area: 1 / 1;
+  white-space: nowrap;
+  text-align: center;
+  overflow: visible;
+}
+
+/* Capa lejana — niebla / profundidad de campo */
+.login-nexa-fog {
+  color: color-mix(in srgb, var(--brand-primary) 55%, transparent);
+  transform: scale(1.045) translateY(0.02em);
+  filter: blur(18px);
+  opacity: 0.28;
+  z-index: 0;
+}
+
+/* Capa media — sombra blanda de profundidad (no extrusión 3D) */
+.login-nexa-depth {
+  color: color-mix(in srgb, var(--brand-primary) 35%, #020617);
+  transform: translate(0.008em, 0.02em) scale(1.01);
+  filter: blur(3px);
+  opacity: 0.38;
+  z-index: 1;
+}
+
+.login-nexa-watermark {
+  position: relative;
+  z-index: 2;
+  opacity: 0.42;
+  background-image: linear-gradient(
+    105deg,
+    var(--brand-primary) 0%,
+    var(--brand-secondary) 22%,
+    #10b981 44%,
+    #00e5ff 58%,
+    var(--brand-secondary) 78%,
+    var(--brand-primary) 100%
+  );
+  background-size: 220% 220%;
+  background-repeat: no-repeat;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: nexaChromaticBounce 9s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite
+    alternate;
+  filter: drop-shadow(0 8px 28px color-mix(in srgb, var(--brand-primary) 28%, transparent))
+    drop-shadow(0 2px 8px rgba(0, 0, 0, 0.35));
+  padding: 0.04em 0.02em;
+  margin: -0.04em -0.02em;
+}
+
+html.light .login-nexa-fog {
+  opacity: 0.18;
+  color: color-mix(in srgb, var(--brand-primary) 40%, transparent);
+}
+
+html.light .login-nexa-depth {
+  opacity: 0.24;
+  color: color-mix(in srgb, var(--brand-primary) 30%, #64748b);
+}
+
+html.light .login-nexa-watermark {
+  opacity: 0.3;
+}
+
+.login-nexa-glow {
+  background:
+    radial-gradient(
+      ellipse 55% 40% at 50% 45%,
+      color-mix(in srgb, var(--brand-primary) 12%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 40% 35% at 30% 60%,
+      color-mix(in srgb, var(--brand-secondary) 8%, transparent),
+      transparent 65%
+    ),
+    radial-gradient(
+      ellipse 35% 30% at 70% 40%,
+      color-mix(in srgb, #10b981 6%, transparent),
+      transparent 60%
+    );
+  animation: nexaGlowDrift 14s ease-in-out infinite alternate;
+}
+
+/* Colores avanzan hasta el borde, chocan y regresan */
+@keyframes nexaChromaticBounce {
+  0% {
+    background-position: 0% 45%;
+  }
+  35% {
+    background-position: 100% 55%;
+  }
+  55% {
+    background-position: 92% 30%;
+  }
+  100% {
+    background-position: 0% 70%;
+  }
+}
+
+@keyframes nexaGlowDrift {
+  0% {
+    transform: scale(1) translateY(0);
+    opacity: 0.85;
+  }
+  100% {
+    transform: scale(1.05) translateY(-1.5%);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-nexa-watermark,
+  .login-nexa-glow {
+    animation: none;
+  }
 }
 
 .login-field {

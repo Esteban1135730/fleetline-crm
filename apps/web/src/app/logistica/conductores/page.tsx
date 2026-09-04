@@ -20,6 +20,7 @@ import {
   StatusPulseBadge,
 } from "@/components/audit";
 import { BentoPanel } from "@/components/nexa/bento-panel";
+import { BlockStatusBadge } from "@/components/nexa/block-status-badge";
 import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
 import { DriverMonthCalendar } from "@/components/logistica/driver-month-calendar";
 import { ServicioDetailDrawer } from "@/components/logistica/servicio-detail-drawer";
@@ -32,6 +33,7 @@ import {
   type Servicio,
   type Substitute,
 } from "@/components/logistica/logistica-shared";
+import { collectDriverBlockReasons } from "@/lib/block-reasons";
 
 /** Referencia legal orientativa — termómetro mensual de HED/HEN. */
 const MONTHLY_OVERTIME_LIMIT_H = 48;
@@ -584,15 +586,19 @@ export default function LogisticaConductoresPage() {
                       )}
                     </NexaCell>
                     <NexaCell>
-                      {blocked ? (
-                        <StatusPulseBadge tone="danger" pulse>
-                          Bloqueado
-                        </StatusPulseBadge>
-                      ) : (
-                        <StatusPulseBadge tone="active" pulse={false}>
-                          Liberado
-                        </StatusPulseBadge>
-                      )}
+                      <BlockStatusBadge
+                        blocked={blocked}
+                        reasons={collectDriverBlockReasons({
+                          dispatchBlocked: dr.dispatchBlocked,
+                          blockReason: dr.blockReason,
+                          fatigueScore: dr.fatigueScore,
+                          fatigueBlockScore: HARD_RULES.FATIGUE_BLOCK_SCORE,
+                        })}
+                        blockedLabel="Bloqueo"
+                        clearLabel="Liberado"
+                        entityTitle={`Bloqueo · ${dr.name}`}
+                        entitySubtitle={dr.document}
+                      />
                     </NexaCell>
                     <NexaCell>
                       <div className="flex flex-wrap gap-1">

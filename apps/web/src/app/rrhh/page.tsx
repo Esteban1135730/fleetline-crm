@@ -27,6 +27,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { EmptyState, KpiCard, Modal, SlideOver, StatusPulseBadge } from "@/components/audit";
 import { BentoPanel } from "@/components/nexa/bento-panel";
+import { BlockStatusBadge } from "@/components/nexa/block-status-badge";
 import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
 import {
   WorkbenchSearch,
@@ -39,6 +40,7 @@ import {
   affiliateLevel,
   type ComplianceLevel,
 } from "@/components/rrhh/compliance-badge";
+import { collectDriverBlockReasons } from "@/lib/block-reasons";
 import {
   EMPTY_EMPLOYEE_FORM,
   EmployeeFormFields,
@@ -206,7 +208,7 @@ function empToForm(r: Emp): EmployeeFormValues {
 function semLabel(s: Semaphore) {
   if (s === "GREEN") return "VIGENTE";
   if (s === "AMBER") return "POR VENCER";
-  if (s === "RED") return "BLOQUEO";
+  if (s === "RED") return "EXPIRADO";
   return "N/A";
 }
 
@@ -907,8 +909,17 @@ export default function RrhhPage() {
                           <span className="font-data tabular-nums">{r.fatigueScore}</span>
                         </StatusPulseBadge>
                         {r.dispatchBlocked ? (
-                          <div className="mt-1 text-[10px] text-brand-danger">
-                            {r.blockReason ? statusEs(r.blockReason) : "Despacho bloqueado"}
+                          <div className="mt-1.5">
+                            <BlockStatusBadge
+                              blocked
+                              reasons={collectDriverBlockReasons({
+                                dispatchBlocked: r.dispatchBlocked,
+                                blockReason: r.blockReason,
+                              })}
+                              blockedLabel="Bloqueo"
+                              entityTitle={`Bloqueo · ${r.name}`}
+                              entitySubtitle={r.document}
+                            />
                           </div>
                         ) : null}
                       </NexaCell>
@@ -1027,18 +1038,17 @@ export default function RrhhPage() {
                       </ComplianceBadge>
                     </NexaCell>
                     <NexaCell>
-                      {r.dispatchBlocked ? (
-                        <ComplianceBadge level="RED" pulse>
-                          Bloqueo operativo
-                        </ComplianceBadge>
-                      ) : (
-                        <ComplianceBadge level="GREEN">Liberado</ComplianceBadge>
-                      )}
-                      {r.dispatchBlocked && r.blockReason ? (
-                        <div className="mt-1 text-[10px] text-brand-text-secondary">
-                          {statusEs(r.blockReason)}
-                        </div>
-                      ) : null}
+                      <BlockStatusBadge
+                        blocked={r.dispatchBlocked}
+                        reasons={collectDriverBlockReasons({
+                          dispatchBlocked: r.dispatchBlocked,
+                          blockReason: r.blockReason,
+                        })}
+                        blockedLabel="Bloqueo"
+                        clearLabel="Liberado"
+                        entityTitle={`Bloqueo · ${r.name}`}
+                        entitySubtitle={r.document}
+                      />
                     </NexaCell>
                   </NexaRow>
                 ))}
