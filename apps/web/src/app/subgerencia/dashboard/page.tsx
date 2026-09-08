@@ -149,7 +149,7 @@ export default function SubgerenciaDashboard() {
                 </p>
                 <p className="text-sm text-[var(--brand-text-primary)]">{c.title}</p>
                 <p className="mt-1 text-xs text-[var(--brand-text-secondary)]">
-                  {c.parties.join(" â†” ")}
+                  {c.parties.join(" ↔ ")}
                 </p>
               </div>
               <Button disabled={busy} onClick={() => void resolver(c)}>
@@ -185,7 +185,7 @@ export default function SubgerenciaDashboard() {
                     <p className="mt-1 text-sm">{p.title}</p>
                     {p.deadheadKmSaved != null && (
                       <p className="mt-1 font-mono text-xs text-[var(--brand-warning)]">
-                        âˆ’{p.deadheadKmSaved} km vacío
+                        −{p.deadheadKmSaved} km vacío
                       </p>
                     )}
                   </li>

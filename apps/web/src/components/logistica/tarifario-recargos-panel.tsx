@@ -159,7 +159,7 @@ export function TarifarioRecargosPanel() {
             Tarifario de recargos · nómina
           </h2>
           <p className="mt-1 text-sm text-[var(--brand-text-secondary)]">
-            Define la base salarial. Hora ordinaria = base Í· divisor (230). Los
+            Define la base salarial. Hora ordinaria = base ÷ divisor (230). Los
             factores RN / HED / HEN / ROD FEST / HEDF / HENF / RNF se aplican
             automáticamente.
           </p>
@@ -206,7 +206,7 @@ export function TarifarioRecargosPanel() {
             />
           </label>
           <p className="font-data text-xs text-[var(--brand-text-secondary)]">
-            Preview hora: {money(previewHourly)} · fórmula base Í· {divisor || "230"}
+            Preview hora: {money(previewHourly)} · fórmula base ÷ {divisor || "230"}
           </p>
           <Button type="button" disabled={saving} onClick={() => void saveOrg()}>
             Guardar base org

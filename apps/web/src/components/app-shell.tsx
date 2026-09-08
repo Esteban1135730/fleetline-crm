@@ -138,7 +138,7 @@ function TopBar({
     const isApple = /Mac|iPhone|iPad|iPod/.test(
       navigator.platform || navigator.userAgent,
     );
-    setModLabel(isApple ? "âŒ˜K" : "Ctrl K");
+    setModLabel(isApple ? "⌘K" : "Ctrl K");
   }, []);
   const statusClass =
     systemStatus === "NOMINAL"
@@ -494,11 +494,11 @@ function SideNav({
 }
 
 function HelpStepText({ text }: { text: string }) {
-  const parts = text.split(/(Cmd\/Ctrl\+[K/]|Ctrl\+K|Esc|âŒ˜K)/g);
+  const parts = text.split(/(Cmd\/Ctrl\+[K/]|Ctrl\+K|Esc|⌘K)/g);
   return (
     <p className="text-sm leading-relaxed text-[var(--brand-text-primary)]">
       {parts.map((part, i) =>
-        /^(Cmd\/Ctrl\+[K/]|Ctrl\+K|Esc|âŒ˜K)$/.test(part) ? (
+        /^(Cmd\/Ctrl\+[K/]|Ctrl\+K|Esc|⌘K)$/.test(part) ? (
           <kbd
             key={`${part}-${i}`}
             className="flt-kbd mx-0.5 rounded-md border px-2 py-0.5 font-mono text-xs"

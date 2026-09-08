@@ -78,12 +78,7 @@ const emptySupplierForm = {
 
 function formatCop(n: number) {
   if (!Number.isFinite(n) || n < 0) return "";
-  const abs = Math.round(n);
-  const s = String(abs);
-  if (s.length <= 6) return `$${abs.toLocaleString("es-CO")}`;
-  const head = Number(s.slice(0, -6)).toLocaleString("es-CO");
-  const tail = s.slice(-6);
-  return `$${head}Â´${tail.slice(0, 3)}.${tail.slice(3)}`;
+  return `$${Math.round(n).toLocaleString("es-CO")}`;
 }
 
 export default function ComprasPage() {

@@ -1,64 +1,78 @@
 const fs = require("fs");
 const path = require("path");
 
-const ROOT = path.join("apps", "web", "src");
-const EXT = new Set([".ts", ".tsx", ".css", ".js", ".jsx"]);
+const roots = ["apps/web/src", "packages/ui/src", "packages/shared/src", "apps/api/src"];
+const EXT = new Set([".ts", ".tsx", ".js", ".jsx", ".css", ".md", ".json"]);
 
-/** Orden: primero patrones dobles/triples, luego simples */
+function walk(d, o = []) {
+  if (!fs.existsSync(d)) return o;
+  for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+    const f = path.join(d, e.name);
+    if (e.isDirectory()) {
+      if (["node_modules", ".next", "dist", "build"].includes(e.name)) continue;
+      walk(f, o);
+    } else if (EXT.has(path.extname(e.name))) o.push(f);
+  }
+  return o;
+}
+
+/** Exact leftover sequences found in repo + common Spanish mojibake */
 const REPLACEMENTS = [
-  ["Ã¢â‚¬Â¦", "…"],
-  ["Ã¢â‚¬â€", "—"],
-  ["Ã¢â‚¬â€œ", "–"],
-  ["Ã¢â‚¬â„¢", "'"],
-  ["Ã¢â‚¬Å“", "“"],
-  ["Ã¢â‚¬Â", "”"],
-  ["Ã¢â‚¬Â¢", "•"],
-  ["ÃƒÂ¡", "á"],
-  ["ÃƒÂ©", "é"],
-  ["ÃƒÂ­", "í"],
-  ["ÃƒÂ³", "ó"],
-  ["ÃƒÂº", "ú"],
-  ["ÃƒÂ±", "ñ"],
-  ["ÃƒÂ¼", "ü"],
-  ["ÃƒÂ", "Á"],
-  ["Ãƒâ€°", "É"],
-  ["ÃƒÂ", "Í"],
-  ["Ãƒâ€œ", "Ó"],
-  ["ÃƒÅ¡", "Ú"],
-  ["Ãƒâ€˜", "Ñ"],
-  ["Ã‚Â·", "·"],
-  ["Ã‚Â¿", "¿"],
-  ["Ã‚Â¡", "¡"],
-  ["Ã‚Â", ""],
-  ["Ã¢Å“â€œ", "✓"],
-  ["Ã¢Å¡Â", "⚠"],
-  ["Ã¢â€ â€™", "→"],
-  ["â€¦", "…"],
-  ["â€”", "—"],
+  // Currency / punctuation (example: $15Â´000)
+  ["Â´", "´"],
+  ["Â¨", "¨"],
+  ["Âª", "ª"],
+  ["Âº", "º"],
+  ["Â«", "«"],
+  ["Â»", "»"],
+  ["Â¿", "¿"],
+  ["Â¡", "¡"],
+  ["Â°", "°"],
+  ["Â±", "±"],
+  ["Â·", "·"],
+  ["Â ", " "],
+  ["Â\u00a0", "\u00a0"],
+
+  // Arrows / symbols
+  ["â†”", "↔"],
+  ["â†’", "→"],
+  ["â†", "←"],
+  ["â†‘", "↑"],
+  ["â†“", "↓"],
+  ["âˆ’", "−"],
   ["â€“", "–"],
+  ["â€”", "—"],
+  ["â€¦", "…"],
   ["â€™", "'"],
   ["â€˜", "'"],
   ["â€œ", "“"],
   ["â€", "”"],
   ["â€¢", "•"],
-  ["â†’", "→"],
-  ["â†", "←"],
-  ["â†‘", "↑"],
-  ["â†“", "↓"],
+  ["â˜…", "★"],
+  ["â˜†", "☆"],
   ["âœ“", "✓"],
   ["âœ”", "✔"],
+  ["âœ•", "✕"],
+  ["âœ–", "✖"],
   ["âš ", "⚠"],
   ["âš¡", "⚡"],
   ["â‚¬", "€"],
-  ["Â·", "·"],
-  ["Â¿", "¿"],
-  ["Â¡", "¡"],
-  ["Â°", "°"],
-  ["Â±", "±"],
-  ["Â©", "©"],
-  ["Â®", "®"],
-  ["Â\u00a0", "\u00a0"],
-  ["Â ", " "],
+  ["âŒ˜", "⌘"],
+  ["âŒ£", "⌥"],
+  ["â‡§", "⇧"],
+  ["âŒ¥", "⌃"],
+
+  // Box-drawing comments (broken) → clean ASCII rules
+  ["â•", "="],
+  ["â•‘", "|"],
+  ["â”€", "-"],
+  ["â”‚", "|"],
+  ["â•”", "+"],
+  ["â•—", "+"],
+  ["â•š", "+"],
+  ["â•", "+"],
+
+  // Latin accents still broken
   ["Ã¡", "á"],
   ["Ã©", "é"],
   ["Ã­", "í"],
@@ -66,9 +80,6 @@ const REPLACEMENTS = [
   ["Ãº", "ú"],
   ["Ã±", "ñ"],
   ["Ã¼", "ü"],
-  ["Ã¶", "ö"],
-  ["Ã¤", "ä"],
-  ["Ã§", "ç"],
   ["Ã", "Á"],
   ["Ã‰", "É"],
   ["Ã", "Í"],
@@ -76,62 +87,52 @@ const REPLACEMENTS = [
   ["Ãš", "Ú"],
   ["Ã‘", "Ñ"],
   ["Ãœ", "Ü"],
-  ["Ã€", "À"],
-  ["Ã¨", "è"],
-  ["Ãª", "ê"],
-  ["Ã«", "ë"],
-  ["Ã®", "î"],
-  ["Ã¯", "ï"],
-  ["Ã´", "ô"],
-  ["Ã»", "û"],
-  ["Ã½", "ý"],
 ];
-
-function walk(dir, out = []) {
-  for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
-    const full = path.join(dir, ent.name);
-    if (ent.isDirectory()) {
-      if (ent.name === "node_modules" || ent.name === ".next") continue;
-      walk(full, out);
-    } else if (EXT.has(path.extname(ent.name))) {
-      out.push(full);
-    }
-  }
-  return out;
-}
 
 function fixText(input) {
   let text = input;
-  for (let guard = 0; guard < 8; guard++) {
+  for (let g = 0; g < 6; g++) {
     let next = text;
     for (const [bad, good] of REPLACEMENTS) {
       if (next.includes(bad)) next = next.split(bad).join(good);
     }
+    // Collapse long ====== comment banners from repeated â• fixes
+    next = next.replace(/={8,}/g, "========");
+    next = next.replace(/-{8,}/g, "--------");
     if (next === text) break;
     text = next;
   }
   return text;
 }
 
-const files = walk(ROOT);
+const suspectRe =
+  /Ã.|Â.|â.|�|Â´|â€|â†|âœ|âš|â‚¬|âŒ|â˜|âˆ|â•|â”/;
+
 let changed = 0;
 const leftovers = [];
-for (const file of files) {
-  const before = fs.readFileSync(file, "utf8");
-  if (!/Ã.|â€|Â[·¿¡ °±©®\u00a0]|Ãƒ|Ã¢/.test(before)) continue;
-  const after = fixText(before);
-  if (after !== before) {
-    fs.writeFileSync(file, after, "utf8");
-    changed++;
+
+for (const root of roots) {
+  for (const file of walk(root)) {
+    const before = fs.readFileSync(file, "utf8");
+    if (!suspectRe.test(before)) continue;
+    const after = fixText(before);
+    if (after !== before) {
+      fs.writeFileSync(file, after, "utf8");
+      changed++;
+    }
+    if (suspectRe.test(after)) {
+      const samples = [...after.matchAll(suspectRe)].slice(0, 5).map((m) => {
+        const i = m.index ?? 0;
+        return JSON.stringify(after.slice(Math.max(0, i - 10), i + 16));
+      });
+      leftovers.push({ file, samples });
+    }
   }
-  const left = (after.match(/Ã.|â€|Â[·¿¡]|Ãƒ|Ã¢/g) || []).length;
-  if (left > 0) leftovers.push({ file, left });
 }
-console.log(`Fixed ${changed} files`);
-if (leftovers.length) {
-  console.log("Remaining suspects:");
-  leftovers
-    .sort((a, b) => b.left - a.left)
-    .slice(0, 40)
-    .forEach((r) => console.log(` ${r.left}\t${r.file}`));
+
+console.log("Updated files:", changed);
+console.log("Leftover files:", leftovers.length);
+for (const L of leftovers) {
+  console.log(" -", L.file);
+  L.samples.forEach((s) => console.log("   ", s));
 }

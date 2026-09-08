@@ -519,7 +519,7 @@ export default function CoordinadorPatioDashboard() {
           <EmptyState
             icon={<ParkingSquare className="h-7 w-7" aria-hidden />}
             title="Sin bahías ocupadas"
-            description="Tras un ingreso, use Â«Bahía LIFOÂ» en la unidad para ubicarla por hora de salida."
+            description="Tras un ingreso, use «Bahía LIFO» en la unidad para ubicarla por hora de salida."
           />
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

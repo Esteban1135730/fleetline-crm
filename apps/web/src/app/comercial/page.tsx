@@ -134,18 +134,11 @@ function money(n: number) {
   return formatCop(n);
 }
 
-/** COP colombiano: 11000000 → $11´000.000 */
+/** COP colombiano vía locale es-CO (ej. 11000000 → $11.000.000) */
 function formatCop(n: number) {
   if (!Number.isFinite(n)) return "";
-  const abs = Math.round(Math.abs(n));
   const sign = n < 0 ? "-" : "";
-  const s = String(abs);
-  if (s.length <= 6) {
-    return `${sign}$${abs.toLocaleString("es-CO")}`;
-  }
-  const head = Number(s.slice(0, -6)).toLocaleString("es-CO");
-  const tail = s.slice(-6);
-  return `${sign}$${head}´${tail.slice(0, 3)}.${tail.slice(3)}`;
+  return `${sign}$${Math.round(Math.abs(n)).toLocaleString("es-CO")}`;
 }
 
 const MARGIN_TIP =
@@ -397,7 +390,7 @@ export default function ComercialPage() {
       return;
     }
     if (monthlyRaw.length > 12) {
-      setContractError("Valor mensual máximo: $999´999.999.999");
+      setContractError("Valor mensual máximo: $999.999.999.999");
       return;
     }
     setContractBusy(true);
@@ -1699,7 +1692,7 @@ export default function ComercialPage() {
               className="field font-data tabular-nums"
               data-field="skip"
               inputMode="decimal"
-              placeholder="$11´000.000"
+              placeholder="$11.000.000"
               value={
                 contractForm.monthlyValue
                   ? formatCop(Number(contractForm.monthlyValue))

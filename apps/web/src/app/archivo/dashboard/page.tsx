@@ -418,7 +418,7 @@ export default function ArchivoDashboardPage() {
               ) : null}
               {!searching && searched && hits.length === 0 ? (
                 <li className="px-4 py-3 text-sm text-[var(--brand-text-secondary)]">
-                  Sin coincidencias para Â«{q.trim()}Â».
+                  Sin coincidencias para «{q.trim()}».
                 </li>
               ) : null}
               {!searching

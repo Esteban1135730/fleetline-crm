@@ -56,18 +56,18 @@ export function SlideOver({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className={`absolute top-0 right-0 bottom-0 flex w-full ${widthClass} flex-col border-bevel border-l bg-[var(--surface-convex)] shadow-3d-panel backdrop-blur-md`}
+        className={`absolute top-0 right-0 bottom-0 flex w-full ${widthClass} flex-col border-l border-brand-border/70 bg-[color-mix(in_srgb,var(--brand-surface)_82%,transparent)] shadow-[var(--shadow-3d-panel)] backdrop-blur-xl`}
       >
-        <header className="flex shrink-0 items-start justify-between gap-3 border-b border-brand-border/60 px-5 py-4">
+        <header className="flex shrink-0 items-start justify-between gap-3 border-b border-brand-border/50 px-5 py-4">
           <div className="min-w-0 pr-2">
             <h2
               id={titleId}
-              className="text-lg font-semibold text-[var(--brand-text-primary)]"
+              className="font-sans text-lg font-semibold tracking-tight text-[var(--brand-text-primary)]"
             >
               {title}
             </h2>
             {description ? (
-              <p className="mt-1 text-sm text-[var(--brand-text-secondary)]">
+              <p className="mt-1 font-sans text-sm leading-relaxed text-[var(--brand-text-secondary)]">
                 {description}
               </p>
             ) : null}
@@ -75,19 +75,19 @@ export function SlideOver({
           <Button
             type="button"
             variant="ghost"
-            className="w-auto shrink-0 px-2 py-1"
+            className="w-auto shrink-0 px-2 py-1 font-data text-[10px] uppercase tracking-wide"
             onClick={onClose}
           >
             Esc
           </Button>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4 pb-8">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 pb-8">
           {children}
         </div>
 
         {footer ? (
-          <footer className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-brand-border/60 bg-brand-surface/80 px-5 py-4 backdrop-blur-md">
+          <footer className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-brand-border/50 bg-[color-mix(in_srgb,var(--brand-surface)_88%,transparent)] px-5 py-4 backdrop-blur-md">
             {footer}
           </footer>
         ) : null}

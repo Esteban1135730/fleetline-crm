@@ -80,28 +80,25 @@ export const EMPTY_EMPLOYEE_FORM: EmployeeFormValues = {
 };
 
 function SectionTitle({ children }: { children: string }) {
-  return (
-    <div className="col-span-full border-b border-[var(--brand-border)] pb-1 pt-2 text-[10px] font-semibold uppercase tracking-widest text-[var(--brand-primary)]">
-      {children}
-    </div>
-  );
+  return <div className="form-section-title col-span-full">{children}</div>;
 }
 
 function FieldLabel({
   label,
   children,
   className = "",
+  hint,
 }: {
   label: string;
   children: React.ReactNode;
   className?: string;
+  hint?: string;
 }) {
   return (
-    <label
-      className={`flex min-w-0 flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--brand-text-secondary)] ${className}`}
-    >
-      {label}
+    <label className={`form-field ${className}`.trim()}>
+      <span className="form-field-label">{label}</span>
       {children}
+      {hint ? <span className="form-hint">{hint}</span> : null}
     </label>
   );
 }
@@ -151,7 +148,7 @@ export function EmployeeFormFields({
   }
 
   return (
-    <div className="grid max-w-full grid-cols-1 gap-3 sm:grid-cols-2">
+    <div className="grid max-w-full grid-cols-1 gap-x-3 gap-y-3.5 sm:grid-cols-2">
       <SectionTitle>Identidad</SectionTitle>
       <FieldLabel label="Nombre completo" className="sm:col-span-2">
         <input
@@ -240,13 +237,13 @@ export function EmployeeFormFields({
           ))}
         </select>
       </FieldLabel>
-      <FieldLabel label="Acceso al sistema">
-        <div className="field flex items-center bg-[color-mix(in_srgb,var(--brand-surface-elevated)_80%,transparent)] text-[var(--brand-text-primary)]">
+      <FieldLabel
+        label="Acceso al sistema"
+        hint="Se asigna automáticamente según el cargo"
+      >
+        <div className="form-readonly">
           {ROLE_LABELS[form.role] ?? form.role}
         </div>
-        <span className="normal-case tracking-normal text-[10px] text-[var(--brand-text-secondary)]">
-          Se asigna automáticamente según el cargo
-        </span>
       </FieldLabel>
       <FieldLabel label="Tipo de contrato">
         <select

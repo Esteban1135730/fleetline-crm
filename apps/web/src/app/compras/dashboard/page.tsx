@@ -293,7 +293,7 @@ export default function ComprasVendorDashboardPage() {
                 <p className="text-sm font-medium text-[var(--brand-text-primary)]">
                   {s.name}
                 </p>
-                <Badge tone="warning">â˜… {s.rating.toFixed(1)}</Badge>
+                <Badge tone="warning">★ {s.rating.toFixed(1)}</Badge>
               </div>
               <p className="mt-1 font-mono text-xs text-[var(--brand-text-secondary)]">
                 NIT {s.nit}

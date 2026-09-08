@@ -214,7 +214,7 @@ export default function AsignacionesUnidadPage() {
         <KpiCard
           label="Vínculos activos"
           value={linkCount}
-          delta="Conductor â†” vehículo"
+          delta="Conductor ↔ vehículo"
           tone="ok"
           icon={<Link2 />}
         />

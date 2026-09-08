@@ -66,18 +66,18 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className={`relative z-[1] flex max-h-[min(92dvh,92vh)] w-full ${sizeClass[size]} flex-col overflow-hidden rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-2xl`}
+        className={`relative z-[1] flex max-h-[min(92dvh,92vh)] w-full ${sizeClass[size]} flex-col overflow-hidden rounded-2xl border border-[color-mix(in_srgb,var(--brand-border)_75%,transparent)] bg-[color-mix(in_srgb,var(--brand-surface)_88%,transparent)] shadow-[var(--shadow-3d-panel)] backdrop-blur-xl`}
       >
-        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[var(--brand-border)] px-5 py-4">
+        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[color-mix(in_srgb,var(--brand-border)_60%,transparent)] px-5 py-4">
           <div className="min-w-0">
             <h2
               id={titleId}
-              className="text-lg font-semibold text-[var(--brand-text-primary)]"
+              className="font-sans text-lg font-semibold tracking-tight text-[var(--brand-text-primary)]"
             >
               {title}
             </h2>
             {description ? (
-              <p className="mt-1 text-sm text-[var(--brand-text-secondary)]">
+              <p className="mt-1 font-sans text-sm leading-relaxed text-[var(--brand-text-secondary)]">
                 {description}
               </p>
             ) : null}
@@ -88,14 +88,14 @@ export function Modal({
             className="w-auto shrink-0 px-2 py-1"
             onClick={onClose}
           >
-            âœ•
+            ✕
           </Button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4 pb-8">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 pb-8">
           {children}
         </div>
         {footer ? (
-          <div className="flex shrink-0 justify-end gap-2 border-t border-[var(--brand-border)] px-5 py-4">
+          <div className="flex shrink-0 justify-end gap-2 border-t border-[color-mix(in_srgb,var(--brand-border)_60%,transparent)] bg-[color-mix(in_srgb,var(--brand-surface)_90%,transparent)] px-5 py-4 backdrop-blur-md">
             {footer}
           </div>
         ) : null}

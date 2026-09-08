@@ -72,7 +72,7 @@ export function AuthLayout({
         </div>
       </div>
 
-      <footer className="relative z-10 flex flex-col gap-2 border-t border-brand-border/60 bg-brand-canvas/40 px-4 py-4 backdrop-blur-md sm:flex-row sm:items-center sm:justify-between sm:px-6">
+      <footer className="relative z-10 flex flex-col gap-2 border-t border-brand-border/50 bg-[color-mix(in_srgb,var(--brand-surface)_35%,transparent)] px-4 py-4 backdrop-blur-md sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <StatusPulseBadge tone={statusTone}>{statusLine}</StatusPulseBadge>
         <div className="flex flex-wrap items-center gap-3 font-data text-[10px] tabular-nums text-brand-text-secondary">
           {clock ? <span>{clock}</span> : null}
