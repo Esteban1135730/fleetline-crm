@@ -46,7 +46,7 @@ export default function SubgerenciaDashboard() {
       setDash(d);
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "ConexiÃ³n fallida");
+      setError(e instanceof Error ? e.message : "Conexión fallida");
     }
   }, []);
 
@@ -63,14 +63,14 @@ export default function SubgerenciaDashboard() {
         {
           conflictId: c.id,
           resolution:
-            "Arbitraje N2 Subgerencia â€” prioridad operativa acordada entre partes",
+            "Arbitraje N2 Subgerencia — prioridad operativa acordada entre partes",
           approveLevel2: true,
         },
       );
       setMsg(res.message);
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "ResoluciÃ³n fallida");
+      setError(e instanceof Error ? e.message : "Resolución fallida");
     } finally {
       setBusy(false);
     }
@@ -126,7 +126,7 @@ export default function SubgerenciaDashboard() {
           {(dash?.satelliteYards || []).map((s) => (
             <li key={s.code}>
               <Badge tone="neutral">
-                {s.code} Â· cap {s.capacity}
+                {s.code} · cap {s.capacity}
               </Badge>
             </li>
           ))}
@@ -159,14 +159,14 @@ export default function SubgerenciaDashboard() {
           ))}
           {!dash?.conflictsOpen?.length && (
             <p className="text-sm text-[var(--brand-text-secondary)]">
-              Sin conflictos abiertos â€” nominal
+              Sin conflictos abiertos — nominal
             </p>
           )}
         </ul>
       </section>
 
       <section className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5">
-        <h2 className="mb-4 font-display text-lg">Tablero estratÃ©gico</h2>
+        <h2 className="mb-4 font-display text-lg">Tablero estratégico</h2>
         <div className="grid gap-4 md:grid-cols-3">
           {(["BACKLOG", "IN_PROGRESS", "DONE"] as const).map((col) => (
             <div key={col}>
@@ -185,7 +185,7 @@ export default function SubgerenciaDashboard() {
                     <p className="mt-1 text-sm">{p.title}</p>
                     {p.deadheadKmSaved != null && (
                       <p className="mt-1 font-mono text-xs text-[var(--brand-warning)]">
-                        âˆ’{p.deadheadKmSaved} km vacÃ­o
+                        âˆ’{p.deadheadKmSaved} km vacío
                       </p>
                     )}
                   </li>

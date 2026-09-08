@@ -12,7 +12,7 @@ const FleetMap = dynamic(
         className="nexa-panel flex h-[320px] items-center justify-center text-sm text-[var(--brand-text-secondary)]"
         data-testid="route-map"
       >
-        Cargando mapaâ€¦
+        Cargando mapa…
       </div>
     ),
   },

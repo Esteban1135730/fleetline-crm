@@ -9,7 +9,7 @@ import {
 } from "@/components/logistica/logistica-shared";
 
 function fmt(iso?: string | null) {
-  if (!iso) return "Ã¢â‚¬â€";
+  if (!iso) return "—";
   return new Date(iso).toLocaleString("es-CO", {
     dateStyle: "medium",
     timeStyle: "short",
@@ -30,7 +30,7 @@ const ESTADO_ES: Record<string, string> = {
 const MODO_RUTA_ES: Record<string, string> = {
   SUGGESTED: "Ruta sugerida",
   LIVE_GPS: "GPS en vivo",
-  HISTORY: "HistÃƒÂ³rico de ruta",
+  HISTORY: "Histórico de ruta",
 };
 
 const ACCION_ES: Record<string, string> = {
@@ -42,17 +42,17 @@ const ACCION_ES: Record<string, string> = {
   INCIDENT: "Novedad",
   REASSIGNED: "Reasignado",
   NOVELTY: "Novedad",
-  GPS_PING: "SeÃƒÂ±al GPS",
+  GPS_PING: "Señal GPS",
   OTHER: "Otro",
 };
 
 function estadoEs(status?: string) {
-  if (!status) return "Ã¢â‚¬â€";
+  if (!status) return "—";
   return ESTADO_ES[status] ?? status;
 }
 
 function modoRutaEs(mode?: string) {
-  if (!mode) return "Ã¢â‚¬â€";
+  if (!mode) return "—";
   return MODO_RUTA_ES[mode] ?? mode;
 }
 
@@ -109,7 +109,7 @@ export function ServicioDetailDrawer({
               Detalle del servicio
             </p>
             <h3 className="font-data text-lg text-[var(--brand-primary)]">
-              {trip?.code ?? "Ã¢â‚¬Â¦"}
+              {trip?.code ?? "…"}
             </h3>
           </div>
           <Button variant="ghost" onClick={onClose}>
@@ -119,7 +119,7 @@ export function ServicioDetailDrawer({
 
         <div className="flex-1 space-y-4 overflow-y-auto p-4">
           {loading ? (
-            <p className="text-sm text-[var(--brand-text-secondary)]">CargandoÃ¢â‚¬Â¦</p>
+            <p className="text-sm text-[var(--brand-text-secondary)]">Cargando…</p>
           ) : null}
           {error ? (
             <p role="alert" className="text-sm text-[var(--brand-danger)]">
@@ -144,10 +144,10 @@ export function ServicioDetailDrawer({
                 </div>
                 <div className="col-span-2">
                   <dt className="text-[10px] uppercase tracking-[0.1em] text-[var(--brand-text-secondary)]">
-                    Origen Ã¢â€ â€™ Destino
+                    Origen → Destino
                   </dt>
                   <dd>
-                    {trip.origin} Ã¢â€ â€™ {trip.destination}
+                    {trip.origin} → {trip.destination}
                   </dd>
                 </div>
                 <div>
@@ -178,19 +178,19 @@ export function ServicioDetailDrawer({
                   <dt className="text-[10px] uppercase tracking-[0.1em] text-[var(--brand-text-secondary)]">
                     Conductor
                   </dt>
-                  <dd>{trip.driver?.name ?? "Ã¢â‚¬â€"}</dd>
+                  <dd>{trip.driver?.name ?? "—"}</dd>
                 </div>
                 <div>
                   <dt className="text-[10px] uppercase tracking-[0.1em] text-[var(--brand-text-secondary)]">
                     Placa
                   </dt>
-                  <dd className="font-data">{trip.vehicle?.plate ?? "Ã¢â‚¬â€"}</dd>
+                  <dd className="font-data">{trip.vehicle?.plate ?? "—"}</dd>
                 </div>
                 <div className="col-span-2">
                   <dt className="text-[10px] uppercase tracking-[0.1em] text-[var(--brand-text-secondary)]">
                     Funcionario / cliente
                   </dt>
-                  <dd>{trip.officerName ?? "Ã¢â‚¬â€"}</dd>
+                  <dd>{trip.officerName ?? "—"}</dd>
                 </div>
               </dl>
 
@@ -206,7 +206,7 @@ export function ServicioDetailDrawer({
 
               <div className="nexa-panel max-h-[220px] overflow-auto p-3">
                 <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--brand-text-secondary)]">
-                  Registro de auditorÃƒÂ­a
+                  Registro de auditoría
                 </p>
                 <ul className="space-y-1 font-data text-[11px]">
                   {(tracking?.audit ?? []).map((a) => (

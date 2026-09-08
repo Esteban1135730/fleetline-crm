@@ -94,7 +94,7 @@ export function EmployeeExcelPanel({ open, onClose, onImported }: Props) {
       );
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "ExportaciÃ³n fallida");
+      setError(e instanceof Error ? e.message : "Exportación fallida");
     } finally {
       setBusy(false);
     }
@@ -138,7 +138,7 @@ export function EmployeeExcelPanel({ open, onClose, onImported }: Props) {
       setImportResult(result);
       onImported?.();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "ImportaciÃ³n fallida");
+      setError(e instanceof Error ? e.message : "Importación fallida");
     } finally {
       setBusy(false);
     }
@@ -148,7 +148,7 @@ export function EmployeeExcelPanel({ open, onClose, onImported }: Props) {
     <Modal
       open={open}
       onClose={onClose}
-      title="Excel Â· Personal RRHH"
+      title="Excel · Personal RRHH"
       size="lg"
     >
       <div className="space-y-4">
@@ -289,7 +289,7 @@ export function EmployeeExcelPanel({ open, onClose, onImported }: Props) {
         ) : (
           <>
             <p className="text-sm text-[var(--brand-text-secondary)]">
-              Suba un Excel con encabezados en espaÃ±ol. Si el documento ya
+              Suba un Excel con encabezados en español. Si el documento ya
               existe se actualiza; si no, se crea expediente + usuario (requiere
               correo).
             </p>
@@ -305,7 +305,7 @@ export function EmployeeExcelPanel({ open, onClose, onImported }: Props) {
               </Button>
               <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-4 py-2 text-sm font-semibold text-[var(--brand-text-primary)] hover:border-[var(--brand-primary)]">
                 <Upload className="h-4 w-4" aria-hidden />
-                {busy ? "Procesandoâ€¦" : "Elegir archivo .xlsx"}
+                {busy ? "Procesando…" : "Elegir archivo .xlsx"}
                 <input
                   type="file"
                   accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -323,9 +323,9 @@ export function EmployeeExcelPanel({ open, onClose, onImported }: Props) {
             {importResult ? (
               <div className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-3 text-sm">
                 <p className="font-semibold text-[var(--brand-text-primary)]">
-                  Resultado: {importResult.created} creados Â·{" "}
-                  {importResult.updated} actualizados Â· {importResult.skipped}{" "}
-                  vacÃ­os
+                  Resultado: {importResult.created} creados ·{" "}
+                  {importResult.updated} actualizados · {importResult.skipped}{" "}
+                  vacíos
                 </p>
                 {importResult.errors.length ? (
                   <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto font-mono text-xs text-[var(--brand-danger)]">

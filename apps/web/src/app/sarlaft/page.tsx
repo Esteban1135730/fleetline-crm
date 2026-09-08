@@ -55,9 +55,9 @@ const EMPTY_FORM = {
 };
 
 const EVIDENCE_SOURCES: { id: string; label: string }[] = [
-  { id: "POLICIA", label: "PolicÃ­a Nacional" },
-  { id: "PROCURADURIA", label: "ProcuradurÃ­a" },
-  { id: "REGISTRADURIA", label: "RegistradurÃ­a" },
+  { id: "POLICIA", label: "Policía Nacional" },
+  { id: "PROCURADURIA", label: "Procuraduría" },
+  { id: "REGISTRADURIA", label: "Registraduría" },
   { id: "ANTECEDENTES", label: "Antecedentes judiciales" },
   { id: "LISTAS", label: "Listas restrictivas (OFAC / ONU / PEPS)" },
   { id: "OTHER", label: "Otra evidencia" },
@@ -78,9 +78,9 @@ function riskBadge(risk: string) {
 }
 
 function formatCheckedAt(iso?: string | null) {
-  if (!iso) return "â€”";
+  if (!iso) return "—";
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "â€”";
+  if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleString("es-CO");
 }
 
@@ -256,14 +256,14 @@ export default function SarlaftPage() {
         <KpiCard
           label="Alertas en Listas Restrictivas"
           value={kpis.medio + kpis.alto}
-          delta={`${kpis.medio} medio Â· ${kpis.alto} alto`}
+          delta={`${kpis.medio} medio · ${kpis.alto} alto`}
           tone={kpis.alto > 0 ? "danger" : kpis.medio > 0 ? "warn" : "ok"}
         />
         <div className={kpis.alto > 0 ? "animate-pulse rounded-xl" : undefined}>
           <KpiCard
             label="Riesgo Alto"
             value={kpis.alto}
-            delta="Alto / Bloqueado Â· alerta"
+            delta="Alto / Bloqueado · alerta"
             tone={kpis.alto > 0 ? "danger" : "ok"}
             icon={<ShieldAlert />}
           />
@@ -356,7 +356,7 @@ export default function SarlaftPage() {
         open={formOpen}
         onClose={() => setFormOpen(false)}
         title="Nueva consulta SARLAFT"
-        description="Debida diligencia y clasificaciÃ³n de riesgo."
+        description="Debida diligencia y clasificación de riesgo."
         footer={
           <>
             <Button
@@ -390,7 +390,7 @@ export default function SarlaftPage() {
           ) : null}
           <label className="block space-y-1.5">
             <span className="text-xs font-semibold uppercase tracking-wider text-brand-text-secondary">
-              Nombre / razÃ³n social
+              Nombre / razón social
             </span>
             <input
               className="field w-full"
@@ -448,8 +448,8 @@ export default function SarlaftPage() {
       <SlideOver
         open={Boolean(dossier)}
         onClose={() => setDossier(null)}
-        title={dossier ? `Expediente Â· ${dossier.subjectName}` : "Expediente"}
-        description="Evidencias de policÃ­a, procuradurÃ­a, registradurÃ­a y antecedentes. Quedan selladas para auditorÃ­a SARLAFT."
+        title={dossier ? `Expediente · ${dossier.subjectName}` : "Expediente"}
+        description="Evidencias de policía, procuraduría, registraduría y antecedentes. Quedan selladas para auditoría SARLAFT."
         widthClass="max-w-lg"
         footer={
           <Button
@@ -465,7 +465,7 @@ export default function SarlaftPage() {
         {dossier ? (
           <div className="space-y-4">
             <p className="font-data text-xs text-[var(--brand-text-secondary)]">
-              {dossier.subjectDoc || dossier.document} Â·{" "}
+              {dossier.subjectDoc || dossier.document} ·{" "}
               {formatCheckedAt(dossier.checkedAt || dossier.createdAt)}
             </p>
 

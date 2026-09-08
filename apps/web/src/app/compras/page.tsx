@@ -21,7 +21,7 @@ import {
 import { BentoPanel } from "@/components/nexa/bento-panel";
 import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
 
-/** Cupo mensual operativo (Compras Â· PDF segundas). */
+/** Cupo mensual operativo (Compras · PDF segundas). */
 const MONTHLY_BUDGET_COP = 15_000_000;
 
 type SupplierOpt = {
@@ -153,7 +153,7 @@ export default function ComprasPage() {
     const qty = Math.max(1, Number(form.quantity.replace(/\D/g, "")) || 1);
     const amount = Number(form.amount.replace(/\D/g, ""));
     if (!form.description.trim()) {
-      setFormError("Indique la descripciÃ³n de la compra");
+      setFormError("Indique la descripción de la compra");
       return;
     }
     if (!form.supplierId) {
@@ -162,7 +162,7 @@ export default function ComprasPage() {
     }
     if (selectedSupplier?.sarlaftBlocked) {
       setFormError(
-        "Hard lock SARLAFT: proveedor bloqueado â€” no puede emitir OC",
+        "Hard lock SARLAFT: proveedor bloqueado — no puede emitir OC",
       );
       return;
     }
@@ -179,7 +179,7 @@ export default function ComprasPage() {
     }
     const desc =
       qty > 1
-        ? `${form.description.trim()} Â· Ã—${qty}`
+        ? `${form.description.trim()} · ×${qty}`
         : form.description.trim();
     setBusy(true);
     try {
@@ -211,7 +211,7 @@ export default function ComprasPage() {
     e.preventDefault();
     setSupplierError("");
     if (!supplierForm.name.trim() || supplierForm.name.trim().length < 2) {
-      setSupplierError("Indique la razÃ³n social del proveedor");
+      setSupplierError("Indique la razón social del proveedor");
       return;
     }
     if (!supplierForm.nit.trim() || supplierForm.nit.trim().length < 5) {
@@ -293,7 +293,7 @@ export default function ComprasPage() {
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <KpiCard
-          label="Pendientes de AprobaciÃ³n"
+          label="Pendientes de Aprobación"
           value={kpis.pending}
           tone={kpis.pending > 0 ? "warn" : "ok"}
           icon={<CheckCircle2 />}
@@ -326,7 +326,7 @@ export default function ComprasPage() {
               Directorio de proveedores
             </h2>
             <p className="text-xs text-[var(--brand-text-secondary)]">
-              HomologaciÃ³n comercial â€” no crea usuarios del CRM
+              Homologación comercial — no crea usuarios del CRM
             </p>
           </div>
           <Button
@@ -347,7 +347,7 @@ export default function ComprasPage() {
             <EmptyState
               icon={<Building2 className="h-7 w-7" />}
               title="Sin proveedores homologados"
-              description="Registre NIT y razÃ³n social para usarlos en Ã³rdenes de compra."
+              description="Registre NIT y razón social para usarlos en órdenes de compra."
               actionLabel="+ Homologar proveedor"
               onAction={() => {
                 setSupplierError("");
@@ -378,12 +378,12 @@ export default function ComprasPage() {
                 </p>
                 {s.email || s.phone ? (
                   <p className="mt-1 text-xs text-[var(--brand-text-secondary)]">
-                    {[s.email, s.phone].filter(Boolean).join(" Â· ")}
+                    {[s.email, s.phone].filter(Boolean).join(" · ")}
                   </p>
                 ) : null}
                 {s.productTags?.length ? (
                   <p className="mt-2 text-[11px] text-[var(--brand-text-secondary)]">
-                    {s.productTags.slice(0, 4).join(" Â· ")}
+                    {s.productTags.slice(0, 4).join(" · ")}
                   </p>
                 ) : null}
                 <Button
@@ -509,7 +509,7 @@ export default function ComprasPage() {
         open={slideOpen}
         onClose={() => setSlideOpen(false)}
         title="Solicitud de compra"
-        description="3-Way Matching Â· Hard lock presupuestal activo"
+        description="3-Way Matching · Hard lock presupuestal activo"
         footer={
           <>
             <Button
@@ -556,13 +556,13 @@ export default function ComprasPage() {
               />
             </div>
             <p className="mt-2 text-[11px] text-[var(--brand-text-secondary)]">
-              Disponible: {formatCop(kpis.presupuestoDisponible)} Â· Cupo{" "}
+              Disponible: {formatCop(kpis.presupuestoDisponible)} · Cupo{" "}
               {formatCop(MONTHLY_BUDGET_COP)}
             </p>
             {overBudget ? (
               <p className="mt-1 flex items-center gap-1 text-xs text-[var(--brand-danger)]">
                 <ShieldAlert className="h-3.5 w-3.5" />
-                Hard lock â€” requiere aprobaciÃ³n financiera
+                Hard lock — requiere aprobación financiera
               </p>
             ) : null}
           </div>
@@ -576,7 +576,7 @@ export default function ComprasPage() {
             </p>
           ) : null}
           <label className="text-xs text-brand-text-secondary">
-            DescripciÃ³n
+            Descripción
             <input
               className="field mt-1 w-full"
               data-field="text"
@@ -600,30 +600,30 @@ export default function ComprasPage() {
               }
               required
             >
-              <option value="">Seleccionar proveedorâ€¦</option>
+              <option value="">Seleccionar proveedor…</option>
               {suppliers.map((s) => (
                 <option
                   key={s.id}
                   value={s.id}
                   disabled={Boolean(s.sarlaftBlocked)}
                 >
-                  {s.name} Â· NIT {s.nit}
-                  {s.sarlaftBlocked ? " Â· SARLAFT bloqueado" : ""}
+                  {s.name} · NIT {s.nit}
+                  {s.sarlaftBlocked ? " · SARLAFT bloqueado" : ""}
                 </option>
               ))}
             </select>
             {selectedSupplier?.sarlaftBlocked ? (
               <p className="mt-1 flex items-center gap-1 text-xs text-[var(--brand-danger)]">
                 <ShieldAlert className="h-3.5 w-3.5" />
-                Proveedor sin auditorÃ­a SARLAFT â€” OC bloqueada
+                Proveedor sin auditoría SARLAFT — OC bloqueada
               </p>
             ) : selectedSupplier ? (
               <p className="mt-1 text-[10px] text-[var(--brand-text-secondary)]">
-                Rating {selectedSupplier.rating.toFixed(1)}/5 Â· homologado
+                Rating {selectedSupplier.rating.toFixed(1)}/5 · homologado
               </p>
             ) : suppliers.length === 0 ? (
               <p className="mt-1 text-[10px] text-[var(--brand-warning)]">
-                Sin proveedores â€”{" "}
+                Sin proveedores —{" "}
                 <button
                   type="button"
                   className="underline underline-offset-2"
@@ -679,7 +679,7 @@ export default function ComprasPage() {
             </label>
           </div>
           <label className="text-xs text-brand-text-secondary">
-            CategorÃ­a
+            Categoría
             <select
               className="field mt-1 w-full"
               value={form.category}
@@ -687,7 +687,7 @@ export default function ComprasPage() {
             >
               <option value="REPUESTOS">Repuestos</option>
               <option value="COMBUSTIBLE">Combustible</option>
-              <option value="PAPELERIA">PapelerÃ­a</option>
+              <option value="PAPELERIA">Papelería</option>
               <option value="SERVICIOS">Servicios</option>
               <option value="GENERAL">General</option>
             </select>
@@ -697,7 +697,7 @@ export default function ComprasPage() {
             <input
               className="field mt-1 w-full"
               data-field="text"
-              placeholder="Ãrea o nombre"
+              placeholder="Área o nombre"
               value={form.requestedBy}
               onChange={(e) =>
                 setForm({ ...form, requestedBy: e.target.value })
@@ -749,7 +749,7 @@ export default function ComprasPage() {
             </p>
           ) : null}
           <label className="text-xs text-[var(--brand-text-secondary)]">
-            RazÃ³n social
+            Razón social
             <input
               className="field mt-1 w-full"
               value={supplierForm.name}
@@ -787,7 +787,7 @@ export default function ComprasPage() {
               />
             </label>
             <label className="text-xs text-[var(--brand-text-secondary)]">
-              TelÃ©fono
+              Teléfono
               <input
                 className="field mt-1 w-full font-mono"
                 value={supplierForm.phone}
@@ -799,7 +799,7 @@ export default function ComprasPage() {
             </label>
           </div>
           <label className="text-xs text-[var(--brand-text-secondary)]">
-            CategorÃ­as / tags (separados por coma)
+            Categorías / tags (separados por coma)
             <input
               className="field mt-1 w-full"
               value={supplierForm.productTags}

@@ -8,7 +8,7 @@ import {
   type CalendarPayload,
 } from "@/components/logistica/logistica-shared";
 
-const WEEKDAYS = ["DOM", "LUN", "MAR", "MIÃƒâ€°", "JUE", "VIE", "SÃƒÂB"] as const;
+const WEEKDAYS = ["DOM", "LUN", "MAR", "MIÉ", "JUE", "VIE", "SÁB"] as const;
 
 const MONTH_NAMES = [
   "Enero",
@@ -202,10 +202,10 @@ export function DriverMonthCalendar({
           minute: "2-digit",
           hour12: false,
         });
-        const plate = t.vehicle?.plate ? ` Ã‚Â· ${t.vehicle.plate}` : "";
+        const plate = t.vehicle?.plate ? ` · ${t.vehicle.plate}` : "";
         const route =
           t.origin && t.destination
-            ? `${t.origin} Ã¢â€ â€™ ${t.destination}`
+            ? `${t.origin} → ${t.destination}`
             : t.code;
         push(cell.year, cell.month, cell.day, {
           id: t.id,
@@ -230,10 +230,10 @@ export function DriverMonthCalendar({
             Hoy
           </Button>
           <Button variant="ghost" onClick={onPrev} aria-label="Mes anterior">
-            Ã¢â€ Â
+            ←
           </Button>
           <Button variant="ghost" onClick={onNext} aria-label="Mes siguiente">
-            Ã¢â€ â€™
+            →
           </Button>
           <h2 className="ml-1 text-lg font-semibold tracking-tight text-[var(--brand-text-primary)]">
             {MONTH_NAMES[month - 1]} de {year}
@@ -342,7 +342,7 @@ export function DriverMonthCalendar({
                 )}
                 {more > 0 ? (
                   <div className="px-1 font-data text-[10px] text-[var(--brand-text-secondary)]">
-                    +{more} mÃƒÂ¡s
+                    +{more} más
                   </div>
                 ) : null}
               </div>
@@ -368,7 +368,7 @@ export function DriverMonthCalendar({
           Descanso
         </span>
         <span className="text-[var(--brand-text-secondary)]">
-          Intensidad verde = horas de conducciÃƒÂ³n (telemetrÃƒÂ­a/GPS)
+          Intensidad verde = horas de conducción (telemetría/GPS)
         </span>
       </div>
     </div>

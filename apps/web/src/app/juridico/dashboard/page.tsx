@@ -88,7 +88,7 @@ export default function JuridicoDashboardPage() {
   const [sarlaftName, setSarlaftName] = useState("");
   const [comment, setComment] = useState("");
   const [scanText, setScanText] = useState(
-    "Contrato de prestaciÃ³n. Las partes acuerdan una penalidad del 25% del valor mensual por incumplimiento. Multa de 8% por mora en pago.",
+    "Contrato de prestación. Las partes acuerdan una penalidad del 25% del valor mensual por incumplimiento. Multa de 8% por mora en pago.",
   );
 
   const load = useCallback(async () => {
@@ -100,7 +100,7 @@ export default function JuridicoDashboardPage() {
       }
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "ConexiÃ³n fallida");
+      setError(e instanceof Error ? e.message : "Conexión fallida");
     }
   }, [selectedId]);
 
@@ -121,13 +121,13 @@ export default function JuridicoDashboardPage() {
         status: string;
         message: string;
       }>("/api/v1/juridico/contratos/smart-scan", {
-        contractTitle: "RevisiÃ³n asistida â€” carga del centro jurÃ­dico",
+        contractTitle: "Revisión asistida — carga del centro jurídico",
         contractKind: "B2B",
         contractText: scanText,
         comments: [
           {
-            author: "SofÃ­a Directora JurÃ­dica",
-            body: "RevisiÃ³n jurÃ­dica iniciada",
+            author: "Sofía Directora Jurídica",
+            body: "Revisión jurídica iniciada",
           },
         ],
       });
@@ -135,7 +135,7 @@ export default function JuridicoDashboardPage() {
       setSelectedId(res.id);
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "RevisiÃ³n automÃ¡tica fallida");
+      setError(e instanceof Error ? e.message : "Revisión automática fallida");
     } finally {
       setBusy(false);
     }
@@ -147,7 +147,7 @@ export default function JuridicoDashboardPage() {
     try {
       await api.post("/api/v1/juridico/contratos/comentario", {
         scanId: selected.id,
-        author: "SofÃ­a Directora JurÃ­dica",
+        author: "Sofía Directora Jurídica",
         body: comment.trim(),
       });
       setComment("");
@@ -172,7 +172,7 @@ export default function JuridicoDashboardPage() {
         gpsPointCount: number;
       }>(`/api/v1/juridico/expediente-probatorio/${encodeURIComponent(plate)}`);
       setMsg(
-        `${res.code}: ${res.message} Â· hash ${res.contentHash.slice(0, 12)}â€¦ Â· preop ${res.preopCount} Â· GPS ${res.gpsPointCount}`,
+        `${res.code}: ${res.message} · hash ${res.contentHash.slice(0, 12)}… · preop ${res.preopCount} · GPS ${res.gpsPointCount}`,
       );
       await load();
     } catch (e) {
@@ -198,7 +198,7 @@ export default function JuridicoDashboardPage() {
         entityType: "PROPIETARIO",
       });
       setMsg(
-        `SemÃ¡foro ${res.light} Â· score ${res.riskScore} Â· ${res.message} Â· hits: ${res.hits.map((h) => h.list).join(", ") || "ninguno"}`,
+        `Semáforo ${res.light} · score ${res.riskScore} · ${res.message} · hits: ${res.hits.map((h) => h.list).join(", ") || "ninguno"}`,
       );
       await load();
     } catch (e) {
@@ -304,7 +304,7 @@ export default function JuridicoDashboardPage() {
                 </div>
                 <div className="min-h-[220px] rounded-lg border border-dashed border-[color:var(--brand-border)] bg-[color:var(--brand-canvas)] p-3 font-mono text-xs leading-relaxed text-[color:var(--brand-text-secondary)]">
                   <p className="mb-2 text-[color:var(--brand-text-primary)]">
-                    Vista documento Â· {selected.fileRef ?? "texto / PDF"}
+                    Vista documento · {selected.fileRef ?? "texto / PDF"}
                   </p>
                   {asClauses(selected.flaggedClauses).map((f, i) => (
                     <p
@@ -319,13 +319,13 @@ export default function JuridicoDashboardPage() {
                     </p>
                   ))}
                   {!asClauses(selected.flaggedClauses).length && (
-                    <p>Sin clÃ¡usulas fuera de polÃ­tica en este escaneo.</p>
+                    <p>Sin cláusulas fuera de política en este escaneo.</p>
                   )}
                 </div>
               </>
             ) : (
               <p className="text-sm text-[color:var(--brand-text-secondary)]">
-                Sin escaneos. Ejecute el anÃ¡lisis jurÃ­dico.
+                Sin escaneos. Ejecute el análisis jurídico.
               </p>
             )}
             <textarea
@@ -367,7 +367,7 @@ export default function JuridicoDashboardPage() {
               <input
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
-                placeholder="ObservaciÃ³n jurÃ­dicaâ€¦"
+                placeholder="Observación jurídica…"
                 className="flex-1 rounded-lg border border-[color:var(--brand-border)] bg-[color:var(--brand-canvas)] px-3 py-2 text-sm"
               />
               <Button disabled={busy || !selected} onClick={() => void postComment()}>

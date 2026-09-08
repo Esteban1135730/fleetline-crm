@@ -67,14 +67,14 @@ export function NotificationBell() {
       >
           <div className="flex items-center justify-between border-b border-[var(--brand-border)] px-3 py-2">
             <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--brand-text-secondary)]">
-              Inbox Ã‚Â· alertas
+              Inbox · alertas
             </p>
             <button
               type="button"
               className="text-[11px] text-[var(--brand-primary)]"
               onClick={() => void markAllRead()}
             >
-              Marcar leÃƒÂ­das
+              Marcar leídas
             </button>
           </div>
 
@@ -139,7 +139,7 @@ export function NotificationBell() {
                       {n.body}
                     </p>
                     <p className="mt-1 font-data text-[10px] text-[var(--brand-text-secondary)]">
-                      {n.kind} Ã‚Â·{" "}
+                      {n.kind} ·{" "}
                       {new Date(n.createdAt).toLocaleString("es-CO", {
                         hour12: false,
                       })}
@@ -216,7 +216,7 @@ export function NotificationToasts() {
               onClick={() => dismissToast(t.toastId)}
               aria-label="Cerrar"
             >
-              Ãƒâ€”
+              ×
             </button>
           </div>
           <div className="mt-2 flex gap-2">

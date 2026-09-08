@@ -14,7 +14,7 @@ type NavItem = {
 };
 
 type CommandRow = NavItem & {
-  group: "MÃ“DULOS" | "CONDUCTORES" | "VEHÃCULOS/PLACAS" | "ACCIONES RÃPIDAS";
+  group: "MÓDULOS" | "CONDUCTORES" | "VEHÍCULOS/PLACAS" | "ACCIONES RÁPIDAS";
 };
 
 function itemLabel(item: NavItem) {
@@ -41,32 +41,32 @@ function classify(item: NavItem): CommandRow["group"] {
     href.includes("parqueadero") ||
     href.includes("patio") ||
     label.includes("placa") ||
-    label.includes("vehÃ­culo") ||
+    label.includes("vehículo") ||
     label.includes("vehiculo")
   ) {
-    return "VEHÃCULOS/PLACAS";
+    return "VEHÍCULOS/PLACAS";
   }
   if (
     href.includes("cuenta") ||
     href.includes("usuarios") ||
     label.includes("nueva") ||
     label.includes("crear") ||
-    section.includes("acciÃ³n") ||
+    section.includes("acción") ||
     section.includes("accion")
   ) {
-    return "ACCIONES RÃPIDAS";
+    return "ACCIONES RÁPIDAS";
   }
-  return "MÃ“DULOS";
+  return "MÓDULOS";
 }
 
 const GROUP_ORDER: CommandRow["group"][] = [
-  "MÃ“DULOS",
+  "MÓDULOS",
   "CONDUCTORES",
-  "VEHÃCULOS/PLACAS",
-  "ACCIONES RÃPIDAS",
+  "VEHÍCULOS/PLACAS",
+  "ACCIONES RÁPIDAS",
 ];
 
-/** Placa tÃ­pica CO: ABC123 / ABC12D */
+/** Placa típica CO: ABC123 / ABC12D */
 function looksLikePlate(q: string) {
   return /^[A-Za-z]{3}\d{2,3}[A-Za-z0-9]?$/.test(q.replace(/\s|-/g, ""));
 }
@@ -90,16 +90,16 @@ export function CommandSearch({ items }: { items: NavItem[] }) {
       base.unshift({
         href: `/tramites?q=${encodeURIComponent(q.toUpperCase())}`,
         view: "tramites",
-        label: `Placa ${q.toUpperCase()} Â· semÃ¡foro documental`,
+        label: `Placa ${q.toUpperCase()} · semáforo documental`,
         section: "placa",
-        group: "VEHÃCULOS/PLACAS",
+        group: "VEHÍCULOS/PLACAS",
       });
       base.unshift({
         href: `/logistica/servicios?plate=${encodeURIComponent(q.toUpperCase())}`,
         view: "logistica",
-        label: `Placa ${q.toUpperCase()} Â· mapa / tracking`,
+        label: `Placa ${q.toUpperCase()} · mapa / tracking`,
         section: "placa",
-        group: "VEHÃCULOS/PLACAS",
+        group: "VEHÍCULOS/PLACAS",
       });
     }
 
@@ -157,7 +157,7 @@ export function CommandSearch({ items }: { items: NavItem[] }) {
       <button
         type="button"
         className="flt-command-backdrop"
-        aria-label="Cerrar bÃºsqueda"
+        aria-label="Cerrar búsqueda"
         onClick={() => setCommandOpen(false)}
       />
       <div className="flt-command-panel">
@@ -182,7 +182,7 @@ export function CommandSearch({ items }: { items: NavItem[] }) {
                 go(flat[active].href);
               }
             }}
-            placeholder="Buscar mÃ³dulo, placa, conductor o acciÃ³nâ€¦"
+            placeholder="Buscar módulo, placa, conductor o acción…"
             className="w-full bg-transparent text-sm text-[var(--brand-text-primary)] outline-none placeholder:text-[var(--brand-text-secondary)]"
           />
           <kbd className="flt-kbd rounded-md border px-2 py-0.5 font-mono text-[10px]">

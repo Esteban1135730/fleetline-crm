@@ -31,7 +31,7 @@ export function ConfirmMutationHost() {
         : buildEditRows(input.previous, input.next);
     const title =
       input.title ||
-      (kind === "delete" ? "Confirmar eliminaciÃƒÂ³n" : "Confirmar ediciÃƒÂ³n");
+      (kind === "delete" ? "Confirmar eliminación" : "Confirmar edición");
     return new Promise<boolean>((resolve) => {
       setPending({ kind, title, rows, resolve });
     });
@@ -96,7 +96,7 @@ export function ConfirmMutationHost() {
           </h2>
           <p className="mt-1 text-sm text-[var(--brand-text-secondary)]">
             {isDelete
-              ? "Revisa los datos que se van a eliminar. Esta acciÃƒÂ³n no se puede deshacer."
+              ? "Revisa los datos que se van a eliminar. Esta acción no se puede deshacer."
               : "Revisa los valores anteriores y los nuevos antes de guardar."}
           </p>
         </div>
@@ -104,7 +104,7 @@ export function ConfirmMutationHost() {
         <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-5 py-4">
           {pending.rows.length === 0 ? (
             <p className="text-sm text-[var(--brand-text-secondary)]">
-              No hay campos para mostrar. Confirma solo si estÃƒÂ¡s seguro.
+              No hay campos para mostrar. Confirma solo si estás seguro.
             </p>
           ) : (
             <div className="overflow-x-auto rounded-lg border border-[var(--brand-border)]">
@@ -148,7 +148,7 @@ export function ConfirmMutationHost() {
 
           {!isDelete && changed.length === 0 ? (
             <p className="mt-3 text-xs text-[var(--brand-text-secondary)]">
-              No hay diferencias detectadas. Aun asÃƒÂ­ puedes cancelar si fue un
+              No hay diferencias detectadas. Aun así puedes cancelar si fue un
               clic accidental.
             </p>
           ) : null}
@@ -169,7 +169,7 @@ export function ConfirmMutationHost() {
             className={`w-auto px-4 py-2 ${isDelete ? "!bg-[var(--brand-danger)]" : ""}`}
             onClick={() => close(true)}
           >
-            {isDelete ? "SÃƒÂ­, eliminar" : "SÃƒÂ­, guardar cambios"}
+            {isDelete ? "Sí, eliminar" : "Sí, guardar cambios"}
           </Button>
         </div>
       </div>

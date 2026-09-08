@@ -106,7 +106,7 @@ export default function QhsePreventionDashboardPage() {
       setDash(d);
       setNps(n);
     } catch (e) {
-      setError((e as Error).message || "SeÃ±al perdida â€” reintentando conexiÃ³n");
+      setError((e as Error).message || "Señal perdida — reintentando conexión");
     }
   }, []);
 
@@ -140,7 +140,7 @@ export default function QhsePreventionDashboardPage() {
         URL.revokeObjectURL(url);
       }
     } catch (e) {
-      setError((e as Error).message || "ExportaciÃ³n ambiental fallida");
+      setError((e as Error).message || "Exportación ambiental fallida");
     } finally {
       setBusy(false);
     }
@@ -181,7 +181,7 @@ export default function QhsePreventionDashboardPage() {
           label="Preoperacionales incompletos"
           value={rm ? rm.preopsIncomplete.count : 0}
           delta={
-            rm ? signalLabel(rm.preopsIncomplete.signal) : "Sincronizandoâ€¦"
+            rm ? signalLabel(rm.preopsIncomplete.signal) : "Sincronizando…"
           }
           tone={rm ? signalTone(rm.preopsIncomplete.signal) : "neutral"}
           icon={<ShieldAlert />}
@@ -191,7 +191,7 @@ export default function QhsePreventionDashboardPage() {
           value={rm ? rm.licensesCoursesExpiring.count : 0}
           delta={
             rm
-              ? `${rm.licensesCoursesExpiring.licenses} lic. Â· ${rm.licensesCoursesExpiring.courses} cursos`
+              ? `${rm.licensesCoursesExpiring.licenses} lic. · ${rm.licensesCoursesExpiring.courses} cursos`
               : undefined
           }
           tone={rm ? signalTone(rm.licensesCoursesExpiring.signal) : "neutral"}

@@ -15,7 +15,7 @@ export default function HomePage() {
 
   return (
     <div className="flex h-screen items-center justify-center text-[var(--brand-text-secondary)]">
-      Redirigiendoâ€¦
+      Redirigiendo…
     </div>
   );
 }

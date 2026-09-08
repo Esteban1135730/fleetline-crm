@@ -36,7 +36,7 @@ export default function AuxiliarYardAppPage() {
       setData(d);
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "ConexiÃ³n fallida");
+      setError(e instanceof Error ? e.message : "Conexión fallida");
     }
   }, []);
 
@@ -52,7 +52,7 @@ export default function AuxiliarYardAppPage() {
     try {
       await api.post("/api/v1/patio/lavado/completar", {
         washJobId: card.id,
-        notes: "Lavado correcto â€” huella hÃºmeda",
+        notes: "Lavado correcto — huella húmeda",
       });
       setMsg(`Lavado ${card.plate} completado`);
       setIndex(0);
@@ -116,7 +116,7 @@ export default function AuxiliarYardAppPage() {
             {card.plate}
           </p>
           <p className="mt-2 text-sm text-[var(--brand-text-secondary)]">
-            BahÃ­a {card.bayCode || "â€”"}
+            Bahía {card.bayCode || "—"}
           </p>
           <div className="mt-8 grid grid-cols-2 gap-4">
             <Button
@@ -137,7 +137,7 @@ export default function AuxiliarYardAppPage() {
         </div>
       ) : (
         <p className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-8 text-center text-[var(--brand-text-secondary)]">
-          Cola de lavado vacÃ­a â€” nominal
+          Cola de lavado vacía — nominal
         </p>
       )}
 

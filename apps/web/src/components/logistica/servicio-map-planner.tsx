@@ -49,7 +49,7 @@ export function ServicioMapPlanner({
   onDestChange: (p: PlacePin | null) => void;
   /** Mapa a altura completa del contenedor (split-screen). */
   fillHeight?: boolean;
-  /** Controles A/B + bÃƒÂºsqueda; false si el padre los mueve al panel flotante. */
+  /** Controles A/B + búsqueda; false si el padre los mueve al panel flotante. */
   showChrome?: boolean;
 }) {
   const colors = useThemeColors();
@@ -243,7 +243,7 @@ export function ServicioMapPlanner({
       setHint("Ahora elige el destino");
     } else {
       onDestChange(hit);
-      setHint("Ruta lista Ã¢â‚¬â€ confirma el servicio");
+      setHint("Ruta lista — confirma el servicio");
     }
     setHits([]);
     setQuery("");
@@ -264,7 +264,7 @@ export function ServicioMapPlanner({
             setHint("Toca el mapa o busca el punto de origen (A)");
           }}
         >
-          A Ã‚Â· Origen
+          A · Origen
         </button>
         <button
           type="button"
@@ -278,7 +278,7 @@ export function ServicioMapPlanner({
             setHint("Toca el mapa o busca el punto de destino (B)");
           }}
         >
-          B Ã‚Â· Destino
+          B · Destino
         </button>
         <Button
           type="button"
@@ -289,7 +289,7 @@ export function ServicioMapPlanner({
             onDestChange(null);
             setPreview(null);
             setPickMode("origin");
-            setHint("Toca el mapa o busca una direcciÃƒÂ³n para el origen");
+            setHint("Toca el mapa o busca una dirección para el origen");
           }}
         >
           Limpiar puntos
@@ -302,7 +302,7 @@ export function ServicioMapPlanner({
           placeholder={
             pickMode === "origin"
               ? "Buscar origen (ej. Aeropuerto El Dorado)"
-              : "Buscar destino (ej. Calle 100 BogotÃƒÂ¡)"
+              : "Buscar destino (ej. Calle 100 Bogotá)"
           }
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -319,7 +319,7 @@ export function ServicioMapPlanner({
           className="w-auto"
           onClick={() => void runSearch()}
         >
-          {searching ? "Ã¢â‚¬Â¦" : "Buscar"}
+          {searching ? "…" : "Buscar"}
         </Button>
       </div>
 
@@ -340,12 +340,12 @@ export function ServicioMapPlanner({
       ) : null}
 
       <p className="text-[11px] text-[var(--brand-text-secondary)]">
-        {origin ? `A Ã‚Â· ${origin.label}` : hint}
-        {dest ? ` Ã¢â€ â€™ B Ã‚Â· ${dest.label}` : ""}
+        {origin ? `A · ${origin.label}` : hint}
+        {dest ? ` → B · ${dest.label}` : ""}
       </p>
       {preview ? (
         <p className="font-data text-xs text-[var(--brand-primary)]">
-          Ruta estimada Ã‚Â· {preview.distanceKm} km Ã‚Â· ~{preview.durationMin} min
+          Ruta estimada · {preview.distanceKm} km · ~{preview.durationMin} min
         </p>
       ) : null}
     </div>

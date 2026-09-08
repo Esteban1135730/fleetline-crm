@@ -148,7 +148,7 @@ export default function JuridicoPage() {
       setCtx(c);
     } catch (e) {
       setCtx(null);
-      setError(e instanceof Error ? e.message : "Sin contexto de vehÃ­culo");
+      setError(e instanceof Error ? e.message : "Sin contexto de vehículo");
     }
   }
 
@@ -268,7 +268,7 @@ export default function JuridicoPage() {
       {rows.length === 0 ? (
         <EmptyState
           title="Sin extractos FUEC"
-          description="Crea un contrato cuando SOAT, RCC-RCE, tarjeta de operaciÃ³n y afiliaciÃ³n estÃ©n vigentes."
+          description="Crea un contrato cuando SOAT, RCC-RCE, tarjeta de operación y afiliación estén vigentes."
           actionLabel="Nuevo contrato"
           onAction={() => void openModal()}
         />
@@ -361,13 +361,13 @@ export default function JuridicoPage() {
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-3">
-              <Field label="Persona Ã³ Empresa que contrata (*)">
+              <Field label="Persona ó Empresa que contrata (*)">
                 <select
                   className="field"
                   value={form.customerId}
                   onChange={(e) => onCustomerChange(e.target.value)}
                 >
-                  <option value="">â€” Seleccionar / manual â€”</option>
+                  <option value="">— Seleccionar / manual —</option>
                   {options?.customers.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name}
@@ -385,7 +385,7 @@ export default function JuridicoPage() {
                   }
                 />
               </Field>
-              <Field label="NIT Ã³ C.C">
+              <Field label="NIT ó C.C">
                 <input
                   className="field font-data"
                   value={form.contractorNit}
@@ -394,7 +394,7 @@ export default function JuridicoPage() {
                   }
                 />
               </Field>
-              <Field label="Contratante direcciÃ³n">
+              <Field label="Contratante dirección">
                 <input
                   className="field"
                   value={form.contractorAddress}
@@ -403,7 +403,7 @@ export default function JuridicoPage() {
                   }
                 />
               </Field>
-              <Field label="Contratante TelÃ©fono">
+              <Field label="Contratante Teléfono">
                 <input
                   className="field font-data"
                   value={form.contractorPhone}
@@ -412,7 +412,7 @@ export default function JuridicoPage() {
                   }
                 />
               </Field>
-              <Field label="Contrato NÂ° (*)">
+              <Field label="Contrato N° (*)">
                 <input
                   className="field font-data"
                   required
@@ -481,7 +481,7 @@ export default function JuridicoPage() {
                   />
                 </Field>
               </div>
-              <Field label="DescripciÃ³n del recorrido (*)">
+              <Field label="Descripción del recorrido (*)">
                 <textarea
                   className="field min-h-[72px]"
                   required
@@ -510,7 +510,7 @@ export default function JuridicoPage() {
                     }
                   />
                 </Field>
-                <Field label="NÂ° CÃ©dula">
+                <Field label="N° Cédula">
                   <input
                     className="field font-data"
                     value={form.responsibleDocument}
@@ -524,7 +524,7 @@ export default function JuridicoPage() {
                 </Field>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <Field label="DirecciÃ³n">
+                <Field label="Dirección">
                   <input
                     className="field"
                     value={form.responsibleAddress}
@@ -536,7 +536,7 @@ export default function JuridicoPage() {
                     }
                   />
                 </Field>
-                <Field label="TelÃ©fono">
+                <Field label="Teléfono">
                   <input
                     className="field font-data"
                     value={form.responsiblePhone}
@@ -551,7 +551,7 @@ export default function JuridicoPage() {
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-3 rounded-lg border border-[var(--brand-border)] p-3">
-              <h3 className="text-sm font-semibold">Datos del vehÃ­culo</h3>
+              <h3 className="text-sm font-semibold">Datos del vehículo</h3>
               <Field label="Placa (*)">
                 <select
                   className="field font-data"
@@ -559,10 +559,10 @@ export default function JuridicoPage() {
                   value={form.vehicleId}
                   onChange={(e) => void onVehicleChange(e.target.value)}
                 >
-                  <option value="">â€” Seleccionar â€”</option>
+                  <option value="">— Seleccionar —</option>
                   {options?.vehicles.map((v) => (
                     <option key={v.id} value={v.id}>
-                      {v.plate} Â· {v.brand} {v.model}
+                      {v.plate} · {v.brand} {v.model}
                     </option>
                   ))}
                 </select>
@@ -588,15 +588,15 @@ export default function JuridicoPage() {
                     </span>
                   </div>
                   <div>
-                    NÂ° interno:{" "}
+                    N° interno:{" "}
                     <span className="font-data text-[var(--brand-text-primary)]">
                       {ctx.vehicle.internalNumber}
                     </span>
                   </div>
                   <div className="col-span-2">
-                    Tarjeta operaciÃ³n:{" "}
+                    Tarjeta operación:{" "}
                     <span className="font-data text-[var(--brand-text-primary)]">
-                      {ctx.vehicle.operationCard || "â€”"}
+                      {ctx.vehicle.operationCard || "—"}
                     </span>
                   </div>
                 </div>
@@ -650,7 +650,7 @@ export default function JuridicoPage() {
                     }
                   />
                 </Field>
-                <Field label="NÂ° de C.C (*)">
+                <Field label="N° de C.C (*)">
                   <input
                     className="field font-data"
                     required
@@ -663,7 +663,7 @@ export default function JuridicoPage() {
                     }
                   />
                 </Field>
-                <Field label="TelÃ©fono/Celular (*)">
+                <Field label="Teléfono/Celular (*)">
                   <input
                     className="field font-data"
                     required
@@ -694,7 +694,7 @@ export default function JuridicoPage() {
                     key={n}
                     className="rounded-lg border border-[var(--brand-border)] p-3"
                   >
-                    <Field label={`Conductor NÂ° ${n}${n === 1 ? " (*)" : ""}`}>
+                    <Field label={`Conductor N° ${n}${n === 1 ? " (*)" : ""}`}>
                       <select
                         className="field"
                         required={n === 1}
@@ -703,10 +703,10 @@ export default function JuridicoPage() {
                           setForm({ ...form, [key]: e.target.value })
                         }
                       >
-                        <option value="">â€” Seleccionar â€”</option>
+                        <option value="">— Seleccionar —</option>
                         {options?.drivers.map((dr) => (
                           <option key={dr.id} value={dr.id}>
-                            {dr.name} Â· {dr.document}
+                            {dr.name} · {dr.document}
                           </option>
                         ))}
                       </select>
@@ -716,13 +716,13 @@ export default function JuridicoPage() {
                         <span>
                           Licencia:{" "}
                           <span className="font-data text-[var(--brand-text-primary)]">
-                            {d.licenseNumber || "â€”"}
+                            {d.licenseNumber || "—"}
                           </span>
                         </span>
                         <span>
                           Vigencia:{" "}
                           <span className="font-data text-[var(--brand-text-primary)]">
-                            {d.licenseExpiresAt?.slice(0, 10) || "â€”"}
+                            {d.licenseExpiresAt?.slice(0, 10) || "—"}
                           </span>
                         </span>
                         {d.dispatchBlocked ? (
@@ -737,7 +737,7 @@ export default function JuridicoPage() {
               })}
               {driverBlocked ? (
                 <p className="text-xs text-brand-danger">
-                  Conductor con licencia vencida o bloqueo â€” FUEC bloqueado.
+                  Conductor con licencia vencida o bloqueo — FUEC bloqueado.
                 </p>
               ) : null}
             </div>
@@ -762,7 +762,7 @@ export default function JuridicoPage() {
                         >
                           <td className="py-2">{d.label}</td>
                           <td className="py-2 font-data">
-                            {d.number || "â€”"}
+                            {d.number || "—"}
                           </td>
                           <td className="py-2">
                             <span
@@ -773,7 +773,7 @@ export default function JuridicoPage() {
                               }`}
                             >
                               {d.expiresAt?.slice(0, 10) ||
-                                (d.missing ? "Sin registro" : "â€”")}
+                                (d.missing ? "Sin registro" : "—")}
                             </span>
                           </td>
                         </tr>
@@ -790,7 +790,7 @@ export default function JuridicoPage() {
               ) : (
                 <p className="text-xs text-[var(--brand-text-secondary)]">
                   Selecciona una placa para validar SOAT, RCC-RCE, tarjeta de
-                  operaciÃ³n y afiliaciÃ³n.
+                  operación y afiliación.
                 </p>
               )}
             </div>

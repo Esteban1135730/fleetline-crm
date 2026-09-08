@@ -10,6 +10,16 @@ type BentoPanelProps = {
   id?: string;
   accent?: boolean;
   interactive?: boolean;
+  /** Ancla para recorrido guiado: kpi | filters | table | panel | primary | secondary */
+  tour?:
+    | "kpi"
+    | "filters"
+    | "table"
+    | "panel"
+    | "primary"
+    | "secondary"
+    | "toolbar"
+    | "list";
 };
 
 /** Panel NEXA — cristal esmerilado traslúcido + elevación táctil. */
@@ -23,10 +33,12 @@ export function BentoPanel({
   id,
   accent = true,
   interactive = true,
+  tour,
 }: BentoPanelProps) {
   return (
     <section
       id={id}
+      data-tour={tour || undefined}
       className={`nexa-panel frosted-glass relative flex flex-col p-4 md:p-5 ${interactive ? "nexa-panel-interactive frosted-glass-interactive" : ""} ${accent ? "bento-panel-accent" : ""} ${className}`}
     >
       {title || icon || action ? (

@@ -7,7 +7,7 @@ type SlideOverHelpProps = {
   title: string;
   summary?: string;
   steps: string[];
-  /** Contenido extra (polÃ­ticas, enlaces). */
+  /** Contenido extra (políticas, enlaces). */
   children?: ReactNode;
   /** Control externo opcional. */
   open?: boolean;
@@ -15,7 +15,7 @@ type SlideOverHelpProps = {
 };
 
 /**
- * Protocolos e instrucciones â€” fuera del top 30% de la vista.
+ * Protocolos e instrucciones — fuera del top 30% de la vista.
  * Atajo: tecla `?` (sin foco en input).
  */
 export function SlideOverHelp({

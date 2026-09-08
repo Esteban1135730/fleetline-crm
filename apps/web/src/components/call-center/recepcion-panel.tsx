@@ -48,7 +48,7 @@ export default function RecepcionPanel() {
   return (
     <div className="fade-in mx-auto max-w-[1600px] space-y-6">
       <div>
-        <h2 className="page-title text-3xl md:text-4xl">RecepciÃ³n</h2>
+        <h2 className="page-title text-3xl md:text-4xl">Recepción</h2>
         <p className="page-sub">Control de visitantes y triage</p>
       </div>
       <form onSubmit={onCreate} className="nexa-panel grid grid-cols-1 gap-3 p-4 md:grid-cols-3">
@@ -56,7 +56,7 @@ export default function RecepcionPanel() {
         <input className="field" placeholder="Documento" value={form.document} onChange={(e) => setForm({ ...form, document: e.target.value })} required />
         <input className="field" placeholder="Empresa" value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} />
         <input className="field" placeholder="Motivo" value={form.purpose} onChange={(e) => setForm({ ...form, purpose: e.target.value })} required />
-        <input className="field" placeholder="AnfitriÃ³n" value={form.hostName} onChange={(e) => setForm({ ...form, hostName: e.target.value })} required />
+        <input className="field" placeholder="Anfitrión" value={form.hostName} onChange={(e) => setForm({ ...form, hostName: e.target.value })} required />
         <Button type="submit" variant="primary">Registrar ingreso</Button>
       </form>
       <div className="nexa-panel data-shell overflow-hidden">
@@ -77,11 +77,11 @@ export default function RecepcionPanel() {
                   {r.name}
                   <div className="text-[11px] text-[var(--brand-text-secondary)]">
                     {r.document}
-                    {r.company ? ` Â· ${r.company}` : ""}
+                    {r.company ? ` · ${r.company}` : ""}
                   </div>
                 </td>
                 <td className="px-4 py-2.5">
-                  {r.purpose} â†’ {r.hostName}
+                  {r.purpose} → {r.hostName}
                 </td>
                 <td className="px-4 py-2.5 font-data text-xs">
                   {new Date(r.checkedInAt).toLocaleString("es-CO")}
@@ -139,7 +139,7 @@ export default function RecepcionPanel() {
                       />
                       <input
                         className="field py-1 text-xs"
-                        placeholder="AnfitriÃ³n"
+                        placeholder="Anfitrión"
                         value={editForm.hostName}
                         onChange={(e) =>
                           setEditForm({ ...editForm, hostName: e.target.value })

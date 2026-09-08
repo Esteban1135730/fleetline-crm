@@ -53,14 +53,14 @@ export function WorkbenchTabs({
 export function WorkbenchSearch({
   value,
   onChange,
-  placeholder = "Buscar por placa, conductor o clienteâ€¦",
+  placeholder = "Buscar por placa, conductor o cliente…",
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
 }) {
   const tip =
-    "Filtra la tabla de este mÃ³dulo por placa, conductor, cliente o texto. Para buscar en todo el sistema use Cmd/Ctrl+K.";
+    "Filtra la tabla de este módulo por placa, conductor, cliente o texto. Para buscar en todo el sistema use Cmd/Ctrl+K.";
   return (
     <Tooltip content={tip} side="bottom" className="w-full max-w-[420px]">
       <label className="flt-workbench-search w-full" title={tip}>

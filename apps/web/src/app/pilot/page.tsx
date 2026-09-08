@@ -37,7 +37,7 @@ export default function PilotAppPage() {
       setDash(d);
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "ConexiÃƒÂ³n fallida");
+      setError(e instanceof Error ? e.message : "Conexión fallida");
     }
   }, []);
 
@@ -90,7 +90,7 @@ export default function PilotAppPage() {
         "/api/v1/pilot/sos",
         { category, plate: dash?.trips[0]?.plate, speedKph: speed },
       );
-      setMsg(`${res.message} Ã‚Â· ${res.voipChannel}`);
+      setMsg(`${res.message} · ${res.voipChannel}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "SOS fallido");
     } finally {
@@ -105,7 +105,7 @@ export default function PilotAppPage() {
         "/api/v1/pilot/viatico/token",
         { amountCop: 150000, plate: dash?.trips[0]?.plate },
       );
-      setMsg(`${res.message} Ã‚Â· ${res.tokenQr}`);
+      setMsg(`${res.message} · ${res.tokenQr}`);
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Token fallido");
@@ -119,7 +119,7 @@ export default function PilotAppPage() {
       <div className="flex min-h-[70vh] flex-col items-center justify-center bg-[var(--brand-canvas)] p-6 text-center text-[var(--brand-text-primary)]">
         <p className="font-mono text-5xl text-brand-warning">{speed} km/h</p>
         <p className="mt-4 text-lg text-[var(--brand-text-secondary)]">
-          Modo conductor Ã‚Â· pantalla bloqueada
+          Modo conductor · pantalla bloqueada
         </p>
         <p className="mt-2 text-sm text-[var(--brand-text-secondary)]">
           Umbral {dash?.speedLockKph ?? 15} km/h
@@ -136,7 +136,7 @@ export default function PilotAppPage() {
           className="mt-6 text-xs text-[var(--brand-text-secondary)] underline"
           onClick={() => void checkSpeed(0)}
         >
-          Simular detenciÃƒÂ³n
+          Simular detención
         </button>
       </div>
     );
@@ -190,7 +190,7 @@ export default function PilotAppPage() {
               </Badge>
             </div>
             <p className="mt-1 font-mono text-sm text-[var(--brand-text-secondary)]">
-              {t.plate || "Ã¢â‚¬â€"} Ã‚Â· {t.origin} Ã¢â€ â€™ {t.destination}
+              {t.plate || "—"} · {t.origin} → {t.destination}
             </p>
             {!t.preopDone && (
               <Button
@@ -205,7 +205,7 @@ export default function PilotAppPage() {
         ))}
         {!dash?.trips?.length && (
           <p className="text-sm text-[var(--brand-text-secondary)]">
-            Sin viajes activos Ã¢â‚¬â€ score card disponible
+            Sin viajes activos — score card disponible
           </p>
         )}
       </section>
@@ -240,7 +240,7 @@ export default function PilotAppPage() {
 
       {dash?.scoreCard && (
         <section className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5">
-          <h2 className="mb-3 font-display text-lg">Tarjeta de puntaje del dÃƒÂ­a</h2>
+          <h2 className="mb-3 font-display text-lg">Tarjeta de puntaje del día</h2>
           <div className="grid grid-cols-3 gap-3 text-center">
             <div>
               <p className="font-mono text-2xl text-[var(--brand-primary)]">

@@ -64,7 +64,7 @@ export default function AppsPage() {
             Tickets abiertos
           </p>
           <p className="font-data mt-2 pl-2 text-4xl font-extrabold text-[var(--brand-danger)]">
-            {data?.openTickets ?? "â€”"}
+            {data?.openTickets ?? "—"}
           </p>
         </div>
         <div className="nexa-panel kpi-card kpi-card--indigo p-6">
@@ -72,7 +72,7 @@ export default function AppsPage() {
             Visitantes en sede
           </p>
           <p className="font-data mt-2 pl-2 text-4xl font-extrabold text-[var(--brand-info)]">
-            {data?.visitorsOnSite ?? "â€”"}
+            {data?.visitorsOnSite ?? "—"}
           </p>
         </div>
       </div>

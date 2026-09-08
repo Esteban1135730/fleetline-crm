@@ -9,10 +9,10 @@ type EvidenceDropzoneProps = {
   acceptLabel?: string;
 };
 
-/** Zona drag & drop PDF/imÃ¡genes â€” evidencia forense / QHSE. */
+/** Zona drag & drop PDF/imágenes — evidencia forense / QHSE. */
 export function EvidenceDropzone({
   onFiles,
-  acceptLabel = "PDF o imÃ¡genes",
+  acceptLabel = "PDF o imágenes",
 }: EvidenceDropzoneProps) {
   const [names, setNames] = useState<string[]>([]);
 
@@ -49,7 +49,7 @@ export function EvidenceDropzone({
       />
       <p className="text-sm text-[var(--brand-text-secondary)]">
         {isDragActive
-          ? "Suelte la evidenciaâ€¦"
+          ? "Suelte la evidencia…"
           : `Arrastre ${acceptLabel} o haga clic`}
       </p>
       {names.length > 0 ? (

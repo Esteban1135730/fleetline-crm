@@ -22,10 +22,10 @@ export function PreoperationalFicha({
     return (
       <div className="space-y-3 text-sm">
         <p className="font-data text-[10px] uppercase tracking-[0.14em] text-[var(--brand-warning)]">
-          Ficha preoperacional Â· {tripCode}
+          Ficha preoperacional · {tripCode}
         </p>
         <p className="text-[var(--brand-text-secondary)]">
-          Sin inspecciÃ³n registrada. El conductor debe firmar el checklist
+          Sin inspección registrada. El conductor debe firmar el checklist
           desde la app antes de iniciar ruta o transmitir GPS.
         </p>
       </div>
@@ -41,13 +41,13 @@ export function PreoperationalFicha({
     <div className="space-y-4 text-sm">
       <div>
         <p className="font-data text-[10px] uppercase tracking-[0.14em] text-[var(--brand-primary)]">
-          Ficha preoperacional Â· {tripCode}
+          Ficha preoperacional · {tripCode}
         </p>
         <p
           className="mt-2 font-data text-xs text-[var(--brand-text-primary)]"
           title={`Preoperacional validado por el conductor a las ${timeLabel}`}
         >
-          Sellado Â· {timeLabel}
+          Sellado · {timeLabel}
         </p>
       </div>
 
@@ -64,7 +64,7 @@ export function PreoperationalFicha({
                 tone={ok ? "success" : "danger"}
                 title={
                   ok
-                    ? `${item.label}: APTO â€” validado por el conductor`
+                    ? `${item.label}: APTO — validado por el conductor`
                     : `${item.label}: NO APTO`
                 }
               >

@@ -15,7 +15,7 @@ type SlideOverProps = {
   widthClass?: string;
 };
 
-/** Panel lateral derecho â€” formularios de alta/ediciÃ³n (auditorÃ­a UI/UX). */
+/** Panel lateral derecho — formularios de alta/edición (auditoría UI/UX). */
 export function SlideOver({
   open,
   onClose,

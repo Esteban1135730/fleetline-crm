@@ -139,7 +139,7 @@ export default function AsignacionesUnidadPage() {
           notes: form.notes.trim() || undefined,
         },
       );
-      setMsg(res.message || "VÃ­nculo autorizado");
+      setMsg(res.message || "Vínculo autorizado");
       setOpen(false);
       setForm({ driverId: "", vehicleId: "", isPrimary: false, notes: "" });
       await load();
@@ -154,7 +154,7 @@ export default function AsignacionesUnidadPage() {
     setBusy(true);
     try {
       await api.delete(`/logistica/asignaciones-unidad/${id}`);
-      setMsg("AutorizaciÃ³n retirada");
+      setMsg("Autorización retirada");
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo desvincular");
@@ -212,22 +212,22 @@ export default function AsignacionesUnidadPage() {
 
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-3">
         <KpiCard
-          label="VÃ­nculos activos"
+          label="Vínculos activos"
           value={linkCount}
-          delta="Conductor â†” vehÃ­culo"
+          delta="Conductor â†” vehículo"
           tone="ok"
           icon={<Link2 />}
         />
         <KpiCard
           label="Conductores"
-          value={matrix?.drivers.length ?? "â€”"}
+          value={matrix?.drivers.length ?? "—"}
           delta="Con o sin placas"
           tone="neutral"
           icon={<UserRound />}
         />
         <KpiCard
-          label="VehÃ­culos"
-          value={matrix?.vehicles.length ?? "â€”"}
+          label="Vehículos"
+          value={matrix?.vehicles.length ?? "—"}
           delta="Flota en matriz"
           tone="neutral"
           icon={<Car />}
@@ -249,11 +249,11 @@ export default function AsignacionesUnidadPage() {
           className="w-auto px-3 py-2"
           onClick={() => setView("vehiculo")}
         >
-          Por vehÃ­culo
+          Por vehículo
         </Button>
         <input
           className="field ml-auto max-w-xs font-mono text-sm"
-          placeholder="Buscar nombre / placa / documentoâ€¦"
+          placeholder="Buscar nombre / placa / documento…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
@@ -264,7 +264,7 @@ export default function AsignacionesUnidadPage() {
           <EmptyState
             icon={<UserRound className="h-7 w-7" aria-hidden />}
             title="Sin conductores en vista"
-            description="Autorice la primera pareja conductorâ€“placa."
+            description="Autorice la primera pareja conductor–placa."
             actionLabel="Autorizar pareja"
             onAction={() => setOpen(true)}
           />
@@ -313,7 +313,7 @@ export default function AsignacionesUnidadPage() {
                 </div>
                 {d.vehicles.length === 0 ? (
                   <p className="text-sm text-[var(--brand-text-secondary)]">
-                    Sin vehÃ­culos autorizados
+                    Sin vehículos autorizados
                   </p>
                 ) : (
                   <ul className="flex flex-wrap gap-2">
@@ -341,7 +341,7 @@ export default function AsignacionesUnidadPage() {
                         <button
                           type="button"
                           className="text-[var(--brand-text-secondary)] hover:text-[var(--brand-danger)]"
-                          title="Retirar autorizaciÃ³n"
+                          title="Retirar autorización"
                           disabled={busy}
                           onClick={() => void unlink(v.linkId)}
                         >
@@ -358,7 +358,7 @@ export default function AsignacionesUnidadPage() {
       ) : filteredVehicles.length === 0 ? (
         <EmptyState
           icon={<Car className="h-7 w-7" aria-hidden />}
-          title="Sin vehÃ­culos en vista"
+          title="Sin vehículos en vista"
           description="Vincule conductores a una placa de flota."
           actionLabel="Autorizar pareja"
           onAction={() => setOpen(true)}
@@ -444,7 +444,7 @@ export default function AsignacionesUnidadPage() {
         open={open}
         onClose={() => setOpen(false)}
         title="Autorizar pareja"
-        description="Registra quÃ© conductor puede operar quÃ© vehÃ­culo (N:N)."
+        description="Registra qué conductor puede operar qué vehículo (N:N)."
         footer={
           <>
             <Button
@@ -463,7 +463,7 @@ export default function AsignacionesUnidadPage() {
               disabled={busy || !form.driverId || !form.vehicleId}
               onClick={() => void linkPair()}
             >
-              Guardar autorizaciÃ³n
+              Guardar autorización
             </Button>
           </>
         }
@@ -477,16 +477,16 @@ export default function AsignacionesUnidadPage() {
               setForm((f) => ({ ...f, driverId: e.target.value }))
             }
           >
-            <option value="">Seleccionarâ€¦</option>
+            <option value="">Seleccionar…</option>
             {(matrix?.drivers ?? []).map((d) => (
               <option key={d.id} value={d.id}>
-                {d.name} Â· {d.document}
+                {d.name} · {d.document}
               </option>
             ))}
           </select>
         </label>
         <label className="mt-3 flex flex-col gap-1 text-xs uppercase text-[var(--brand-text-secondary)]">
-          VehÃ­culo
+          Vehículo
           <select
             className="field font-mono"
             value={form.vehicleId}
@@ -494,10 +494,10 @@ export default function AsignacionesUnidadPage() {
               setForm((f) => ({ ...f, vehicleId: e.target.value }))
             }
           >
-            <option value="">Seleccionarâ€¦</option>
+            <option value="">Seleccionar…</option>
             {(matrix?.vehicles ?? []).map((v) => (
               <option key={v.id} value={v.id}>
-                {v.plate} Â· {v.brand} {v.model}
+                {v.plate} · {v.brand} {v.model}
               </option>
             ))}
           </select>
@@ -520,7 +520,7 @@ export default function AsignacionesUnidadPage() {
             onChange={(e) =>
               setForm((f) => ({ ...f, notes: e.target.value }))
             }
-            placeholder="CategorÃ­a licencia, turno, etc."
+            placeholder="Categoría licencia, turno, etc."
           />
         </label>
       </SlideOver>

@@ -12,7 +12,7 @@ type ModalProps = {
   description?: string;
   children: ReactNode;
   footer?: ReactNode;
-  /** md = max-w-lg Â· lg = max-w-3xl Â· xl = max-w-5xl */
+  /** md = max-w-lg · lg = max-w-3xl · xl = max-w-5xl */
   size?: "md" | "lg" | "xl";
 };
 
@@ -22,7 +22,7 @@ const sizeClass: Record<NonNullable<ModalProps["size"]>, string> = {
   xl: "max-w-5xl",
 };
 
-/** Formulario largo / ediciÃ³n â€” flotante, no inline en la vista principal. */
+/** Formulario largo / edición — flotante, no inline en la vista principal. */
 export function Modal({
   open,
   onClose,

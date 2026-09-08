@@ -66,7 +66,7 @@ const DEFCON_KEYWORDS = [
   "herido",
   "muerte",
   "choque",
-  "fiscalÃƒÂ­a",
+  "fiscalía",
   "denuncia",
 ];
 
@@ -78,7 +78,7 @@ function isDefcon1(text: string) {
 const VISIT_CLASS_LABEL: Record<string, string> = {
   DRIVER_CANDIDATE: "Candidato conductor",
   SUPPLIER: "Proveedor/contratista",
-  B2B_MEETING: "Cliente empresa / reuniÃƒÂ³n",
+  B2B_MEETING: "Cliente empresa / reunión",
   OTHER: "Otro",
 };
 
@@ -155,7 +155,7 @@ export default function RecepcionDashboardPage() {
       setVisitors(vis);
       setMetrics(met);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error de conexiÃƒÂ³n");
+      setError(e instanceof Error ? e.message : "Error de conexión");
     }
   }, [boardFilter]);
 
@@ -252,7 +252,7 @@ export default function RecepcionDashboardPage() {
         }),
       });
       setInfo(
-        `${res.message} Ã‚Â· llega a Comercial (${res.destination?.label || "cotizaciÃƒÂ³n en borrador"}).`,
+        `${res.message} · llega a Comercial (${res.destination?.label || "cotización en borrador"}).`,
       );
       setInfoHref(res.destination?.href || "/comercial");
       setSelectedChat(null);
@@ -392,21 +392,21 @@ export default function RecepcionDashboardPage() {
       <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           label="Visitas hoy"
-          value={metrics?.visitors ?? "Ã¢â‚¬â€"}
+          value={metrics?.visitors ?? "—"}
           tone="ok"
           icon={<Users />}
           delta={waiting > 0 ? `${waiting} en espera` : "Destino: tablero de visitantes"}
         />
         <KpiCard
           label="Prospectos convertidos"
-          value={metrics?.leadsConverted ?? "Ã¢â‚¬â€"}
+          value={metrics?.leadsConverted ?? "—"}
           tone="warn"
           icon={<UserPlus />}
           delta="Destino: Comercial"
         />
         <KpiCard
-          label="PQRS rÃƒÂ¡pidas"
-          value={metrics?.pqrsQuick ?? "Ã¢â‚¬â€"}
+          label="PQRS rápidas"
+          value={metrics?.pqrsQuick ?? "—"}
           tone="danger"
           icon={<AlertTriangle />}
           delta="Destino: QHSE"
@@ -416,7 +416,7 @@ export default function RecepcionDashboardPage() {
           value={defconCount}
           tone={defconCount > 0 ? "danger" : "ok"}
           icon={<AlertTriangle />}
-          delta="accidente Ã‚Â· abogado Ã‚Â· peligro"
+          delta="accidente · abogado · peligro"
         />
       </section>
 
@@ -434,7 +434,7 @@ export default function RecepcionDashboardPage() {
               <EmptyState
                 icon={<MessageSquare className="h-7 w-7" />}
                 title="Sin chats entrantes"
-                description="La cola omnicanal estÃƒÂ¡ vacÃƒÂ­a. Los mensajes aparecerÃƒÂ¡n aquÃƒÂ­."
+                description="La cola omnicanal está vacía. Los mensajes aparecerán aquí."
               />
             </div>
           ) : (
@@ -473,7 +473,7 @@ export default function RecepcionDashboardPage() {
                         {c.subject}
                       </span>
                       <span className="mt-0.5 block font-data text-xs text-[var(--brand-text-secondary)]">
-                        {c.requester} Ã‚Â· {c.code}
+                        {c.requester} · {c.code}
                       </span>
                       <span className="mt-1 block font-mono text-[11px] tabular-nums text-brand-text-secondary">
                         {formatTs(c.createdAt)}
@@ -526,8 +526,8 @@ export default function RecepcionDashboardPage() {
                     : s === "WAITING"
                       ? "En espera"
                       : s === "CHECKED_IN"
-                        ? "IngresÃƒÂ³"
-                        : "SaliÃƒÂ³"}
+                        ? "Ingresó"
+                        : "Salió"}
                 </button>
               ))}
             </div>
@@ -538,7 +538,7 @@ export default function RecepcionDashboardPage() {
                 <EmptyState
                   icon={<Users className="h-7 w-7" />}
                   title="Sin visitas registradas"
-                  description="Registra el primer visitante del dÃƒÂ­a."
+                  description="Registra el primer visitante del día."
                   actionLabel="+ Nuevo visitante"
                   onAction={() => setPanel("visit")}
                 />
@@ -616,8 +616,8 @@ export default function RecepcionDashboardPage() {
                     className="rounded border border-[var(--brand-border)] px-2 py-1.5"
                   >
                     <span className="font-data">{r.vehicle?.plate || "s/p"}</span>
-                    {" Ã‚Â· "}
-                    {r.schoolOrRoute} Ã‚Â· {statusEs(r.status)}
+                    {" · "}
+                    {r.schoolOrRoute} · {statusEs(r.status)}
                     {r.vehicle ? (
                       <span className="font-data text-[var(--brand-text-secondary)]">
                         {" "}
@@ -636,7 +636,7 @@ export default function RecepcionDashboardPage() {
         open={panel === "visit"}
         onClose={() => setPanel("none")}
         title="Nuevo visitante"
-        description="Ingreso con cÃƒÂ©dula, clasificaciÃƒÂ³n y gafete RFID."
+        description="Ingreso con cédula, clasificación y gafete RFID."
         footer={
           <>
             <Button
@@ -661,7 +661,7 @@ export default function RecepcionDashboardPage() {
         <form id="visit-form" onSubmit={submitVisit} className="space-y-3">
           <input
             className="field h-11 min-h-[44px] font-data"
-            placeholder="CÃƒÂ©dula"
+            placeholder="Cédula"
             value={visitForm.document}
             onChange={(e) =>
               setVisitForm((f) => ({ ...f, document: e.target.value }))
@@ -688,7 +688,7 @@ export default function RecepcionDashboardPage() {
           />
           <input
             className="field h-11 min-h-[44px]"
-            placeholder="AnfitriÃƒÂ³n"
+            placeholder="Anfitrión"
             value={visitForm.hostName}
             onChange={(e) =>
               setVisitForm((f) => ({ ...f, hostName: e.target.value }))
@@ -725,8 +725,8 @@ export default function RecepcionDashboardPage() {
         title="Nuevo prospecto"
         description={
           selectedChat
-            ? `Chat ${selectedChat.code} Ã‚Â· pase a Comercial`
-            : "Prospecto presencial (llegada directa). Llega a Comercial como cotizaciÃƒÂ³n en borrador."
+            ? `Chat ${selectedChat.code} · pase a Comercial`
+            : "Prospecto presencial (llegada directa). Llega a Comercial como cotización en borrador."
         }
         footer={
           <>
@@ -771,7 +771,7 @@ export default function RecepcionDashboardPage() {
           />
           <input
             className="field h-11 min-h-[44px] font-data"
-            placeholder="TelÃƒÂ©fono"
+            placeholder="Teléfono"
             value={leadForm.phone}
             onChange={(e) =>
               setLeadForm((f) => ({ ...f, phone: e.target.value }))
@@ -794,8 +794,8 @@ export default function RecepcionDashboardPage() {
         title="Nueva PQRS"
         description={
           pqrsDefcon
-            ? "DEFCON 1 Ã¢â‚¬â€ lenguaje crÃƒÂ­tico detectado. Escala inmediata a QHSE."
-            : "RadicaciÃƒÂ³n rÃƒÂ¡pida hacia Torre de Control / QHSE."
+            ? "DEFCON 1 — lenguaje crítico detectado. Escala inmediata a QHSE."
+            : "Radicación rápida hacia Torre de Control / QHSE."
         }
         footer={
           <>
@@ -857,7 +857,7 @@ export default function RecepcionDashboardPage() {
               role="alert"
               className="rounded-md border border-[var(--brand-danger)]/40 bg-[color-mix(in_srgb,var(--brand-danger)_12%,transparent)] px-3 py-2 text-xs font-medium text-[var(--brand-danger)]"
             >
-              DEFCON 1 Ã¢â‚¬â€ keywords crÃƒÂ­ticas. Priorizar escalamiento a QHSE.
+              DEFCON 1 — keywords críticas. Priorizar escalamiento a QHSE.
             </p>
           ) : null}
         </form>

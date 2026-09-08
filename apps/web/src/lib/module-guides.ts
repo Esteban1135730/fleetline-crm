@@ -205,11 +205,11 @@ export const MODULE_GUIDES: Partial<Record<ModuleId | "cuenta", ModuleGuide>> =
     },
     cuenta: {
       title: "Cómo gestionar su cuenta",
-      summary: "Perfil y acceso.",
+      summary: "Perfil, acceso y recorridos guiados.",
       steps: [
-        "Revise nombre y rol asignado.",
-        "Cambie la contraseña desde este módulo.",
-        "Cierre sesión al terminar en equipos compartidos.",
+        "Revise nombre y rol asignado en Perfil operativo.",
+        "Cambie la contraseña desde Seguridad.",
+        "Reactive o desactive el recorrido guiado en esta misma pantalla.",
       ],
     },
   };

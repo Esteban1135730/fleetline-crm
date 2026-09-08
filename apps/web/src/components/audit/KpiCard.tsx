@@ -8,7 +8,7 @@ type KpiCardProps = {
   delta?: string;
   tone?: "neutral" | "ok" | "warn" | "danger";
   spark?: number[];
-  /** Ãcono Lucide (u otro) semitransparente â€” esquina superior derecha. */
+  /** Ícono Lucide (u otro) semitransparente — esquina superior derecha. */
   icon?: ReactNode;
 };
 
@@ -19,7 +19,7 @@ const toneValue: Record<NonNullable<KpiCardProps["tone"]>, string> = {
   danger: "text-[var(--brand-danger)]",
 };
 
-/** KPI ejecutivo â€” tipografÃ­a grande + micro-tendencia. */
+/** KPI ejecutivo — tipografía grande + micro-tendencia. */
 export function KpiCard({
   label,
   value,

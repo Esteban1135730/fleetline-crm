@@ -11,7 +11,7 @@ type EmptyStateProps = {
   onAction?: () => void;
 };
 
-/** Estado vacÃ­o ilustrado â€” nunca tabla/contenedor oscuro vacÃ­o. */
+/** Estado vacío ilustrado — nunca tabla/contenedor oscuro vacío. */
 export function EmptyState({
   icon,
   title,

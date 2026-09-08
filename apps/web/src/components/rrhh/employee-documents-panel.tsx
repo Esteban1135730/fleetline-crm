@@ -51,7 +51,7 @@ type Props = {
   employeeId: string;
   onError?: (msg: string) => void;
   onStatus?: (msg: string) => void;
-  /** Recargar tabla RRHH (semÃ¡foro licencia) tras actualizar datos */
+  /** Recargar tabla RRHH (semáforo licencia) tras actualizar datos */
   onLicenseUpdated?: () => void;
 };
 
@@ -131,7 +131,7 @@ export function EmployeeDocumentsPanel({
       setPendingFile(null);
       onStatus?.(
         slot.key === "LICENCIA"
-          ? "Licencia guardada Â· datos del conductor actualizados"
+          ? "Licencia guardada · datos del conductor actualizados"
           : `Documento cargado: ${slot.label}`,
       );
       if (slot.key === "LICENCIA") onLicenseUpdated?.();
@@ -159,7 +159,7 @@ export function EmployeeDocumentsPanel({
     const expiresAt = licenseForm.expiresAt.trim();
     if (!number || !category || !expiresAt) {
       onError?.(
-        "Completa nÃºmero, categorÃ­a y vencimiento de la licencia antes de guardar",
+        "Completa número, categoría y vencimiento de la licencia antes de guardar",
       );
       return;
     }
@@ -173,7 +173,7 @@ export function EmployeeDocumentsPanel({
   if (loading && !dossier) {
     return (
       <p className="text-sm text-[var(--brand-text-secondary)]">
-        Cargando expediente documentalâ€¦
+        Cargando expediente documental…
       </p>
     );
   }
@@ -197,7 +197,7 @@ export function EmployeeDocumentsPanel({
               {dossier.employee.name}
             </div>
             <div className="text-xs text-[var(--brand-text-secondary)]">
-              {dossier.employee.title} Â· {dossier.profileLabel}
+              {dossier.employee.title} · {dossier.profileLabel}
             </div>
           </div>
           <div className="text-right">
@@ -227,13 +227,13 @@ export function EmployeeDocumentsPanel({
             <p className="mt-1 text-xs text-[var(--brand-text-secondary)]">
               Archivo:{" "}
               <span className="font-data">{pendingFile.file.name}</span>
-              . Escribe los datos que ves en el documento (asÃ­ se quita el
+              . Escribe los datos que ves en el documento (así se quita el
               BLOQUEO).
             </p>
           </div>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             <label className="flex flex-col gap-1 text-[10px] uppercase tracking-wide text-[var(--brand-text-secondary)]">
-              NÃºmero
+              Número
               <input
                 className="field font-data"
                 value={licenseForm.number}
@@ -245,7 +245,7 @@ export function EmployeeDocumentsPanel({
               />
             </label>
             <label className="flex flex-col gap-1 text-[10px] uppercase tracking-wide text-[var(--brand-text-secondary)]">
-              CategorÃ­a
+              Categoría
               <select
                 className="field"
                 value={licenseForm.category}
@@ -289,7 +289,7 @@ export function EmployeeDocumentsPanel({
               disabled={uploadingKey === "LICENCIA"}
             >
               {uploadingKey === "LICENCIA"
-                ? "Guardandoâ€¦"
+                ? "Guardando…"
                 : "Guardar licencia y datos"}
             </button>
           </div>
@@ -446,7 +446,7 @@ export function EmployeeDocumentsPanel({
                   />
                   <FileUp className="h-3.5 w-3.5" />
                   {uploadingKey === slot.key
-                    ? "Subiendoâ€¦"
+                    ? "Subiendo…"
                     : done
                       ? "Reemplazar"
                       : "Subir"}

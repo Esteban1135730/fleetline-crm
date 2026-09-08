@@ -370,6 +370,7 @@ export default function TramitesPage() {
           title="Semáforo de flota"
           subtitle="Documentación · despacho"
           icon={<FileCheck />}
+          tour="kpi"
         >
           <WorkbenchToolbar>
             <WorkbenchTabs
@@ -494,6 +495,7 @@ export default function TramitesPage() {
         <BentoPanel
           title="Planilla documental"
           subtitle={`${rows.length} trámites indexados`}
+          tour="table"
         >
           <NexaTable
             columns={["Vehículo", "Trámite", "Vence", "Estado", "Acciones"]}

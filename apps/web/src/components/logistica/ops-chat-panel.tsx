@@ -50,7 +50,7 @@ export function OpsChatPanel({
       setMessages(rows);
       setError("");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Chat sin conexiÃ³n");
+      setError(e instanceof Error ? e.message : "Chat sin conexión");
     }
   }, [path]);
 
@@ -111,7 +111,7 @@ export function OpsChatPanel({
       );
       setText("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se enviÃ³");
+      setError(err instanceof Error ? err.message : "No se envió");
     } finally {
       setSending(false);
     }
@@ -119,7 +119,7 @@ export function OpsChatPanel({
 
   const title =
     mode === "support"
-      ? "Chat soporte Â· flota / app"
+      ? "Chat soporte · flota / app"
       : tripCode
         ? `Chat servicio ${tripCode}`
         : "Chat del servicio";
@@ -131,7 +131,7 @@ export function OpsChatPanel({
           {title}
         </p>
         <p className="text-[10px] text-[var(--brand-text-secondary)]">
-          Tiempo real con la app mÃ³vil (mismo canal)
+          Tiempo real con la app móvil (mismo canal)
         </p>
       </div>
 
@@ -144,7 +144,7 @@ export function OpsChatPanel({
           <ul className="flex-1 space-y-2 overflow-auto px-3 py-2">
             {messages.length === 0 ? (
               <li className="text-sm text-[var(--brand-text-secondary)]">
-                Sin mensajes â€” escribe el primer mensaje.
+                Sin mensajes — escribe el primer mensaje.
               </li>
             ) : (
               messages.map((m) => (
@@ -184,7 +184,7 @@ export function OpsChatPanel({
               className="field flex-1"
               value={text}
               onChange={(e) => setText(e.target.value)}
-              placeholder="Mensaje operativoâ€¦"
+              placeholder="Mensaje operativo…"
               maxLength={4000}
             />
             <Button type="submit" variant="primary" disabled={sending || !text.trim()}>

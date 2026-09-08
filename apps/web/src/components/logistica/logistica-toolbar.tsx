@@ -28,7 +28,7 @@ export function LogisticaToolbar({
   trailing,
 }: LogisticaToolbarProps) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2" data-tour="toolbar">
       <div className="flex flex-wrap items-center gap-1">
         {FILTERS.map((f) => (
           <button

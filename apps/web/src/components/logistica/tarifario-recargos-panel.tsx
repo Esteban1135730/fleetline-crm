@@ -82,7 +82,7 @@ export function TarifarioRecargosPanel() {
 
   useEffect(() => {
     void load().catch((e) =>
-      setError(e instanceof Error ? e.message : "No se cargÃƒÂ³ el tarifario"),
+      setError(e instanceof Error ? e.message : "No se cargó el tarifario"),
     );
   }, [load]);
 
@@ -119,7 +119,7 @@ export function TarifarioRecargosPanel() {
         }),
       });
       setData(t);
-      setMsg("Base organizacional actualizada Ã¢â‚¬â€ tarifario recalculado");
+      setMsg("Base organizacional actualizada — tarifario recalculado");
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo guardar");
     } finally {
@@ -143,7 +143,7 @@ export function TarifarioRecargosPanel() {
       setData(t);
       const emp = t.empleados.find((e) => e.driverId === selectedDriver);
       if (emp) setEmpBase(String(Math.round(emp.baseSalary)));
-      setMsg("Base del empleado aplicada Ã¢â‚¬â€ valores de recargo actualizados");
+      setMsg("Base del empleado aplicada — valores de recargo actualizados");
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo guardar");
     } finally {
@@ -156,12 +156,12 @@ export function TarifarioRecargosPanel() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="font-display text-lg font-bold text-[var(--brand-text-primary)]">
-            Tarifario de recargos Ã‚Â· nÃƒÂ³mina
+            Tarifario de recargos · nómina
           </h2>
           <p className="mt-1 text-sm text-[var(--brand-text-secondary)]">
-            Define la base salarial. Hora ordinaria = base ÃƒÂ· divisor (230). Los
+            Define la base salarial. Hora ordinaria = base Í· divisor (230). Los
             factores RN / HED / HEN / ROD FEST / HEDF / HENF / RNF se aplican
-            automÃƒÂ¡ticamente.
+            automáticamente.
           </p>
         </div>
         {data ? (
@@ -206,7 +206,7 @@ export function TarifarioRecargosPanel() {
             />
           </label>
           <p className="font-data text-xs text-[var(--brand-text-secondary)]">
-            Preview hora: {money(previewHourly)} Ã‚Â· fÃƒÂ³rmula base ÃƒÂ· {divisor || "230"}
+            Preview hora: {money(previewHourly)} · fórmula base Í· {divisor || "230"}
           </p>
           <Button type="button" disabled={saving} onClick={() => void saveOrg()}>
             Guardar base org
@@ -232,7 +232,7 @@ export function TarifarioRecargosPanel() {
             >
               {(data?.empleados ?? []).map((e) => (
                 <option key={e.driverId} value={e.driverId}>
-                  {e.name} Ã‚Â· {e.document}
+                  {e.name} · {e.document}
                   {e.usesOrgDefault ? " (default org)" : ""}
                 </option>
               ))}
@@ -267,7 +267,7 @@ export function TarifarioRecargosPanel() {
               <th className="px-3 py-2">Sigla</th>
               <th className="px-3 py-2">Concepto</th>
               <th className="px-3 py-2">Factor</th>
-              <th className="px-3 py-2">CÃƒÂ¡lculo</th>
+              <th className="px-3 py-2">Cálculo</th>
               <th className="px-3 py-2">Valor ($)</th>
               <th className="px-3 py-2">Horas</th>
               <th className="px-3 py-2">Subtotal</th>
@@ -301,7 +301,7 @@ export function TarifarioRecargosPanel() {
                   <td className="px-3 py-2">{row.concepto}</td>
                   <td className="px-3 py-2 font-data">{factorLabel(row.factor)}</td>
                   <td className="px-3 py-2 font-data text-[var(--brand-text-secondary)]">
-                    {money(hourly)} Ãƒâ€” {factorLabel(row.factor)}
+                    {money(hourly)} × {factorLabel(row.factor)}
                   </td>
                   <td className="px-3 py-2 font-data font-semibold">
                     {money(row.valor)}
@@ -330,7 +330,7 @@ export function TarifarioRecargosPanel() {
           <tfoot>
             <tr className="bg-black/10">
               <td colSpan={6} className="px-3 py-2 text-right font-semibold">
-                Total recargos / extras (simulaciÃƒÂ³n)
+                Total recargos / extras (simulación)
               </td>
               <td className="px-3 py-2 font-data font-bold text-[var(--brand-warning)]">
                 {money(calcTotal)}

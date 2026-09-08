@@ -3,12 +3,15 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@fsg/ui";
-import { ShieldAlert, User, Shield } from "lucide-react";
+import { Compass, ShieldAlert, User, Shield } from "lucide-react";
 import { api, setSession, getTokenPublic, type AuthUser } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { AuthLayout } from "@/components/nexa/auth-layout";
 import { BentoPanel } from "@/components/nexa/bento-panel";
 import { StatusPulseBadge } from "@/components/audit/KpiCard";
+import { useTourOptional } from "@/lib/tour-context";
+import { resetTour } from "@/lib/tour-storage";
+import { tourIdForPath } from "@/lib/tour-definitions";
 
 function initials(name?: string) {
   if (!name) return "?";
@@ -136,8 +139,9 @@ function PasswordForm({
 }
 
 export default function CuentaPage() {
-  const { user, logout } = useAuth();
+  const { user, logout, homePath } = useAuth();
   const router = useRouter();
+  const tour = useTourOptional();
   const [force, setForce] = useState(Boolean(user?.mustChangePassword));
 
   useEffect(() => {
@@ -176,7 +180,7 @@ export default function CuentaPage() {
   }
 
   return (
-    <div className="fade-in mx-auto max-w-4xl space-y-6">
+    <div className="fade-in mx-auto max-w-4xl space-y-6" data-tour="panel">
       <header>
         <p className="font-data text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-primary">
           Cuenta
@@ -188,6 +192,7 @@ export default function CuentaPage() {
         <BentoPanel
           title="Perfil operativo"
           icon={<User className="h-4 w-4" />}
+          tour="primary"
         >
           <div className="flex flex-col items-start gap-4">
             <div
@@ -221,10 +226,61 @@ export default function CuentaPage() {
           </div>
         </BentoPanel>
 
-        <BentoPanel title="Seguridad" icon={<Shield className="h-4 w-4" />}>
+        <BentoPanel title="Seguridad" icon={<Shield className="h-4 w-4" />} tour="secondary">
           <PasswordForm force={false} onDone={() => {}} />
         </BentoPanel>
       </div>
+
+      {tour ? (
+        <BentoPanel
+          title="Recorrido guiado"
+          icon={<Compass className="h-4 w-4" />}
+          subtitle="Tutorial interactivo por pantalla"
+          tour="panel"
+        >
+          <div className="space-y-4">
+            <p className="font-sans text-sm text-brand-text-secondary">
+              La primera vez que entra a NEXA OS y a cada área, un recorrido señala
+              los controles clave. Puede repetirlo cuando quiera.
+            </p>
+            <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-brand-border/70 bg-brand-surface/40 px-3 py-2.5">
+              <span className="font-sans text-sm text-brand-text-primary">
+                Mostrar al entrar a un área nueva
+              </span>
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-[var(--brand-primary)]"
+                checked={tour.autoEnabled}
+                onChange={(e) => tour.setAutoEnabled(e.target.checked)}
+              />
+            </label>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-auto px-4 py-2"
+                onClick={() => {
+                  resetTour(tourIdForPath("/cuenta"));
+                  tour.startTourForCurrent();
+                }}
+              >
+                Recorrido de esta pantalla
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-auto px-4 py-2"
+                onClick={() => {
+                  tour.replayAll();
+                  router.push(homePath || "/dashboard");
+                }}
+              >
+                Repetir recorrido completo
+              </Button>
+            </div>
+          </div>
+        </BentoPanel>
+      ) : null}
     </div>
   );
 }

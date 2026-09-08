@@ -56,10 +56,10 @@ const STAGES: Array<{ key: keyof Dash["kanban"]; label: string }> = [
 const DOC_LABELS: Record<string, string> = {
   SOAT: "SOAT",
   TECNOMECANICA: "Tecno",
-  TARJETA_OPERACION: "T. OperaciÃƒÂ³n",
+  TARJETA_OPERACION: "T. Operación",
   RCC: "RCC",
   RCE: "RCE",
-  POLIZA_CONTRACTUAL: "PÃƒÂ³liza",
+  POLIZA_CONTRACTUAL: "Póliza",
 };
 
 function lightTone(light: string): "success" | "warning" | "danger" | "info" {
@@ -88,7 +88,7 @@ export default function VinculacionesDashboardPage() {
     try {
       setDash(await api<Dash>("/api/v1/vinculaciones/dashboard"));
     } catch (e) {
-      setError((e as Error).message || "SeÃƒÂ±al perdida Ã¢â‚¬â€ conexiÃƒÂ³n de vinculaciones");
+      setError((e as Error).message || "Señal perdida — conexión de vinculaciones");
     }
   }, []);
 
@@ -114,13 +114,13 @@ export default function VinculacionesDashboardPage() {
           }),
         },
       );
-      setMsg(`${res.message} Ã‚Â· ${res.link.portalUrl}`);
+      setMsg(`${res.message} · ${res.link.portalUrl}`);
       setOwnerName("");
       setOwnerDoc("");
       setOwnerEmail("");
       await load();
     } catch (e) {
-      setError((e as Error).message || "No se generÃƒÂ³ portal");
+      setError((e as Error).message || "No se generó portal");
     } finally {
       setBusy(false);
     }
@@ -141,7 +141,7 @@ export default function VinculacionesDashboardPage() {
       setCedula("");
       await load();
     } catch (e) {
-      setError((e as Error).message || "VerificaciÃƒÂ³n de antecedentes fallida");
+      setError((e as Error).message || "Verificación de antecedentes fallida");
     } finally {
       setBusy(false);
     }
@@ -229,7 +229,7 @@ export default function VinculacionesDashboardPage() {
                 ))}
                 {(dash?.kanban[s.key] ?? []).length === 0 ? (
                   <li className="py-6 text-center text-xs text-brand-text-secondary">
-                    VacÃƒÂ­o
+                    Vacío
                   </li>
                 ) : null}
               </ul>
@@ -272,10 +272,10 @@ export default function VinculacionesDashboardPage() {
         </section>
 
         <section className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4">
-          <h3 className="font-display text-base">VerificaciÃƒÂ³n de antecedentes</h3>
+          <h3 className="font-display text-base">Verificación de antecedentes</h3>
           <input
             className="field mt-2 w-full"
-            placeholder="CÃƒÂ©dula conductor"
+            placeholder="Cédula conductor"
             value={cedula}
             onChange={(e) => setCedula(e.target.value)}
           />
@@ -339,12 +339,12 @@ export default function VinculacionesDashboardPage() {
           </pre>
         </div>
         <div className="min-h-[220px] rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4">
-          <p className="mb-2 text-sm text-brand-text-secondary">ExtracciÃƒÂ³n / contrato</p>
+          <p className="mb-2 text-sm text-brand-text-secondary">Extracción / contrato</p>
           <p className="font-mono text-sm text-brand-secondary">
-            {selectedPdf || "Contrato pendiente de generaciÃƒÂ³n"}
+            {selectedPdf || "Contrato pendiente de generación"}
           </p>
           <p className="mt-4 text-xs text-brand-text-secondary">
-            ValidaciÃƒÂ³n manual: contraste de lectura vs documento original antes de firma
+            Validación manual: contraste de lectura vs documento original antes de firma
             digital.
           </p>
         </div>
@@ -385,7 +385,7 @@ export default function VinculacionesDashboardPage() {
                         {d ? (
                           <Badge tone={lightTone(d.light)}>{d.light}</Badge>
                         ) : (
-                          <span className="text-xs text-brand-text-secondary">Ã¢â‚¬â€</span>
+                          <span className="text-xs text-brand-text-secondary">—</span>
                         )}
                       </td>
                     );

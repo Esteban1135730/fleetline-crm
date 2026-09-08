@@ -25,7 +25,7 @@ const ACTIONS = [
     href: "/logistica/servicios",
     title: "Crear nuevo viaje",
     hint: "Despacho y ruta",
-    tip: "Abre LogÃ­stica para registrar un viaje con origen, destino y unidad.",
+    tip: "Abre Logística para registrar un viaje con origen, destino y unidad.",
   },
   {
     href: "/taller",
@@ -35,15 +35,15 @@ const ACTIONS = [
   },
   {
     href: "/tramites",
-    title: "Consultar vehÃ­culo",
-    hint: "SemÃ¡foro documental",
-    tip: "Abre TrÃ¡mites para ver SOAT/tecnomecÃ¡nica y bloqueos de despacho.",
+    title: "Consultar vehículo",
+    hint: "Semáforo documental",
+    tip: "Abre Trámites para ver SOAT/tecnomecánica y bloqueos de despacho.",
   },
   {
     href: "/logistica/servicios",
     title: "Ver mapa en vivo",
     hint: "GPS de flota",
-    tip: "Muestra coordenadas GPS registradas de las unidades en LogÃ­stica.",
+    tip: "Muestra coordenadas GPS registradas de las unidades en Logística.",
   },
 ] as const;
 
@@ -57,7 +57,7 @@ export default function DashboardPage() {
   useEffect(() => {
     api<Metrics>("/dashboard/metrics")
       .then(setM)
-      .catch((e) => setError(e instanceof Error ? e.message : "Error de conexiÃ³n"));
+      .catch((e) => setError(e instanceof Error ? e.message : "Error de conexión"));
   }, []);
 
   const alertas = m ? m.bloqueosHoy + m.novedades : 0;
@@ -70,22 +70,22 @@ export default function DashboardPage() {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="font-data text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--brand-primary)]">
-              Tablero operativo Â· {user ? ROLE_LABELS[user.role] : "â€”"}
+              Tablero operativo · {user ? ROLE_LABELS[user.role] : "—"}
             </p>
             <h1 className="mt-2 font-display text-2xl font-bold tracking-tight text-[var(--brand-text-primary)] sm:text-3xl">
               Hola {firstName}, este es el estado operativo de hoy
             </h1>
             <p className="mt-2 max-w-xl text-sm text-[var(--brand-text-secondary)]">
-              Tres seÃ±ales. Cuatro acciones. Sin ruido.
+              Tres señales. Cuatro acciones. Sin ruido.
             </p>
           </div>
-          <Tooltip content="Abre la guÃ­a de 3 pasos de este cockpit (tambiÃ©n Cmd/Ctrl+/)">
+          <Tooltip content="Abre la guía de 3 pasos de este cockpit (también Cmd/Ctrl+/)">
             <button
               type="button"
               className="flt-help-btn"
               onClick={() => setHelpOpen(true)}
-              title="CÃ³mo leer el tablero"
-              aria-label="CÃ³mo leer el tablero"
+              title="Cómo leer el tablero"
+              aria-label="Cómo leer el tablero"
             >
               ?
             </button>
@@ -98,7 +98,7 @@ export default function DashboardPage() {
       ) : null}
 
       {m ? (
-        <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <section className="grid grid-cols-1 gap-4 sm:grid-cols-3" data-tour="kpi">
           <div
             className="flt-kpi-giant flt-kpi-giant--ok"
             title="Viajes asignados o en ruta ahora mismo"
@@ -117,19 +117,19 @@ export default function DashboardPage() {
                   ? "flt-kpi-giant--warn"
                   : "flt-kpi-giant--critical"
             }`}
-            title="Suma de novedades e incidentes de hoy. Rojo/Ã¡mbar = revisar TrÃ¡mites o LogÃ­stica"
+            title="Suma de novedades e incidentes de hoy. Rojo/ámbar = revisar Trámites o Logística"
           >
             <p className="flt-kpi-giant-label">Alertas / bloqueos</p>
             <p className="flt-kpi-giant-value font-data">{alertas}</p>
             <p className="flt-kpi-giant-hint font-data">
-              {m.bloqueosHoy} hoy Â· {m.novedades} novedades
+              {m.bloqueosHoy} hoy · {m.novedades} novedades
             </p>
           </div>
           <div
             className="flt-kpi-giant flt-kpi-giant--metric"
             title="Ingresos CxC del mes (pagadas + emitidas abiertas)"
           >
-            <p className="flt-kpi-giant-label">FacturaciÃ³n del mes</p>
+            <p className="flt-kpi-giant-label">Facturación del mes</p>
             <p className="flt-kpi-giant-value font-data">
               {money(m.ingresosMtd)}
             </p>
@@ -138,13 +138,13 @@ export default function DashboardPage() {
         </section>
       ) : (
         <p className="text-sm text-[var(--brand-text-secondary)]">
-          Sincronizando estado operativoâ€¦
+          Sincronizando estado operativo…
         </p>
       )}
 
-      <section className="space-y-3">
+      <section className="space-y-3" data-tour="secondary">
         <h2 className="font-display text-lg font-semibold tracking-tight">
-          Acciones rÃ¡pidas
+          Acciones rápidas
         </h2>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {ACTIONS.map((a) => (
@@ -159,20 +159,20 @@ export default function DashboardPage() {
                   </span>
                 </span>
                 <span className="font-data text-xs font-semibold text-[var(--brand-primary)] opacity-70 transition group-hover:opacity-100">
-                  Abrir â†’
+                  Abrir →
                 </span>
               </Link>
             </Tooltip>
           ))}
         </div>
         <div className="flex flex-wrap gap-3 pt-1 text-sm">
-          <Tooltip content="Ir a TesorerÃ­a: CxC / CxP y aprobaciÃ³n de pagos">
+          <Tooltip content="Ir a Tesorería: CxC / CxP y aprobación de pagos">
             <Link
               href="/tesoreria"
               className="text-[var(--brand-primary)] underline-offset-2 hover:underline"
-              title="Abrir TesorerÃ­a"
+              title="Abrir Tesorería"
             >
-              TesorerÃ­a
+              Tesorería
             </Link>
           </Tooltip>
           <Tooltip content="Ir a la sala documental: documentos con sello digital">

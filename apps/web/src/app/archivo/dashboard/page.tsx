@@ -120,8 +120,8 @@ function hitKind(h: SearchHit): NonNullable<SearchHit["kind"]> {
 }
 
 function shortHash(h?: string | null) {
-  if (!h) return "â€”";
-  return `${h.slice(0, 8)}â€¦`;
+  if (!h) return "—";
+  return `${h.slice(0, 8)}…`;
 }
 
 function ingestionTone(status: IngestionItem["status"]) {
@@ -170,7 +170,7 @@ export default function ArchivoDashboardPage() {
       const d = await api<Dashboard>("/api/v1/archivo/dashboard");
       setDash(d);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "ConexiÃ³n de archivo fallida");
+      setError(e instanceof Error ? e.message : "Conexión de archivo fallida");
     }
   }, []);
 
@@ -205,7 +205,7 @@ export default function ArchivoDashboardPage() {
       setSearched(true);
       setOpen(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "BÃºsqueda fallida");
+      setError(err instanceof Error ? err.message : "Búsqueda fallida");
       setHits([]);
       setSearched(true);
       setOpen(true);
@@ -254,7 +254,7 @@ export default function ArchivoDashboardPage() {
           notes: despachoForm.notes || undefined,
         }),
       });
-      setOpsMsg("Despacho de papelerÃ­a registrado");
+      setOpsMsg("Despacho de papelería registrado");
       setOpsPanel("none");
       setDespachoForm({ itemId: "", quantity: "1", ticketRef: "", notes: "" });
       await loadDash();
@@ -281,7 +281,7 @@ export default function ArchivoDashboardPage() {
           dueDays: Number(prestamoForm.dueDays) || 7,
         }),
       });
-      setOpsMsg("PrÃ©stamo de carpeta registrado");
+      setOpsMsg("Préstamo de carpeta registrado");
       setOpsPanel("none");
       setPrestamoForm({
         documentId: "",
@@ -291,7 +291,7 @@ export default function ArchivoDashboardPage() {
       });
       await loadDash();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "PrÃ©stamo fallido");
+      setError(err instanceof Error ? err.message : "Préstamo fallido");
     } finally {
       setOpsBusy(false);
     }
@@ -351,28 +351,28 @@ export default function ArchivoDashboardPage() {
       {metrics ? (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <KpiCard
-            label="PrecisiÃ³n OCR (auto-indexado)"
+            label="Precisión OCR (auto-indexado)"
             value={`${metrics.ocrPrecisionPct}%`}
-            delta="Cero intervenciÃ³n humana"
+            delta="Cero intervención humana"
             tone="ok"
             icon={<Cpu className="h-5 w-5 text-brand-secondary" aria-hidden />}
           />
           <KpiCard
             label="Habeas Data (auto-shred)"
             value={String(metrics.habeasShreddedToday)}
-            delta="Docs destruidos hoy (fin retenciÃ³n)"
+            delta="Docs destruidos hoy (fin retención)"
             tone="neutral"
             icon={<Trash2 className="h-5 w-5 text-[var(--brand-text-secondary)]" aria-hidden />}
           />
           <KpiCard
             label="Activos operativos"
             value={metrics.operationalAssets.toLocaleString("es-CO")}
-            delta="Tablets, dotaciÃ³n, papelerÃ­a"
+            delta="Tablets, dotación, papelería"
             tone="ok"
             icon={<Smartphone className="h-5 w-5 text-[var(--brand-primary)]" aria-hidden />}
           />
           <KpiCard
-            label="Bloqueos de liquidaciÃ³n"
+            label="Bloqueos de liquidación"
             value={String(metrics.liquidationBlocks)}
             delta="Activos pendientes por devolver"
             tone={metrics.liquidationBlocks > 0 ? "danger" : "ok"}
@@ -384,7 +384,7 @@ export default function ArchivoDashboardPage() {
       <form onSubmit={onSearch} className="relative z-10">
         <div ref={boxRef} className="relative">
           <label className="sr-only" htmlFor="archivo-search">
-            BÃºsqueda profunda
+            Búsqueda profunda
           </label>
           <div className="nexa-panel flex items-center gap-2 p-2 shadow-lg">
             <Search className="ml-2 h-5 w-5 shrink-0 text-[var(--brand-text-secondary)]" aria-hidden />
@@ -395,7 +395,7 @@ export default function ArchivoDashboardPage() {
               autoComplete="off"
               data-testid="archivo-universal-search"
               className="field flex-1 border-0 bg-transparent text-sm shadow-none focus:ring-0"
-              placeholder="BÃºsqueda profunda: contrato, placa, cÃ©dula, serial tabletâ€¦"
+              placeholder="Búsqueda profunda: contrato, placa, cédula, serial tablet…"
               value={q}
               onChange={(e) => onQueryChange(e.target.value)}
               onFocus={() => {
@@ -413,7 +413,7 @@ export default function ArchivoDashboardPage() {
             >
               {searching ? (
                 <li className="px-4 py-3 text-sm text-[var(--brand-text-secondary)]">
-                  Buscando en flota, personal y bÃ³vedaâ€¦
+                  Buscando en flota, personal y bóveda…
                 </li>
               ) : null}
               {!searching && searched && hits.length === 0 ? (
@@ -433,9 +433,9 @@ export default function ArchivoDashboardPage() {
                         <span>
                           <span className="block text-sm font-medium">{h.title}</span>
                           <span className="mt-0.5 block font-data text-[11px] text-[var(--brand-text-secondary)]">
-                            {KIND_LABEL[hitKind(h)]} Â·{" "}
+                            {KIND_LABEL[hitKind(h)]} ·{" "}
                             {h.plate || h.documentNumber || h.docType}
-                            {h.locationLabel ? ` Â· ${h.locationLabel}` : ""}
+                            {h.locationLabel ? ` · ${h.locationLabel}` : ""}
                           </span>
                         </span>
                         {h.digitalPdf ? (
@@ -469,7 +469,7 @@ export default function ArchivoDashboardPage() {
             {(dash?.ingestionQueue ?? []).length === 0 ? (
               <EmptyState
                 icon={<Database className="h-7 w-7" aria-hidden />}
-                title="Cola vacÃ­a"
+                title="Cola vacía"
                 description="Suba documentos para activar el enrutador OCR."
               />
             ) : (
@@ -493,17 +493,17 @@ export default function ArchivoDashboardPage() {
                         <h3 className="text-sm font-semibold">{item.title}</h3>
                         <p className="mt-0.5 text-[10px] font-mono text-[var(--brand-text-secondary)]">
                           {item.docType}
-                          {item.routedTo ? ` â†’ ${item.routedTo}` : ""}
+                          {item.routedTo ? ` → ${item.routedTo}` : ""}
                         </p>
                         {item.status === "processing" ? (
                           <p className="mt-2 text-[10px] text-brand-secondary">
-                            Clasificando y enrutandoâ€¦
+                            Clasificando y enrutando…
                           </p>
                         ) : item.status === "validated" ? (
                           <p className="mt-2 text-[10px] font-semibold text-[var(--brand-primary)]">
                             Indexado
                             {item.confidence
-                              ? ` Â· confianza ${Math.round(item.confidence * 100)}%`
+                              ? ` · confianza ${Math.round(item.confidence * 100)}%`
                               : ""}
                           </p>
                         ) : null}
@@ -565,13 +565,13 @@ export default function ArchivoDashboardPage() {
                     </h3>
                     <ul className="mt-2 space-y-1 rounded-md border border-[var(--brand-danger)]/20 bg-[var(--brand-surface)]/50 p-2 font-mono text-[11px] text-[var(--brand-danger)]">
                       {a.pendingAssets.map((asset) => (
-                        <li key={asset}>Â· {asset}</li>
+                        <li key={asset}>· {asset}</li>
                       ))}
                     </ul>
                     {a.liquidationBlocked ? (
                       <p className="mt-2 flex items-center gap-1 text-[9px] font-bold text-[var(--brand-danger)]">
                         <Lock className="h-3 w-3" aria-hidden />
-                        Pago de liquidaciÃ³n bloqueado en TesorerÃ­a
+                        Pago de liquidación bloqueado en Tesorería
                       </p>
                     ) : null}
                   </article>
@@ -595,19 +595,19 @@ export default function ArchivoDashboardPage() {
               >
                 <p className="text-sm">{p.title}</p>
                 <p className="font-data text-[10px] text-[var(--brand-text-secondary)]">
-                  {p.plate || p.documentNumber || "â€”"} Â· {p.locationLabel || "Sin ubicaciÃ³n"}
+                  {p.plate || p.documentNumber || "—"} · {p.locationLabel || "Sin ubicación"}
                 </p>
               </article>
             ))}
             {!dash?.pendingDigitization?.length ? (
-              <p className="text-xs text-[var(--brand-text-secondary)]">Bandeja vacÃ­a.</p>
+              <p className="text-xs text-[var(--brand-text-secondary)]">Bandeja vacía.</p>
             ) : null}
           </div>
         </section>
 
         <section className="nexa-panel p-4 lg:col-span-1">
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--brand-text-secondary)]">
-            Carpetas en prÃ©stamo
+            Carpetas en préstamo
             {(dash?.overdueLoanCount ?? 0) > 0 ? (
               <span className="ml-2 text-[var(--brand-danger)]">
                 ({dash!.overdueLoanCount} vencidas)
@@ -632,9 +632,9 @@ export default function ArchivoDashboardPage() {
             {!dash?.loansOnHand?.length ? (
               <EmptyState
                 icon={<Lock className="h-6 w-6" aria-hidden />}
-                title="Sin prÃ©stamos activos"
-                description="Registre el check-out de una carpeta fÃ­sica."
-                actionLabel="PrÃ©stamo carpeta"
+                title="Sin préstamos activos"
+                description="Registre el check-out de una carpeta física."
+                actionLabel="Préstamo carpeta"
                 onAction={() => setOpsPanel("prestamo")}
               />
             ) : null}
@@ -655,19 +655,19 @@ export default function ArchivoDashboardPage() {
               >
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-sm">{i.name}</p>
-                  {i.critical ? <Badge tone="danger">CrÃ­tico</Badge> : null}
+                  {i.critical ? <Badge tone="danger">Crítico</Badge> : null}
                 </div>
                 <p className="font-data text-xs text-[var(--brand-text-secondary)]">
-                  {i.sku} Â· {i.quantity}/{i.minStock} {i.unit}
+                  {i.sku} · {i.quantity}/{i.minStock} {i.unit}
                 </p>
               </article>
             ))}
             {!dash?.inventory?.length ? (
               <EmptyState
                 icon={<Box className="h-6 w-6" aria-hidden />}
-                title="Sin Ã­tems de papelerÃ­a"
+                title="Sin ítems de papelería"
                 description="Cargue el inventario administrativo para despachar."
-                actionLabel="Despachar papelerÃ­a"
+                actionLabel="Despachar papelería"
                 onAction={() => setOpsPanel("despacho")}
               />
             ) : null}
@@ -679,7 +679,7 @@ export default function ArchivoDashboardPage() {
         <header className="border-b border-[var(--brand-border)] px-4 py-3">
           <h2 className="text-sm font-semibold">Cadena de custodia inmutable</h2>
           <p className="text-xs text-[var(--brand-text-secondary)]">
-            Descargas, sellados e indexaciones Â· trazabilidad legal
+            Descargas, sellados e indexaciones · trazabilidad legal
           </p>
         </header>
         {!dash?.accessLog?.length ? (
@@ -687,14 +687,14 @@ export default function ArchivoDashboardPage() {
             <EmptyState
               icon={<FileArchive className="h-7 w-7" aria-hidden />}
               title="Sin eventos"
-              description="Los accesos a la bÃ³veda aparecerÃ¡n aquÃ­."
+              description="Los accesos a la bóveda aparecerán aquí."
             />
           </div>
         ) : (
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="text-[11px] uppercase tracking-wider text-[var(--brand-text-secondary)]">
-                <th className="px-4 py-2">AcciÃ³n</th>
+                <th className="px-4 py-2">Acción</th>
                 <th className="px-4 py-2">Documento</th>
                 <th className="px-4 py-2">Hash</th>
                 <th className="px-4 py-2">Operador</th>
@@ -718,7 +718,7 @@ export default function ArchivoDashboardPage() {
                       {a.action}
                     </StatusPulseBadge>
                   </td>
-                  <td className="px-4 py-2 text-xs">{a.title || "â€”"}</td>
+                  <td className="px-4 py-2 text-xs">{a.title || "—"}</td>
                   <td className="px-4 py-2 font-data text-xs">{shortHash(a.contentHash)}</td>
                   <td className="px-4 py-2 text-xs">{a.userName}</td>
                   <td className="px-4 py-2 font-data text-xs">
@@ -738,8 +738,8 @@ export default function ArchivoDashboardPage() {
       <SlideOver
         open={opsPanel === "despacho"}
         onClose={() => setOpsPanel("none")}
-        title="Despachar papelerÃ­a"
-        description="Salida de stock con ticket y hard lock si cantidad invÃ¡lida."
+        title="Despachar papelería"
+        description="Salida de stock con ticket y hard lock si cantidad inválida."
         footer={
           <>
             <Button
@@ -768,7 +768,7 @@ export default function ArchivoDashboardPage() {
           className="space-y-3"
         >
           <label className="flex flex-col gap-1 text-xs uppercase text-[var(--brand-text-secondary)]">
-            Ãtem
+            Ítem
             <select
               className="field"
               value={despachoForm.itemId}
@@ -777,10 +777,10 @@ export default function ArchivoDashboardPage() {
               }
               required
             >
-              <option value="">Seleccioneâ€¦</option>
+              <option value="">Seleccione…</option>
               {(dash?.inventory ?? []).map((i) => (
                 <option key={i.id} value={i.id}>
-                  {i.name} Â· {i.sku} ({i.quantity})
+                  {i.name} · {i.sku} ({i.quantity})
                 </option>
               ))}
             </select>
@@ -824,8 +824,8 @@ export default function ArchivoDashboardPage() {
       <SlideOver
         open={opsPanel === "prestamo"}
         onClose={() => setOpsPanel("none")}
-        title="PrÃ©stamo de carpeta"
-        description="Hard lock si el expediente ya estÃ¡ en custodia de otro usuario."
+        title="Préstamo de carpeta"
+        description="Hard lock si el expediente ya está en custodia de otro usuario."
         footer={
           <>
             <Button
@@ -843,7 +843,7 @@ export default function ArchivoDashboardPage() {
               className="w-auto px-4 py-2"
               loading={opsBusy}
             >
-              Registrar prÃ©stamo
+              Registrar préstamo
             </Button>
           </>
         }
@@ -880,7 +880,7 @@ export default function ArchivoDashboardPage() {
             />
           </label>
           <label className="flex flex-col gap-1 text-xs uppercase text-[var(--brand-text-secondary)]">
-            DÃ­as de prÃ©stamo
+            Días de préstamo
             <input
               className="field font-mono"
               type="number"
@@ -893,7 +893,7 @@ export default function ArchivoDashboardPage() {
             />
           </label>
           <label className="flex flex-col gap-1 text-xs uppercase text-[var(--brand-text-secondary)]">
-            PropÃ³sito
+            Propósito
             <textarea
               className="field min-h-[72px]"
               value={prestamoForm.purpose}

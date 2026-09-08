@@ -27,7 +27,7 @@ export function SupervisorDeviationsPanel({
   embedded = false,
   onCountChange,
 }: {
-  /** Sin chrome de secciÃƒÂ³n Ã¢â‚¬â€ para SlideOver. */
+  /** Sin chrome de sección — para SlideOver. */
   embedded?: boolean;
   onCountChange?: (count: number) => void;
 }) {
@@ -44,7 +44,7 @@ export function SupervisorDeviationsPanel({
       onCountChange?.(data.length);
       setError("");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "ConexiÃƒÂ³n de desviaciones fallida");
+      setError(e instanceof Error ? e.message : "Conexión de desviaciones fallida");
     }
   }, [onCountChange]);
 
@@ -79,7 +79,7 @@ export function SupervisorDeviationsPanel({
         <EmptyState
           icon={<RouteIcon className="h-7 w-7" />}
           title="Sin desviaciones pendientes"
-          description="Inicio/fin fuera de geocerca u horario aparecerÃƒÂ¡n aquÃƒÂ­."
+          description="Inicio/fin fuera de geocerca u horario aparecerán aquí."
         />
       ) : (
         <ul className="space-y-3">
@@ -91,17 +91,17 @@ export function SupervisorDeviationsPanel({
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
                   <p className="font-data text-sm text-[var(--brand-text-primary)]">
-                    {d.trip.code} Ã‚Â· {d.action}
+                    {d.trip.code} · {d.action}
                   </p>
                   <p className="text-xs text-[var(--brand-text-secondary)]">
-                    {d.trip.origin} Ã¢â€ â€™ {d.trip.destination}
-                    {d.trip.driver ? ` Ã‚Â· ${d.trip.driver.name}` : ""}
+                    {d.trip.origin} → {d.trip.destination}
+                    {d.trip.driver ? ` · ${d.trip.driver.name}` : ""}
                   </p>
                   <p className="mt-1 text-xs text-[var(--brand-warning)]">
                     {d.reasonDetail}
                   </p>
                   <p className="font-data mt-1 text-[10px] text-[var(--brand-text-secondary)]">
-                    GPS {d.lat.toFixed(5)}, {d.lng.toFixed(5)} Ã‚Â·{" "}
+                    GPS {d.lat.toFixed(5)}, {d.lng.toFixed(5)} ·{" "}
                     {new Date(d.serverTime).toLocaleString("es-CO")}
                   </p>
                 </div>
@@ -159,10 +159,10 @@ export function SupervisorDeviationsPanel({
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-[var(--brand-text-secondary)]">
-            Desviaciones Ã‚Â· aprobaciÃƒÂ³n supervisor
+            Desviaciones · aprobación supervisor
           </h2>
           <p className="text-xs text-[var(--brand-text-secondary)]">
-            Inicio/fin fuera de geocerca u horario Ã¢â‚¬â€ ACEPTAR autoriza seguimiento /
+            Inicio/fin fuera de geocerca u horario — ACEPTAR autoriza seguimiento /
             extras; CANCELAR restaura el estado previo.
           </p>
         </div>

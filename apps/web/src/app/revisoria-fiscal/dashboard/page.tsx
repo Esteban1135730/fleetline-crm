@@ -1,9 +1,9 @@
 ﻿"use client";
 
 /**
- * RevisorÃƒÂ­a Fiscal Ã‚Â· Truth Hub
+ * Revisoría Fiscal · Truth Hub
  * Propuesta completa: @UI-UX-Architect + @Sales-Enabler + @Refactor-Engine + @QA-Linter
- * Cumple `.cursorrules` (KPIs / filtros / tabla Ã‚Â· ayuda en SlideOver Ã‚Â· forms en Modal Ã‚Â· EmptyState).
+ * Cumple `.cursorrules` (KPIs / filtros / tabla · ayuda en SlideOver · forms en Modal · EmptyState).
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -111,10 +111,10 @@ function money(n: number) {
 
 const HELP_STEPS = [
   "Panel DIAN consolida ventas/compras y resalta retenciones omitidas o mal calculadas.",
-  "Detalle forense: saldo PUC Ã¢â€ â€™ factura Ã¢â€ â€™ presupuesto Ã¢â€ â€™ OC Ã¢â€ â€™ almacÃƒÂ©n Ã¢â€ â€™ egreso.",
-  `Muestreo automÃƒÂ¡tico del ${HARD_RULES.REVISORIA_SAMPLE_PCT}% de transacciones del mes.`,
+  "Detalle forense: saldo PUC → factura → presupuesto → OC → almacén → egreso.",
+  `Muestreo automático del ${HARD_RULES.REVISORIA_SAMPLE_PCT}% de transacciones del mes.`,
   "Cierre de periodo: dictamen en PDF y bloqueo absoluto del periodo contable.",
-  "NavegaciÃƒÂ³n rÃƒÂ¡pida: Ctrl/Cmd + K Ã‚Â· Ayuda: tecla ?",
+  "Navegación rápida: Ctrl/Cmd + K · Ayuda: tecla ?",
 ];
 
 export default function RevisoriaFiscalDashboardPage() {
@@ -146,7 +146,7 @@ export default function RevisoriaFiscalDashboardPage() {
       setFlagged(impuestos.flagged);
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "ConexiÃƒÂ³n fallida");
+      setError(e instanceof Error ? e.message : "Conexión fallida");
     }
   }, []);
 
@@ -179,7 +179,7 @@ export default function RevisoriaFiscalDashboardPage() {
           yearMonth: ym,
           pdfRef,
           opinion: "SIN_SALVEDADES",
-          notes: "Dictamen de revisorÃƒÂ­a Ã¢â‚¬â€ cierre absoluto del periodo",
+          notes: "Dictamen de revisoría — cierre absoluto del periodo",
         },
       );
       setMsg(`${res.status}: ${res.message}`);
@@ -210,7 +210,7 @@ export default function RevisoriaFiscalDashboardPage() {
         a.download = res.fileName || `truth-hub.${format}`;
         a.click();
         URL.revokeObjectURL(url);
-        setMsg(`Export ${format} Ã‚Â· hash ${res.contentHash?.slice(0, 12) ?? "Ã¢â‚¬â€"}`);
+        setMsg(`Export ${format} · hash ${res.contentHash?.slice(0, 12) ?? "—"}`);
       } else {
         const blob = new Blob([JSON.stringify(res.payload, null, 2)], {
           type: "application/json",
@@ -221,10 +221,10 @@ export default function RevisoriaFiscalDashboardPage() {
         a.download = `truth-hub-${ym}.json`;
         a.click();
         URL.revokeObjectURL(url);
-        setMsg("ExportaciÃƒÂ³n JSON lista");
+        setMsg("Exportación JSON lista");
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "ExportaciÃƒÂ³n fallida");
+      setError(e instanceof Error ? e.message : "Exportación fallida");
     } finally {
       setBusy(false);
     }
@@ -271,15 +271,15 @@ export default function RevisoriaFiscalDashboardPage() {
 
   return (
     <div className="space-y-5">
-      {/* Header operativo Ã¢â‚¬â€ sin muro de protocolo */}
+      {/* Header operativo — sin muro de protocolo */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-brand-success">
-            RevisorÃƒÂ­a fiscal
+            Revisoría fiscal
           </p>
-          <h1 className="text-2xl font-bold text-[var(--brand-text-primary)]">Centro de revisorÃƒÂ­a</h1>
+          <h1 className="text-2xl font-bold text-[var(--brand-text-primary)]">Centro de revisoría</h1>
           <p className="mt-1 font-mono text-xs text-[var(--brand-text-secondary)]">
-            Periodo {ym} Ã‚Â· Ctrl/Cmd+K navegaciÃƒÂ³n global
+            Periodo {ym} · Ctrl/Cmd+K navegación global
           </p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
@@ -288,15 +288,15 @@ export default function RevisoriaFiscalDashboardPage() {
           </StatusPulseBadge>
           {(dash?.impuestosSummary.flaggedCount ?? 0) > 0 ? (
             <StatusPulseBadge tone="fatiga">
-              FATIGA RETENCIÃƒâ€œN Ã‚Â· {dash?.impuestosSummary.flaggedCount}
+              FATIGA RETENCIÓN · {dash?.impuestosSummary.flaggedCount}
             </StatusPulseBadge>
           ) : (
             <StatusPulseBadge tone="active" pulse={false}>
-              Activo Ã‚Â· DIAN correcto
+              Activo · DIAN correcto
             </StatusPulseBadge>
           )}
           <SlideOverHelp
-            title="CÃƒÂ³mo operar el centro de revisorÃƒÂ­a"
+            title="Cómo operar el centro de revisoría"
             summary="Protocolo forense de cierre e impuestos."
             steps={HELP_STEPS}
           />
@@ -342,28 +342,28 @@ export default function RevisoriaFiscalDashboardPage() {
         <KpiCard
           label="Ventas DIAN"
           value={money(dash?.impuestosSummary.saleTotal ?? 0)}
-          delta="vs mes Ã‚Â· tendencia"
+          delta="vs mes · tendencia"
           tone="ok"
           spark={saleSpark}
         />
         <KpiCard
           label="Compras DIAN"
           value={money(dash?.impuestosSummary.purchaseTotal ?? 0)}
-          delta="vs mes Ã‚Â· tendencia"
+          delta="vs mes · tendencia"
           tone="neutral"
           spark={buySpark}
         />
         <KpiCard
-          label="Alertas retenciÃƒÂ³n"
+          label="Alertas retención"
           value={dash?.impuestosSummary.flaggedCount ?? 0}
-          delta={flagged.length ? "DANGER Ã‚Â· revisar" : "Nominal"}
+          delta={flagged.length ? "DANGER · revisar" : "Nominal"}
           tone={(dash?.impuestosSummary.flaggedCount ?? 0) > 0 ? "danger" : "ok"}
           spark={flagSpark}
         />
         <KpiCard
           label="Muestreo"
           value={`${dash?.sampling.sampleSize ?? 0}/${dash?.sampling.population ?? 0}`}
-          delta={`${dash?.sampling.samplePct ?? HARD_RULES.REVISORIA_SAMPLE_PCT}% poblaciÃƒÂ³n`}
+          delta={`${dash?.sampling.samplePct ?? HARD_RULES.REVISORIA_SAMPLE_PCT}% población`}
           tone="warn"
           spark={[3, 4, 5, 4, 6, 5, dash?.sampling.sampleSize ?? 4]}
         />
@@ -396,17 +396,17 @@ export default function RevisoriaFiscalDashboardPage() {
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Filtrar factura, cuenta, terceroÃ¢â‚¬Â¦"
+          placeholder="Filtrar factura, cuenta, tercero…"
           className="w-full max-w-xs rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface-elevated)] px-3 py-2 text-sm text-[var(--brand-text-primary)] placeholder:text-[var(--brand-text-secondary)] sm:w-auto"
         />
       </div>
 
-      {/* Tabla / mÃƒÂ³dulo principal */}
+      {/* Tabla / módulo principal */}
       {tab === "alertas" ? (
         filteredFlagged.length === 0 ? (
           <EmptyState
-            title="Sin alertas de retenciÃƒÂ³n"
-            description="El pre-validador DIAN no marcÃƒÂ³ omisiones en el periodo. Use el cierre de periodo cuando el dictamen estÃƒÂ© listo."
+            title="Sin alertas de retención"
+            description="El pre-validador DIAN no marcó omisiones en el periodo. Use el cierre de periodo cuando el dictamen esté listo."
             actionLabel="Abrir cierre de periodo"
             onAction={() => setLockOpen(true)}
           />
@@ -418,7 +418,7 @@ export default function RevisoriaFiscalDashboardPage() {
                   <th className="px-4 py-3">Factura</th>
                   <th className="px-4 py-3">Issue</th>
                   <th className="px-4 py-3">Detalle</th>
-                  <th className="px-4 py-3 text-right">AcciÃƒÂ³n</th>
+                  <th className="px-4 py-3 text-right">Acción</th>
                 </tr>
               </thead>
               <tbody>
@@ -472,7 +472,7 @@ export default function RevisoriaFiscalDashboardPage() {
                   }
                 >
                   <span className="font-mono text-sm text-[var(--brand-text-primary)]">
-                    {node.code} Ã‚Â· {node.name}
+                    {node.code} · {node.name}
                   </span>
                   <span className="font-mono text-xs text-brand-warning">
                     {money(node.balance)}
@@ -494,14 +494,14 @@ export default function RevisoriaFiscalDashboardPage() {
                           className="flex items-center justify-between py-2 font-mono text-xs text-[var(--brand-text-secondary)]"
                         >
                           <span>
-                            {inv.number} Ã‚Â· {inv.counterparty}
+                            {inv.number} · {inv.counterparty}
                           </span>
                           <Button
                             variant="ghost"
                             className="w-auto px-2 py-1 text-brand-success"
                             onClick={() => void openDrill(inv.id)}
                           >
-                            {money(inv.amount)} Ã¢â€ â€™
+                            {money(inv.amount)} →
                           </Button>
                         </li>
                       ))}
@@ -517,8 +517,8 @@ export default function RevisoriaFiscalDashboardPage() {
       {tab === "muestreo" ? (
         filteredSample.length === 0 ? (
           <EmptyState
-            title="Bandeja de muestreo vacÃƒÂ­a"
-            description="AÃƒÂºn no hay ÃƒÂ­tems seleccionados para revisiÃƒÂ³n forense este mes."
+            title="Bandeja de muestreo vacía"
+            description="Aún no hay ítems seleccionados para revisión forense este mes."
           />
         ) : (
           <div className="overflow-hidden rounded-xl border border-[var(--brand-border)]">
@@ -558,7 +558,7 @@ export default function RevisoriaFiscalDashboardPage() {
       <Modal
         open={!!drill}
         onClose={() => setDrill(null)}
-        title={drill ? `Cadena de evidencia Ã‚Â· ${drill.invoice.number}` : "Detalle forense"}
+        title={drill ? `Cadena de evidencia · ${drill.invoice.number}` : "Detalle forense"}
         description={drill?.message}
         footer={
           <Button className="w-auto px-4 py-2" onClick={() => setDrill(null)}>
@@ -571,25 +571,25 @@ export default function RevisoriaFiscalDashboardPage() {
             <li>
               Firma presupuesto:{" "}
               <span className="font-mono text-brand-warning">
-                {drill.thread.budgetSignature ?? "Ã¢â‚¬â€"}
+                {drill.thread.budgetSignature ?? "—"}
               </span>
             </li>
             <li>
               OC:{" "}
               {drill.thread.purchaseOrder
-                ? `${drill.thread.purchaseOrder.code} Ã‚Â· ${drill.thread.purchaseOrder.status} Ã‚Â· ${drill.thread.purchaseOrder.approvedBy ?? "Ã¢â‚¬â€"}`
+                ? `${drill.thread.purchaseOrder.code} · ${drill.thread.purchaseOrder.status} · ${drill.thread.purchaseOrder.approvedBy ?? "—"}`
                 : "Sin OC"}
             </li>
             <li>
-              AlmacÃƒÂ©n:{" "}
+              Almacén:{" "}
               {drill.thread.warehouseReceipts.map((g) => g.code).join(", ") ||
-                "Sin remisiÃƒÂ³n"}
+                "Sin remisión"}
             </li>
             <li>
               Egreso:{" "}
               {drill.thread.egreso
                 .map((e) => `${statusEs(e.status)} ${money(e.amount)}`)
-                .join(" Ã‚Â· ") || "Sin comprobante"}
+                .join(" · ") || "Sin comprobante"}
             </li>
           </ol>
         ) : null}
@@ -600,7 +600,7 @@ export default function RevisoriaFiscalDashboardPage() {
         open={lockOpen}
         onClose={() => setLockOpen(false)}
         title="Dictamen y cierre de periodo"
-        description={`Sella el periodo ${ym}. AcciÃƒÂ³n irreversible en la red.`}
+        description={`Sella el periodo ${ym}. Acción irreversible en la red.`}
         footer={
           <>
             <Button
@@ -628,12 +628,12 @@ export default function RevisoriaFiscalDashboardPage() {
           value={pdfRef}
           onChange={(e) => setPdfRef(e.target.value)}
           className="mt-2 w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface-elevated)] px-3 py-2 font-mono text-sm text-[var(--brand-text-primary)]"
-          placeholder="uploads/dictamen/Ã¢â‚¬Â¦"
+          placeholder="uploads/dictamen/…"
         />
         {dash?.period.dictamen ? (
           <p className="mt-3 font-mono text-xs text-[var(--brand-text-secondary)]">
-            Dictamen {dash.period.dictamen.opinion} Ã‚Â· hash{" "}
-            {dash.period.dictamen.signatureHash.slice(0, 16)}Ã¢â‚¬Â¦ Ã‚Â·{" "}
+            Dictamen {dash.period.dictamen.opinion} · hash{" "}
+            {dash.period.dictamen.signatureHash.slice(0, 16)}… ·{" "}
             {dash.period.dictamen.pdfRef}
           </p>
         ) : null}

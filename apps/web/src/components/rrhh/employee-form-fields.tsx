@@ -36,11 +36,11 @@ export type EmployeeFormValues = {
 };
 
 export const CONTRACT_TYPES = [
-  { value: "INDEFINIDO", label: "TÃ©rmino indefinido" },
-  { value: "TERMINO_FIJO", label: "TÃ©rmino fijo" },
+  { value: "INDEFINIDO", label: "Término indefinido" },
+  { value: "TERMINO_FIJO", label: "Término fijo" },
   { value: "OBRA_LABOR", label: "Obra o labor" },
   { value: "APRENDIZAJE", label: "Aprendizaje" },
-  { value: "PRESTACION_SERVICIOS", label: "PrestaciÃ³n de servicios" },
+  { value: "PRESTACION_SERVICIOS", label: "Prestación de servicios" },
 ] as const;
 
 export const BANK_ACCOUNT_TYPES = [
@@ -184,7 +184,7 @@ export function EmployeeFormFields({
           autoComplete="email"
         />
       </FieldLabel>
-      <FieldLabel label="TelÃ©fono">
+      <FieldLabel label="Teléfono">
         <input
           className="field"
           value={form.phone}
@@ -192,7 +192,7 @@ export function EmployeeFormFields({
           autoComplete="tel"
         />
       </FieldLabel>
-      <FieldLabel label="DirecciÃ³n">
+      <FieldLabel label="Dirección">
         <input
           className="field"
           value={form.address}
@@ -207,8 +207,8 @@ export function EmployeeFormFields({
         />
       </FieldLabel>
 
-      <SectionTitle>VinculaciÃ³n laboral</SectionTitle>
-      <FieldLabel label="Ãrea">
+      <SectionTitle>Vinculación laboral</SectionTitle>
+      <FieldLabel label="Área">
         <select
           className="field"
           value={form.area}
@@ -245,7 +245,7 @@ export function EmployeeFormFields({
           {ROLE_LABELS[form.role] ?? form.role}
         </div>
         <span className="normal-case tracking-normal text-[10px] text-[var(--brand-text-secondary)]">
-          Se asigna automÃ¡ticamente segÃºn el cargo
+          Se asigna automáticamente según el cargo
         </span>
       </FieldLabel>
       <FieldLabel label="Tipo de contrato">
@@ -301,14 +301,14 @@ export function EmployeeFormFields({
           onChange={(e) => patch({ arl: e.target.value })}
         />
       </FieldLabel>
-      <FieldLabel label="Fondo de pensiÃ³n">
+      <FieldLabel label="Fondo de pensión">
         <input
           className="field"
           value={form.pensionFund}
           onChange={(e) => patch({ pensionFund: e.target.value })}
         />
       </FieldLabel>
-      <FieldLabel label="Caja de compensaciÃ³n">
+      <FieldLabel label="Caja de compensación">
         <input
           className="field"
           value={form.compensationFund}
@@ -337,7 +337,7 @@ export function EmployeeFormFields({
           ))}
         </select>
       </FieldLabel>
-      <FieldLabel label="NÃºmero de cuenta">
+      <FieldLabel label="Número de cuenta">
         <input
           className="field font-data"
           value={form.bankAccountNumber}
@@ -353,7 +353,7 @@ export function EmployeeFormFields({
           onChange={(e) => patch({ emergencyContactName: e.target.value })}
         />
       </FieldLabel>
-      <FieldLabel label="TelÃ©fono">
+      <FieldLabel label="Teléfono">
         <input
           className="field"
           value={form.emergencyContactPhone}
@@ -371,16 +371,16 @@ export function EmployeeFormFields({
       {drivers.length > 0 ? (
         <>
           <SectionTitle>Flota</SectionTitle>
-          <FieldLabel label="VÃ­nculo conductor existente" className="sm:col-span-2">
+          <FieldLabel label="Vínculo conductor existente" className="sm:col-span-2">
             <select
               className="field w-full min-w-0"
               value={form.driverId}
               onChange={(e) => patch({ driverId: e.target.value })}
             >
-              <option value="">Sin vÃ­nculo â€” crear automÃ¡tico si aplica</option>
+              <option value="">Sin vínculo — crear automático si aplica</option>
               {drivers.map((d) => (
                 <option key={d.id} value={d.id}>
-                  {d.name} Â· {d.document}
+                  {d.name} · {d.document}
                 </option>
               ))}
             </select>

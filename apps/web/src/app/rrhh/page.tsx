@@ -718,11 +718,13 @@ export default function RrhhPage() {
       <div
         className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6"
         data-testid="rrhh-kpis"
+        data-tour="kpi"
       >
         <BentoPanel
           title="Activos"
           subtitle="Headcount"
           icon={<UserCheck aria-hidden />}
+          tour="primary"
         >
           <p className="font-data text-3xl font-bold tabular-nums text-brand-success">
             {headcount.activos}
@@ -848,7 +850,7 @@ export default function RrhhPage() {
               onAction={() => setAltaOpen(true)}
             />
           ) : (
-            <BentoPanel title="Expedientes digitales" subtitle={`${filteredRows.length} registro(s)`}>
+            <BentoPanel title="Expedientes digitales" subtitle={`${filteredRows.length} registro(s)`} tour="panel">
               <NexaTable
                 columns={[
                   "Colaborador",

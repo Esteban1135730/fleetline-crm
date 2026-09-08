@@ -5,8 +5,8 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   NEXA CRM â€” SEMANTIC DESIGN TOKENS (SSOT for CSS)
-   Light: :root Â· Dark: html.dark / [data-theme="dark"]
+   NEXA CRM — SEMANTIC DESIGN TOKENS (SSOT for CSS)
+   Light: :root · Dark: html.dark / [data-theme="dark"]
    â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 :root,
@@ -278,7 +278,7 @@ body {
     color 200ms var(--ease-ui);
 }
 
-/* Unified canvas atmosphere â€” single plane, no split layouts */
+/* Unified canvas atmosphere — single plane, no split layouts */
 html.dark body {
   background-color: var(--brand-canvas);
   background-image:
@@ -530,7 +530,7 @@ html.light .lcd-pill {
   text-shadow: var(--kpi-text-depth);
 }
 
-/* Glassmorphism â€” map overlays / floating panels */
+/* Glassmorphism — map overlays / floating panels */
 .nexa-glass,
 .fsg-glass,
 .map-overlay {
@@ -1726,7 +1726,7 @@ html.light .flt-command-panel {
   backdrop-filter: blur(12px);
 }
 
-/* â€”â€” Zero Clutter: departamentos, cockpit, workbench â€”â€” */
+/* —— Zero Clutter: departamentos, cockpit, workbench —— */
 
 .flt-dept {
   margin-bottom: 0.15rem;
@@ -1952,7 +1952,7 @@ html.light .flt-command-panel {
   border: 0;
 }
 
-/* â€”â€” Tooltips Hyper-Explained â€”â€” */
+/* —— Tooltips Hyper-Explained —— */
 .flt-tip {
   position: relative;
   display: inline-flex;

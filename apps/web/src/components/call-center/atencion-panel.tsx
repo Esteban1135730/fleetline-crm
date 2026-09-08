@@ -103,9 +103,9 @@ export default function AtencionPanel() {
 
       <div>
 
-        <h2 className="page-title text-3xl md:text-4xl">AtenciÃ³n omnicanal</h2>
+        <h2 className="page-title text-3xl md:text-4xl">Atención omnicanal</h2>
 
-        <p className="page-sub">Tickets WhatsApp, correo, telÃ©fono y web</p>
+        <p className="page-sub">Tickets WhatsApp, correo, teléfono y web</p>
 
       </div>
 
@@ -121,7 +121,7 @@ export default function AtencionPanel() {
 
           <option value="EMAIL">Correo</option>
 
-          <option value="PHONE">TelÃ©fono</option>
+          <option value="PHONE">Teléfono</option>
 
           <option value="WEB">Web</option>
 
@@ -153,7 +153,7 @@ export default function AtencionPanel() {
 
                 {t.assignee ? (
 
-                  <span className="text-xs text-[var(--brand-text-secondary)]">â†’ {t.assignee.name}</span>
+                  <span className="text-xs text-[var(--brand-text-secondary)]">→ {t.assignee.name}</span>
 
                 ) : null}
 

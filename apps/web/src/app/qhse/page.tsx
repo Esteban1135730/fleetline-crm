@@ -79,7 +79,7 @@ export default function CalidadPage() {
       setExportError(
         err instanceof Error
           ? err.message
-          : "No se pudo exportar la auditorÃ­a PESV",
+          : "No se pudo exportar la auditoría PESV",
       );
     } finally {
       setExportBusy(false);
@@ -101,10 +101,10 @@ export default function CalidadPage() {
     setFormError("");
     const description = form.description.trim();
     if (description.length < 3) {
-      setFormError("Indique la descripciÃ³n de la novedad");
+      setFormError("Indique la descripción de la novedad");
       return;
     }
-    const title = form.date ? `${description} Â· ${form.date}` : description;
+    const title = form.date ? `${description} · ${form.date}` : description;
     setBusy(true);
     try {
       await api("/calidad/events", {
@@ -185,7 +185,7 @@ export default function CalidadPage() {
       {summary ? (
         <div className="stagger grid grid-cols-1 gap-4 md:grid-cols-4">
           <KpiCard
-            label="SatisfacciÃ³n"
+            label="Satisfacción"
             value={npsDisplay(summary.nps)}
             tone={
               summary.nps == null
@@ -215,7 +215,7 @@ export default function CalidadPage() {
         <EmptyState
           icon={<ClipboardList className="h-7 w-7" />}
           title="Sin reportes QHSE"
-          description="Registre el primer evento de calidad, incidente o auditorÃ­a."
+          description="Registre el primer evento de calidad, incidente o auditoría."
           actionLabel="+ Nuevo Reporte QHSE"
           onAction={openForm}
         />
@@ -268,7 +268,7 @@ export default function CalidadPage() {
         open={formOpen}
         onClose={() => setFormOpen(false)}
         title="Nuevo reporte QHSE"
-        description="Tipo, fecha, descripciÃ³n y evidencia adjunta."
+        description="Tipo, fecha, descripción y evidencia adjunta."
         footer={
           <>
             <Button
@@ -310,8 +310,8 @@ export default function CalidadPage() {
               onChange={(e) => setForm({ ...form, type: e.target.value })}
             >
               <option value="INCIDENT">Incidente / novedad</option>
-              <option value="NPS">SatisfacciÃ³n</option>
-              <option value="AUDIT">AuditorÃ­a</option>
+              <option value="NPS">Satisfacción</option>
+              <option value="AUDIT">Auditoría</option>
             </select>
           </label>
           <label className="block space-y-1.5">
@@ -328,7 +328,7 @@ export default function CalidadPage() {
           </label>
           <label className="block space-y-1.5">
             <span className="text-xs font-semibold uppercase tracking-wider text-brand-text-secondary">
-              DescripciÃ³n
+              Descripción
             </span>
             <textarea
               className="field min-h-[96px] w-full"
@@ -344,7 +344,7 @@ export default function CalidadPage() {
           {form.type === "NPS" ? (
             <label className="block space-y-1.5">
               <span className="text-xs font-semibold uppercase tracking-wider text-brand-text-secondary">
-                Puntaje de satisfacciÃ³n
+                Puntaje de satisfacción
               </span>
               <input
                 className="field w-full font-data"

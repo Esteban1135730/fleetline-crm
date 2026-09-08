@@ -61,6 +61,7 @@ import {
 import { FormGuard } from "@/components/forms/form-guard";
 import { ConfirmMutationHost } from "@/components/confirm-mutation-dialog";
 import { NotificationsProvider } from "@/lib/notifications-context";
+import { TourProvider, useTourOptional } from "@/lib/tour-context";
 
 const NAV_OPEN_KEY = "flt-nav-depts-open";
 
@@ -153,8 +154,8 @@ function TopBar({
           type="button"
           className="flt-icon-btn lg:hidden"
           onClick={toggleSidebar}
-          aria-label="Abrir menÃº"
-          title="Abrir menÃº"
+          aria-label="Abrir menú"
+          title="Abrir menú"
         >
           <NavIcon view="menu" className="h-4 w-4" />
         </button>
@@ -162,17 +163,20 @@ function TopBar({
         <p className="hidden truncate font-display text-sm font-bold tracking-tight text-[var(--brand-text-primary)] sm:block">
           {brand.name}
         </p>
-        <span className="flt-module-badge">{moduleBadge}</span>
+        <span className="flt-module-badge" data-tour="module">
+          {moduleBadge}
+        </span>
       </div>
 
       <button
         type="button"
         className="flt-search-trigger"
+        data-tour="search"
         onClick={() => setCommandOpen(true)}
         title={`Buscar (${modLabel})`}
       >
         <NavIcon view="search" className="h-4 w-4 shrink-0" />
-        <span className="min-w-0 flex-1 truncate">Buscarâ€¦</span>
+        <span className="min-w-0 flex-1 truncate">Buscar…</span>
         <kbd className="flt-kbd hidden md:inline-flex" suppressHydrationWarning>
           {modLabel}
         </kbd>
@@ -188,6 +192,7 @@ function TopBar({
         <button
           type="button"
           className={`flt-help-btn ${helpOpen ? "is-active" : ""}`}
+          data-tour="help"
           onClick={toggleHelp}
           aria-label="Ayuda"
           aria-pressed={helpOpen}
@@ -215,7 +220,8 @@ function TopBar({
         ) : null}
         <div
           className="flt-user-chip"
-          title={`${userName} Â· ${roleLabel}${activeOrgName ? ` Â· ${activeOrgName}` : ""}`}
+          data-tour="user"
+          title={`${userName} · ${roleLabel}${activeOrgName ? ` · ${activeOrgName}` : ""}`}
         >
           <span className="flt-avatar" aria-hidden>
             {(userName || "?").slice(0, 1).toUpperCase()}
@@ -289,18 +295,20 @@ function SideNav({
         <button
           type="button"
           className="flt-sidebar-scrim lg:hidden"
-          aria-label="Cerrar navegaciÃ³n"
-          title="Cerrar menÃº"
+          aria-label="Cerrar navegación"
+          title="Cerrar menú"
           onClick={() => setSidebarCollapsed(true)}
         />
       ) : null}
       <aside
         className={`flt-sidebar ${sidebarCollapsed ? "is-collapsed" : "is-expanded"}`}
+        data-tour="sidebar"
+        aria-label="Áreas corporativas"
       >
         <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-[var(--brand-border)] px-3">
           {!sidebarCollapsed ? (
             <p className="min-w-0 truncate px-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--brand-text-secondary)]">
-              Ãreas
+              Áreas
             </p>
           ) : (
             <span className="mx-auto text-[var(--brand-primary)]">
@@ -310,17 +318,17 @@ function SideNav({
           <Tooltip
             content={
               sidebarCollapsed
-                ? "Expandir menÃº lateral"
-                : "Colapsar menÃº lateral (iconos)"
+                ? "Expandir menú lateral"
+                : "Colapsar menú lateral (iconos)"
             }
           >
             <button
               type="button"
               className="flt-icon-btn"
               onClick={toggleSidebar}
-              title={sidebarCollapsed ? "Expandir menÃº" : "Colapsar menÃº"}
+              title={sidebarCollapsed ? "Expandir menú" : "Colapsar menú"}
               aria-label={
-                sidebarCollapsed ? "Expandir menÃº lateral" : "Colapsar menÃº lateral"
+                sidebarCollapsed ? "Expandir menú lateral" : "Colapsar menú lateral"
               }
             >
               <NavIcon
@@ -333,7 +341,7 @@ function SideNav({
           </Tooltip>
         </div>
 
-        <nav className="flex-1 overflow-y-auto py-2" aria-label="Ãreas corporativas">
+        <nav className="flex-1 overflow-y-auto py-2" aria-label="Áreas corporativas">
           {departments.map((dept) => {
             const multi = dept.items.length > 1;
             const anyActive = dept.items.some((i) =>
@@ -468,14 +476,14 @@ function SideNav({
             type="button"
             className="flt-nav-item w-[calc(100%-1rem)] border-0 bg-transparent text-left"
             onClick={onLogout}
-            title="Cerrar sesiÃ³n"
+            title="Cerrar sesión"
           >
             {sidebarCollapsed ? (
               <NavIcon view="close" className="h-4 w-4 shrink-0" />
             ) : (
               <>
                 <NavIcon view="close" className="h-3.5 w-3.5 shrink-0" />
-                <span className="min-w-0 flex-1 truncate">Cerrar sesiÃ³n</span>
+                <span className="min-w-0 flex-1 truncate">Cerrar sesión</span>
               </>
             )}
           </button>
@@ -508,6 +516,7 @@ function HelpStepText({ text }: { text: string }) {
 function HelpSheet() {
   const pathname = usePathname();
   const { helpOpen, setHelpOpen } = useShell();
+  const tour = useTourOptional();
   const guide = guideForPath(pathname);
 
   return (
@@ -531,7 +540,7 @@ function HelpSheet() {
               {guide.title}
             </h2>
           </div>
-          <Tooltip content="Cerrar guÃ­a (Esc)">
+          <Tooltip content="Cerrar guía (Esc)">
             <button
               type="button"
               className="flt-icon-btn"
@@ -555,12 +564,25 @@ function HelpSheet() {
               </li>
             ))}
           </ol>
+          {tour ? (
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-auto px-4 py-2"
+              onClick={() => {
+                setHelpOpen(false);
+                tour.startTourForCurrent();
+              }}
+            >
+              Iniciar recorrido guiado
+            </Button>
+          ) : null}
           <p className="font-data text-[10px] uppercase tracking-[0.12em] text-[var(--brand-text-secondary)]">
             Atajo:{" "}
             <kbd className="flt-kbd rounded-md border px-2 py-0.5 font-mono text-xs normal-case tracking-normal">
               Cmd/Ctrl+/
             </kbd>{" "}
-            Â·{" "}
+            ·{" "}
             <kbd className="flt-kbd rounded-md border px-2 py-0.5 font-mono text-xs normal-case tracking-normal">
               Esc
             </kbd>{" "}
@@ -661,8 +683,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     if (role === "recepcionista") {
       const dept: NavDepartment = {
         id: "call_center",
-        label: "RecepciÃ³n",
-        tip: "RecepciÃ³n omnicanal Â· visitas Â· PQRS Â· radar de lectura",
+        label: "Recepción",
+        tip: "Recepción omnicanal · visitas · PQRS · radar de lectura",
         items: RECEPCIONISTA_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -676,8 +698,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     if (role === "lider_ti") {
       const dept: NavDepartment = {
         id: "tecnologia_ti",
-        label: "TecnologÃ­a e infraestructura",
-        tip: "Centro de control Â· usuarios Â· mesa de ayuda Â· supervisiÃ³n",
+        label: "Tecnología e infraestructura",
+        tip: "Centro de control · usuarios · mesa de ayuda · supervisión",
         items: LIDER_TI_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -691,8 +713,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     if (role === "gestor_documental") {
       const dept: NavDepartment = {
         id: "archivo",
-        label: "Archivo y PapelerÃ­a",
-        tip: "Custodia Â· papelerÃ­a Â· bÃºsqueda universal",
+        label: "Archivo y Papelería",
+        tip: "Custodia · papelería · búsqueda universal",
         items: GESTOR_DOCUMENTAL_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -706,8 +728,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     if (role === "auxiliar_contable") {
       const dept: NavDepartment = {
         id: "contabilidad",
-        label: "OperaciÃ³n financiera",
-        tip: "CxP Â· legalizaciones Â· conciliaciÃ³n bancaria",
+        label: "Operación financiera",
+        tip: "CxP · legalizaciones · conciliación bancaria",
         items: AUXILIAR_CONTABLE_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -722,7 +744,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       const dept: NavDepartment = {
         id: "contabilidad",
         label: "Contabilidad 4.0",
-        tip: "PUC Â· DIAN Â· cartera digital Â· costeo de flota",
+        tip: "PUC · DIAN · cartera digital · costeo de flota",
         items: GESTOR_CONTABLE_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -736,8 +758,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     if (role === "director_financiero") {
       const dept: NavDepartment = {
         id: "tesoreria",
-        label: "DirecciÃ³n Financiera",
-        tip: "DirecciÃ³n financiera Â· aprobaciÃ³n Â· resultados Â· contratos",
+        label: "Dirección Financiera",
+        tip: "Dirección financiera · aprobación · resultados · contratos",
         items: DIRECTOR_FINANCIERO_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -752,7 +774,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       const dept: NavDepartment = {
         id: "qhse",
         label: "Calidad y SST",
-        tip: "Radar Â· telemetrÃ­a Â· siniestros Â· ambiental",
+        tip: "Radar · telemetría · siniestros · ambiental",
         items: LIDER_QHSE_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -767,7 +789,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       const dept: NavDepartment = {
         id: "compras",
         label: "Compras inteligentes",
-        tip: "Proveedores Â· Ã³rdenes Â· almacÃ©n Â· SOAT",
+        tip: "Proveedores · órdenes · almacén · SOAT",
         items: LIDER_COMPRAS_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -781,8 +803,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     if (role === "director_operativo") {
       const dept: NavDepartment = {
         id: "logistica",
-        label: "DirecciÃ³n Operativa",
-        tip: "Torre de control Â· cronograma Â· capacidad",
+        label: "Dirección Operativa",
+        tip: "Torre de control · cronograma · capacidad",
         items: DIRECTOR_OPERATIVO_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -797,7 +819,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       const dept: NavDepartment = {
         id: "logistica",
         label: "Microdespacho",
-        tip: "AsignaciÃ³n Â· relevo rÃ¡pido Â· bloqueos",
+        tip: "Asignación · relevo rápido · bloqueos",
         items: GESTOR_OPERATIVO_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -812,7 +834,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       const dept: NavDepartment = {
         id: "logistica",
         label: "Comando de campo",
-        tip: "Geocerca Â· abordaje Â· auditorÃ­a en sitio",
+        tip: "Geocerca · abordaje · auditoría en sitio",
         items: COORDINADOR_CAMPO_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -827,7 +849,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       const dept: NavDepartment = {
         id: "logistica",
         label: "Torre de control 24/7",
-        tip: "Excepciones Â· emergencia Â· sensores",
+        tip: "Excepciones · emergencia · sensores",
         items: OPERADOR_CENTRO_CONTROL_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -842,7 +864,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       const dept: NavDepartment = {
         id: "revisoria_fiscal",
         label: "Centro forense",
-        tip: "Caja negra Â· hallazgos Â· auditorÃ­a",
+        tip: "Caja negra · hallazgos · auditoría",
         items: AUDITOR_CONTROL_INTERNO_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -857,7 +879,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       const dept: NavDepartment = {
         id: "presidencia",
         label: "Lienzo de presidencia",
-        tip: "Asistente Â· inversiÃ³n Â· crisis",
+        tip: "Asistente · inversión · crisis",
         items: PRESIDENTE_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -872,7 +894,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       const dept: NavDepartment = {
         id: "rrhh",
         label: "Alta de afiliados",
-        tip: "Afiliados Â· RUNT/SIMIT Â· lectura de documentos",
+        tip: "Afiliados · RUNT/SIMIT · lectura de documentos",
         items: GESTOR_VINCULACIONES_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -886,8 +908,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     if (role === "director_comercial") {
       const dept: NavDepartment = {
         id: "comercial",
-        label: "DirecciÃ³n Comercial",
-        tip: "Embudo empresas Â· Cotizador Â· Firma digital",
+        label: "Dirección Comercial",
+        tip: "Embudo empresas · Cotizador · Firma digital",
         items: DIRECTOR_COMERCIAL_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -901,8 +923,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     if (role === "gestor_comercial") {
       const dept: NavDepartment = {
         id: "comercial",
-        label: "EjecuciÃ³n comercial",
-        tip: "Tareas Â· Marcador Â· Cobro anticipado",
+        label: "Ejecución comercial",
+        tip: "Tareas · Marcador · Cobro anticipado",
         items: GESTOR_COMERCIAL_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -916,8 +938,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     if (role === "coordinador_comercial") {
       const dept: NavDepartment = {
         id: "comercial",
-        label: "CoordinaciÃ³n Comercial",
-        tip: "Tabla de posiciones Â· SECOP Â· asignaciÃ³n en ronda",
+        label: "Coordinación Comercial",
+        tip: "Tabla de posiciones · SECOP · asignación en ronda",
         items: COORDINADOR_COMERCIAL_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -932,7 +954,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       const dept: NavDepartment = {
         id: "gerencia",
         label: "Gerencia General",
-        tip: "Cuadro de mando Â· excepciones Â· PIN",
+        tip: "Cuadro de mando · excepciones · PIN",
         items: GERENTE_GENERAL_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -946,8 +968,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     if (role === "director_juridico" || role === "juridico") {
       const dept: NavDepartment = {
         id: "juridico",
-        label: "Centro jurÃ­dico",
-        tip: "Contratos Â· SARLAFT Â· Expedientes",
+        label: "Centro jurídico",
+        tip: "Contratos · SARLAFT · Expedientes",
         items: DIRECTOR_JURIDICO_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -961,8 +983,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     if (role === "revisor_fiscal") {
       const dept: NavDepartment = {
         id: "revisoria_fiscal",
-        label: "Centro de revisorÃ­a",
-        tip: "DIAN Â· Detalle Â· Cierre de periodo",
+        label: "Centro de revisoría",
+        tip: "DIAN · Detalle · Cierre de periodo",
         items: REVISOR_FISCAL_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -977,7 +999,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       const dept: NavDepartment = {
         id: "taller",
         label: "Taller 4.0",
-        tip: "Tablero Â· BahÃ­as Â· control de calidad",
+        tip: "Tablero · Bahías · control de calidad",
         items: COORDINADOR_TALLER_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -991,8 +1013,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     if (role === "auxiliar_almacen_taller") {
       const dept: NavDepartment = {
         id: "taller",
-        label: "AlmacÃ©n del taller",
-        tip: "CÃ³digo Â· despacho en mostrador",
+        label: "Almacén del taller",
+        tip: "Código · despacho en mostrador",
         items: AUXILIAR_ALMACEN_TALLER_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -1007,7 +1029,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       const dept: NavDepartment = {
         id: "taller",
         label: "App de taller",
-        tip: "Ã“rdenes Â· cronÃ³metro Â· foto y voz",
+        tip: "Órdenes · cronómetro · foto y voz",
         items: MECANICO_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -1022,7 +1044,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       const dept: NavDepartment = {
         id: "parqueadero",
         label: "Patio inteligente",
-        tip: "Mapa de patio Â· Talanquera",
+        tip: "Mapa de patio · Talanquera",
         items: COORDINADOR_PATIO_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -1037,7 +1059,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       const dept: NavDepartment = {
         id: "parqueadero",
         label: "App de patio",
-        tip: "Lavado Â· movimientos de patio",
+        tip: "Lavado · movimientos de patio",
         items: AUXILIAR_PATIO_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -1052,7 +1074,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       const dept: NavDepartment = {
         id: "logistica",
         label: "App del conductor",
-        tip: "Preoperacional Â· emergencia Â· viÃ¡tico",
+        tip: "Preoperacional · emergencia · viático",
         items: CONDUCTOR_PILOT_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -1066,8 +1088,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     if (role === "sub_gerente") {
       const dept: NavDepartment = {
         id: "gerencia",
-        label: "EjecuciÃ³n TÃ¡ctica",
-        tip: "Conflictos Â· kilÃ³metros en vacÃ­o Â· Proyectos",
+        label: "Ejecución Táctica",
+        tip: "Conflictos · kilómetros en vacío · Proyectos",
         items: SUBGERENTE_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -1150,7 +1172,9 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
             }
             onLogout={logout}
           />
-          <main className="flt-workbench">{children}</main>
+          <main className="flt-workbench" data-tour="workbench">
+            {children}
+          </main>
           <InspectorDrawer />
           <HelpSheet />
         </div>
@@ -1163,11 +1187,13 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <ShellProvider>
-      <FormGuard />
-      <ConfirmMutationHost />
-      <NotificationsProvider>
-        <ShellFrame>{children}</ShellFrame>
-      </NotificationsProvider>
+      <TourProvider>
+        <FormGuard />
+        <ConfirmMutationHost />
+        <NotificationsProvider>
+          <ShellFrame>{children}</ShellFrame>
+        </NotificationsProvider>
+      </TourProvider>
     </ShellProvider>
   );
 }

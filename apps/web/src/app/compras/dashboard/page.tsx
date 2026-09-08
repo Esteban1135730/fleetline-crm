@@ -98,7 +98,7 @@ export default function ComprasVendorDashboardPage() {
       const d = await api<Dash>("/api/v1/compras/dashboard");
       setDash(d);
     } catch (e) {
-      setError((e as Error).message || "SeÃ±al perdida â€” reintentando conexiÃ³n");
+      setError((e as Error).message || "Señal perdida — reintentando conexión");
     }
   }, []);
 
@@ -120,7 +120,7 @@ export default function ComprasVendorDashboardPage() {
       }>("/api/v1/compras/requisiciones/smart-bidding", {
         method: "POST",
         body: JSON.stringify({
-          title: title || "ReposiciÃ³n stock crÃ­tico Taller",
+          title: title || "Reposición stock crítico Taller",
           urgency: "CRITICAL",
           quantity: 4,
           autoSelect: true,
@@ -139,11 +139,11 @@ export default function ComprasVendorDashboardPage() {
             bidId: res.selected.bidId,
           }),
         });
-        setMsg(`${res.message} Â· ${emit.message}`);
+        setMsg(`${res.message} · ${emit.message}`);
       }
       await load();
     } catch (e) {
-      setError((e as Error).message || "LicitaciÃ³n automÃ¡tica fallida");
+      setError((e as Error).message || "Licitación automática fallida");
     } finally {
       setBusy(false);
       void reqId;
@@ -242,7 +242,7 @@ export default function ComprasVendorDashboardPage() {
                 code: r.code,
                 title: r.title,
                 meta: "RFQ",
-                sub: "RequisiciÃ³n",
+                sub: "Requisición",
               })),
             ]}
           />
@@ -253,11 +253,11 @@ export default function ComprasVendorDashboardPage() {
               code: o.code,
               title: o.description || o.code,
               meta: money(o.totalEstimated),
-              sub: `${statusEs(o.status)} Â· ${o.supplier?.name || "â€”"}`,
+              sub: `${statusEs(o.status)} · ${o.supplier?.name || "—"}`,
             }))}
           />
           <KanbanCol
-            title="En TrÃ¡nsito"
+            title="En Tránsito"
             items={(dash?.kanban.enTransito ?? []).map((o) => ({
               id: o.id,
               code: o.code,
@@ -303,7 +303,7 @@ export default function ComprasVendorDashboardPage() {
               </p>
               {s.tags?.length ? (
                 <p className="mt-1 text-xs text-[var(--brand-text-secondary)]">
-                  {s.tags.slice(0, 4).join(" Â· ")}
+                  {s.tags.slice(0, 4).join(" · ")}
                 </p>
               ) : null}
             </article>
@@ -327,12 +327,12 @@ function KanbanCol(props: {
   return (
     <div className="nexa-panel min-h-[240px] p-3">
       <p className="mb-3 px-1 text-xs font-medium uppercase tracking-wider text-[var(--brand-text-secondary)]">
-        {props.title} Â· {props.items.length}
+        {props.title} · {props.items.length}
       </p>
       <div className="space-y-2">
         {props.items.length === 0 ? (
           <p className="px-2 py-6 text-center text-sm text-[var(--brand-text-secondary)]">
-            VacÃ­o
+            Vacío
           </p>
         ) : (
           props.items.map((card) => (
@@ -348,7 +348,7 @@ function KanbanCol(props: {
               </p>
               <p className="mt-1 font-mono text-xs text-[var(--brand-text-secondary)]">
                 {card.meta}
-                {card.sub ? ` Â· ${card.sub}` : ""}
+                {card.sub ? ` · ${card.sub}` : ""}
               </p>
             </article>
           ))

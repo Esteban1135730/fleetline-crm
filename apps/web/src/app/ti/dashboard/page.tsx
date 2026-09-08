@@ -202,7 +202,7 @@ export default function TiDashboardPage() {
         return next.slice(-12);
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "ConexiÃƒÂ³n de TI fallida");
+      setError(e instanceof Error ? e.message : "Conexión de TI fallida");
     }
   }, []);
 
@@ -229,7 +229,7 @@ export default function TiDashboardPage() {
       );
       setOnboardUrl(res.onboardingUrl);
       setInfo(
-        `Enlace de un solo uso generado Ã‚Â· expira ${formatSession(res.expiresAt)}`,
+        `Enlace de un solo uso generado · expira ${formatSession(res.expiresAt)}`,
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error en alta de usuario");
@@ -252,7 +252,7 @@ export default function TiDashboardPage() {
       setPairCode(res.pairCode);
       setMdmOpen(true);
       setInfo(
-        `MDM Kiosk-Mode Ã‚Â· cÃƒÂ³digo ${res.pairCode} Ã‚Â· expira ${formatSession(res.expiresAt)}`,
+        `MDM Kiosk-Mode · código ${res.pairCode} · expira ${formatSession(res.expiresAt)}`,
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error de emparejamiento");
@@ -260,7 +260,7 @@ export default function TiDashboardPage() {
   }
 
   function onRotateSecrets() {
-    setInfo("Secrets rotados en staging Ã‚Â· tokens de sesiÃƒÂ³n invalidados");
+    setInfo("Secrets rotados en staging · tokens de sesión invalidados");
   }
 
   const infraIcon = (name: string) => {
@@ -313,9 +313,9 @@ export default function TiDashboardPage() {
         <div className="flex items-start gap-3 rounded-lg border border-[var(--brand-primary)]/40 bg-[var(--brand-primary)]/10 px-4 py-3">
           <Activity className="mt-0.5 h-5 w-5 text-[var(--brand-primary)]" aria-hidden />
           <div>
-            <p className="text-sm font-semibold">Auto-scaling mitigÃƒÂ³ saturaciÃƒÂ³n de CPU</p>
+            <p className="text-sm font-semibold">Auto-scaling mitigó saturación de CPU</p>
             <p className="mt-0.5 text-xs text-[var(--brand-text-secondary)]">
-              HPA inyectÃƒÂ³ capacidad Ã‚Â· Kafka rebalanceado Ã‚Â· crisis resuelta sin intervenciÃƒÂ³n humana
+              HPA inyectó capacidad · Kafka rebalanceado · crisis resuelta sin intervención humana
             </p>
           </div>
         </div>
@@ -339,7 +339,7 @@ export default function TiDashboardPage() {
               <KpiCard
                 label="CPU cluster"
                 value={`${health.server.cpu.pct}%`}
-                delta={`Mem ${health.server.memory.pct}% Ã‚Â· ${health.server.memory.rssMb} MB`}
+                delta={`Mem ${health.server.memory.pct}% · ${health.server.memory.rssMb} MB`}
                 tone={health.server.cpu.semaphore === "RED" ? "danger" : health.server.cpu.semaphore === "AMBER" ? "warn" : "ok"}
                 icon={<Cpu className="h-5 w-5" aria-hidden />}
               />
@@ -385,7 +385,7 @@ export default function TiDashboardPage() {
                         </h4>
                         <p className="mt-1 font-mono text-sm font-bold">
                           {statusEs(s.status)}
-                          {typeof s.latencyMs === "number" ? ` Ã‚Â· ${s.latencyMs}ms` : ""}
+                          {typeof s.latencyMs === "number" ? ` · ${s.latencyMs}ms` : ""}
                         </p>
                       </div>
                       <Icon className={`h-6 w-6 ${degraded ? "text-brand-warning" : "text-[var(--brand-text-secondary)]"}`} aria-hidden />
@@ -400,7 +400,7 @@ export default function TiDashboardPage() {
                 <div className="mb-4 flex items-center justify-between">
                   <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider">
                     <Cpu className="h-4 w-4 text-brand-primary" aria-hidden />
-                    CÃƒÂ³mputo distribuido (K8s HPA)
+                    Cómputo distribuido (K8s HPA)
                   </h3>
                   <StatusPulseBadge tone="active" pulse>
                     Monitoring
@@ -424,7 +424,7 @@ export default function TiDashboardPage() {
                       </AreaChart>
                     </ResponsiveContainer>
                   ) : (
-                    <p className="text-sm text-[var(--brand-text-secondary)]">Acumulando telemetrÃƒÂ­aÃ¢â‚¬Â¦</p>
+                    <p className="text-sm text-[var(--brand-text-secondary)]">Acumulando telemetría…</p>
                   )}
                 </div>
               </div>
@@ -432,7 +432,7 @@ export default function TiDashboardPage() {
               <div className="nexa-panel flex flex-col overflow-hidden lg:col-span-5">
                 <header className="flex items-center gap-2 border-b border-[var(--brand-border)] px-4 py-3">
                   <Terminal className="h-4 w-4 text-[var(--brand-primary)]" aria-hidden />
-                  <h3 className="text-xs font-semibold uppercase tracking-wider">Terminal Ã‚Â· eventos NOC</h3>
+                  <h3 className="text-xs font-semibold uppercase tracking-wider">Terminal · eventos NOC</h3>
                 </header>
                 <div className="max-h-[260px] flex-1 overflow-y-auto p-3 font-mono text-[11px]">
                   {logs.length === 0 ? (
@@ -441,7 +441,7 @@ export default function TiDashboardPage() {
                     logs.map((l) => (
                       <p key={l.id} className="mb-1.5 text-[var(--brand-text-secondary)]">
                         <span className="text-[var(--brand-primary)]">[{l.level}]</span>{" "}
-                        {new Date(l.createdAt).toLocaleTimeString("es-CO")} Ã‚Â· {l.source} Ã¢â‚¬â€ {l.message}
+                        {new Date(l.createdAt).toLocaleTimeString("es-CO")} · {l.source} — {l.message}
                       </p>
                     ))
                   )}
@@ -450,17 +450,17 @@ export default function TiDashboardPage() {
             </div>
 
             <p className="font-mono text-xs text-[var(--brand-text-secondary)]">
-              Check {formatSession(health.checkedAt)} Ã‚Â· DLQ {health.dlqPending}
+              Check {formatSession(health.checkedAt)} · DLQ {health.dlqPending}
             </p>
           </>
         ) : (
-          <p className="text-sm text-[var(--brand-text-secondary)]">Sincronizando telemetrÃƒÂ­aÃ¢â‚¬Â¦</p>
+          <p className="text-sm text-[var(--brand-text-secondary)]">Sincronizando telemetría…</p>
         )}
       </section>
 
       <section className="rounded-xl border border-brand-border bg-brand-surface/80 p-4 shadow-[var(--brand-shadow-inset)]">
         <h2 className="mb-3 font-display text-sm font-semibold text-[var(--brand-text-primary)]">
-          Acciones RÃƒÂ¡pidas de Acceso
+          Acciones Rápidas de Acceso
         </h2>
         <div className="flex flex-col gap-4">
           <div className="flex flex-wrap items-end gap-2">
@@ -532,7 +532,7 @@ export default function TiDashboardPage() {
       <SlideOver
         open={mdmOpen}
         onClose={() => setMdmOpen(false)}
-        title="MDM Ã‚Â· Provisioning Kiosk-Mode"
+        title="MDM · Provisioning Kiosk-Mode"
         description="Escaneo QR · nexa-mdm:// · VPN túnel directo"
         widthClass="max-w-md"
         footer={
@@ -544,8 +544,8 @@ export default function TiDashboardPage() {
         <div className="space-y-4">
           <div className="rounded-lg border border-[var(--brand-border)] bg-brand-surface p-4 text-center">
             <QrCode className="mx-auto h-16 w-16 text-brand-primary" aria-hidden />
-            <p className="mt-3 font-mono text-lg font-bold tracking-widest">{pairCode || "Ã¢â‚¬â€Ã¢â‚¬â€"}</p>
-            <p className="mt-1 text-xs text-[var(--brand-text-secondary)]">CÃƒÂ³digo de emparejamiento</p>
+            <p className="mt-3 font-mono text-lg font-bold tracking-widest">{pairCode || "——"}</p>
+            <p className="mt-1 text-xs text-[var(--brand-text-secondary)]">Código de emparejamiento</p>
           </div>
           {qrPayload ? (
             <div className="rounded-lg border border-[var(--brand-border)] p-3">
@@ -556,7 +556,7 @@ export default function TiDashboardPage() {
             </div>
           ) : null}
           <p className="text-xs text-[var(--brand-text-secondary)]">
-            Al escanear, la tablet entra en modo quiosco, bloquea apps externas y levanta tÃƒÂºnel VPN a la flota.
+            Al escanear, la tablet entra en modo quiosco, bloquea apps externas y levanta túnel VPN a la flota.
           </p>
         </div>
       </SlideOver>
@@ -567,7 +567,7 @@ export default function TiDashboardPage() {
             <EmptyState
               icon={<UserPlus className="h-7 w-7" />}
               title="Sin usuarios en la red"
-              description="Genere un enlace de alta desde Acciones rÃƒÂ¡pidas."
+              description="Genere un enlace de alta desde Acciones rápidas."
             />
           ) : (
             <NexaTable columns={["Usuario", "Rol", "Estado", "Última sesión", "IP"]}>
@@ -604,7 +604,7 @@ export default function TiDashboardPage() {
           {!tickets.length ? (
             <EmptyState
               icon={<Headset className="h-7 w-7" />}
-              title="Bandeja vacÃƒÂ­a"
+              title="Bandeja vacía"
               description="Sin tickets de mesa de ayuda."
             />
           ) : (
@@ -634,8 +634,8 @@ export default function TiDashboardPage() {
                     </p>
                   ) : null}
                   <p className="mt-2 font-mono text-[10px] text-[var(--brand-text-secondary)]">
-                    {statusEs(t.status)} Ã‚Â· {formatSession(t.createdAt)}
-                    {t.createdBy ? ` Ã‚Â· ${t.createdBy.name}` : ""}
+                    {statusEs(t.status)} · {formatSession(t.createdAt)}
+                    {t.createdBy ? ` · ${t.createdBy.name}` : ""}
                   </p>
                 </article>
               ))}
