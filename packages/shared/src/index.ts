@@ -881,6 +881,7 @@ export * from "./hr-documents";
 export * from "./rrhh-excel";
 export * from "./nav-departments";
 export * from "./labels-es";
+export * from "./password-policy";
 export type { FieldKind } from "./validation";
 export {
   Field,
@@ -897,6 +898,7 @@ export {
 
 export const LoginSchema = z.object({
   email: Field.email,
+  /** Login acepta longitudes históricas; la política fuerte aplica al cambio. */
   password: z.string().min(8).max(128),
 });
 export type LoginInput = z.infer<typeof LoginSchema>;
@@ -904,7 +906,8 @@ export type LoginInput = z.infer<typeof LoginSchema>;
 export const CreateUserSchema = z.object({
   name: Field.personName,
   email: Field.email,
-  password: Field.password,
+  /** Opcional: si se omite, el API genera una temporal única. */
+  password: Field.password.optional(),
   role: RoleSchema,
   active: z.boolean().optional(),
 });

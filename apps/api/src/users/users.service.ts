@@ -4,10 +4,15 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import * as bcrypt from "bcryptjs";
 import { Role, UserAccountStatus } from "@fsg/db";
 import { normalizeRole, roleRank } from "@fsg/shared";
 import { PrismaService } from "../prisma/prisma.service";
+import {
+  assertPasswordPolicy,
+  generateTempPassword,
+  getGenericTempPassword,
+  hashPassword,
+} from "../security/password-hash";
 
 /** Mapa flexible string → RoleCode Prisma */
 export const roleMap: Record<string, Role> = {
@@ -175,7 +180,7 @@ export class UsersService {
   }
 
   static async hashPassword(password: string): Promise<string> {
-    return bcrypt.hash(password, 12);
+    return hashPassword(password);
   }
 
   private isPlatformMaster(role: string) {
@@ -216,7 +221,7 @@ export class UsersService {
     data: {
       name: string;
       email: string;
-      password: string;
+      password?: string;
       role: string;
       organizationId?: string;
       active?: boolean;
@@ -249,14 +254,23 @@ export class UsersService {
       ? UserAccountStatus.ACTIVE
       : UserAccountStatus.PENDING;
 
+    const tempPassword = data.password?.trim()
+      ? undefined
+      : generateTempPassword();
+    const plain = tempPassword ?? data.password!.trim();
+    if (!tempPassword) {
+      assertPasswordPolicy(plain);
+    }
+
     const user = await this.prisma.user.create({
       data: {
         name: data.name,
         email: data.email.toLowerCase(),
-        passwordHash: await bcrypt.hash(data.password, 12),
+        passwordHash: await hashPassword(plain),
         role: targetRole,
         active: data.active ?? true,
         status,
+        mustChangePassword: true,
         organizationId: orgId,
         ...(status === UserAccountStatus.ACTIVE
           ? { approvedById: actor.userId, approvedAt: new Date() }
@@ -278,18 +292,57 @@ export class UsersService {
           email: user.email,
           status: user.status,
           pending: status === UserAccountStatus.PENDING,
+          tempGenerated: Boolean(tempPassword),
         },
       },
     });
 
     return {
       ...this.toPublic(user),
+      tempPassword: tempPassword ?? plain,
       pendingAuthorization: status === UserAccountStatus.PENDING,
       message:
         status === UserAccountStatus.PENDING
           ? "Usuario creado en PENDING — requiere autorización de mando superior / admin de empresa"
-          : "Usuario activo",
+          : "Usuario activo — entrega la clave temporal y fuerza cambio en el primer acceso",
     };
+  }
+
+  async resetPassword(
+    actor: { userId: string; organizationId: string; role: string },
+    id: string,
+  ) {
+    const existing = await this.prisma.user.findFirst({
+      where: { id, organizationId: actor.organizationId },
+    });
+    if (!existing) throw new NotFoundException("Usuario no encontrado");
+    if (
+      existing.role === Role.PLATFORM_MASTER &&
+      !this.isPlatformMaster(actor.role)
+    ) {
+      throw new ForbiddenException("No puedes resetear al maestro de plataforma");
+    }
+
+    const tempPassword = getGenericTempPassword();
+    await this.prisma.user.update({
+      where: { id },
+      data: {
+        passwordHash: await hashPassword(tempPassword),
+        mustChangePassword: true,
+      },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        action: "USER_PASSWORD_RESET",
+        entity: "User",
+        entityId: id,
+        userId: actor.userId,
+        meta: { mustChangePassword: true, genericReset: true },
+      },
+    });
+
+    return { ok: true as const, tempPassword, generic: true as const };
   }
 
   async update(
@@ -332,6 +385,10 @@ export class UsersService {
       status = UserAccountStatus.ACTIVE;
     }
 
+    if (data.password) {
+      assertPasswordPolicy(data.password);
+    }
+
     const user = await this.prisma.user.update({
       where: { id },
       data: {
@@ -341,7 +398,10 @@ export class UsersService {
         active: data.active,
         status,
         ...(data.password
-          ? { passwordHash: await bcrypt.hash(data.password, 12) }
+          ? {
+              passwordHash: await hashPassword(data.password),
+              mustChangePassword: true,
+            }
           : {}),
       },
       include: {
@@ -349,13 +409,17 @@ export class UsersService {
       },
     });
 
+    const { password: _omitPassword, ...auditMeta } = data;
     await this.prisma.auditLog.create({
       data: {
         action: "USER_UPDATE",
         entity: "User",
         entityId: user.id,
         userId: actor.userId,
-        meta: data,
+        meta: {
+          ...auditMeta,
+          ...(data.password ? { passwordReset: true, mustChangePassword: true } : {}),
+        },
       },
     });
 
@@ -429,6 +493,9 @@ export class UsersService {
       );
     }
 
+    const tempPassword =
+      decision === "APPROVE" ? generateTempPassword() : undefined;
+
     const user = await this.prisma.user.update({
       where: { id },
       data:
@@ -438,6 +505,12 @@ export class UsersService {
               active: true,
               approvedById: actor.userId,
               approvedAt: new Date(),
+              ...(tempPassword
+                ? {
+                    passwordHash: await hashPassword(tempPassword),
+                    mustChangePassword: true,
+                  }
+                : {}),
             }
           : {
               status: UserAccountStatus.REJECTED,
@@ -456,9 +529,16 @@ export class UsersService {
         entity: "User",
         entityId: id,
         userId: actor.userId,
+        meta:
+          decision === "APPROVE"
+            ? { tempPasswordRotated: true }
+            : undefined,
       },
     });
 
-    return this.toPublic(user);
+    return {
+      ...this.toPublic(user),
+      ...(tempPassword ? { tempPassword } : {}),
+    };
   }
 }

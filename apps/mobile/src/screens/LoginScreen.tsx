@@ -16,13 +16,13 @@ import { palette } from "../theme";
 
 const LoginSchema = z.object({
   email: z.string().email("Email inválido"),
-  password: z.string().min(4, "Clave requerida"),
+  password: z.string().min(8, "Clave requerida"),
 });
 
 export default function LoginScreen() {
   const { login } = useAuth();
-  const [email, setEmail] = useState("conductor@inretrans.com");
-  const [password, setPassword] = useState("Inretrans2026*");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const c = palette("dark");
 

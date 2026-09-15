@@ -1,4 +1,8 @@
-import { Injectable, UnauthorizedException } from "@nestjs/common";
+import {
+  ForbiddenException,
+  Injectable,
+  UnauthorizedException,
+} from "@nestjs/common";
 import { PassportStrategy } from "@nestjs/passport";
 import { ExtractJwt, Strategy } from "passport-jwt";
 import { Request } from "express";
@@ -12,6 +16,21 @@ function jwtFromCookieOrBearer(req: Request): string | null {
   const fromCookie = req?.cookies?.[ACCESS_COOKIE];
   if (typeof fromCookie === "string" && fromCookie.length > 0) return fromCookie;
   return ExtractJwt.fromAuthHeaderAsBearerToken()(req);
+}
+
+/** Rutas permitidas mientras mustChangePassword === true */
+function isPasswordChangeAllowlisted(path: string): boolean {
+  const p = path.replace(/\/+$/, "") || "/";
+  return (
+    p === "/auth/me" ||
+    p === "/auth/password" ||
+    p === "/auth/logout" ||
+    p === "/auth/refresh" ||
+    p.endsWith("/auth/me") ||
+    p.endsWith("/auth/password") ||
+    p.endsWith("/auth/logout") ||
+    p.endsWith("/auth/refresh")
+  );
 }
 
 @Injectable()
@@ -45,6 +64,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         directiveReadOnly: true,
         active: true,
         status: true,
+        mustChangePassword: true,
       },
     });
 
@@ -58,12 +78,21 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException("Cuenta no autorizada");
     }
 
-    const role = normalizeRole(user.role);
-    let organizationId = user.organizationId;
-
     const path = String(req.originalUrl || req.url || req.path || "").split(
       "?",
     )[0];
+
+    if (user.mustChangePassword && !isPasswordChangeAllowlisted(path)) {
+      throw new ForbiddenException({
+        statusCode: 403,
+        error: "PASSWORD_CHANGE_REQUIRED",
+        message: "Debes cambiar la contraseña temporal antes de continuar",
+      });
+    }
+
+    const role = normalizeRole(user.role);
+    let organizationId = user.organizationId;
+
     const isPlatformConsole = /\/plataforma(\/|$)/.test(path);
 
     if (role === "platform_master" && !isPlatformConsole) {
@@ -86,6 +115,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       organizationId,
       homeOrganizationId: user.organizationId,
       directiveReadOnly: user.directiveReadOnly,
+      mustChangePassword: user.mustChangePassword,
     };
   }
 }

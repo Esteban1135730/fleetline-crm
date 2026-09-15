@@ -1,4 +1,10 @@
 import { z } from "zod";
+import {
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+  PASSWORD_POLICY_MESSAGE,
+  checkPasswordPolicy,
+} from "./password-policy";
 
 /** Tipos de campo canónicos — UI + API */
 export type FieldKind =
@@ -27,7 +33,8 @@ export const FIELD_MESSAGES = {
   integer: "Solo números enteros",
   decimal: "Solo valor numérico",
   money: "Monto inválido",
-  password: "Clave: mínimo 8 caracteres",
+  password:
+    "Clave: mín. 10 caracteres, mayúscula, minúscula, número y símbolo",
   notes: "Texto demasiado largo o contiene código no permitido",
   text: "Texto inválido o demasiado largo",
   required: "Campo obligatorio",
@@ -206,9 +213,14 @@ export const Field = {
 
   password: z
     .string()
-    .min(8, FIELD_MESSAGES.password)
-    .max(128, FIELD_MESSAGES.password)
-    .refine((v) => v.trim().length >= 8, FIELD_MESSAGES.password),
+    .min(PASSWORD_MIN_LENGTH, PASSWORD_POLICY_MESSAGE)
+    .max(PASSWORD_MAX_LENGTH, PASSWORD_POLICY_MESSAGE)
+    .superRefine((v, ctx) => {
+      const result = checkPasswordPolicy(v);
+      if (!result.ok) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: result.message });
+      }
+    }),
 
   notes: z
     .string()

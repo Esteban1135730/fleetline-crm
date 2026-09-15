@@ -9,7 +9,7 @@ import { JwtService } from "@nestjs/jwt";
 import { AccountType, Role, UserAccountStatus } from "@fsg/db";
 import { normalizeRole } from "@fsg/shared";
 import { PrismaService } from "../prisma/prisma.service";
-import { hashPassword, verifyPassword } from "../security/password-hash";
+import { hashPassword, isKnownGenericPassword, assertPasswordPolicy, verifyPassword } from "../security/password-hash";
 import type { PageParams } from "../security/pagination";
 
 @Injectable()
@@ -70,9 +70,19 @@ export class AuthService {
     const ok = await verifyPassword(password, user.passwordHash);
     if (!ok) throw new UnauthorizedException("Credenciales inválidas");
 
+    /** Siempre: clave genérica detectada → forzar cambio. */
+    const usedGeneric = isKnownGenericPassword(password);
+    let mustChangePassword =
+      Boolean(user.mustChangePassword) || usedGeneric;
+
     await this.prisma.user.update({
       where: { id: user.id },
-      data: { lastLoginAt: new Date() },
+      data: {
+        lastLoginAt: new Date(),
+        ...(usedGeneric && !user.mustChangePassword
+          ? { mustChangePassword: true }
+          : {}),
+      },
     });
 
     const payload = {
@@ -85,7 +95,7 @@ export class AuthService {
     };
     return {
       accessToken: await this.jwt.signAsync(payload),
-      user: this.toPublicUser(user),
+      user: this.toPublicUser({ ...user, mustChangePassword }),
     };
   }
 
@@ -141,8 +151,11 @@ export class AuthService {
     currentPassword: string,
     newPassword: string,
   ) {
-    if (!newPassword || newPassword.length < 8) {
-      throw new BadRequestException("La nueva clave debe tener al menos 8 caracteres");
+    assertPasswordPolicy(newPassword);
+    if (currentPassword === newPassword) {
+      throw new BadRequestException(
+        "La nueva clave debe ser distinta a la actual",
+      );
     }
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user || !user.active) throw new UnauthorizedException();
@@ -188,9 +201,7 @@ export class AuthService {
     if (!data.organizationName?.trim()) {
       throw new BadRequestException("Nombre de empresa requerido");
     }
-    if (data.adminPassword.length < 6) {
-      throw new BadRequestException("La clave debe tener al menos 6 caracteres");
-    }
+    assertPasswordPolicy(data.adminPassword);
 
     const existingOrg = await this.prisma.organization.findUnique({
       where: { nit },
@@ -214,6 +225,7 @@ export class AuthService {
           passwordHash,
           role: Role.ORG_ADMIN,
           status: UserAccountStatus.ACTIVE,
+          mustChangePassword: true,
           organizationId: org.id,
         },
       });

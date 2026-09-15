@@ -20,11 +20,15 @@ import {
   type RrhhExcelColumnDef,
   type RrhhExcelColumnKey,
 } from "@fsg/shared";
-import { randomBytes } from "crypto";
 import ExcelJS from "exceljs";
 import { PrismaService } from "../prisma/prisma.service";
 import { UsersService } from "../users/users.service";
 import { decryptField, encryptField } from "../security/field-crypto";
+import {
+  generateTempPassword,
+  getGenericTempPassword,
+  hashPassword,
+} from "../security/password-hash";
 import { FatigueManagementService } from "./fatigue-management.service";
 import {
   isFleetDriverRole,
@@ -63,13 +67,6 @@ const userSelect = {
   active: true,
   status: true,
 } as const;
-
-function generateTempPassword(length = 12): string {
-  const alphabet =
-    "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$";
-  const bytes = randomBytes(length);
-  return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("");
-}
 
 function hrDataFromDto(
   dto: Partial<
@@ -646,7 +643,7 @@ export class RrhhService {
     }
 
     const tempPassword = generateTempPassword();
-    const passwordHash = await UsersService.hashPassword(tempPassword);
+    const passwordHash = await hashPassword(tempPassword);
     const canActivate = actorCanActivateRole(actor.role, targetRole);
     const status = canActivate
       ? UserAccountStatus.ACTIVE
@@ -771,11 +768,11 @@ export class RrhhService {
             status: row.user.status.toLowerCase(),
           }
         : null,
-      tempPassword: canActivate ? tempPassword : undefined,
+      tempPassword,
       pendingAuthorization: status === UserAccountStatus.PENDING,
       message:
         status === UserAccountStatus.PENDING
-          ? "Expediente indexado — usuario en PENDING hasta autorización de mando"
+          ? "Expediente indexado — usuario en PENDING; guarda la clave temporal para entregar tras la autorización"
           : "Expediente y acceso provisionados",
     };
   }
@@ -1054,15 +1051,15 @@ export class RrhhService {
     if (!employee?.userId) {
       throw new BadRequestException("El expediente no tiene usuario vinculado");
     }
-    const tempPassword = generateTempPassword();
+    const tempPassword = getGenericTempPassword();
     await this.prisma.user.update({
       where: { id: employee.userId },
       data: {
-        passwordHash: await UsersService.hashPassword(tempPassword),
+        passwordHash: await hashPassword(tempPassword),
         mustChangePassword: true,
       },
     });
-    return { ok: true as const, tempPassword };
+    return { ok: true as const, tempPassword, generic: true as const };
   }
 
   async deleteEmployee(

@@ -11,13 +11,13 @@ import {
   Req,
   UseGuards,
 } from "@nestjs/common";
-import * as bcrypt from "bcryptjs";
 import { AccountType, Role, UserAccountStatus } from "@fsg/db";
 import { Field, FieldOptional, normalizeRole } from "@fsg/shared";
 import { z } from "zod";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { Roles, RolesGuard } from "../auth/roles.guard";
 import { PrismaService } from "../prisma/prisma.service";
+import { hashPassword } from "../security/password-hash";
 
 type AuthReq = {
   user: { organizationId: string; userId: string; role: string };
@@ -115,7 +115,7 @@ export class PlatformController {
       throw new ConflictException("El email del admin ya está registrado");
     }
 
-    const passwordHash = await bcrypt.hash(dto.adminPassword, 12);
+    const passwordHash = await hashPassword(dto.adminPassword);
     const result = await this.prisma.$transaction(async (tx) => {
       const org = await tx.organization.create({
         data: {
@@ -133,6 +133,7 @@ export class PlatformController {
           role: Role.ORG_ADMIN,
           status: UserAccountStatus.ACTIVE,
           active: true,
+          mustChangePassword: true,
           organizationId: org.id,
           approvedById: req.user.userId,
           approvedAt: new Date(),
