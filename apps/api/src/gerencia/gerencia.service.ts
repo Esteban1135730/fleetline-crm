@@ -118,7 +118,10 @@ export class GerenciaService {
     };
   }
 
-  async dashboard(organizationId: string) {
+  async dashboard(
+    organizationId: string,
+    period: "day" | "week" | "month" | "year" = "week",
+  ) {
     const [scorecard, approvals, overrides, warRooms, tacticalPanel] =
       await Promise.all([
       this.balanceScorecard(organizationId),
@@ -143,7 +146,7 @@ export class GerenciaService {
         orderBy: { createdAt: "desc" },
         take: 8,
       }),
-      this.buildTacticalPanel(organizationId),
+      this.buildTacticalPanel(organizationId, period),
     ]);
 
     const directors = [
@@ -174,6 +177,7 @@ export class GerenciaService {
     ];
 
     return {
+      period,
       scorecard,
       approvalsInbox: approvals.map((a) => ({
         ...a,
@@ -193,13 +197,21 @@ export class GerenciaService {
   }
 
   /** Panel táctico COO — PDF Gerencia General. */
-  async buildTacticalPanel(organizationId: string) {
-    const threeDaysAgo = new Date();
+  async buildTacticalPanel(
+    organizationId: string,
+    period: "day" | "week" | "month" | "year" = "week",
+  ) {
+    const now = new Date();
+    const threeDaysAgo = new Date(now);
     threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-    const dayStart = new Date();
-    dayStart.setHours(0, 0, 0, 0);
-    const weekAgo = new Date();
-    weekAgo.setDate(weekAgo.getDate() - 7);
+    const rangeStart = (() => {
+      const d = new Date(now);
+      if (period === "day") d.setHours(0, 0, 0, 0);
+      else if (period === "week") d.setDate(d.getDate() - 7);
+      else if (period === "month") d.setMonth(d.getMonth() - 1);
+      else d.setFullYear(d.getFullYear() - 1);
+      return d;
+    })();
 
     const activeStatuses = [
       TripStatus.IN_TRANSIT,
@@ -260,17 +272,19 @@ export class GerenciaService {
       this.prisma.invoice.findMany({
         where: {
           organizationId,
+          type: {
+            in: [InvoiceType.RECEIVABLE, InvoiceType.PAYABLE],
+          },
           status: {
             in: [
               InvoiceStatus.ISSUED,
-              InvoiceStatus.PENDING_MATCH,
+              InvoiceStatus.OVERDUE,
               InvoiceStatus.CLEARED_FOR_PAYMENT,
               InvoiceStatus.CAUSED,
-              InvoiceStatus.OVERDUE,
             ],
           },
         },
-        select: { type: true, amount: true, dueDate: true },
+        select: { type: true, amount: true, dueDate: true, status: true },
       }),
       // Picos: viajes del día + activos (no solo hora exacta del slot)
       this.prisma.trip.findMany({
@@ -278,10 +292,10 @@ export class GerenciaService {
           organizationId,
           OR: [
             { status: { in: [...activeStatuses] } },
-            { departAt: { gte: dayStart } },
+            { departAt: { gte: rangeStart } },
             {
               status: TripStatus.COMPLETED,
-              completedAt: { gte: dayStart },
+              completedAt: { gte: rangeStart },
             },
           ],
         },
@@ -292,7 +306,7 @@ export class GerenciaService {
       this.prisma.trip.findMany({
         where: {
           organizationId,
-          departAt: { gte: weekAgo },
+          departAt: { gte: rangeStart },
           status: {
             in: [
               TripStatus.COMPLETED,
@@ -312,7 +326,6 @@ export class GerenciaService {
 
     let cxcOpen = 0;
     let cxpOpen = 0;
-    const now = new Date();
     const agingBuckets = [
       { rango: "0-15 Días", cxc: 0, cxp: 0 },
       { rango: "16-30 Días", cxc: 0, cxp: 0 },
@@ -332,9 +345,15 @@ export class GerenciaService {
       else if (days <= 30) bucket = 1;
       else if (days <= 60) bucket = 2;
       if (inv.type === InvoiceType.RECEIVABLE) {
+        if (
+          inv.status !== InvoiceStatus.ISSUED &&
+          inv.status !== InvoiceStatus.OVERDUE
+        ) {
+          continue;
+        }
         cxcOpen += amt;
         agingBuckets[bucket].cxc += Math.round(amt / 1_000_000);
-      } else {
+      } else if (inv.type === InvoiceType.PAYABLE) {
         cxpOpen += amt;
         agingBuckets[bucket].cxp += Math.round(amt / 1_000_000);
       }
@@ -391,6 +410,8 @@ export class GerenciaService {
     }
 
     return {
+      period,
+      rangeStart: rangeStart.toISOString(),
       kpis: {
         tripsInFlight,
         openWorkOrders,

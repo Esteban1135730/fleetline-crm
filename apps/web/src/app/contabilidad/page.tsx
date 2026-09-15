@@ -152,8 +152,9 @@ export default function ContabilidadPage() {
   const isBalanced = lineDebit > 0 && Math.abs(lineDebit - lineCredit) < 0.01;
   const periodLocked =
     period?.status === "SOFT_CLOSED" || period?.status === "HARD_LOCKED";
+  const canReopen = period?.status === "SOFT_CLOSED";
 
-  async function onCreateEntry(e: FormEvent) {
+  async function onCreateEntry(e: FormEvent, asDraft = false) {
     e.preventDefault();
     setError("");
     const payload = lines
@@ -166,7 +167,7 @@ export default function ContabilidadPage() {
     try {
       await api("/accounting/journal", {
         method: "POST",
-        body: JSON.stringify({ description, lines: payload }),
+        body: JSON.stringify({ description, lines: payload, asDraft }),
       });
       setDescription("");
       setLines(emptyLines());
@@ -196,7 +197,7 @@ export default function ContabilidadPage() {
   async function closeMonth() {
     if (
       !confirm(
-        "¿Cerrar el mes? No se podrán publicar ni anular asientos del periodo.",
+        "¿Cerrar el mes? No se podrán publicar ni anular asientos del periodo. Puede reabrirse mientras no esté en Hard Lock de Revisoría.",
       )
     ) {
       return;
@@ -211,6 +212,23 @@ export default function ContabilidadPage() {
       window.alert(res.message || "Periodo cerrado");
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo cerrar el mes");
+    }
+  }
+
+  async function reopenMonth() {
+    if (!confirm("¿Reabrir el periodo? Se habilitarán asientos nuevamente.")) {
+      return;
+    }
+    setError("");
+    try {
+      const res = await api<{ message: string }>("/accounting/period/reopen", {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      await load();
+      window.alert(res.message || "Periodo reabierto");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo reabrir");
     }
   }
 
@@ -245,6 +263,16 @@ export default function ContabilidadPage() {
             <Lock className="mr-1.5 inline h-4 w-4" aria-hidden />
             Cerrar mes
           </Button>
+          {canReopen ? (
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-auto px-4 py-2"
+              onClick={() => void reopenMonth()}
+            >
+              Reabrir periodo
+            </Button>
+          ) : null}
           <Button
             type="button"
             variant="secondary"
@@ -514,6 +542,15 @@ export default function ContabilidadPage() {
               onClick={() => setEntryOpen(false)}
             >
               Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-auto px-4 py-2"
+              disabled={!isBalanced}
+              onClick={(e) => void onCreateEntry(e as unknown as FormEvent, true)}
+            >
+              Guardar borrador
             </Button>
             <Button
               type="submit"

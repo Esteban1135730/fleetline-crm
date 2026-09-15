@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   QUOTE_DEFAULT_MARGIN_PCT,
   QUOTE_VEHICLE_COSTS,
+  estimateTollsForRoute,
   statusEs,
   type QuoteCostBreakdown,
   type QuoteVehicleType,
@@ -211,6 +212,17 @@ export default function ComercialPage() {
     void load().catch(console.error);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    const est = estimateTollsForRoute(calcForm.origen, calcForm.destino);
+    if (est.source === "catalog") {
+      setCalcForm((f) => ({
+        ...f,
+        cantidadPeajes: String(est.cantidadPeajes),
+      }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [calcForm.origen, calcForm.destino]);
 
   const calcPayload = useMemo(
     () => ({
@@ -635,7 +647,7 @@ export default function ComercialPage() {
             <Button
               variant="primary"
               className="w-auto"
-              title="Aprueba la cotización ganada y genera viaje borrador en Logística"
+              title="Aprueba la cotización ganada (sin crear viaje automático)"
               onClick={() => void approveAndConvert(q)}
             >
               {q.status === "WON"
@@ -881,8 +893,20 @@ export default function ComercialPage() {
                   onChange={(e) =>
                     setCalcForm({ ...calcForm, cantidadPeajes: e.target.value })
                   }
-                  title="Número de peajes en la ruta"
+                  title="Auto-relleno por corredor; editable"
                 />
+                <span className="font-sans text-[10px] normal-case tracking-normal text-[var(--brand-text-secondary)]">
+                  {
+                    estimateTollsForRoute(calcForm.origen, calcForm.destino)
+                      .label
+                  }{" "}
+                  · $
+                  {estimateTollsForRoute(
+                    calcForm.origen,
+                    calcForm.destino,
+                  ).avgCop.toLocaleString("es-CO")}
+                  /peaje
+                </span>
               </label>
               <label className="flex flex-col gap-2 text-[11px] uppercase tracking-wide text-[var(--brand-text-secondary)] md:col-span-2">
                 Margen objetivo

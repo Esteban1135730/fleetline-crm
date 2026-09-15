@@ -130,9 +130,15 @@ export default function GerenciaDashboardPage() {
     [colors],
   );
 
+  const [period, setPeriod] = useState<"day" | "week" | "month" | "year">(
+    "week",
+  );
+
   const load = useCallback(async () => {
     try {
-      const data = await api.get<Dash>("/api/v1/gerencia/dashboard");
+      const data = await api.get<Dash>(
+        `/api/v1/gerencia/dashboard?period=${period}`,
+      );
       setDash(data);
       if (data.approvalsInbox[0]) {
         setSelectedApproval(data.approvalsInbox[0].id);
@@ -141,13 +147,13 @@ export default function GerenciaDashboardPage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Conexión fallida");
     }
-  }, []);
+  }, [period]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  async function firmar() {
+  async function firmar(approve = true) {
     if (!selectedApproval) {
       setError("Selecciona una aprobación");
       return;
@@ -161,7 +167,7 @@ export default function GerenciaDashboardPage() {
         {
           approvalId: selectedApproval,
           pin: pin || undefined,
-          approve: true,
+          approve,
         },
       );
       setMsg(`${res.status}: ${res.message}`);
@@ -236,10 +242,29 @@ export default function GerenciaDashboardPage() {
             Centro de mando operativo · KPIs cruzados y bandeja de firmas
           </p>
         </div>
-        <Button variant="ghost" className="w-auto px-4 py-2">
-          <Clock className="mr-1.5 inline h-4 w-4" aria-hidden />
-          Reporte de turno
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {(
+            [
+              ["day", "Día"],
+              ["week", "Semana"],
+              ["month", "Mes"],
+              ["year", "Año"],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              className={`flt-nav-item !inline-flex !w-auto px-3 py-1.5 text-xs ${period === id ? "is-active" : ""}`}
+              onClick={() => setPeriod(id)}
+            >
+              {label}
+            </button>
+          ))}
+          <Button variant="ghost" className="w-auto px-4 py-2">
+            <Clock className="mr-1.5 inline h-4 w-4" aria-hidden />
+            Reporte de turno
+          </Button>
+        </div>
       </header>
 
       {error ? (
@@ -443,7 +468,11 @@ export default function GerenciaDashboardPage() {
             </p>
           ) : null}
           <label className="mt-4 block font-data text-[10px] uppercase tracking-[0.12em] text-brand-text-secondary">
-            PIN de seguridad
+            PIN de seguridad (6 dígitos)
+            <span className="mt-1 block font-sans text-[11px] normal-case tracking-normal text-brand-text-secondary">
+              Autoriza o rechaza la solicitud seleccionada. El PIN es personal
+              del gerente (mismo de firma ejecutiva).
+            </span>
             <input
               type="password"
               inputMode="numeric"
@@ -454,8 +483,20 @@ export default function GerenciaDashboardPage() {
               placeholder="••••••"
             />
           </label>
-          <div className="mt-3 flex justify-end">
-            <Button disabled={busy} onClick={() => void firmar()} className="w-auto px-4 py-2">
+          <div className="mt-3 flex flex-wrap justify-end gap-2">
+            <Button
+              disabled={busy}
+              variant="ghost"
+              onClick={() => void firmar(false)}
+              className="w-auto px-4 py-2"
+            >
+              Rechazar
+            </Button>
+            <Button
+              disabled={busy}
+              onClick={() => void firmar(true)}
+              className="w-auto px-4 py-2"
+            >
               Firmar con PIN
             </Button>
           </div>

@@ -105,8 +105,8 @@ export const NAV_DEPARTMENTS: NavDepartment[] = [
       {
         href: "/logistica/conductores/reporte-nomina",
         view: "logistica",
-        label: "Nómina extras",
-        tip: "Consolidado mensual, detalle día a día y exportación Excel/PDF.",
+        label: "Extras operativos",
+        tip: "Pre-nómina de extras HED/HEN/RN por servicio. No reemplaza la liquidación formal de RRHH.",
       },
     ],
   },

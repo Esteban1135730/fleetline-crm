@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
   UnprocessableEntityException,
@@ -14,6 +15,11 @@ import { evaluateContractGate } from "./contract.calc";
 import type { CreateContractDto } from "./dto/comercial.dto";
 
 export const CONTRACT_DISPATCH_DENIED = "CONTRACT_QUOTA_OR_VALIDITY_BLOCKED";
+export const CONTRACT_DUPLICATE_ROUTE = "CONTRACT_DUPLICATE_ROUTE";
+
+function normalizeRoute(label: string) {
+  return label.trim().toLowerCase().replace(/\s+/g, " ");
+}
 
 @Injectable()
 export class CommercialContractService {
@@ -30,7 +36,7 @@ export class CommercialContractService {
     });
   }
 
-  async create(organizationId: string, dto: CreateContractDto) {
+  async create(organizationId: string, dto: CreateContractDto & { force?: boolean }) {
     const customer = await this.prisma.customer.findFirst({
       where: { id: dto.customerId, organizationId },
     });
@@ -43,6 +49,29 @@ export class CommercialContractService {
     }
 
     const routeLabel = dto.routeLabel || dto.route || "Ruta contratada";
+    const routeKey = normalizeRoute(routeLabel);
+
+    const active = await this.prisma.transportContract.findMany({
+      where: {
+        organizationId,
+        customerId: customer.id,
+        status: {
+          in: [ContractStatus.ACTIVE, ContractStatus.DRAFT],
+        },
+      },
+      select: { id: true, code: true, routeLabel: true, status: true },
+    });
+    const dup = active.find(
+      (c) => normalizeRoute(c.routeLabel || "") === routeKey,
+    );
+    if (dup && !dto.force) {
+      throw new ConflictException({
+        error: CONTRACT_DUPLICATE_ROUTE,
+        message: `Ya existe contrato ${dup.code} activo/borrador para la misma ruta. Confirme con force=true si es renovación.`,
+        existing: dup,
+      });
+    }
+
     const rateType = (dto.rateType as ContractRateType) || ContractRateType.FIXED;
     const fixedFare =
       dto.fixedFare ??

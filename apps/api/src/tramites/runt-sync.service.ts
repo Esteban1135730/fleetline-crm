@@ -71,6 +71,25 @@ export class RuntSyncService {
 
       const existing = vehicle.complianceDocs.find((d) => d.type === doc.type);
       if (existing) {
+        // TRA-02: no pisar renovación local vigente con un RUNT mock/antiguo.
+        const localExp = existing.expiresAt?.getTime() ?? 0;
+        const runtExp = doc.expiresAt?.getTime() ?? 0;
+        const localStillValid =
+          localExp > now.getTime() &&
+          existing.status !== DocStatus.EXPIRED &&
+          existing.status !== DocStatus.REJECTED;
+        if (localStillValid && localExp >= runtExp) {
+          await this.prisma.complianceDocument.update({
+            where: { id: existing.id },
+            data: {
+              runtPayload: doc.raw as object,
+              notes: `Sync ${report.source} @ ${report.queriedAt} · conserva vigencia local ${existing.expiresAt?.toISOString() ?? "—"}`,
+            },
+          });
+          upserted += 1;
+          continue;
+        }
+
         await this.prisma.complianceDocument.update({
           where: { id: existing.id },
           data: {

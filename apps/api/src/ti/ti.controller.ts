@@ -37,7 +37,6 @@ const TI_ROLES = [
   "TECNOLOGIA",
   "org_admin",
   "platform_master",
-  "gerente_general",
 ] as const;
 
 @Controller(["ti", "api/v1/ti"])

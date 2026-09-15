@@ -4,8 +4,18 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { InvoiceStatus, InvoiceType, JournalEntryStatus } from "@fsg/db";
+import * as bcrypt from "bcryptjs";
 import { PrismaService } from "../prisma/prisma.service";
 import { SarlaftGuardService } from "../sarlaft/sarlaft-guard.service";
+import { assertExecutivePinValid } from "../gerencia/dto/gerencia.dto";
+
+/** Estados CxP que cuentan como "pendiente por pagar" (SSoT Tesorería ↔ Gerencia). */
+const CXP_OPEN_STATUSES: InvoiceStatus[] = [
+  InvoiceStatus.ISSUED,
+  InvoiceStatus.OVERDUE,
+  InvoiceStatus.CLEARED_FOR_PAYMENT,
+  InvoiceStatus.CAUSED,
+];
 
 @Injectable()
 export class FinanceService {
@@ -23,13 +33,18 @@ export class FinanceService {
     const cxc = invoices.filter((i) => i.type === InvoiceType.RECEIVABLE);
     const cxp = invoices.filter((i) => i.type === InvoiceType.PAYABLE);
 
-    const sumOpen = (list: typeof invoices) =>
+    const sumCxcOpen = (list: typeof invoices) =>
       list
         .filter(
           (i) =>
             i.status === InvoiceStatus.ISSUED ||
             i.status === InvoiceStatus.OVERDUE,
         )
+        .reduce((a, b) => a + Number(b.amount), 0);
+
+    const sumCxpOpen = (list: typeof invoices) =>
+      list
+        .filter((i) => CXP_OPEN_STATUSES.includes(i.status))
         .reduce((a, b) => a + Number(b.amount), 0);
 
     const sumPaid = (list: typeof invoices) =>
@@ -41,13 +56,13 @@ export class FinanceService {
     const cashFlowForecast = this.buildCashFlowForecast(invoices);
 
     return {
-      cxcOpen: sumOpen(cxc),
+      cxcOpen: sumCxcOpen(cxc),
       cxcPaid: sumPaid(cxc),
-      cxpOpen: sumOpen(cxp),
+      cxpOpen: sumCxpOpen(cxp),
       cxpPaid: sumPaid(cxp),
       overdue: invoices.filter((i) => i.status === InvoiceStatus.OVERDUE).length,
       bankBalance,
-      netLiquidity: bankBalance + sumOpen(cxc) - sumOpen(cxp),
+      netLiquidity: bankBalance + sumCxcOpen(cxc) - sumCxpOpen(cxp),
       cashFlowForecast,
     };
   }
@@ -337,7 +352,10 @@ export class FinanceService {
     organizationId: string,
     id: string,
     approverUserId: string,
+    pin?: string,
   ) {
+    await this.assertTreasuryPin(organizationId, approverUserId, pin);
+
     const inv = await this.prisma.invoice.findFirst({
       where: { id, organizationId },
     });
@@ -375,6 +393,8 @@ export class FinanceService {
       forceDespiteSarlaft?: boolean;
       actorUserId?: string;
       actorRole?: string;
+      pin?: string;
+      evidenceRef?: string;
     },
   ) {
     const inv = await this.prisma.invoice.findFirst({
@@ -389,13 +409,24 @@ export class FinanceService {
       throw new BadRequestException("No se puede pagar una factura anulada");
     }
 
-    if (inv.type === InvoiceType.PAYABLE && !inv.paymentApprovedAt) {
-      throw new BadRequestException(
-        "CxP sin aprobación: registre el aprobador antes de marcar como pagada",
-      );
-    }
-
     if (inv.type === InvoiceType.PAYABLE) {
+      if (opts?.actorUserId) {
+        await this.assertTreasuryPin(
+          organizationId,
+          opts.actorUserId,
+          opts.pin,
+        );
+      }
+      if (!opts?.evidenceRef?.trim() && !inv.dianPdfRef) {
+        throw new BadRequestException(
+          "Comprobante obligatorio: adjunte evidencia antes de pagar CxP",
+        );
+      }
+      if (!inv.paymentApprovedAt) {
+        throw new BadRequestException(
+          "CxP sin aprobación: registre el aprobador antes de marcar como pagada",
+        );
+      }
       const supplierLabel = inv.supplierName || "";
       const nitHint = inv.customer?.nit || "";
       await this.sarlaft.assertClear({
@@ -428,7 +459,19 @@ export class FinanceService {
 
     return this.prisma.invoice.update({
       where: { id },
-      data: { status: InvoiceStatus.PAID, paidAt: new Date() },
+      data: {
+        status: InvoiceStatus.PAID,
+        paidAt: new Date(),
+        ...(opts?.evidenceRef
+          ? {
+              dianPdfRef: opts.evidenceRef,
+              prefacturaAnnex: {
+                evidenceRef: opts.evidenceRef,
+                paidWithEvidenceAt: new Date().toISOString(),
+              },
+            }
+          : {}),
+      },
       include: {
         customer: true,
         trip: { select: { id: true, code: true } },
@@ -450,5 +493,20 @@ export class FinanceService {
       data: { status: InvoiceStatus.CANCELLED },
       include: { customer: true, trip: { select: { id: true, code: true } } },
     });
+  }
+
+  private async assertTreasuryPin(
+    organizationId: string,
+    userId: string,
+    pin: string | undefined,
+  ) {
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, organizationId },
+      select: { executivePinHash: true },
+    });
+    if (!user) throw new NotFoundException("Usuario no encontrado");
+    assertExecutivePinValid(pin, user.executivePinHash, (p, h) =>
+      bcrypt.compareSync(p, h),
+    );
   }
 }

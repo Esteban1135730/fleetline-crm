@@ -298,8 +298,10 @@ enum PlanillaStatus {
 
 enum WorkOrderStatus {
   OPEN
+  DIAGNOSIS
   IN_PROGRESS
   WAITING_PARTS
+  PENDING_APPROVAL
   DONE
   CANCELLED
 }

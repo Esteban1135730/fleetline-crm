@@ -32,6 +32,19 @@ export class NightlyComplianceWorker {
   async runSweep(now = new Date()) {
     const horizonMs = HARD_RULES.DOC_EXPIRING_DAYS * 86400000;
     const horizon = new Date(now.getTime() + horizonMs);
+    const runtSyncEnabled =
+      (process.env.RUNT_NIGHTLY_SYNC || "").toLowerCase() === "true";
+
+    let runtSynced = 0;
+    let runtSyncErrors = 0;
+    if (runtSyncEnabled) {
+      const fleetSync = await this.syncFleetFromRunt();
+      runtSynced = fleetSync.synced;
+      runtSyncErrors = fleetSync.errors;
+      this.logger.log(
+        `[CRON] RUNT nightly sync — synced=${runtSynced} errors=${runtSyncErrors}`,
+      );
+    }
 
     const dueDocs = await this.prisma.complianceDocument.findMany({
       where: {
@@ -134,6 +147,52 @@ export class NightlyComplianceWorker {
       vehiclesScanned: activeFleet.length,
       vehiclesBlocked,
       driversBlocked,
+      runtSynced,
+      runtSyncEnabled,
+      runtSyncErrors,
     };
+  }
+
+  /** TRA-03: refresco RUNT opcional (gated por env). */
+  async syncFleetFromRuntPublic(organizationId?: string) {
+    return this.syncFleetFromRunt(organizationId);
+  }
+
+  private async syncFleetFromRunt(organizationId?: string) {
+    const batch = Math.max(
+      1,
+      Number(process.env.RUNT_NIGHTLY_BATCH || 50) || 50,
+    );
+    const delayMs = Math.max(
+      0,
+      Number(process.env.RUNT_NIGHTLY_DELAY_MS || 200) || 200,
+    );
+    const vehicles = await this.prisma.vehicle.findMany({
+      where: {
+        status: { not: VehicleStatus.OUT_OF_SERVICE },
+        ...(organizationId ? { organizationId } : {}),
+      },
+      select: { id: true, plate: true },
+      take: batch,
+      orderBy: { updatedAt: "asc" },
+    });
+
+    let synced = 0;
+    let errors = 0;
+    for (const v of vehicles) {
+      try {
+        await this.runtSync.syncVehicleCompliance(v.id);
+        synced += 1;
+      } catch (err) {
+        errors += 1;
+        this.logger.warn(
+          `[RUNT nightly] ${v.plate}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+      if (delayMs > 0) {
+        await new Promise((r) => setTimeout(r, delayMs));
+      }
+    }
+    return { synced, errors, batch };
   }
 }

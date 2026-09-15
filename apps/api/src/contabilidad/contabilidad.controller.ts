@@ -74,6 +74,7 @@ export class ContabilidadController {
     body: {
       description?: string;
       memo?: string;
+      asDraft?: boolean;
       lines: { accountId: string; debit?: number; credit?: number }[];
     },
   ) {
@@ -99,5 +100,20 @@ export class ContabilidadController {
     @Body() body?: { yearMonth?: string },
   ) {
     return this.ledger.closeMonth(req.user.organizationId, body?.yearMonth);
+  }
+
+  @Post("period/reopen")
+  @Permissions("contabilidad", "UPDATE")
+  reopenPeriod(
+    @Req() req: AuthReq,
+    @Body() body?: { yearMonth?: string },
+  ) {
+    return this.ledger.reopenMonth(req.user.organizationId, body?.yearMonth);
+  }
+
+  @Post("journal/:id/confirm")
+  @Permissions("contabilidad", "UPDATE")
+  confirmJournal(@Req() req: AuthReq, @Param("id") id: string) {
+    return this.ledger.confirmDraftEntry(req.user.organizationId, id);
   }
 }

@@ -10,6 +10,8 @@ import {
   type ReactNode,
 } from "react";
 
+const CRISIS_KEY = "nexa-crisis-active";
+
 type ShellCtx = {
   sidebarCollapsed: boolean;
   setSidebarCollapsed: (v: boolean) => void;
@@ -27,6 +29,10 @@ type ShellCtx = {
   setCommandOpen: (v: boolean) => void;
   systemStatus: "NOMINAL" | "ALERT" | "OFFLINE";
   setSystemStatus: (s: "NOMINAL" | "ALERT" | "OFFLINE") => void;
+  /** PRE-01: protocolo de crisis persiste al cambiar de área */
+  crisisActive: boolean;
+  crisisCode: string | null;
+  setCrisisActive: (active: boolean, code?: string | null) => void;
 };
 
 const ShellContext = createContext<ShellCtx | null>(null);
@@ -42,6 +48,8 @@ export function ShellProvider({ children }: { children: ReactNode }) {
   const [systemStatus, setSystemStatus] = useState<
     "NOMINAL" | "ALERT" | "OFFLINE"
   >("NOMINAL");
+  const [crisisActive, setCrisisActiveState] = useState(false);
+  const [crisisCode, setCrisisCode] = useState<string | null>(null);
 
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 1024px)");
@@ -50,6 +58,18 @@ export function ShellProvider({ children }: { children: ReactNode }) {
       setSidebarCollapsedState(stored === "1");
     } else {
       setSidebarCollapsedState(!mq.matches);
+    }
+    try {
+      const raw = sessionStorage.getItem(CRISIS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as { active?: boolean; code?: string };
+        if (parsed.active) {
+          setCrisisActiveState(true);
+          setCrisisCode(parsed.code ?? null);
+        }
+      }
+    } catch {
+      /* ignore */
     }
   }, []);
 
@@ -61,6 +81,23 @@ export function ShellProvider({ children }: { children: ReactNode }) {
   const toggleSidebar = useCallback(() => {
     setSidebarCollapsed(!sidebarCollapsed);
   }, [sidebarCollapsed, setSidebarCollapsed]);
+
+  const setCrisisActive = useCallback(
+    (active: boolean, code?: string | null) => {
+      setCrisisActiveState(active);
+      const nextCode = active ? code ?? null : null;
+      setCrisisCode(nextCode);
+      if (active) {
+        sessionStorage.setItem(
+          CRISIS_KEY,
+          JSON.stringify({ active: true, code: nextCode }),
+        );
+      } else {
+        sessionStorage.removeItem(CRISIS_KEY);
+      }
+    },
+    [],
+  );
 
   const openInspector = useCallback((title: string, content: ReactNode) => {
     setInspectorTitle(title);
@@ -121,6 +158,9 @@ export function ShellProvider({ children }: { children: ReactNode }) {
       setCommandOpen,
       systemStatus,
       setSystemStatus,
+      crisisActive,
+      crisisCode,
+      setCrisisActive,
     }),
     [
       sidebarCollapsed,
@@ -135,6 +175,9 @@ export function ShellProvider({ children }: { children: ReactNode }) {
       toggleHelp,
       commandOpen,
       systemStatus,
+      crisisActive,
+      crisisCode,
+      setCrisisActive,
     ],
   );
 

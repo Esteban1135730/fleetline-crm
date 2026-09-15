@@ -142,4 +142,12 @@ export class PresidenciaController {
       dto,
     );
   }
+
+  /** GET /api/v1/presidencia/defcon/active — sesión crisis vigente */
+  @Get("defcon/active")
+  @AllowDirectiveQuery()
+  @Permissions("defcon_crisis", "READ")
+  defconActive(@Req() req: AuthReq) {
+    return this.presidencia.getActiveDefcon(req.user.organizationId);
+  }
 }

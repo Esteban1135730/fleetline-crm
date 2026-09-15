@@ -804,16 +804,12 @@ export const ROLE_VIEWS: Record<Role, ModuleId[]> = {
     "tecnologia_ti",
     "usuarios",
     "archivo",
-    "presidencia",
-    "gerencia",
   ],
   lider_ti: [
     "dashboard",
     "tecnologia_ti",
     "usuarios",
     "archivo",
-    "presidencia",
-    "gerencia",
   ],
   compras: [
     "dashboard",
@@ -951,9 +947,12 @@ export type InvoiceStatus = z.infer<typeof InvoiceStatusSchema>;
 
 export const WorkOrderStatusSchema = z.enum([
   "OPEN",
+  "DIAGNOSIS",
   "IN_PROGRESS",
   "WAITING_PARTS",
+  "PENDING_APPROVAL",
   "DONE",
+  "CANCELLED",
 ]);
 export type WorkOrderStatus = z.infer<typeof WorkOrderStatusSchema>;
 
@@ -1266,6 +1265,66 @@ export const QUOTE_VEHICLE_COSTS: Record<
 export const QUOTE_AVG_TOLL_COP = 18_000;
 export const QUOTE_DEFAULT_MARGIN_PCT = 30;
 
+/** Estimación de peajes por corredor (catálogo mínimo COM-02). */
+export const TOLL_CORRIDOR_CATALOG: Array<{
+  match: RegExp;
+  cantidadPeajes: number;
+  avgCop: number;
+  label: string;
+}> = [
+  {
+    match: /bogot[aá].*(tunja|duitama|sogamoso)|tunja.*bogot/i,
+    cantidadPeajes: 4,
+    avgCop: 12_500,
+    label: "Bogotá — Tunja / Boyacá",
+  },
+  {
+    match: /bogot[aá].*(medell[ií]n)|medell[ií]n.*bogot/i,
+    cantidadPeajes: 8,
+    avgCop: 16_800,
+    label: "Bogotá — Medellín",
+  },
+  {
+    match: /bogot[aá].*(villavicencio)|villavicencio.*bogot/i,
+    cantidadPeajes: 3,
+    avgCop: 14_200,
+    label: "Bogotá — Villavicencio",
+  },
+  {
+    match: /soacha|bosa|usme|sur/i,
+    cantidadPeajes: 1,
+    avgCop: 9_800,
+    label: "Corredor Sur / Soacha",
+  },
+];
+
+export function estimateTollsForRoute(
+  origen: string,
+  destino: string,
+): {
+  cantidadPeajes: number;
+  avgCop: number;
+  source: "catalog" | "default";
+  label: string;
+} {
+  const corridor = `${origen} ${destino}`;
+  const hit = TOLL_CORRIDOR_CATALOG.find((c) => c.match.test(corridor));
+  if (hit) {
+    return {
+      cantidadPeajes: hit.cantidadPeajes,
+      avgCop: hit.avgCop,
+      source: "catalog",
+      label: hit.label,
+    };
+  }
+  return {
+    cantidadPeajes: 0,
+    avgCop: QUOTE_AVG_TOLL_COP,
+    source: "default",
+    label: "Tarifa promedio nacional (manual)",
+  };
+}
+
 export const QuoteCalculateInputSchema = z.object({
   origen: z.string().min(1),
   destino: z.string().min(1),
@@ -1303,8 +1362,13 @@ export function calculateQuotePrice(
   const vehicle = QUOTE_VEHICLE_COSTS[tipo];
   const margen = input.margenDeseado ?? QUOTE_DEFAULT_MARGIN_PCT;
   const peajes = input.cantidadPeajes ?? 0;
+  const tollMeta = estimateTollsForRoute(input.origen, input.destino);
+  const peajeUnit =
+    peajes > 0 && tollMeta.source === "catalog"
+      ? tollMeta.avgCop
+      : QUOTE_AVG_TOLL_COP;
   const costoDistancia = input.distanciaKm * vehicle.costPerKm;
-  const costoPeajes = peajes * QUOTE_AVG_TOLL_COP;
+  const costoPeajes = peajes * peajeUnit;
   const pagoConductor = vehicle.driverPay;
   const costoOperativo = costoDistancia + costoPeajes + pagoConductor;
   const divisor = 1 - margen / 100;
@@ -1322,7 +1386,7 @@ export function calculateQuotePrice(
     costoKmVehiculo: vehicle.costPerKm,
     costoDistancia: Math.round(costoDistancia),
     costoPeajes: Math.round(costoPeajes),
-    costoPromedioPeaje: QUOTE_AVG_TOLL_COP,
+    costoPromedioPeaje: peajeUnit,
     pagoConductor,
     costoOperativo: Math.round(costoOperativo),
     utilidadBruta: Math.round(utilidadBruta),

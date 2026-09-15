@@ -303,11 +303,15 @@ export class WorkOrderService {
     const orders = await this.list(organizationId);
     const kanban = {
       OPEN: orders.filter((o) => o.status === WorkOrderStatus.OPEN),
+      DIAGNOSIS: orders.filter((o) => o.status === WorkOrderStatus.DIAGNOSIS),
       IN_PROGRESS: orders.filter(
         (o) => o.status === WorkOrderStatus.IN_PROGRESS,
       ),
       WAITING_PARTS: orders.filter(
         (o) => o.status === WorkOrderStatus.WAITING_PARTS,
+      ),
+      PENDING_APPROVAL: orders.filter(
+        (o) => o.status === WorkOrderStatus.PENDING_APPROVAL,
       ),
       DONE: orders
         .filter((o) => o.status === WorkOrderStatus.DONE)

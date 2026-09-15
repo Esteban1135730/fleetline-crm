@@ -218,6 +218,7 @@ export class AccountingLedgerService {
     data: {
       description?: string;
       memo?: string;
+      asDraft?: boolean;
       lines: { accountId: string; debit?: number; credit?: number }[];
     },
   ) {
@@ -247,7 +248,11 @@ export class AccountingLedgerService {
     const totalDebit = legs.reduce((s, l) => s + l.debit, 0);
     const totalCredit = legs.reduce((s, l) => s + l.credit, 0);
     if (totalDebit <= 0 || Math.abs(totalDebit - totalCredit) > 0.01) {
-      throw new BadRequestException("El asiento no cuadra (débito ≠ crédito)");
+      throw new BadRequestException(
+        data.asDraft
+          ? "Borrador: complete el cuadre (débito = crédito) antes de guardar; se publicará al confirmar"
+          : "El asiento no cuadra (débito ≠ crédito)",
+      );
     }
 
     const pairs = pairDoubleEntry(legs);
@@ -259,12 +264,13 @@ export class AccountingLedgerService {
       throw new NotFoundException("Cuenta contable no encontrada");
     }
 
+    const asDraft = Boolean(data.asDraft);
     const entry = await this.prisma.journalEntry.create({
       data: {
         organizationId,
         memo,
-        status: JournalEntryStatus.POSTED,
-        postedAt: new Date(),
+        status: asDraft ? JournalEntryStatus.DRAFT : JournalEntryStatus.POSTED,
+        postedAt: asDraft ? null : new Date(),
         lines: {
           create: pairs.map((p) => ({
             debitAccountId: p.debitAccountId,
@@ -280,21 +286,65 @@ export class AccountingLedgerService {
       },
     });
 
-    await this.prisma.auditLog.create({
-      data: {
-        organizationId,
-        action: "JOURNAL_POSTED",
-        entity: "JournalEntry",
-        entityId: entry.id,
-        module: FleetModule.CONTABILIDAD,
-        meta: { sourceEvent: "manual.ui", amount: totalDebit, pairs: pairs.length },
-      },
-    });
+    if (!asDraft) {
+      await this.prisma.auditLog.create({
+        data: {
+          organizationId,
+          action: "JOURNAL_POSTED",
+          entity: "JournalEntry",
+          entityId: entry.id,
+          module: FleetModule.CONTABILIDAD,
+          meta: { sourceEvent: "manual.ui", amount: totalDebit, pairs: pairs.length },
+        },
+      });
+    }
 
     const [mapped] = await this.listJournalForUi(organizationId).then((rows) =>
       rows.filter((r) => r.id === entry.id),
     );
     return mapped ?? entry;
+  }
+
+  async confirmDraftEntry(organizationId: string, id: string) {
+    await this.assertPeriodWritable(organizationId);
+    const entry = await this.prisma.journalEntry.findFirst({
+      where: { id, organizationId },
+      include: { lines: true },
+    });
+    if (!entry) throw new NotFoundException("Asiento no encontrado");
+    if (entry.status !== JournalEntryStatus.DRAFT) {
+      throw new BadRequestException("Solo se confirman asientos en borrador");
+    }
+    const total = entry.lines.reduce((s, l) => s + Number(l.amount), 0);
+    if (total <= 0) {
+      throw new BadRequestException("El borrador no tiene montos válidos para confirmar");
+    }
+    const updated = await this.prisma.journalEntry.update({
+      where: { id },
+      data: {
+        status: JournalEntryStatus.POSTED,
+        postedAt: new Date(),
+      },
+      include: {
+        lines: {
+          include: { debitAccount: true, creditAccount: true },
+        },
+      },
+    });
+    await this.prisma.auditLog.create({
+      data: {
+        organizationId,
+        action: "JOURNAL_POSTED",
+        entity: "JournalEntry",
+        entityId: id,
+        module: FleetModule.CONTABILIDAD,
+        meta: { sourceEvent: "draft.confirm", amount: total },
+      },
+    });
+    const [mapped] = await this.listJournalForUi(organizationId).then((rows) =>
+      rows.filter((r) => r.id === id),
+    );
+    return mapped ?? updated;
   }
 
   async closeMonth(organizationId: string, yearMonth?: string) {
@@ -335,6 +385,56 @@ export class AccountingLedgerService {
       yearMonth: ym,
       status: period.status,
       message: `Periodo ${ym} cerrado — asientos del mes bloqueados`,
+      canReopen: true,
+      reopenUntil: "Hasta Hard Lock de Revisoría Fiscal. Contabilidad puede reabrir SOFT_CLOSED.",
+    };
+  }
+
+  async reopenMonth(organizationId: string, yearMonth?: string) {
+    const ym =
+      yearMonth ||
+      `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
+    if (!/^\d{4}-\d{2}$/.test(ym)) {
+      throw new BadRequestException("Periodo inválido (YYYY-MM)");
+    }
+    const existing = await this.prisma.accountingPeriod.findUnique({
+      where: { organizationId_yearMonth: { organizationId, yearMonth: ym } },
+    });
+    if (!existing) {
+      throw new NotFoundException(`Periodo ${ym} no encontrado`);
+    }
+    if (existing.status === AccountingPeriodStatus.HARD_LOCKED) {
+      throw new ForbiddenException(
+        `Periodo ${ym} bajo Hard Lock de Revisoría — no se puede reabrir`,
+      );
+    }
+    if (existing.status === AccountingPeriodStatus.OPEN) {
+      return {
+        yearMonth: ym,
+        status: existing.status,
+        message: `Periodo ${ym} ya está abierto`,
+        canReopen: false,
+      };
+    }
+    const period = await this.prisma.accountingPeriod.update({
+      where: { id: existing.id },
+      data: { status: AccountingPeriodStatus.OPEN },
+    });
+    await this.prisma.auditLog.create({
+      data: {
+        organizationId,
+        action: "ACCOUNTING_PERIOD_REOPENED",
+        entity: "AccountingPeriod",
+        entityId: period.id,
+        module: FleetModule.CONTABILIDAD,
+        meta: { yearMonth: ym },
+      },
+    });
+    return {
+      yearMonth: ym,
+      status: period.status,
+      message: `Periodo ${ym} reabierto — asientos habilitados`,
+      canReopen: false,
     };
   }
 
@@ -343,10 +443,14 @@ export class AccountingLedgerService {
     const period = await this.prisma.accountingPeriod.findUnique({
       where: { organizationId_yearMonth: { organizationId, yearMonth } },
     });
+    const status = period?.status ?? AccountingPeriodStatus.OPEN;
     return {
       yearMonth,
-      status: period?.status ?? AccountingPeriodStatus.OPEN,
+      status,
       hardLockedAt: period?.hardLockedAt ?? null,
+      canReopen: status === AccountingPeriodStatus.SOFT_CLOSED,
+      reopenRule:
+        "SOFT_CLOSED puede reabrirse desde Contabilidad. HARD_LOCKED solo Revisoría.",
     };
   }
 

@@ -36,6 +36,7 @@ import {
 import { api } from "@/lib/api";
 import { EmptyState, KpiCard, Modal, SlideOver } from "@/components/audit";
 import { BentoPanel } from "@/components/nexa/bento-panel";
+import { useShell } from "@/lib/shell-context";
 
 type Pillars = {
   growth?: { label: string; valuePct: number; hint: string };
@@ -87,6 +88,7 @@ function cop(n: number) {
 
 export default function PresidenciaDashboardPage() {
   const colors = useThemeColors();
+  const { crisisActive: defconActive, setCrisisActive } = useShell();
   const heatColors = useMemo(
     () => [
       colors.secondary,
@@ -122,7 +124,6 @@ export default function PresidenciaDashboardPage() {
   const [units, setUnits] = useState(5);
   const [unitCost, setUnitCost] = useState(280_000_000);
   const [zones, setZones] = useState("Sur Bogotá, Soacha");
-  const [defconActive, setDefconActive] = useState(false);
   const [capexOpen, setCapexOpen] = useState(false);
   const [defconOpen, setDefconOpen] = useState(false);
 
@@ -252,6 +253,7 @@ export default function PresidenciaDashboardPage() {
     try {
       const res = await api<{
         message: string;
+        session?: { code?: string };
         notified: { drivers: number; customers: number; parents: number };
       }>("/api/v1/presidencia/defcon/activar", {
         method: "POST",
@@ -267,7 +269,7 @@ export default function PresidenciaDashboardPage() {
           openWarRoom: true,
         }),
       });
-      setDefconActive(true);
+      setCrisisActive(true, res.session?.code ?? null);
       setDefconOut(
         `${res.message} · conductores ${res.notified.drivers} · clientes ${res.notified.customers} · padres ${res.notified.parents}`,
       );

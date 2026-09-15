@@ -14,12 +14,18 @@ export type PayrollLineCalcInput = {
   overtimeMultiplier: number;
   nightMultiplier: number;
   ordinaryDayHours: number;
+  /** Días calendario del periodo de liquidación (default 30 comercial). */
+  periodCalendarDays?: number;
 };
 
 export type PayrollLineBreakdown = {
   employeeId: string;
   driverId: string | null;
   baseSalary: number;
+  /** Sueldo prorrateado por días con turno en el periodo. */
+  baseProrated: number;
+  daysWorked: number;
+  periodCalendarDays: number;
   ordinaryHours: number;
   overtimeHours: number;
   overtimeAmount: number;
@@ -91,13 +97,28 @@ export function calculatePayrollLine(
   const tripCommissions =
     (Number(input.completedTrips) || 0) * input.commissionPerTrip;
   const baseSalary = Number(input.baseSalary) || 0;
+  const periodCalendarDays = Math.max(
+    1,
+    Number(input.periodCalendarDays) || 30,
+  );
+  const daysWorked = dayBuckets.size;
+  // RRHH-04: prorrateo por días con turno (base comercial 30 si no se pasa periodo).
+  const baseProrated =
+    Math.round(
+      ((baseSalary * Math.min(daysWorked, periodCalendarDays)) /
+        periodCalendarDays) *
+        100,
+    ) / 100;
   const grossTotal =
-    baseSalary + overtimeAmount + nightAmount + tripCommissions;
+    baseProrated + overtimeAmount + nightAmount + tripCommissions;
 
   return {
     employeeId: input.employeeId,
     driverId: input.driverId ?? null,
     baseSalary,
+    baseProrated,
+    daysWorked,
+    periodCalendarDays,
     ordinaryHours: Math.round(ordinaryHours * 100) / 100,
     overtimeHours: Math.round(overtimeHours * 100) / 100,
     overtimeAmount: Math.round(overtimeAmount * 100) / 100,
