@@ -331,6 +331,10 @@ export class RevisoriaFiscalService {
         dianCufe: invoice.dianCufe,
         createdAt: invoice.createdAt.toISOString(),
         dianPayload: invoice.dianPayload,
+        supportFileRef: invoice.supportFileRef,
+        supportOriginalName: invoice.supportOriginalName,
+        supportMimeType: invoice.supportMimeType,
+        hasSupport: Boolean(invoice.supportFileRef),
       },
       thread: {
         budgetSignature,
@@ -368,6 +372,20 @@ export class RevisoriaFiscalService {
       },
       message: "Hilo de Ariadna — presupuesto → OC → almacén → egreso",
     };
+  }
+
+  async getInvoiceSupportMeta(organizationId: string, facturaId: string) {
+    const inv = await this.prisma.invoice.findFirst({
+      where: { id: facturaId, organizationId },
+      select: {
+        id: true,
+        supportFileRef: true,
+        supportOriginalName: true,
+        supportMimeType: true,
+      },
+    });
+    if (!inv) throw new NotFoundException("Factura no encontrada en el ledger");
+    return inv;
   }
 
   /**

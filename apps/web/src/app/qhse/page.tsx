@@ -1,9 +1,19 @@
 ﻿"use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
-import { AlertTriangle, ClipboardList, Download, Plus, ShieldAlert, Star } from "lucide-react";
+import {
+  AlertTriangle,
+  ClipboardList,
+  Download,
+  Plus,
+  ShieldAlert,
+  Star,
+} from "lucide-react";
 import { api, apiDownload } from "@/lib/api";
+import {
+  notifyQhseReportsChanged,
+} from "@/lib/qhse-reports-refresh";
 import { statusEs } from "@fsg/shared";
 import {
   EmptyState,
@@ -14,7 +24,6 @@ import {
 } from "@/components/audit";
 import { BentoPanel } from "@/components/nexa/bento-panel";
 import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
-import { ComplianceBadge } from "@/components/rrhh/compliance-badge";
 
 type Summary = {
   total: number;
@@ -53,18 +62,20 @@ export default function CalidadPage() {
   const [busy, setBusy] = useState(false);
   const [exportBusy, setExportBusy] = useState(false);
   const [exportError, setExportError] = useState("");
+  const [actionError, setActionError] = useState("");
 
-  async function load() {
+  const load = useCallback(async () => {
     const [s, e] = await Promise.all([
       api<Summary>("/calidad/summary"),
       api<Event[]>("/calidad/events"),
     ]);
     setSummary(s);
     setRows(e);
-  }
+  }, []);
+
   useEffect(() => {
     void load().catch(console.error);
-  }, []);
+  }, [load]);
 
   async function exportPesvExcel() {
     setExportError("");
@@ -96,6 +107,11 @@ export default function CalidadPage() {
     setFormOpen(true);
   }
 
+  async function refreshReports() {
+    await load();
+    notifyQhseReportsChanged();
+  }
+
   async function onCreate(e: FormEvent) {
     e.preventDefault();
     setFormError("");
@@ -119,13 +135,28 @@ export default function CalidadPage() {
       setForm({ ...EMPTY_FORM, date: new Date().toISOString().slice(0, 10) });
       setEvidence([]);
       setFormOpen(false);
-      await load();
+      await refreshReports();
     } catch (err) {
       setFormError(
         err instanceof Error ? err.message : "No se pudo registrar la novedad",
       );
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function onUpdateStatus(id: string, status: string) {
+    setActionError("");
+    try {
+      await api(`/calidad/events/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      });
+      await refreshReports();
+    } catch (err) {
+      setActionError(
+        err instanceof Error ? err.message : "No se pudo actualizar el reporte",
+      );
     }
   }
 
@@ -152,7 +183,12 @@ export default function CalidadPage() {
             <Download className="mr-1.5 inline h-4 w-4" aria-hidden />
             Exportar auditoría PESV
           </Button>
-          <Button type="button" variant="primary" className="w-auto px-4 py-2" onClick={openForm}>
+          <Button
+            type="button"
+            variant="primary"
+            className="w-auto px-4 py-2"
+            onClick={openForm}
+          >
             <Plus className="mr-1.5 inline h-4 w-4" aria-hidden />
             Nuevo reporte
           </Button>
@@ -168,15 +204,29 @@ export default function CalidadPage() {
         </p>
       ) : null}
 
+      {actionError ? (
+        <p
+          role="alert"
+          className="rounded-lg border border-brand-danger/40 px-4 py-3 text-sm text-brand-danger"
+        >
+          {actionError}
+        </p>
+      ) : null}
+
       {summary && summary.incidents > 0 ? (
         <div className="flex items-start gap-3 rounded-lg border border-brand-danger/40 bg-brand-danger/10 px-4 py-3">
-          <ShieldAlert className="mt-0.5 h-5 w-5 text-brand-danger" aria-hidden />
+          <ShieldAlert
+            className="mt-0.5 h-5 w-5 text-brand-danger"
+            aria-hidden
+          />
           <div>
             <p className="text-sm font-semibold text-brand-text-primary">
-              {summary.incidents} incidente{summary.incidents !== 1 ? "s" : ""} abiertos · telemetría activa
+              {summary.incidents} incidente
+              {summary.incidents !== 1 ? "s" : ""} abiertos · telemetría activa
             </p>
             <p className="mt-0.5 text-xs text-brand-text-secondary">
-              Frenadas bruscas y excesos de velocidad generan reportes automáticos con evidencia GPS.
+              Frenadas bruscas y excesos de velocidad generan reportes
+              automáticos con evidencia GPS.
             </p>
           </div>
         </div>
@@ -246,17 +296,19 @@ export default function CalidadPage() {
                     <Button
                       variant="ghost"
                       className="w-auto px-3 py-1"
-                      onClick={async () => {
-                        await api(`/calidad/events/${r.id}`, {
-                          method: "PATCH",
-                          body: JSON.stringify({ status: "CLOSED" }),
-                        });
-                        await load();
-                      }}
+                      onClick={() => void onUpdateStatus(r.id, "CLOSED")}
                     >
                       Cerrar
                     </Button>
-                  ) : null}
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      className="w-auto px-3 py-1"
+                      onClick={() => void onUpdateStatus(r.id, "OPEN")}
+                    >
+                      Reabrir
+                    </Button>
+                  )}
                 </NexaCell>
               </NexaRow>
             ))}

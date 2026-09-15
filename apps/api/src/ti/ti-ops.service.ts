@@ -276,33 +276,42 @@ export class TiOpsService {
     });
 
     return tickets
-      .map((t) => ({
-        id: t.id,
-        title: t.title,
-        detail: t.detail,
-        status: t.status,
-        priority: (t.priority || "MEDIUM").toUpperCase(),
-        priorityLabel: this.priorityLabel(t.priority),
-        createdAt: t.createdAt.toISOString(),
-        createdBy: t.createdBy
-          ? { id: t.createdBy.id, name: t.createdBy.name }
-          : null,
-      }))
+      .map((t) => this.mapTicket(t))
       .sort(
         (a, b) =>
           (priorityOrder[a.priority] ?? 9) - (priorityOrder[b.priority] ?? 9),
       );
   }
 
+  async getHelpdeskTicket(organizationId: string, id: string) {
+    const row = await this.prisma.systemTicket.findFirst({
+      where: {
+        id,
+        OR: [{ organizationId }, { organizationId: null }],
+      },
+      include: {
+        createdBy: { select: { id: true, name: true, email: true } },
+      },
+    });
+    if (!row) throw new NotFoundException("Ticket no encontrado");
+    return this.mapTicket(row);
+  }
+
   async createHelpdeskTicket(
     organizationId: string,
     createdById: string,
-    body: { title: string; detail?: string; priority?: string },
+    body: {
+      title: string;
+      detail?: string;
+      priority?: string;
+      area?: string;
+    },
   ) {
     if (!body.title?.trim()) {
       throw new BadRequestException("Título requerido");
     }
     const priority = String(body.priority || "MEDIUM").toUpperCase();
+    const area = this.normalizeArea(body.area);
     const row = await this.prisma.systemTicket.create({
       data: {
         organizationId,
@@ -313,14 +322,131 @@ export class TiOpsService {
           ? priority
           : "MEDIUM",
         status: "OPEN",
+        area,
+      },
+      include: {
+        createdBy: { select: { id: true, name: true, email: true } },
       },
     });
+    return this.mapTicket(row);
+  }
+
+  async patchHelpdeskTicket(
+    organizationId: string,
+    id: string,
+    body: {
+      status?: string;
+      area?: string;
+      detail?: string;
+      priority?: string;
+    },
+  ) {
+    const existing = await this.prisma.systemTicket.findFirst({
+      where: {
+        id,
+        OR: [{ organizationId }, { organizationId: null }],
+      },
+    });
+    if (!existing) throw new NotFoundException("Ticket no encontrado");
+
+    const status = body.status
+      ? this.normalizeStatus(body.status)
+      : undefined;
+    if (status === "CLOSED" && existing.status === "CLOSED") {
+      throw new BadRequestException("El ticket ya está cerrado");
+    }
+
+    const priority = body.priority
+      ? String(body.priority).toUpperCase()
+      : undefined;
+
+    const row = await this.prisma.systemTicket.update({
+      where: { id },
+      data: {
+        ...(status ? { status } : {}),
+        ...(body.area !== undefined
+          ? { area: this.normalizeArea(body.area) }
+          : {}),
+        ...(body.detail !== undefined
+          ? { detail: body.detail.trim() || null }
+          : {}),
+        ...(priority && ["HIGH", "MEDIUM", "LOW"].includes(priority)
+          ? { priority }
+          : {}),
+        ...(status === "CLOSED"
+          ? { closedAt: new Date() }
+          : status === "OPEN" || status === "IN_PROGRESS"
+            ? { closedAt: null }
+            : {}),
+      },
+      include: {
+        createdBy: { select: { id: true, name: true, email: true } },
+      },
+    });
+    return this.mapTicket(row);
+  }
+
+  private mapTicket(t: {
+    id: string;
+    title: string;
+    detail: string | null;
+    status: string;
+    priority: string | null;
+    area?: string | null;
+    closedAt?: Date | null;
+    createdAt: Date;
+    createdBy: { id: string; name: string; email: string } | null;
+  }) {
     return {
-      id: row.id,
-      title: row.title,
-      priority: row.priority,
-      status: row.status,
+      id: t.id,
+      title: t.title,
+      detail: t.detail,
+      status: t.status,
+      priority: (t.priority || "MEDIUM").toUpperCase(),
+      priorityLabel: this.priorityLabel(t.priority),
+      area: t.area || null,
+      areaLabel: this.areaLabel(t.area),
+      closedAt: t.closedAt?.toISOString() ?? null,
+      createdAt: t.createdAt.toISOString(),
+      createdBy: t.createdBy
+        ? { id: t.createdBy.id, name: t.createdBy.name }
+        : null,
     };
+  }
+
+  private normalizeStatus(raw: string) {
+    const s = String(raw || "").toUpperCase();
+    if (s === "CERRADO" || s === "CLOSED") return "CLOSED";
+    if (s === "IN_PROGRESS" || s === "EN_PROGRESO") return "IN_PROGRESS";
+    if (s === "ABIERTO" || s === "OPEN") return "OPEN";
+    throw new BadRequestException("Estado de ticket no válido");
+  }
+
+  private normalizeArea(raw?: string | null) {
+    if (!raw?.trim()) return "MESA_AYUDA";
+    const a = raw.trim().toUpperCase().replace(/\s+/g, "_");
+    const allowed = [
+      "INFRAESTRUCTURA",
+      "MESA_AYUDA",
+      "INTEGRACIONES",
+      "MDM",
+      "SEGURIDAD",
+      "OTRO",
+    ];
+    return allowed.includes(a) ? a : "OTRO";
+  }
+
+  private areaLabel(raw?: string | null) {
+    const a = String(raw || "MESA_AYUDA").toUpperCase();
+    const map: Record<string, string> = {
+      INFRAESTRUCTURA: "Infraestructura",
+      MESA_AYUDA: "Mesa de ayuda",
+      INTEGRACIONES: "Integraciones",
+      MDM: "MDM / Dispositivos",
+      SEGURIDAD: "Seguridad",
+      OTRO: "Otro",
+    };
+    return map[a] || a;
   }
 
   private priorityLabel(raw?: string | null) {

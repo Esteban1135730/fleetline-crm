@@ -53,5 +53,32 @@ export const HelpdeskTicketSchema = z.object({
   title: z.string().min(3).max(200),
   detail: z.string().max(4000).optional(),
   priority: z.enum(["HIGH", "MEDIUM", "LOW", "ALTA", "MEDIA", "BAJA"]).optional(),
+  area: z
+    .enum([
+      "INFRAESTRUCTURA",
+      "MESA_AYUDA",
+      "INTEGRACIONES",
+      "MDM",
+      "SEGURIDAD",
+      "OTRO",
+    ])
+    .optional(),
 });
 export type HelpdeskTicketDto = z.infer<typeof HelpdeskTicketSchema>;
+
+export const PatchHelpdeskTicketSchema = z.object({
+  status: z.enum(["OPEN", "IN_PROGRESS", "CLOSED", "ABIERTO", "CERRADO"]).optional(),
+  area: z
+    .enum([
+      "INFRAESTRUCTURA",
+      "MESA_AYUDA",
+      "INTEGRACIONES",
+      "MDM",
+      "SEGURIDAD",
+      "OTRO",
+    ])
+    .optional(),
+  detail: z.string().max(4000).optional(),
+  priority: z.enum(["HIGH", "MEDIUM", "LOW", "ALTA", "MEDIA", "BAJA"]).optional(),
+});
+export type PatchHelpdeskTicketDto = z.infer<typeof PatchHelpdeskTicketSchema>;

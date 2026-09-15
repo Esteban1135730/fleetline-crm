@@ -2,6 +2,8 @@ import {
   Body,
   Controller,
   Get,
+  Param,
+  Patch,
   Post,
   Query,
   Req,
@@ -20,6 +22,7 @@ import {
   HelpdeskTicketSchema,
   MdmPairQrSchema,
   OnboardingLinkSchema,
+  PatchHelpdeskTicketSchema,
   SynthesizeSchema,
   SystemLogsQuerySchema,
   TranscribeSchema,
@@ -104,6 +107,23 @@ export class TiController {
       req.user.userId,
       dto,
     );
+  }
+
+  @Get("helpdesk/tickets/:id")
+  @Permissions("helpdesk_ti", "READ")
+  getTicket(@Req() req: AuthReq, @Param("id") id: string) {
+    return this.ops.getHelpdeskTicket(req.user.organizationId, id);
+  }
+
+  @Patch("helpdesk/tickets/:id")
+  @Permissions("helpdesk_ti", "UPDATE")
+  patchTicket(
+    @Req() req: AuthReq,
+    @Param("id") id: string,
+    @Body() body: unknown,
+  ) {
+    const dto = PatchHelpdeskTicketSchema.parse(body ?? {});
+    return this.ops.patchHelpdeskTicket(req.user.organizationId, id, dto);
   }
 
   @Get("noc/health")

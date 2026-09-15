@@ -24,6 +24,10 @@ import {
   Coffee,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import {
+  clearFieldError,
+  splitFormApiError,
+} from "@/lib/form-api-error";
 import { useAuth } from "@/lib/auth-context";
 import { EmptyState, KpiCard, Modal, SlideOver, StatusPulseBadge } from "@/components/audit";
 import { BentoPanel } from "@/components/nexa/bento-panel";
@@ -268,6 +272,10 @@ export default function RrhhPage() {
     expiringSoon: number;
   } | null>(null);
   const [altaOpen, setAltaOpen] = useState(false);
+  const [altaFormError, setAltaFormError] = useState("");
+  const [altaFieldErrors, setAltaFieldErrors] = useState<
+    Record<string, string>
+  >({});
   const [excelOpen, setExcelOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [docsOpen, setDocsOpen] = useState(false);
@@ -408,7 +416,8 @@ export default function RrhhPage() {
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
-    setError("");
+    setAltaFormError("");
+    setAltaFieldErrors({});
     try {
       const res = await api<{
         tempPassword?: string;
@@ -429,7 +438,25 @@ export default function RrhhPage() {
       setStatusMsg(res.message ?? "Expediente y acceso provisionados");
       await loadAll();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo provisionar expediente");
+      const split = splitFormApiError(err, [
+        "name",
+        "document",
+        "email",
+        "phone",
+        "area",
+        "title",
+        "position",
+        "address",
+        "city",
+        "role",
+        "contractType",
+        "hireDate",
+        "baseSalary",
+        "hourlyRate",
+        "driverId",
+      ]);
+      setAltaFormError(split.formError);
+      setAltaFieldErrors(split.fieldErrors);
     }
   }
 
@@ -682,7 +709,11 @@ export default function RrhhPage() {
               variant="primary"
               className="w-auto px-4 py-2"
               data-testid="rrhh-alta-open"
-              onClick={() => setAltaOpen(true)}
+              onClick={() => {
+                setAltaFormError("");
+                setAltaFieldErrors({});
+                setAltaOpen(true);
+              }}
             >
               + Nuevo empleado
             </Button>
@@ -849,7 +880,11 @@ export default function RrhhPage() {
               title="Sin expedientes"
               description="Indexa el primer expediente de capital humano."
               actionLabel="+ Nuevo empleado"
-              onAction={() => setAltaOpen(true)}
+              onAction={() => {
+                setAltaFormError("");
+                setAltaFieldErrors({});
+                setAltaOpen(true);
+              }}
             />
           ) : (
             <BentoPanel title="Expedientes digitales" subtitle={`${filteredRows.length} registro(s)`} tour="panel">
@@ -1303,6 +1338,11 @@ export default function RrhhPage() {
             onChange={setForm}
             mode="create"
             drivers={drivers}
+            formError={altaFormError}
+            fieldErrors={altaFieldErrors}
+            onFieldEdit={(key) =>
+              setAltaFieldErrors((prev) => clearFieldError(prev, key))
+            }
           />
         </form>
       </SlideOver>

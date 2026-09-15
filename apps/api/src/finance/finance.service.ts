@@ -375,6 +375,11 @@ export class FinanceService {
       forceDespiteSarlaft?: boolean;
       actorUserId?: string;
       actorRole?: string;
+      /** CxC: nombre de quien recibió el dinero */
+      receivedByName?: string;
+      /** CxC: confirmación explícita del cobro */
+      confirmCollection?: boolean;
+      bankRef?: string;
     },
   ) {
     const inv = await this.prisma.invoice.findFirst({
@@ -388,6 +393,11 @@ export class FinanceService {
     if (inv.status === InvoiceStatus.CANCELLED) {
       throw new BadRequestException("No se puede pagar una factura anulada");
     }
+    if (inv.collectionConfirmedAt || inv.paidAt) {
+      throw new BadRequestException(
+        "Este cobro/pago ya fue confirmado — no se puede registrar dos veces",
+      );
+    }
 
     if (inv.type === InvoiceType.PAYABLE && !inv.paymentApprovedAt) {
       throw new BadRequestException(
@@ -395,8 +405,22 @@ export class FinanceService {
       );
     }
 
+    if (inv.type === InvoiceType.RECEIVABLE) {
+      const receiver = (opts?.receivedByName || "").trim();
+      if (receiver.length < 2) {
+        throw new BadRequestException(
+          "Indique quién recibió el dinero para confirmar el cobro",
+        );
+      }
+      if (opts?.confirmCollection !== true) {
+        throw new BadRequestException(
+          "Debe confirmar explícitamente el cobro antes de registrarlo",
+        );
+      }
+    }
+
     if (inv.type === InvoiceType.PAYABLE) {
-      const supplierLabel = inv.supplierName || "";
+      const supplierLabel = inv.counterparty || "";
       const nitHint = inv.customer?.nit || "";
       await this.sarlaft.assertClear({
         organizationId,
@@ -426,13 +450,29 @@ export class FinanceService {
       if (err instanceof BadRequestException) throw err;
     }
 
+    const now = new Date();
+    const receiver = (opts?.receivedByName || "").trim();
     return this.prisma.invoice.update({
       where: { id },
-      data: { status: InvoiceStatus.PAID, paidAt: new Date() },
+      data: {
+        status: InvoiceStatus.PAID,
+        paidAt: now,
+        bankRef: opts?.bankRef?.trim() || inv.bankRef || null,
+        ...(inv.type === InvoiceType.RECEIVABLE
+          ? {
+              receivedByName: receiver,
+              collectionConfirmedAt: now,
+              collectionConfirmedById: opts?.actorUserId || null,
+            }
+          : {}),
+      },
       include: {
         customer: true,
         trip: { select: { id: true, code: true } },
         paymentApprovedBy: { select: { id: true, name: true, email: true } },
+        collectionConfirmedBy: {
+          select: { id: true, name: true, email: true },
+        },
       },
     });
   }
@@ -450,5 +490,48 @@ export class FinanceService {
       data: { status: InvoiceStatus.CANCELLED },
       include: { customer: true, trip: { select: { id: true, code: true } } },
     });
+  }
+
+  async attachInvoiceSupport(
+    organizationId: string,
+    id: string,
+    file: {
+      storedName: string;
+      originalName: string;
+      mimeType: string;
+    },
+  ) {
+    const inv = await this.prisma.invoice.findFirst({
+      where: { id, organizationId },
+    });
+    if (!inv) throw new NotFoundException("Factura no encontrada");
+    const updated = await this.prisma.invoice.update({
+      where: { id },
+      data: {
+        supportFileRef: `/uploads/${file.storedName}`,
+        supportOriginalName: file.originalName,
+        supportMimeType: file.mimeType,
+      },
+      include: {
+        customer: true,
+        trip: { select: { id: true, code: true } },
+        paymentApprovedBy: { select: { id: true, name: true, email: true } },
+      },
+    });
+    return this.mapInvoiceUi(updated);
+  }
+
+  async getInvoiceSupportMeta(organizationId: string, id: string) {
+    const inv = await this.prisma.invoice.findFirst({
+      where: { id, organizationId },
+      select: {
+        id: true,
+        supportFileRef: true,
+        supportOriginalName: true,
+        supportMimeType: true,
+      },
+    });
+    if (!inv) throw new NotFoundException("Factura no encontrada");
+    return inv;
   }
 }

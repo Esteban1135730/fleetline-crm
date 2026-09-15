@@ -11,6 +11,7 @@ import {
   KpiCard,
   SlideOver,
   StatusPulseBadge,
+  StoredAttachmentViewer,
 } from "@/components/audit";
 
 type Finding = {
@@ -22,6 +23,9 @@ type Finding = {
   detail: string;
   amount?: string | number | null;
   createdAt?: string;
+  supportFileRef?: string | null;
+  supportOriginalName?: string | null;
+  supportMimeType?: string | null;
 };
 
 function severityTone(
@@ -85,7 +89,7 @@ export default function RevisoriaPage() {
     setBusy(true);
     setError(null);
     try {
-      await api("/revisoria/findings", {
+      const created = await api<Finding>("/revisoria/findings", {
         method: "POST",
         body: JSON.stringify({
           title: form.title,
@@ -94,6 +98,14 @@ export default function RevisoriaPage() {
           amount: form.amount ? Number(form.amount) : undefined,
         }),
       });
+      if (evidence[0] && created?.id) {
+        const fd = new FormData();
+        fd.append("file", evidence[0]);
+        await api(`/revisoria/findings/${created.id}/support`, {
+          method: "POST",
+          body: fd,
+        });
+      }
       setForm(EMPTY_FORM);
       setEvidence([]);
       setAltaOpen(false);
@@ -310,19 +322,33 @@ export default function RevisoriaPage() {
                     </StatusPulseBadge>
                   </td>
                   <td className="px-4 py-2.5">
-                    {r.status === "OPEN" ? (
-                      <Button
-                        variant="ghost"
-                        className="w-auto px-3 py-1.5"
-                        onClick={() => void closeFinding(r.id)}
-                      >
-                        Cerrar hallazgo
-                      </Button>
-                    ) : (
-                      <span className="text-xs text-[var(--brand-text-secondary)]">
-                        Inmutable
-                      </span>
-                    )}
+                    <div className="flex flex-col items-start gap-2">
+                      <StoredAttachmentViewer
+                        title="Soporte"
+                        emptyLabel="Sin soporte adjunto"
+                        hasFile={Boolean(r.supportFileRef)}
+                        supportPath={
+                          r.supportFileRef
+                            ? `/revisoria/findings/${r.id}/support`
+                            : null
+                        }
+                        fileName={r.supportOriginalName}
+                        mimeType={r.supportMimeType}
+                      />
+                      {r.status === "OPEN" ? (
+                        <Button
+                          variant="ghost"
+                          className="w-auto px-3 py-1.5"
+                          onClick={() => void closeFinding(r.id)}
+                        >
+                          Cerrar hallazgo
+                        </Button>
+                      ) : (
+                        <span className="text-xs text-[var(--brand-text-secondary)]">
+                          Inmutable
+                        </span>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -407,7 +433,7 @@ export default function RevisoriaPage() {
             />
             {evidence.length > 0 ? (
               <p className="mt-2 font-data text-xs text-[var(--brand-text-secondary)]">
-                {evidence.length} archivo(s) en cola local
+                {evidence.length} archivo(s) listo(s) para adjuntar al registrar
               </p>
             ) : null}
           </div>

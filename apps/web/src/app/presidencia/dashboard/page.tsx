@@ -121,6 +121,7 @@ export default function PresidenciaDashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [units, setUnits] = useState(5);
   const [unitCost, setUnitCost] = useState(280_000_000);
+  const [unitCostDraft, setUnitCostDraft] = useState("280000000");
   const [zones, setZones] = useState("Sur Bogotá, Soacha");
   const [defconActive, setDefconActive] = useState(false);
   const [capexOpen, setCapexOpen] = useState(false);
@@ -784,10 +785,28 @@ export default function PresidenciaDashboardPage() {
           <label className="text-xs text-brand-text-secondary">
             Costo unitario COP
             <input
-              type="number"
-              className="field mt-1 w-full"
-              value={unitCost}
-              onChange={(e) => setUnitCost(Number(e.target.value) || 0)}
+              type="text"
+              inputMode="numeric"
+              className="field mt-1 w-full font-data"
+              value={unitCostDraft}
+              onChange={(e) => {
+                const digits = e.target.value.replace(/\D/g, "");
+                if (digits === "") {
+                  setUnitCostDraft("");
+                  setUnitCost(0);
+                  return;
+                }
+                // Evita "025" al partir de 0: el primer dígito útil reemplaza el cero
+                const normalized = digits.replace(/^0+(?=\d)/, "");
+                setUnitCostDraft(normalized);
+                setUnitCost(Number(normalized) || 0);
+              }}
+              onBlur={() => {
+                if (unitCostDraft === "") {
+                  setUnitCostDraft("0");
+                  setUnitCost(0);
+                }
+              }}
             />
           </label>
         </div>

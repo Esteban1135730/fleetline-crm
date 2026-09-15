@@ -24,6 +24,7 @@ import { api } from "@/lib/api";
 import { EmptyState, KpiCard, SlideOver, StatusPulseBadge } from "@/components/audit";
 import { BentoPanel } from "@/components/nexa/bento-panel";
 import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
+import { PlaceSuggestInput } from "@/components/comercial/place-suggest-input";
 import {
   WorkbenchSearch,
   WorkbenchTabs,
@@ -822,15 +823,12 @@ export default function ComercialPage() {
               </label>
               <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--brand-text-secondary)]">
                 Destino
-                <input
-                  className="field"
+                <PlaceSuggestInput
                   placeholder="Ciudad o punto de destino"
                   value={calcForm.destino}
-                  onChange={(e) =>
-                    setCalcForm({ ...calcForm, destino: e.target.value })
-                  }
+                  onChange={(destino) => setCalcForm({ ...calcForm, destino })}
                   required
-                  title="Destino de la ruta"
+                  title="Destino de la ruta — sugerencias Nominatim CO"
                 />
               </label>
               <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--brand-text-secondary)]">

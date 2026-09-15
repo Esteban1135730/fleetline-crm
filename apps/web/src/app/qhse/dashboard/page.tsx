@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
 import { Inbox, ShieldAlert, Star } from "lucide-react";
 import { api } from "@/lib/api";
+import { subscribeQhseReports } from "@/lib/qhse-reports-refresh";
 import { statusEs } from "@fsg/shared";
 import {
   EmptyState,
@@ -114,6 +115,12 @@ export default function QhsePreventionDashboardPage() {
     void load();
     const t = setInterval(() => void load(), 20_000);
     return () => clearInterval(t);
+  }, [load]);
+
+  useEffect(() => {
+    return subscribeQhseReports(() => {
+      void load();
+    });
   }, [load]);
 
   async function exportCarbon() {

@@ -1016,6 +1016,7 @@ model User {
   monitorProfile     MonitorProfile?
   employeeProfile    Employee?
   approvedPayments   Invoice[]            @relation("InvoicePaymentApprover")
+  confirmedCollections Invoice[]          @relation("InvoiceCollectionConfirmer")
   archiveUploads     ArchiveDocument[]    @relation("ArchiveUploader")
   purchaseApprovals  PurchaseOrder[]      @relation("PurchaseApprover")
   goodsReceipts      GoodsReceipt[]       @relation("GoodsReceiptReceiver")
@@ -3131,6 +3132,17 @@ model Invoice {
   paymentApprovedAt  DateTime?
   paymentApprovedById String?
   paymentApprovedBy  User?         @relation("InvoicePaymentApprover", fields: [paymentApprovedById], references: [id], onDelete: SetNull)
+  /// Cobro CxC: persona que recibió el dinero (confirmación TES-02)
+  receivedByName           String?
+  collectionConfirmedAt    DateTime?
+  collectionConfirmedById  String?
+  collectionConfirmedBy    User?     @relation("InvoiceCollectionConfirmer", fields: [collectionConfirmedById], references: [id], onDelete: SetNull)
+  /// Referencia bancaria / cuenta usada en el cobro o pago
+  bankRef                  String?
+  /// Comprobante / factura adjunta (PDF/JPG/PNG) — TES-03
+  supportFileRef           String?
+  supportOriginalName      String?
+  supportMimeType          String?
   customerId         String?
   customer           Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
   supplierId         String?
@@ -3463,6 +3475,10 @@ model ForensicFinding {
   detail         String
   amount         Decimal?     @db.Decimal(14, 2)
   status         String       @default("OPEN")
+  /// Soporte documental (PDF/JPG/PNG) — REV-01
+  supportFileRef       String?
+  supportOriginalName  String?
+  supportMimeType      String?
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdAt      DateTime     @default(now())
@@ -4458,6 +4474,9 @@ model SystemTicket {
   status         String        @default("OPEN")
   /// HIGH | MEDIUM | LOW
   priority       String        @default("MEDIUM")
+  /// Área responsable (Infraestructura, Mesa de ayuda, Integraciones, MDM…)
+  area           String?
+  closedAt       DateTime?
   organizationId String?
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   createdById    String?
@@ -4467,6 +4486,7 @@ model SystemTicket {
 
   @@index([status, createdAt])
   @@index([organizationId, priority, status])
+  @@index([organizationId, area, status])
 }
 
 /// Link de un solo uso — onboarding / reset seguro (Módulo 2 TI)

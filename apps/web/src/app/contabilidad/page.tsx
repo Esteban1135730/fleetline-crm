@@ -366,43 +366,40 @@ export default function ContabilidadPage() {
               onAction={() => setEntryOpen(true)}
             />
           ) : (
-            <NexaTable
-              columns={[
-                "Asiento",
-                "Descripción",
-                "Cuenta",
-                "Débito",
-                "Crédito",
-                "Estado",
-                "",
-              ]}
-            >
+            <NexaTable columns={["Cuenta", "Referencia", "Debe", "Haber", ""]}>
               {journalRows.map((row, idx) => (
                 <NexaRow key={`${row.entryId}-${row.lineIdx}-${idx}`}>
-                  <NexaCell mono className="text-xs text-brand-primary">
-                    {row.lineIdx === 0 ? row.number : ""}
-                  </NexaCell>
-                  <NexaCell className="text-xs">
-                    {row.lineIdx === 0 ? row.description : ""}
-                  </NexaCell>
-                  <NexaCell mono className="text-xs">
-                    {row.accountCode}{" "}
-                    <span className="font-sans text-brand-text-secondary">
+                  <NexaCell>
+                    <span className="font-data text-xs text-brand-primary">
+                      {row.accountCode}
+                    </span>{" "}
+                    <span className="text-xs text-brand-text-secondary">
                       {row.accountName}
                     </span>
+                  </NexaCell>
+                  <NexaCell className="text-xs">
+                    {row.lineIdx === 0 ? (
+                      <>
+                        <span className="font-data text-brand-primary">
+                          {row.number}
+                        </span>
+                        {row.description ? (
+                          <span className="mt-0.5 block text-brand-text-secondary">
+                            {row.description}
+                          </span>
+                        ) : null}
+                      </>
+                    ) : (
+                      <span className="font-data text-[10px] text-brand-text-secondary">
+                        {row.number}
+                      </span>
+                    )}
                   </NexaCell>
                   <NexaCell mono>
                     {row.debit ? row.debit.toLocaleString("es-CO") : "—"}
                   </NexaCell>
                   <NexaCell mono>
                     {row.credit ? row.credit.toLocaleString("es-CO") : "—"}
-                  </NexaCell>
-                  <NexaCell>
-                    {row.lineIdx === 0 ? (
-                      <Badge tone={row.status === "VOID" ? "danger" : "success"}>
-                        {statusEs(row.status)}
-                      </Badge>
-                    ) : null}
                   </NexaCell>
                   <NexaCell>
                     {row.lineIdx === 0 &&
@@ -415,6 +412,10 @@ export default function ContabilidadPage() {
                       >
                         Anular
                       </Button>
+                    ) : row.lineIdx === 0 ? (
+                      <Badge tone={row.status === "VOID" ? "danger" : "success"}>
+                        {statusEs(row.status)}
+                      </Badge>
                     ) : null}
                   </NexaCell>
                 </NexaRow>
