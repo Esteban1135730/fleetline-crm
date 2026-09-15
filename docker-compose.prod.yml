@@ -60,6 +60,8 @@ services:
       JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET en .env.production}
       API_PORT: "4000"
       CORS_ORIGINS: ${CORS_ORIGINS}
+      # Local / primer boot: push. En VPS con datos: dejar vacío.
+      FLEETLINE_SCHEMA_SYNC: ${FLEETLINE_SCHEMA_SYNC:-}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:ops@inretrans.co}
