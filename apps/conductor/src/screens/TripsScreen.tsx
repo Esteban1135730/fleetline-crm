@@ -244,7 +244,7 @@ export default function TripsScreen({ navigation, onLogout }: Props) {
         <Text style={styles.driver}>Conductor: {driverName}</Text>
       ) : (
         <Text style={styles.warning}>
-          Usuario no vinculado a conductor. Usa conductor@inretrans.com / Inretrans2026*.
+          Usuario no vinculado a conductor. Contacta a RRHH / admin para vincular tu cuenta.
         </Text>
       )}
 

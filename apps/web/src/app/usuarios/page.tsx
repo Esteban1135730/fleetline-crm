@@ -15,7 +15,7 @@ import {
 import { KeyRound, Plus, Shield, UserCheck, Users } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
-import { SlideOver, StatusPulseBadge } from "@/components/audit";
+import { Modal, SlideOver, StatusPulseBadge } from "@/components/audit";
 import { BentoPanel } from "@/components/nexa/bento-panel";
 import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
 import {
@@ -34,6 +34,7 @@ type UserRow = {
   organization?: { id: string; name: string; nit: string };
   pendingAuthorization?: boolean;
   message?: string;
+  tempPassword?: string;
 };
 
 const MATRIX_MODULES: ModuleId[] = CORPORATE_AREA_MODULES;
@@ -88,11 +89,17 @@ export default function UsuariosPage() {
   const [slideOpen, setSlideOpen] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [role, setRole] = useState<Role>("gestor_operativo");
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [busy, setBusy] = useState(false);
+  const [tempHandoff, setTempHandoff] = useState<{
+    name: string;
+    email: string;
+    tempPassword: string;
+    pending?: boolean;
+    generic?: boolean;
+  } | null>(null);
 
   async function load() {
     setUsers(await api<UserRow[]>("/users"));
@@ -128,14 +135,23 @@ export default function UsuariosPage() {
     try {
       const created = await api<UserRow>("/users", {
         method: "POST",
-        body: JSON.stringify({ name, email, password, role }),
+        body: JSON.stringify({ name, email, role }),
       });
+      const handoffName = name;
+      const handoffEmail = email;
       setName("");
       setEmail("");
-      setPassword("");
       setRole("gestor_operativo");
       setSlideOpen(false);
-      if (created.pendingAuthorization || created.status === "pending") {
+      if (created.tempPassword) {
+        setTempHandoff({
+          name: handoffName,
+          email: handoffEmail,
+          tempPassword: created.tempPassword,
+          pending:
+            created.pendingAuthorization || created.status === "pending",
+        });
+      } else if (created.pendingAuthorization || created.status === "pending") {
         setInfo(
           created.message ||
             "Alta registrada en pendiente — mando superior debe autorizar",
@@ -144,6 +160,27 @@ export default function UsuariosPage() {
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onResetPassword(u: UserRow) {
+    setError("");
+    setBusy(true);
+    try {
+      const res = await api<{ tempPassword: string; generic?: boolean }>(
+        `/users/${u.id}/reset-password`,
+        { method: "POST" },
+      );
+      setTempHandoff({
+        name: u.name,
+        email: u.email,
+        tempPassword: res.tempPassword,
+        generic: true,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al resetear");
     } finally {
       setBusy(false);
     }
@@ -232,10 +269,17 @@ export default function UsuariosPage() {
                     variant="primary"
                     className="w-auto px-3 py-1.5 text-xs"
                     onClick={async () => {
-                      await api(`/users/${u.id}/authorize`, {
+                      const res = await api<UserRow>(`/users/${u.id}/authorize`, {
                         method: "POST",
                         body: JSON.stringify({ decision: "APPROVE" }),
                       });
+                      if (res.tempPassword) {
+                        setTempHandoff({
+                          name: u.name,
+                          email: u.email,
+                          tempPassword: res.tempPassword,
+                        });
+                      }
                       await load();
                     }}
                   >
@@ -360,17 +404,8 @@ export default function UsuariosPage() {
                     <Button
                       variant="ghost"
                       className="w-auto px-2 py-1 text-xs"
-                      onClick={async () => {
-                        const pwd = prompt(
-                          "Nueva clave para el usuario:",
-                          "Fleet2026*",
-                        );
-                        if (!pwd) return;
-                        await api(`/users/${u.id}`, {
-                          method: "PATCH",
-                          body: JSON.stringify({ password: pwd }),
-                        });
-                      }}
+                      disabled={busy}
+                      onClick={() => void onResetPassword(u)}
                     >
                       Reset clave
                     </Button>
@@ -512,18 +547,10 @@ export default function UsuariosPage() {
             required
             autoComplete="email"
           />
-          <input
-            className="field"
-            placeholder="Clave (mín. 8)"
-            type="password"
-            data-testid="usuarios-password"
-            data-field="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            minLength={8}
-            autoComplete="new-password"
-          />
+          <p className="font-data text-[11px] text-brand-text-secondary">
+            Se genera una clave temporal única. El usuario deberá cambiarla en el
+            primer acceso.
+          </p>
           <select
             className="field"
             data-testid="usuarios-role"
@@ -534,6 +561,65 @@ export default function UsuariosPage() {
           </select>
         </form>
       </SlideOver>
+
+      <Modal
+        open={Boolean(tempHandoff)}
+        onClose={() => setTempHandoff(null)}
+        title={
+          tempHandoff?.generic
+            ? "Clave genérica restaurada"
+            : "Clave temporal"
+        }
+        description={
+          tempHandoff?.generic
+            ? "Se restauró la clave genérica de flota. En el próximo inicio de sesión el usuario deberá cambiarla por una personal segura."
+            : "Cópiala ahora — no se volverá a mostrar. Entrégala al usuario por canal seguro."
+        }
+        footer={
+          <Button
+            type="button"
+            variant="primary"
+            className="w-auto px-4 py-2"
+            onClick={() => setTempHandoff(null)}
+          >
+            Entendido
+          </Button>
+        }
+      >
+        {tempHandoff ? (
+          <div className="space-y-3 text-sm">
+            <p>
+              <span className="text-brand-text-secondary">Usuario:</span>{" "}
+              {tempHandoff.name}
+            </p>
+            <p>
+              <span className="text-brand-text-secondary">Correo:</span>{" "}
+              <span className="font-data">{tempHandoff.email}</span>
+            </p>
+            {tempHandoff.pending ? (
+              <p className="text-brand-warning">
+                Cuenta en PENDING — la clave sirve tras la autorización de mando.
+              </p>
+            ) : null}
+            <div className="rounded-lg border border-brand-border bg-brand-surface-elevated p-3">
+              <div className="font-data text-[10px] uppercase tracking-wide text-brand-text-secondary">
+                {tempHandoff.generic
+                  ? "Contraseña genérica"
+                  : "Contraseña temporal"}
+              </div>
+              <div className="mt-1 break-all font-data text-lg text-brand-primary">
+                {tempHandoff.tempPassword}
+              </div>
+              {tempHandoff.generic ? (
+                <p className="mt-2 font-data text-[11px] text-brand-text-secondary">
+                  Al iniciar con esta clave el sistema pedirá cambiarla
+                  obligatoriamente.
+                </p>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+      </Modal>
     </div>
   );
 }

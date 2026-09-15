@@ -12,7 +12,7 @@ type AuthReq = {
 const CreateUserBody = z.object({
   name: Field.personName,
   email: Field.email,
-  password: Field.password,
+  password: Field.password.optional(),
   role: z.string().min(2).max(64),
   organizationId: z.string().min(1).optional(),
   active: z.boolean().optional(),
@@ -23,6 +23,7 @@ const UpdateUserBody = z.object({
   email: Field.email.optional(),
   role: z.string().min(2).max(64).optional(),
   active: z.boolean().optional(),
+  /** Preferir POST /users/:id/reset-password; si llega, fuerza mustChange. */
   password: Field.password.optional(),
   status: z.string().optional(),
 });
@@ -89,13 +90,19 @@ export class UsersController {
     body: {
       name: string;
       email: string;
-      password: string;
+      password?: string;
       role: string;
       organizationId?: string;
       active?: boolean;
     },
   ) {
     return this.users.create(req.user, CreateUserBody.parse(body ?? {}));
+  }
+
+  @Post(":id/reset-password")
+  @Roles(...EDITORS)
+  resetPassword(@Req() req: AuthReq, @Param("id") id: string) {
+    return this.users.resetPassword(req.user, id);
   }
 
   @Patch(":id")

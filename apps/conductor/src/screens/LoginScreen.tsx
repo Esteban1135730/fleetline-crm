@@ -19,8 +19,8 @@ type Props = NativeStackScreenProps<RootStackParamList, "Login"> & {
 };
 
 export default function LoginScreen({ onLoggedIn }: Props) {
-  const [email, setEmail] = useState("conductor@inretrans.com");
-  const [password, setPassword] = useState("Inretrans2026*");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function handleLogin() {

@@ -283,6 +283,7 @@ export default function RrhhPage() {
     email: string;
     tempPassword?: string;
     pending?: boolean;
+    generic?: boolean;
   } | null>(null);
   const [shiftDriverId, setShiftDriverId] = useState("");
   const [payrollForm, setPayrollForm] = useState(() => {
@@ -538,7 +539,7 @@ export default function RrhhPage() {
   async function resetPassword(id: string) {
     setError("");
     try {
-      const res = await api<{ tempPassword: string }>(
+      const res = await api<{ tempPassword: string; generic?: boolean }>(
         `/rrhh/employees/${id}/reset-password`,
         { method: "POST", body: "{}" },
       );
@@ -547,6 +548,7 @@ export default function RrhhPage() {
         name: row?.name ?? "Empleado",
         email: row?.email ?? row?.user?.email ?? "",
         tempPassword: res.tempPassword,
+        generic: true,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo resetear clave");
@@ -1598,14 +1600,22 @@ export default function RrhhPage() {
               <p className="text-brand-warning">
                 Usuario en PENDING — requiere autorización de mando antes del ingreso.
               </p>
-            ) : provisionResult.tempPassword ? (
+            ) : null}
+            {provisionResult.tempPassword ? (
               <div className="rounded-lg border border-brand-border bg-brand-surface-elevated p-3">
                 <div className="font-data text-[10px] uppercase tracking-wide text-brand-text-secondary">
-                  Contraseña temporal
+                  {provisionResult.generic
+                    ? "Contraseña genérica"
+                    : "Contraseña temporal"}
                 </div>
                 <div className="mt-1 font-data text-lg text-brand-primary">
                   {provisionResult.tempPassword}
                 </div>
+                <p className="mt-2 font-data text-[11px] text-brand-text-secondary">
+                  {provisionResult.generic
+                    ? "Al iniciar con esta clave el sistema pedirá cambiarla obligatoriamente."
+                    : "Cópiala ahora. El colaborador deberá cambiarla en el primer acceso."}
+                </p>
               </div>
             ) : null}
           </div>

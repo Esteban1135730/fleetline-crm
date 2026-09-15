@@ -19,14 +19,29 @@ type Props = NativeStackScreenProps<RootStackParamList, "ChangePassword"> & {
 };
 
 export default function ChangePasswordScreen({ onDone }: Props) {
-  const [current, setCurrent] = useState("Inretrans2026*");
+  const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function submit() {
-    if (next.length < 8) {
-      Alert.alert("Clave débil", "La nueva contraseña debe tener al menos 8 caracteres.");
+    if (next.length < 10) {
+      Alert.alert(
+        "Clave débil",
+        "Mín. 10 caracteres con mayúscula, minúscula, número y símbolo.",
+      );
+      return;
+    }
+    if (
+      !/[A-Z]/.test(next) ||
+      !/[a-z]/.test(next) ||
+      !/[0-9]/.test(next) ||
+      !/[^A-Za-z0-9]/.test(next)
+    ) {
+      Alert.alert(
+        "Clave débil",
+        "Incluye mayúscula, minúscula, número y símbolo.",
+      );
       return;
     }
     if (next !== confirm) {
@@ -34,7 +49,7 @@ export default function ChangePasswordScreen({ onDone }: Props) {
       return;
     }
     if (next === current) {
-      Alert.alert("Misma clave", "Elige una contraseña distinta a la genérica.");
+      Alert.alert("Misma clave", "Elige una contraseña distinta a la temporal.");
       return;
     }
     setLoading(true);
@@ -60,11 +75,10 @@ export default function ChangePasswordScreen({ onDone }: Props) {
       <View style={styles.card}>
         <Text style={styles.title}>Cambiar contraseña</Text>
         <Text style={styles.subtitle}>
-          Entraste con la clave genérica de flota. Define una personal para
-          seguir en la app.
+          Debes definir una contraseña personal segura antes de continuar.
         </Text>
 
-        <Text style={styles.label}>Actual (genérica)</Text>
+        <Text style={styles.label}>Actual (temporal)</Text>
         <TextInput
           style={styles.input}
           secureTextEntry
@@ -77,7 +91,7 @@ export default function ChangePasswordScreen({ onDone }: Props) {
           secureTextEntry
           value={next}
           onChangeText={setNext}
-          placeholder="Mínimo 8 caracteres"
+          placeholder="Mín. 10 · mayúscula, número y símbolo"
           placeholderTextColor="#64748B"
         />
         <Text style={styles.label}>Confirmar</Text>

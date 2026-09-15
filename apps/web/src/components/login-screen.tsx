@@ -124,7 +124,7 @@ export function LoginScreen() {
               required
               disabled={isLoading}
               autoComplete="current-password"
-              minLength={6}
+              minLength={8}
             />
             <button
               type="button"
@@ -141,12 +141,10 @@ export function LoginScreen() {
             </button>
           </div>
           <div className="mt-2 flex justify-end">
-            <a
-              href="mailto:soporte@nexa.os?subject=Recuperaci%C3%B3n%20de%20clave%20NEXA"
-              className="font-sans text-xs text-brand-text-secondary transition hover:text-brand-primary hover:underline"
-            >
-              ¿Olvidaste tu clave de acceso?
-            </a>
+            <p className="max-w-[16rem] text-right font-sans text-xs text-brand-text-secondary">
+              ¿Olvidaste tu clave? Contacta a tu administrador o RRHH para un
+              reset temporal.
+            </p>
           </div>
         </div>
 

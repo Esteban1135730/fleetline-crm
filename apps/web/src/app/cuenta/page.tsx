@@ -4,6 +4,11 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@fsg/ui";
 import { Compass, ShieldAlert, User, Shield } from "lucide-react";
+import {
+  PASSWORD_MIN_LENGTH,
+  PASSWORD_POLICY_MESSAGE,
+  checkPasswordPolicy,
+} from "@fsg/shared";
 import { api, setSession, getTokenPublic, type AuthUser } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { AuthLayout } from "@/components/nexa/auth-layout";
@@ -40,9 +45,14 @@ function PasswordForm({
     [newPassword, confirmPassword],
   );
 
+  const policy = useMemo(
+    () => checkPasswordPolicy(newPassword),
+    [newPassword],
+  );
+
   const canSave =
     currentPassword.length > 0 &&
-    newPassword.length >= 8 &&
+    policy.ok &&
     passwordsMatch &&
     newPassword !== currentPassword;
 
@@ -78,7 +88,9 @@ function PasswordForm({
         className="login-field font-sans"
         type="password"
         placeholder={
-          force ? "Contraseña actual (genérica de flota)" : "Contraseña actual"
+          force
+            ? "Contraseña temporal actual"
+            : "Contraseña actual"
         }
         value={currentPassword}
         onChange={(e) => setCurrent(e.target.value)}
@@ -95,12 +107,17 @@ function PasswordForm({
           value={newPassword}
           onChange={(e) => setNew(e.target.value)}
           required
-          minLength={8}
+          minLength={PASSWORD_MIN_LENGTH}
           autoComplete="new-password"
         />
         <p className="mt-1.5 font-data text-[11px] text-brand-text-secondary">
-          Mínimo 8 caracteres · distinta a la genérica
+          {PASSWORD_POLICY_MESSAGE}
         </p>
+        {newPassword.length > 0 && !policy.ok ? (
+          <p className="mt-1 font-data text-[11px] text-brand-danger">
+            {policy.message}
+          </p>
+        ) : null}
       </div>
       <div>
         <input
@@ -110,7 +127,7 @@ function PasswordForm({
           value={confirmPassword}
           onChange={(e) => setConfirm(e.target.value)}
           required
-          minLength={8}
+          minLength={PASSWORD_MIN_LENGTH}
           autoComplete="new-password"
         />
         {confirmPassword.length > 0 && !passwordsMatch ? (
@@ -155,8 +172,8 @@ export default function CuentaPage() {
     return (
       <AuthLayout
         title="Activación de credenciales"
-        subtitle="Debes definir una contraseña personal antes de acceder al centro de mando."
-        statusLine="Cambio obligatorio · clave genérica detectada"
+        subtitle="Debes definir una contraseña personal segura antes de acceder al centro de mando."
+        statusLine="Cambio obligatorio · clave temporal"
         statusTone="fatiga"
       >
         <div
@@ -165,8 +182,8 @@ export default function CuentaPage() {
         >
           <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-brand-warning" />
           <p className="font-sans text-sm text-brand-text-primary">
-            Entraste con la clave genérica de flota. Define una contraseña
-            personal para continuar.
+            Entraste con una clave temporal o genérica. Define una contraseña
+            personal que cumpla la política de seguridad para continuar.
           </p>
         </div>
         <PasswordForm
