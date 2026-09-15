@@ -40,7 +40,6 @@ export const STATUS_ES: Record<string, string> = {
   ASSIGNED: "Asignado",
   IN_TRANSIT: "En ruta",
   COMPLETED: "Terminado",
-  CANCELLED: "Cancelado",
   INCIDENT: "Novedad",
   ON_LOAN: "En préstamo",
   BACKLOG: "Pendiente",
