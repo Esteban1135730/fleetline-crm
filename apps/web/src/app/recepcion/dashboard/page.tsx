@@ -22,6 +22,7 @@ import {
   SlideOver,
   StatusPulseBadge,
 } from "@/components/audit";
+import { BentoPanel } from "@/components/nexa/bento-panel";
 import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
 
 const VISIT_FIELDS = [
