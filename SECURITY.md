@@ -25,7 +25,7 @@ Hardening aplicado (19 pilares). Resumen operativo.
 5. **Auth global** — `JwtAuthGuard` + `@Public()` en login/register/health/logout.
 6. **Cookies** — `fl_access` HttpOnly; Secure+SameSite=Strict en prod.
 7. **Hashes** — bcrypt cost **12**.
-8. **Rate limit** — Throttler global; login flood ceiling 120/15 min; **bloqueo por fallos** 15/15 min (éxitos no cuentan). `POST /auth/unlock-login` (TI/admin) o reiniciar API limpia.
+8. **Rate limit** — Throttler global en el resto de la API; **login/register sin bloqueo por IP** (`@SkipThrottle`). Turnstile sigue activo si hay secret.
 9. **Turnstile** — activo solo si hay `TURNSTILE_SECRET_KEY`.
 10. **Uploads** — MIME/ext allowlist, 5 MB, UUID; en prod `/uploads` solo autenticado.
 11. **Helmet** — CSP/HSTS/XFO/nosniff en prod.

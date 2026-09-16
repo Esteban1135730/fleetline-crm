@@ -9,7 +9,7 @@ import {
   Res,
   UseGuards,
 } from "@nestjs/common";
-import { Throttle, SkipThrottle } from "@nestjs/throttler";
+import { SkipThrottle } from "@nestjs/throttler";
 import { Field, LoginSchema } from "@fsg/shared";
 import { z } from "zod";
 import type { Request, Response } from "express";
@@ -51,13 +51,7 @@ export class AuthController {
   ) {}
 
   @Public()
-  // Tope alto anti-flood; el bloqueo real es por fallos (AuthService), no por cada intento.
-  @Throttle({
-    default: {
-      limit: Number(process.env.LOGIN_THROTTLE_LIMIT || 120) || 120,
-      ttl: Number(process.env.LOGIN_THROTTLE_TTL_MS || 900_000) || 900_000,
-    },
-  })
+  @SkipThrottle()
   @Post("login")
   async login(
     @Body() body: unknown,
@@ -76,12 +70,7 @@ export class AuthController {
   }
 
   @Public()
-  @Throttle({
-    default: {
-      limit: Number(process.env.LOGIN_THROTTLE_LIMIT || 120) || 120,
-      ttl: Number(process.env.LOGIN_THROTTLE_TTL_MS || 900_000) || 900_000,
-    },
-  })
+  @SkipThrottle()
   @Post("register")
   async register(@Body() body: unknown, @Req() req: Request) {
     const dto = RegisterOrgSchema.parse(body ?? {});
@@ -89,7 +78,7 @@ export class AuthController {
     return this.auth.registerOrganization(dto);
   }
 
-  /** Limpia bloqueo por intentos fallidos (Líder TI / admin). */
+  /** Compat: bloqueo por IP desactivado; endpoint queda como no-op. */
   @Post("unlock-login")
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(
