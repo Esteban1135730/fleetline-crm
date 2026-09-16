@@ -26,7 +26,7 @@ export const FIELD_MESSAGES = {
   email: "Correo inválido",
   personName: "Nombre: solo letras, espacios y acentos (2–80)",
   legalName: "Razón social inválida (2–120)",
-  phone: "Teléfono inválido: debe tener exactamente 10 dígitos",
+  phone: "Teléfono inválido",
   document: "Documento: 5 a 11 dígitos",
   nit: "NIT inválido (dígitos y DV opcional, ej. 900123456-1)",
   plate: "Placa inválida (ABC123 / ABC12D)",
@@ -150,20 +150,11 @@ export const Field = {
         .regex(LEGAL_NAME_PARTIAL, FIELD_MESSAGES.legalName),
     ),
 
+  // Sin formato estricto: acepta lo que escriba el usuario (dígitos, +, espacios, etc.).
   phone: z
     .string()
-    .transform((v) => {
-      let d = digitsOnly(v);
-      // +57 / 57… → quedarse con los 10 locales si aplica
-      if (d.startsWith("57") && d.length === 12) d = d.slice(2);
-      return d;
-    })
-    .pipe(
-      z
-        .string()
-        .length(10, FIELD_MESSAGES.phone)
-        .regex(/^\d{10}$/, FIELD_MESSAGES.phone),
-    ),
+    .transform((v) => String(v ?? "").trim())
+    .pipe(z.string().min(1, FIELD_MESSAGES.phone).max(40, FIELD_MESSAGES.phone)),
 
   document: z
     .string()
@@ -478,7 +469,7 @@ function maxLen(kind: FieldKind): number {
     case "legalName":
       return 120;
     case "phone":
-      return 18;
+      return 40;
     case "document":
       return 14;
     case "nit":
