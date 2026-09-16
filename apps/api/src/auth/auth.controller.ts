@@ -7,8 +7,9 @@ import {
   Query,
   Req,
   Res,
+  UseGuards,
 } from "@nestjs/common";
-import { Throttle } from "@nestjs/throttler";
+import { Throttle, SkipThrottle } from "@nestjs/throttler";
 import { Field, LoginSchema } from "@fsg/shared";
 import { z } from "zod";
 import type { Request, Response } from "express";
@@ -21,6 +22,8 @@ import {
   sessionCookieOptions,
 } from "../security/session-cookie";
 import { parsePagination, pageMeta } from "../security/pagination";
+import { Roles, RolesGuard } from "./roles.guard";
+import { JwtAuthGuard } from "./jwt-auth.guard";
 
 const RegisterOrgSchema = z.object({
   organizationName: Field.legalName,
@@ -48,10 +51,10 @@ export class AuthController {
   ) {}
 
   @Public()
-  // Oficinas/NAT: 5 era demasiado agresivo. Override: LOGIN_THROTTLE_LIMIT / LOGIN_THROTTLE_TTL_MS
+  // Tope alto anti-flood; el bloqueo real es por fallos (AuthService), no por cada intento.
   @Throttle({
     default: {
-      limit: Number(process.env.LOGIN_THROTTLE_LIMIT || 20) || 20,
+      limit: Number(process.env.LOGIN_THROTTLE_LIMIT || 120) || 120,
       ttl: Number(process.env.LOGIN_THROTTLE_TTL_MS || 900_000) || 900_000,
     },
   })
@@ -67,7 +70,7 @@ export class AuthController {
         (req.headers["x-turnstile-token"] as string | undefined),
       req.ip,
     );
-    const result = await this.auth.login(dto.email, dto.password);
+    const result = await this.auth.login(dto.email, dto.password, req.ip);
     res.cookie(ACCESS_COOKIE, result.accessToken, sessionCookieOptions());
     return result;
   }
@@ -75,7 +78,7 @@ export class AuthController {
   @Public()
   @Throttle({
     default: {
-      limit: Number(process.env.LOGIN_THROTTLE_LIMIT || 20) || 20,
+      limit: Number(process.env.LOGIN_THROTTLE_LIMIT || 120) || 120,
       ttl: Number(process.env.LOGIN_THROTTLE_TTL_MS || 900_000) || 900_000,
     },
   })
@@ -84,6 +87,23 @@ export class AuthController {
     const dto = RegisterOrgSchema.parse(body ?? {});
     await this.turnstile.assertValid(dto.turnstileToken, req.ip);
     return this.auth.registerOrganization(dto);
+  }
+
+  /** Limpia bloqueo por intentos fallidos (Líder TI / admin). */
+  @Post("unlock-login")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(
+    "lider_ti",
+    "tecnologia",
+    "sistemas",
+    "org_admin",
+    "platform_master",
+    "LIDER_TI",
+    "TECNOLOGIA",
+  )
+  @SkipThrottle()
+  unlockLogin(@Body() body: { ip?: string } | undefined) {
+    return this.auth.clearLoginLock(body?.ip);
   }
 
   @Public()

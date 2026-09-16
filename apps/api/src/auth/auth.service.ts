@@ -2,6 +2,8 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  HttpException,
+  HttpStatus,
   Injectable,
   UnauthorizedException,
 } from "@nestjs/common";
@@ -12,12 +14,78 @@ import { PrismaService } from "../prisma/prisma.service";
 import { hashPassword, isKnownGenericPassword, assertPasswordPolicy, verifyPassword } from "../security/password-hash";
 import type { PageParams } from "../security/pagination";
 
+/** Solo cuenta fallos (no logins OK). Menos agresivo que throttlear cada request. */
+type FailBucket = { count: number; resetAt: number };
+
 @Injectable()
 export class AuthService {
+  private readonly failByIp = new Map<string, FailBucket>();
+
   constructor(
     private prisma: PrismaService,
     private jwt: JwtService,
   ) {}
+
+  private failLimit() {
+    return Math.max(3, Number(process.env.LOGIN_FAIL_LIMIT || 15) || 15);
+  }
+
+  private failWindowMs() {
+    return Math.max(
+      60_000,
+      Number(process.env.LOGIN_FAIL_WINDOW_MS || 900_000) || 900_000,
+    );
+  }
+
+  private clientKey(ip: string | undefined) {
+    return (ip || "unknown").trim() || "unknown";
+  }
+
+  /** Limpia ventana vencida y lanza 429 si la IP ya agotó fallos. */
+  assertLoginNotLocked(ip: string | undefined) {
+    const key = this.clientKey(ip);
+    const now = Date.now();
+    const bucket = this.failByIp.get(key);
+    if (!bucket) return;
+    if (now >= bucket.resetAt) {
+      this.failByIp.delete(key);
+      return;
+    }
+    if (bucket.count >= this.failLimit()) {
+      const mins = Math.max(1, Math.ceil((bucket.resetAt - now) / 60_000));
+      throw new HttpException(
+        `Demasiados intentos fallidos desde esta red. Espere ~${mins} min o pida a TI reiniciar el API.`,
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+  }
+
+  private recordLoginFailure(ip: string | undefined) {
+    const key = this.clientKey(ip);
+    const now = Date.now();
+    const windowMs = this.failWindowMs();
+    const prev = this.failByIp.get(key);
+    if (!prev || now >= prev.resetAt) {
+      this.failByIp.set(key, { count: 1, resetAt: now + windowMs });
+      return;
+    }
+    prev.count += 1;
+    this.failByIp.set(key, prev);
+  }
+
+  private clearLoginFailures(ip: string | undefined) {
+    this.failByIp.delete(this.clientKey(ip));
+  }
+
+  /** Ops: limpia bloqueo de una IP (o todas si ip vacío). */
+  clearLoginLock(ip?: string) {
+    if (!ip?.trim()) {
+      this.failByIp.clear();
+      return { cleared: "all" as const };
+    }
+    this.failByIp.delete(this.clientKey(ip));
+    return { cleared: this.clientKey(ip) };
+  }
 
   private toPublicUser(user: {
     id: string;
@@ -46,12 +114,15 @@ export class AuthService {
     };
   }
 
-  async login(email: string, password: string) {
+  async login(email: string, password: string, clientIp?: string) {
+    this.assertLoginNotLocked(clientIp);
+
     const user = await this.prisma.user.findUnique({
       where: { email: email.toLowerCase().trim() },
       include: { organization: true },
     });
     if (!user || !user.active) {
+      this.recordLoginFailure(clientIp);
       throw new UnauthorizedException("Credenciales inválidas");
     }
     if (user.organization.status === "SUSPENDED") {
@@ -68,7 +139,12 @@ export class AuthService {
       throw new UnauthorizedException("Cuenta rechazada — contacta al admin de empresa");
     }
     const ok = await verifyPassword(password, user.passwordHash);
-    if (!ok) throw new UnauthorizedException("Credenciales inválidas");
+    if (!ok) {
+      this.recordLoginFailure(clientIp);
+      throw new UnauthorizedException("Credenciales inválidas");
+    }
+
+    this.clearLoginFailures(clientIp);
 
     /** Siempre: clave genérica detectada → forzar cambio. */
     const usedGeneric = isKnownGenericPassword(password);
@@ -98,7 +174,6 @@ export class AuthService {
       user: this.toPublicUser({ ...user, mustChangePassword }),
     };
   }
-
   async me(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
