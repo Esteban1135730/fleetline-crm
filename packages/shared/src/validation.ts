@@ -26,7 +26,7 @@ export const FIELD_MESSAGES = {
   email: "Correo inválido",
   personName: "Nombre: solo letras, espacios y acentos (2–80)",
   legalName: "Razón social inválida (2–120)",
-  phone: "Teléfono inválido (celular 10 dígitos 3xx o fijo 7–10)",
+  phone: "Teléfono inválido: debe tener exactamente 10 dígitos",
   document: "Documento: 5 a 11 dígitos",
   nit: "NIT inválido (dígitos y DV opcional, ej. 900123456-1)",
   plate: "Placa inválida (ABC123 / ABC12D)",
@@ -152,13 +152,17 @@ export const Field = {
 
   phone: z
     .string()
-    .transform((v) => digitsOnly(v))
+    .transform((v) => {
+      let d = digitsOnly(v);
+      // +57 / 57… → quedarse con los 10 locales si aplica
+      if (d.startsWith("57") && d.length === 12) d = d.slice(2);
+      return d;
+    })
     .pipe(
-      z.string().refine((d) => {
-        if (d.startsWith("57") && d.length === 12) d = d.slice(2);
-        if (d.length === 10 && d.startsWith("3")) return true;
-        return d.length >= 7 && d.length <= 10;
-      }, FIELD_MESSAGES.phone),
+      z
+        .string()
+        .length(10, FIELD_MESSAGES.phone)
+        .regex(/^\d{10}$/, FIELD_MESSAGES.phone),
     ),
 
   document: z
