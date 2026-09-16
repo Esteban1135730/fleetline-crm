@@ -127,7 +127,6 @@ export default function PresidenciaDashboardPage() {
   const [unitCostDraft, setUnitCostDraft] = useState("280000000");
   const [zones, setZones] = useState<string[]>(["Sur Bogotá", "Soacha"]);
   const [zoneError, setZoneError] = useState("");
-  const [defconActive, setDefconActive] = useState(false);
   const [capexOpen, setCapexOpen] = useState(false);
   const [defconOpen, setDefconOpen] = useState(false);
 
