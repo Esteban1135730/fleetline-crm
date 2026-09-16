@@ -48,7 +48,13 @@ export class AuthController {
   ) {}
 
   @Public()
-  @Throttle({ default: { limit: 5, ttl: 900_000 } })
+  // Oficinas/NAT: 5 era demasiado agresivo. Override: LOGIN_THROTTLE_LIMIT / LOGIN_THROTTLE_TTL_MS
+  @Throttle({
+    default: {
+      limit: Number(process.env.LOGIN_THROTTLE_LIMIT || 20) || 20,
+      ttl: Number(process.env.LOGIN_THROTTLE_TTL_MS || 900_000) || 900_000,
+    },
+  })
   @Post("login")
   async login(
     @Body() body: unknown,
@@ -67,7 +73,12 @@ export class AuthController {
   }
 
   @Public()
-  @Throttle({ default: { limit: 5, ttl: 900_000 } })
+  @Throttle({
+    default: {
+      limit: Number(process.env.LOGIN_THROTTLE_LIMIT || 20) || 20,
+      ttl: Number(process.env.LOGIN_THROTTLE_TTL_MS || 900_000) || 900_000,
+    },
+  })
   @Post("register")
   async register(@Body() body: unknown, @Req() req: Request) {
     const dto = RegisterOrgSchema.parse(body ?? {});

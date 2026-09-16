@@ -22,6 +22,10 @@ async function bootstrap() {
     process.env.NODE_ENV === "production" ||
     process.env.FLEETLINE_ENV === "production";
 
+  // Detrás de Nginx/Caddy/Docker: IP real del cliente (rate-limit por usuario, no por proxy).
+  if (isProd || process.env.TRUST_PROXY === "true") {
+    app.set("trust proxy", Number(process.env.TRUST_PROXY_HOPS || 1) || 1);
+  }
   const uploadsDir = resolve(__dirname, "../../../uploads");
   if (!existsSync(uploadsDir)) mkdirSync(uploadsDir, { recursive: true });
 
