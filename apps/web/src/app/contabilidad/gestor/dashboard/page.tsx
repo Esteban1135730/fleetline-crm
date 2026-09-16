@@ -28,7 +28,9 @@ type Dash = {
     lines: Array<{
       amount: number;
       debit: string;
+      debitName?: string;
       credit: string;
+      creditName?: string;
       costCenterPlate: string | null;
     }>;
   }>;
@@ -119,16 +121,24 @@ export default function GestorContableDashboardPage() {
   const diarioRows = useMemo(
     () =>
       diario.flatMap((j) =>
-        j.lines.map((l, idx) => ({
-          id: `${j.id}-${idx}`,
-          postedAt: j.postedAt,
-          memo: j.memo,
-          showHeader: idx === 0,
-          debit: l.debit,
-          credit: l.credit,
-          plate: l.costCenterPlate,
-          amount: l.amount,
-        })),
+        j.lines.flatMap((l, idx) => [
+          {
+            id: `${j.id}-${idx}-d`,
+            accountCode: l.debit,
+            accountName: l.debitName || "",
+            referencia: j.memo,
+            debe: l.amount,
+            haber: 0,
+          },
+          {
+            id: `${j.id}-${idx}-c`,
+            accountCode: l.credit,
+            accountName: l.creditName || "",
+            referencia: j.memo,
+            debe: 0,
+            haber: l.amount,
+          },
+        ]),
       ),
     [diario],
   );
@@ -315,36 +325,27 @@ export default function GestorContableDashboardPage() {
                 description="Ajuste filtros o sincronice operaciones."
               />
             ) : (
-              <NexaTable
-                columns={[
-                  "Fecha",
-                  "Memo",
-                  "Débito",
-                  "Crédito",
-                  "Placa",
-                  "Monto",
-                ]}
-              >
+              <NexaTable columns={["Cuenta", "Referencia", "Debe", "Haber"]}>
                 {diarioRows.map((row) => (
                   <NexaRow key={row.id}>
-                    <NexaCell mono className="text-[10px]">
-                      {row.showHeader
-                        ? new Date(row.postedAt).toLocaleString("es-CO")
-                        : ""}
-                    </NexaCell>
                     <NexaCell className="text-xs">
-                      {row.showHeader ? row.memo : ""}
+                      <span className="font-data text-brand-primary">
+                        {row.accountCode}
+                      </span>
+                      {row.accountName ? (
+                        <span className="text-brand-text-secondary">
+                          {" "}
+                          {row.accountName}
+                        </span>
+                      ) : null}
                     </NexaCell>
-                    <NexaCell mono className="text-xs">
-                      {row.debit}
+                    <NexaCell className="text-xs">{row.referencia}</NexaCell>
+                    <NexaCell mono>
+                      {row.debe ? money(row.debe) : "—"}
                     </NexaCell>
-                    <NexaCell mono className="text-xs">
-                      {row.credit}
+                    <NexaCell mono>
+                      {row.haber ? money(row.haber) : "—"}
                     </NexaCell>
-                    <NexaCell mono className="text-xs">
-                      {row.plate || "—"}
-                    </NexaCell>
-                    <NexaCell mono>{money(row.amount)}</NexaCell>
                   </NexaRow>
                 ))}
               </NexaTable>

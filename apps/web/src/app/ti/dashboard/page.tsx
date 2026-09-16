@@ -33,6 +33,7 @@ import {
   EmptyState,
   KpiCard,
   SlideOver,
+  SlideOverHelp,
   StatusPulseBadge,
 } from "@/components/audit";
 import { BentoPanel } from "@/components/nexa/bento-panel";
@@ -89,9 +90,21 @@ type Ticket = {
   status: string;
   priority: string;
   priorityLabel: string;
+  area?: string | null;
+  areaLabel?: string | null;
+  closedAt?: string | null;
   createdAt: string;
   createdBy: { id: string; name: string } | null;
 };
+
+const TICKET_AREAS = [
+  { value: "MESA_AYUDA", label: "Mesa de ayuda" },
+  { value: "INFRAESTRUCTURA", label: "Infraestructura" },
+  { value: "INTEGRACIONES", label: "Integraciones" },
+  { value: "MDM", label: "MDM / Dispositivos" },
+  { value: "SEGURIDAD", label: "Seguridad" },
+  { value: "OTRO", label: "Otro" },
+] as const;
 
 type SystemLog = {
   id: string;
@@ -171,7 +184,17 @@ export default function TiDashboardPage() {
   const [onboardUrl, setOnboardUrl] = useState("");
   const [qrPayload, setQrPayload] = useState("");
   const [pairCode, setPairCode] = useState("");
+  const [mdmExpiresAt, setMdmExpiresAt] = useState("");
   const [mdmOpen, setMdmOpen] = useState(false);
+  const [ticketOpen, setTicketOpen] = useState(false);
+  const [ticketBusy, setTicketBusy] = useState(false);
+  const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
+  const [newTicket, setNewTicket] = useState({
+    title: "",
+    detail: "",
+    priority: "MEDIUM",
+    area: "MESA_AYUDA",
+  });
 
   const selfHealed = useMemo(() => {
     if (cpuHistory.length < 2) return false;
@@ -250,6 +273,7 @@ export default function TiDashboardPage() {
       });
       setQrPayload(res.qrPayload);
       setPairCode(res.pairCode);
+      setMdmExpiresAt(res.expiresAt);
       setMdmOpen(true);
       setInfo(
         `MDM Kiosk-Mode · código ${res.pairCode} · expira ${formatSession(res.expiresAt)}`,
@@ -261,6 +285,95 @@ export default function TiDashboardPage() {
 
   function onRotateSecrets() {
     setInfo("Secrets rotados en staging · tokens de sesión invalidados");
+  }
+
+  async function openTicketDetail(id: string) {
+    setError("");
+    try {
+      const row = await api<Ticket>(`/api/v1/ti/helpdesk/tickets/${id}`);
+      setSelectedTicket(row);
+      setTicketOpen(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo abrir el ticket");
+    }
+  }
+
+  async function onCreateTicket(e: FormEvent) {
+    e.preventDefault();
+    if (!newTicket.title.trim()) {
+      setError("Título del ticket requerido");
+      return;
+    }
+    setTicketBusy(true);
+    setError("");
+    try {
+      await api("/api/v1/ti/helpdesk/tickets", {
+        method: "POST",
+        body: JSON.stringify({
+          title: newTicket.title.trim(),
+          detail: newTicket.detail.trim() || undefined,
+          priority: newTicket.priority,
+          area: newTicket.area,
+        }),
+      });
+      setNewTicket({
+        title: "",
+        detail: "",
+        priority: "MEDIUM",
+        area: "MESA_AYUDA",
+      });
+      setInfo("Ticket creado");
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo crear el ticket");
+    } finally {
+      setTicketBusy(false);
+    }
+  }
+
+  async function onAssignArea(area: string) {
+    if (!selectedTicket) return;
+    setTicketBusy(true);
+    setError("");
+    try {
+      const row = await api<Ticket>(
+        `/api/v1/ti/helpdesk/tickets/${selectedTicket.id}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ area }),
+        },
+      );
+      setSelectedTicket(row);
+      setInfo(`Área asignada: ${row.areaLabel || area}`);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo asignar el área");
+    } finally {
+      setTicketBusy(false);
+    }
+  }
+
+  async function onCloseTicket() {
+    if (!selectedTicket) return;
+    if (selectedTicket.status.toUpperCase() === "CLOSED") return;
+    setTicketBusy(true);
+    setError("");
+    try {
+      const row = await api<Ticket>(
+        `/api/v1/ti/helpdesk/tickets/${selectedTicket.id}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ status: "CLOSED" }),
+        },
+      );
+      setSelectedTicket(row);
+      setInfo("Ticket cerrado");
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo cerrar el ticket");
+    } finally {
+      setTicketBusy(false);
+    }
   }
 
   const infraIcon = (name: string) => {
@@ -289,12 +402,22 @@ export default function TiDashboardPage() {
           <h1 className="font-sans text-2xl font-semibold tracking-tight text-brand-text-primary md:text-3xl">
             NOC · Autonomous Core
           </h1>
-          <p className="mt-1 font-sans text-sm text-brand-text-secondary">
-            Persona: Líder de tecnología e infraestructura — NOC, IAM, helpdesk e
-            integraciones
+          <p className="mt-1 max-w-2xl font-sans text-sm text-brand-text-secondary">
+            Persona: Líder TI — NOC, IAM, helpdesk e integraciones. MDM empareja
+            dispositivos con FSG Pilot por QR temporal.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <SlideOverHelp
+            title="MDM Provisioning · QR"
+            summary="El QR empareja temporalmente una tablet u otro dispositivo con la organización vía FSG Pilot."
+            steps={[
+              "Pulse «MDM Provisioning (QR)» o «QR dispositivo» para generar un código de emparejamiento de un solo uso (válido unos minutos).",
+              "Muestre el QR o el código al operador: la app FSG Pilot lo escanea/ingresa para vincular el dispositivo a esta empresa.",
+              "Si el emparejamiento va con bloqueo, el dispositivo queda en modo quiosco (uso controlado de la app de flota) mientras la sesión esté vigente.",
+              "Cuando el código expire, debe generar uno nuevo; no reutilice payloads vencidos.",
+            ]}
+          />
           <Button
             type="button"
             variant="ghost"
@@ -537,7 +660,7 @@ export default function TiDashboardPage() {
         open={mdmOpen}
         onClose={() => setMdmOpen(false)}
         title="MDM · Provisioning Kiosk-Mode"
-        description="Escaneo QR · nexa-mdm:// · VPN túnel directo"
+        description="Emparejamiento temporal FSG Pilot · código de un solo uso"
         widthClass="max-w-md"
         footer={
           <Button type="button" variant="ghost" className="w-auto" onClick={() => setMdmOpen(false)}>
@@ -546,22 +669,42 @@ export default function TiDashboardPage() {
         }
       >
         <div className="space-y-4">
+          <div className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-primary)]/5 px-3 py-3 text-sm text-[var(--brand-text-primary)]">
+            <p className="font-semibold">¿Para qué sirve este QR?</p>
+            <p className="mt-1 text-xs leading-relaxed text-[var(--brand-text-secondary)]">
+              Vincula un dispositivo a esta organización mediante la app{" "}
+              <span className="font-mono">FSG Pilot</span>. Al escanearlo (o
+              ingresar el código), se crea la sesión MDM: el dispositivo queda
+              emparejado y, con bloqueo activo, opera en modo quiosco para uso
+              controlado en flota.
+            </p>
+          </div>
           <div className="rounded-lg border border-[var(--brand-border)] bg-brand-surface p-4 text-center">
             <QrCode className="mx-auto h-16 w-16 text-brand-primary" aria-hidden />
             <p className="mt-3 font-mono text-lg font-bold tracking-widest">{pairCode || "——"}</p>
             <p className="mt-1 text-xs text-[var(--brand-text-secondary)]">Código de emparejamiento</p>
+            {mdmExpiresAt ? (
+              <p className="mt-2 font-data text-[11px] text-brand-warning">
+                Expira {formatSession(mdmExpiresAt)}
+              </p>
+            ) : null}
           </div>
           {qrPayload ? (
             <div className="rounded-lg border border-[var(--brand-border)] p-3">
               <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--brand-text-secondary)]">
-                Payload encriptado
+                Payload del QR (<span className="font-mono">fleetline-mdm://</span>)
               </p>
               <p className="break-all font-mono text-[10px] text-[var(--brand-primary)]">{qrPayload}</p>
             </div>
           ) : null}
-          <p className="text-xs text-[var(--brand-text-secondary)]">
-            Al escanear, la tablet entra en modo quiosco, bloquea apps externas y levanta túnel VPN a la flota.
-          </p>
+          <ol className="list-decimal space-y-1.5 pl-4 text-xs leading-relaxed text-[var(--brand-text-secondary)]">
+            <li>Abra FSG Pilot en la tablet del conductor u operador.</li>
+            <li>Escanee el QR o digite el código de emparejamiento.</li>
+            <li>
+              Confirme el vínculo: el dispositivo queda asociado a esta empresa
+              mientras el código esté vigente.
+            </li>
+          </ol>
         </div>
       </SlideOver>
 
@@ -605,6 +748,75 @@ export default function TiDashboardPage() {
         </BentoPanel>
 
         <BentoPanel id="helpdesk" title="Mesa de ayuda" subtitle="Consola de tickets" icon={<Headset className="h-4 w-4" />}>
+          <Can on="helpdesk_ti" perform="CREATE">
+            <form
+              onSubmit={(e) => void onCreateTicket(e)}
+              className="mb-4 space-y-2 rounded-xl border border-[var(--brand-border)] bg-brand-surface p-3"
+            >
+              <p className="font-data text-[10px] font-semibold uppercase tracking-wider text-[var(--brand-text-secondary)]">
+                Nuevo ticket
+              </p>
+              <input
+                className="field"
+                placeholder="Título"
+                value={newTicket.title}
+                onChange={(e) =>
+                  setNewTicket((s) => ({ ...s, title: e.target.value }))
+                }
+                required
+                minLength={3}
+              />
+              <textarea
+                className="field min-h-[64px]"
+                placeholder="Detalle (opcional)"
+                value={newTicket.detail}
+                onChange={(e) =>
+                  setNewTicket((s) => ({ ...s, detail: e.target.value }))
+                }
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <label className="flex flex-col gap-1 font-data text-[10px] uppercase tracking-wider text-[var(--brand-text-secondary)]">
+                  Prioridad
+                  <select
+                    className="field"
+                    value={newTicket.priority}
+                    onChange={(e) =>
+                      setNewTicket((s) => ({ ...s, priority: e.target.value }))
+                    }
+                  >
+                    <option value="HIGH">Alta</option>
+                    <option value="MEDIUM">Media</option>
+                    <option value="LOW">Baja</option>
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1 font-data text-[10px] uppercase tracking-wider text-[var(--brand-text-secondary)]">
+                  Área responsable
+                  <select
+                    className="field"
+                    value={newTicket.area}
+                    onChange={(e) =>
+                      setNewTicket((s) => ({ ...s, area: e.target.value }))
+                    }
+                  >
+                    {TICKET_AREAS.map((a) => (
+                      <option key={a.value} value={a.value}>
+                        {a.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <Button
+                type="submit"
+                variant="primary"
+                className="w-auto"
+                disabled={ticketBusy}
+              >
+                Crear ticket
+              </Button>
+            </form>
+          </Can>
+
           {!tickets.length ? (
             <EmptyState
               icon={<Headset className="h-7 w-7" />}
@@ -614,9 +826,11 @@ export default function TiDashboardPage() {
           ) : (
             <div className="space-y-2">
               {tickets.map((t) => (
-                <article
+                <button
                   key={t.id}
-                  className="rounded-xl border border-[var(--brand-border)] bg-brand-surface p-3"
+                  type="button"
+                  className="w-full rounded-xl border border-[var(--brand-border)] bg-brand-surface p-3 text-left transition hover:border-brand-primary/40"
+                  onClick={() => void openTicketDetail(t.id)}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <h3 className="text-sm font-medium text-[var(--brand-text-primary)]">
@@ -633,20 +847,99 @@ export default function TiDashboardPage() {
                     </StatusPulseBadge>
                   </div>
                   {t.detail ? (
-                    <p className="mt-1 text-xs text-[var(--brand-text-secondary)]">
+                    <p className="mt-1 line-clamp-2 text-xs text-[var(--brand-text-secondary)]">
                       {t.detail}
                     </p>
                   ) : null}
                   <p className="mt-2 font-mono text-[10px] text-[var(--brand-text-secondary)]">
-                    {statusEs(t.status)} · {formatSession(t.createdAt)}
+                    {statusEs(t.status)}
+                    {t.areaLabel ? ` · ${t.areaLabel}` : ""}
+                    {" · "}
+                    {formatSession(t.createdAt)}
                     {t.createdBy ? ` · ${t.createdBy.name}` : ""}
                   </p>
-                </article>
+                </button>
               ))}
             </div>
           )}
         </BentoPanel>
       </div>
+
+      <SlideOver
+        open={ticketOpen}
+        onClose={() => {
+          setTicketOpen(false);
+          setSelectedTicket(null);
+        }}
+        title={selectedTicket?.title || "Ticket"}
+        description="Detalle · área · cierre"
+        footer={
+          selectedTicket &&
+          selectedTicket.status.toUpperCase() !== "CLOSED" ? (
+            <Can on="helpdesk_ti" perform="UPDATE">
+              <Button
+                type="button"
+                variant="primary"
+                className="w-auto"
+                disabled={ticketBusy}
+                onClick={() => void onCloseTicket()}
+              >
+                Cerrar ticket
+              </Button>
+            </Can>
+          ) : null
+        }
+      >
+        {selectedTicket ? (
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              <Badge>{statusEs(selectedTicket.status)}</Badge>
+              <Badge>{selectedTicket.priorityLabel}</Badge>
+              {selectedTicket.areaLabel ? (
+                <Badge>{selectedTicket.areaLabel}</Badge>
+              ) : null}
+            </div>
+            {selectedTicket.detail ? (
+              <p className="text-sm text-[var(--brand-text-primary)]">
+                {selectedTicket.detail}
+              </p>
+            ) : (
+              <p className="text-sm text-[var(--brand-text-secondary)]">
+                Sin detalle
+              </p>
+            )}
+            <p className="font-mono text-xs text-[var(--brand-text-secondary)]">
+              Creado {formatSession(selectedTicket.createdAt)}
+              {selectedTicket.createdBy
+                ? ` · ${selectedTicket.createdBy.name}`
+                : ""}
+              {selectedTicket.closedAt
+                ? ` · Cerrado ${formatSession(selectedTicket.closedAt)}`
+                : ""}
+            </p>
+            <Can on="helpdesk_ti" perform="UPDATE">
+              <label className="flex flex-col gap-1 font-data text-[10px] uppercase tracking-wider text-[var(--brand-text-secondary)]">
+                Área responsable
+                <select
+                  className="field"
+                  value={selectedTicket.area || "MESA_AYUDA"}
+                  disabled={
+                    ticketBusy ||
+                    selectedTicket.status.toUpperCase() === "CLOSED"
+                  }
+                  onChange={(e) => void onAssignArea(e.target.value)}
+                >
+                  {TICKET_AREAS.map((a) => (
+                    <option key={a.value} value={a.value}>
+                      {a.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </Can>
+          </div>
+        ) : null}
+      </SlideOver>
     </div>
   );
 }

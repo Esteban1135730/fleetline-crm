@@ -878,6 +878,7 @@ export * from "./rrhh-excel";
 export * from "./nav-departments";
 export * from "./labels-es";
 export * from "./password-policy";
+export * from "./crisis-zones";
 export type { FieldKind } from "./validation";
 export {
   Field,

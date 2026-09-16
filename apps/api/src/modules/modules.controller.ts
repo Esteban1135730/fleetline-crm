@@ -7,6 +7,7 @@ import {
   Post,
   Query,
   Req,
+  Res,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -14,11 +15,13 @@ import {
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { join, resolve } from "path";
+import type { Response } from "express";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { ModulesGuard, RequireModule } from "../auth/modules.guard";
 import { ModulesService } from "./modules.service";
 import { ComplianceService } from "../logistics/compliance.service";
 import { uploadMulterOptions } from "../security/upload-security";
+import { streamStoredUpload } from "../security/stream-stored-upload";
 
 const UPLOADS_DIR = resolve(__dirname, "../../../../uploads");
 
@@ -528,6 +531,52 @@ export class ModulesController {
     @Body() body: { status?: string; detail?: string; severity?: string },
   ) {
     return this.svc.updateForensic(req.user.organizationId, id, body);
+  }
+
+  @Post("revisoria/findings/:id/support")
+  @RequireModule("revisoria_fiscal", "revisoria")
+  @UseInterceptors(
+    FileInterceptor(
+      "file",
+      uploadMulterOptions(UPLOADS_DIR, { maxBytes: 5 * 1024 * 1024 }),
+    ),
+  )
+  uploadForensicSupport(
+    @Req() req: { user: { organizationId: string } },
+    @Param("id") id: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) {
+      throw new BadRequestException("Adjunte el PDF o imagen de soporte");
+    }
+    return this.svc.attachForensicSupport(req.user.organizationId, id, {
+      storedName: file.filename,
+      originalName: file.originalname,
+      mimeType: file.mimetype,
+    });
+  }
+
+  @Get("revisoria/findings/:id/support")
+  @RequireModule("revisoria_fiscal", "revisoria")
+  async streamForensicSupport(
+    @Req() req: { user: { organizationId: string } },
+    @Param("id") id: string,
+    @Query("download") download: string | undefined,
+    @Res() res: Response,
+  ) {
+    const meta = await this.svc.getForensicSupportMeta(
+      req.user.organizationId,
+      id,
+    );
+    if (!meta.supportFileRef) {
+      throw new BadRequestException("Este hallazgo no tiene soporte adjunto");
+    }
+    streamStoredUpload(res, {
+      fileRef: meta.supportFileRef,
+      mimeType: meta.supportMimeType,
+      originalName: meta.supportOriginalName,
+      asAttachment: download === "1" || download === "true",
+    });
   }
 
   @Post("sistemas/alerts")

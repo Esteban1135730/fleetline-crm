@@ -31,6 +31,7 @@ WORKDIR /app
 COPY --from=build /app /app
 RUN mkdir -p /app/uploads
 EXPOSE 4000
-# Solo aplica migraciones / sync de schema SIN borrar datos.
-# Nunca usar --accept-data-loss ni docker compose down -v en el VPS.
-CMD ["sh", "-c", "pnpm --filter @fsg/db exec prisma migrate deploy || pnpm --filter @fsg/db exec prisma db push --skip-generate; exec node apps/api/dist/main.js"]
+# Migraciones primero. Si no hay migraciones aplicables / drift leve:
+# fallback a db push SIN --accept-data-loss (nunca borrar datos en VPS).
+# FLEETLINE_SCHEMA_SYNC=push solo para local/primer boot controlado.
+CMD ["sh", "-c", "pnpm --filter @fsg/db exec prisma migrate deploy || pnpm --filter @fsg/db exec prisma db push --skip-generate; if [ \"$FLEETLINE_SCHEMA_SYNC\" = \"push\" ]; then pnpm --filter @fsg/db exec prisma db push --skip-generate || true; fi; exec node apps/api/dist/main.js"]

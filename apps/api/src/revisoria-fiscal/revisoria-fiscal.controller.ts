@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -6,8 +7,10 @@ import {
   Post,
   Query,
   Req,
+  Res,
   UseGuards,
 } from "@nestjs/common";
+import type { Response } from "express";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { ModulesGuard, RequireModule } from "../auth/modules.guard";
 import { Roles, RolesGuard } from "../auth/roles.guard";
@@ -18,6 +21,7 @@ import {
   HardLockSchema,
   ImpuestosValidarQuerySchema,
 } from "./dto/revisoria-fiscal.dto";
+import { streamStoredUpload } from "../security/stream-stored-upload";
 
 type AuthReq = {
   user: { organizationId: string; userId: string; role: string };
@@ -68,6 +72,30 @@ export class RevisoriaFiscalController {
   @Permissions("fiscal_drilldown", "READ")
   drillDown(@Req() req: AuthReq, @Param("facturaId") facturaId: string) {
     return this.revisoria.drillDown(req.user.organizationId, facturaId);
+  }
+
+  /** Comprobante de factura — solo si pertenece a la org (REV-01 lectura forense) */
+  @Get("invoices/:facturaId/support")
+  @Permissions("fiscal_drilldown", "READ")
+  async streamInvoiceSupport(
+    @Req() req: AuthReq,
+    @Param("facturaId") facturaId: string,
+    @Query("download") download: string | undefined,
+    @Res() res: Response,
+  ) {
+    const meta = await this.revisoria.getInvoiceSupportMeta(
+      req.user.organizationId,
+      facturaId,
+    );
+    if (!meta.supportFileRef) {
+      throw new BadRequestException("Esta factura no tiene comprobante adjunto");
+    }
+    streamStoredUpload(res, {
+      fileRef: meta.supportFileRef,
+      mimeType: meta.supportMimeType,
+      originalName: meta.supportOriginalName,
+      asAttachment: download === "1" || download === "true",
+    });
   }
 
   /** POST /api/v1/revisoria-fiscal/cierre/hard-lock */

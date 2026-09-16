@@ -969,6 +969,44 @@ export class ModulesService {
     return this.serializeFinding(created);
   }
 
+  async attachForensicSupport(
+    organizationId: string,
+    id: string,
+    file: {
+      storedName: string;
+      originalName: string;
+      mimeType: string;
+    },
+  ) {
+    const f = await this.prisma.forensicFinding.findFirst({
+      where: { id, organizationId },
+    });
+    if (!f) throw new NotFoundException("Hallazgo no encontrado");
+    const updated = await this.prisma.forensicFinding.update({
+      where: { id },
+      data: {
+        supportFileRef: `/uploads/${file.storedName}`,
+        supportOriginalName: file.originalName,
+        supportMimeType: file.mimeType,
+      },
+    });
+    return this.serializeFinding(updated);
+  }
+
+  async getForensicSupportMeta(organizationId: string, id: string) {
+    const f = await this.prisma.forensicFinding.findFirst({
+      where: { id, organizationId },
+      select: {
+        id: true,
+        supportFileRef: true,
+        supportOriginalName: true,
+        supportMimeType: true,
+      },
+    });
+    if (!f) throw new NotFoundException("Hallazgo no encontrado");
+    return f;
+  }
+
   async updateForensic(
     organizationId: string,
     id: string,

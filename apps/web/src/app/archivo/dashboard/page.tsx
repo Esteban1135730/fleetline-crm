@@ -17,7 +17,7 @@ import {
   UserX,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { EmptyState, KpiCard, SlideOver, StatusPulseBadge } from "@/components/audit";
+import { EmptyState, KpiCard, SlideOver, SlideOverHelp, StatusPulseBadge } from "@/components/audit";
 import { BentoPanel } from "@/components/nexa/bento-panel";
 
 type SearchHit = {
@@ -307,8 +307,23 @@ export default function ArchivoDashboardPage() {
           <h1 className="font-sans text-2xl font-semibold tracking-tight text-brand-text-primary md:text-3xl">
             Quantum Vault & Assets
           </h1>
+          <p className="mt-1 max-w-2xl text-sm text-brand-text-secondary">
+            Sala documental y papelería: localice expedientes y activos,
+            consulte digitalización y custodia, preste carpetas físicas y
+            despache suministros administrativos.
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <SlideOverHelp
+            title="Archivo · qué puede hacer aquí"
+            summary="Bóveda operativa de documentos, préstamos físicos e inventario de papelería — con trazabilidad de acceso."
+            steps={[
+              "Finalidad: centralizar la búsqueda y custodia de expedientes (digital/físico), inventario administrativo y alertas de activos pendientes ante bajas de personal.",
+              "Buscar: use la búsqueda profunda por contrato, placa, cédula, serial u otro texto; verá si hay PDF digital asociado.",
+              "Consultar: revise cola OCR/indexación, pendientes de digitalizar, carpetas en préstamo, inventario y la cadena de custodia (acciones + hash).",
+              "Acciones: «Préstamo carpeta» (check-out físico) y «Despachar papelería» (salida de suministros). En esta pantalla no hay compartir ni versionado de archivos.",
+            ]}
+          />
           <Button
             type="button"
             variant="secondary"
@@ -470,7 +485,7 @@ export default function ArchivoDashboardPage() {
               <EmptyState
                 icon={<Database className="h-7 w-7" aria-hidden />}
                 title="Cola vacía"
-                description="Suba documentos para activar el enrutador OCR."
+                description="Aquí verá documentos en proceso OCR o ya indexados con su hash de integridad."
               />
             ) : (
               dash!.ingestionQueue.map((item) => (
@@ -633,7 +648,7 @@ export default function ArchivoDashboardPage() {
               <EmptyState
                 icon={<Lock className="h-6 w-6" aria-hidden />}
                 title="Sin préstamos activos"
-                description="Registre el check-out de una carpeta física."
+                description="Use «Préstamo carpeta» para registrar el check-out de un expediente físico."
                 actionLabel="Préstamo carpeta"
                 onAction={() => setOpsPanel("prestamo")}
               />

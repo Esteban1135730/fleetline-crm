@@ -145,9 +145,41 @@ export class AccountingLedgerService {
     });
   }
 
-  listJournalEntries(organizationId: string) {
+  listJournalEntries(
+    organizationId: string,
+    opts?: { puc?: string },
+  ) {
+    const puc = opts?.puc?.trim();
     return this.prisma.journalEntry.findMany({
-      where: { organizationId },
+      where: {
+        organizationId,
+        ...(puc
+          ? {
+              lines: {
+                some: {
+                  OR: [
+                    {
+                      debitAccount: {
+                        OR: [
+                          { code: { contains: puc, mode: "insensitive" } },
+                          { name: { contains: puc, mode: "insensitive" } },
+                        ],
+                      },
+                    },
+                    {
+                      creditAccount: {
+                        OR: [
+                          { code: { contains: puc, mode: "insensitive" } },
+                          { name: { contains: puc, mode: "insensitive" } },
+                        ],
+                      },
+                    },
+                  ],
+                },
+              },
+            }
+          : {}),
+      },
       include: {
         lines: {
           include: {
@@ -161,8 +193,11 @@ export class AccountingLedgerService {
   }
 
   /** Shape compatible con CRM web (`/accounting/journal`). */
-  async listJournalForUi(organizationId: string) {
-    const entries = await this.listJournalEntries(organizationId);
+  async listJournalForUi(
+    organizationId: string,
+    opts?: { puc?: string },
+  ) {
+    const entries = await this.listJournalEntries(organizationId, opts);
     return entries.map((e, idx) => ({
       id: e.id,
       number: `AS-${String(entries.length - idx).padStart(4, "0")}`,

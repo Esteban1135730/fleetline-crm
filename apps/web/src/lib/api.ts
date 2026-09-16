@@ -200,7 +200,19 @@ export async function apiRequest<T>(
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({ message: res.statusText }));
-      throw new Error(formatApiError(err, `Error ${res.status}`));
+      const error = new Error(
+        formatApiError(err, `Error ${res.status}`),
+      ) as Error & {
+        violations?: Array<{ path?: string; message?: string }>;
+      };
+      if (Array.isArray((err as { violations?: unknown }).violations)) {
+        error.violations = (
+          err as {
+            violations: Array<{ path?: string; message?: string }>;
+          }
+        ).violations;
+      }
+      throw error;
     }
     if (res.status === 204) return undefined as T;
     return res.json() as Promise<T>;
@@ -298,6 +310,35 @@ export async function apiDownload(
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+}
+
+/** Descarga autenticada como Blob (preview / iframe). */
+export async function apiFetchBlob(
+  path: string,
+): Promise<{ blob: Blob; contentType: string }> {
+  const token = getToken();
+  const headers: HeadersInit = {};
+  if (token) {
+    (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
+  }
+  const tenantId = tenantHeaderFor(path);
+  if (tenantId) {
+    (headers as Record<string, string>)["X-Organization-Id"] = tenantId;
+  }
+
+  const res = await fetch(`${API_URL}${path}`, { headers });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: res.statusText }));
+    throw new Error(
+      Array.isArray(err.message)
+        ? err.message.join(", ")
+        : err.message || `Error ${res.status}`,
+    );
+  }
+  const contentType =
+    res.headers.get("Content-Type") || "application/octet-stream";
+  const blob = await res.blob();
+  return { blob, contentType };
 }
 
 export function getTokenPublic() {

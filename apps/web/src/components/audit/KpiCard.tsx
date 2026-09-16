@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { Tooltip } from "@fsg/ui";
 
 type KpiCardProps = {
   label: string;
@@ -10,6 +11,8 @@ type KpiCardProps = {
   spark?: number[];
   /** Ícono Lucide (u otro) semitransparente — esquina superior derecha. */
   icon?: ReactNode;
+  /** Explicación corta al pasar el mouse (qué mide / de dónde sale). */
+  tip?: string;
 };
 
 const toneValue: Record<NonNullable<KpiCardProps["tone"]>, string> = {
@@ -27,10 +30,11 @@ export function KpiCard({
   tone = "neutral",
   spark,
   icon,
+  tip,
 }: KpiCardProps) {
   const max = spark?.length ? Math.max(...spark, 1) : 1;
-  return (
-    <article className="nexa-panel frosted-glass nexa-panel-interactive frosted-glass-interactive bento-panel-accent relative overflow-hidden p-4">
+  const card = (
+    <article className="nexa-panel frosted-glass nexa-panel-interactive frosted-glass-interactive bento-panel-accent relative w-full overflow-hidden p-4">
       {icon ? (
         <div
           className="pointer-events-none absolute right-3 top-3 text-[var(--brand-text-secondary)]/30 [&_svg]:h-10 [&_svg]:w-10"
@@ -77,6 +81,15 @@ export function KpiCard({
         ) : null}
       </div>
     </article>
+  );
+
+  if (!tip) return card;
+  return (
+    <div className="min-w-0 w-full" title={tip}>
+      <Tooltip content={tip} side="bottom" className="!block w-full max-w-none">
+        {card}
+      </Tooltip>
+    </div>
   );
 }
 

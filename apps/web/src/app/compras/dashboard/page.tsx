@@ -224,7 +224,7 @@ export default function ComprasVendorDashboardPage() {
 
       <section id="ordenes">
         <p className="mb-3 px-1 font-data text-[10px] uppercase tracking-[0.14em] text-brand-text-secondary">
-          Tablero OC · Cotizando → Emitida → Tránsito → Recibido
+          Tablero OC · Pendiente → Emitida → En camino → Recibida
         </p>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           <KanbanCol
@@ -257,7 +257,7 @@ export default function ComprasVendorDashboardPage() {
             }))}
           />
           <KanbanCol
-            title="En Tránsito"
+            title="En camino"
             items={(dash?.kanban.enTransito ?? []).map((o) => ({
               id: o.id,
               code: o.code,
@@ -267,7 +267,7 @@ export default function ComprasVendorDashboardPage() {
             }))}
           />
           <KanbanCol
-            title="Recibido"
+            title="Recibida"
             items={(dash?.kanban.recibido ?? []).map((o) => ({
               id: o.id,
               code: o.code,
@@ -279,7 +279,7 @@ export default function ComprasVendorDashboardPage() {
         </div>
       </section>
 
-      <BentoPanel id="ahorros" title="Ahorros y proveedores" subtitle="Directorio homologado">
+      <BentoPanel id="ahorros" title="Ahorros y proveedores" subtitle="Directorio de proveedores">
         <p className="mb-4 font-data text-2xl text-brand-primary">
           {money(dash?.savings.totalSavings ?? 0)}
         </p>

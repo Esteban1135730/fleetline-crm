@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -7,11 +8,21 @@ import {
   Post,
   Query,
   Req,
+  Res,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from "@nestjs/common";
+import { FileInterceptor } from "@nestjs/platform-express";
+import { resolve } from "path";
+import type { Response } from "express";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { ModulesGuard, RequireModule } from "../auth/modules.guard";
 import { FinanceService } from "./finance.service";
+import { uploadMulterOptions } from "../security/upload-security";
+import { streamStoredUpload } from "../security/stream-stored-upload";
+
+const UPLOADS_DIR = resolve(__dirname, "../../../../uploads");
 
 @Controller("finance")
 @UseGuards(JwtAuthGuard, ModulesGuard)
@@ -48,6 +59,50 @@ export class FinanceController {
     return this.service.createInvoice(req.user.organizationId, body);
   }
 
+  @Post("invoices/:id/support")
+  @UseInterceptors(
+    FileInterceptor(
+      "file",
+      uploadMulterOptions(UPLOADS_DIR, { maxBytes: 5 * 1024 * 1024 }),
+    ),
+  )
+  uploadSupport(
+    @Req() req: { user: { organizationId: string } },
+    @Param("id") id: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) {
+      throw new BadRequestException("Adjunte el comprobante (PDF o imagen)");
+    }
+    return this.service.attachInvoiceSupport(req.user.organizationId, id, {
+      storedName: file.filename,
+      originalName: file.originalname,
+      mimeType: file.mimetype,
+    });
+  }
+
+  @Get("invoices/:id/support")
+  async streamSupport(
+    @Req() req: { user: { organizationId: string } },
+    @Param("id") id: string,
+    @Query("download") download: string | undefined,
+    @Res() res: Response,
+  ) {
+    const meta = await this.service.getInvoiceSupportMeta(
+      req.user.organizationId,
+      id,
+    );
+    if (!meta.supportFileRef) {
+      throw new BadRequestException("Esta factura no tiene comprobante adjunto");
+    }
+    streamStoredUpload(res, {
+      fileRef: meta.supportFileRef,
+      mimeType: meta.supportMimeType,
+      originalName: meta.supportOriginalName,
+      asAttachment: download === "1" || download === "true",
+    });
+  }
+
   @Patch("invoices/:id")
   update(
     @Req() req: { user: { organizationId: string } },
@@ -82,7 +137,15 @@ export class FinanceController {
     @Req()
     req: { user: { organizationId: string; userId: string; role: string } },
     @Param("id") id: string,
-    @Body() body?: { forceDespiteSarlaft?: boolean; pin?: string; bankRef?: string; evidenceRef?: string },
+    @Body()
+    body?: {
+      forceDespiteSarlaft?: boolean;
+      pin?: string;
+      bankRef?: string;
+      evidenceRef?: string;
+      receivedByName?: string;
+      confirmCollection?: boolean;
+    },
   ) {
     return this.service.markPaid(req.user.organizationId, id, {
       forceDespiteSarlaft: body?.forceDespiteSarlaft,
@@ -90,6 +153,9 @@ export class FinanceController {
       actorRole: req.user.role,
       pin: body?.pin,
       evidenceRef: body?.evidenceRef,
+      receivedByName: body?.receivedByName,
+      confirmCollection: body?.confirmCollection,
+      bankRef: body?.bankRef,
     });
   }
 

@@ -34,6 +34,7 @@ import {
   Legend,
 } from "recharts";
 import { api } from "@/lib/api";
+import { CRISIS_ZONE_PRESETS } from "@fsg/shared";
 import { EmptyState, KpiCard, Modal, SlideOver } from "@/components/audit";
 import { BentoPanel } from "@/components/nexa/bento-panel";
 import { useShell } from "@/lib/shell-context";
@@ -123,7 +124,10 @@ export default function PresidenciaDashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [units, setUnits] = useState(5);
   const [unitCost, setUnitCost] = useState(280_000_000);
-  const [zones, setZones] = useState("Sur Bogotá, Soacha");
+  const [unitCostDraft, setUnitCostDraft] = useState("280000000");
+  const [zones, setZones] = useState<string[]>(["Sur Bogotá", "Soacha"]);
+  const [zoneError, setZoneError] = useState("");
+  const [defconActive, setDefconActive] = useState(false);
   const [capexOpen, setCapexOpen] = useState(false);
   const [defconOpen, setDefconOpen] = useState(false);
 
@@ -248,8 +252,13 @@ export default function PresidenciaDashboardPage() {
   }
 
   async function activarDefcon() {
+    if (zones.length < 1) {
+      setZoneError("Seleccione al menos una zona de crisis");
+      return;
+    }
     setBusy(true);
     setDefconOut(null);
+    setZoneError("");
     try {
       const res = await api<{
         message: string;
@@ -259,10 +268,7 @@ export default function PresidenciaDashboardPage() {
         method: "POST",
         body: JSON.stringify({
           defconLevel: 2,
-          conflictZones: zones
-            .split(",")
-            .map((z) => z.trim())
-            .filter(Boolean),
+          conflictZones: zones,
           notifyDrivers: true,
           notifyCustomers: true,
           notifyParents: true,
@@ -279,6 +285,13 @@ export default function PresidenciaDashboardPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  function toggleZone(zone: string) {
+    setZoneError("");
+    setZones((prev) =>
+      prev.includes(zone) ? prev.filter((z) => z !== zone) : [...prev, zone],
+    );
   }
 
   const p = dash?.pillars;
@@ -786,10 +799,28 @@ export default function PresidenciaDashboardPage() {
           <label className="text-xs text-brand-text-secondary">
             Costo unitario COP
             <input
-              type="number"
-              className="field mt-1 w-full"
-              value={unitCost}
-              onChange={(e) => setUnitCost(Number(e.target.value) || 0)}
+              type="text"
+              inputMode="numeric"
+              className="field mt-1 w-full font-data"
+              value={unitCostDraft}
+              onChange={(e) => {
+                const digits = e.target.value.replace(/\D/g, "");
+                if (digits === "") {
+                  setUnitCostDraft("");
+                  setUnitCost(0);
+                  return;
+                }
+                // Evita "025" al partir de 0: el primer dígito útil reemplaza el cero
+                const normalized = digits.replace(/^0+(?=\d)/, "");
+                setUnitCostDraft(normalized);
+                setUnitCost(Number(normalized) || 0);
+              }}
+              onBlur={() => {
+                if (unitCostDraft === "") {
+                  setUnitCostDraft("0");
+                  setUnitCost(0);
+                }
+              }}
             />
           </label>
         </div>
@@ -815,15 +846,50 @@ export default function PresidenciaDashboardPage() {
           </Button>
         }
       >
-        <label className="block text-xs text-brand-text-secondary">
-          Zonas de conflicto
-          <input
-            className="field mt-1 w-full"
-            placeholder="Sur Bogotá, Soacha"
-            value={zones}
-            onChange={(e) => setZones(e.target.value)}
-          />
-        </label>
+        <div className="space-y-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-brand-text-secondary">
+              Zonas de crisis
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-brand-text-secondary">
+              Seleccione una o más zonas predefinidas donde aplica el protocolo
+              (sirena a conductores y avisos a clientes/padres).
+            </p>
+          </div>
+          <div className="max-h-64 space-y-1 overflow-y-auto rounded-lg border border-brand-border bg-brand-surface p-2">
+            {CRISIS_ZONE_PRESETS.map((zone) => {
+              const checked = zones.includes(zone);
+              return (
+                <label
+                  key={zone}
+                  className={`flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm transition ${
+                    checked
+                      ? "bg-[color-mix(in_srgb,var(--brand-danger)_12%,transparent)] text-brand-text-primary"
+                      : "text-brand-text-secondary hover:bg-brand-surface-elevated"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    className="accent-[var(--brand-danger)]"
+                    checked={checked}
+                    onChange={() => toggleZone(zone)}
+                  />
+                  <span>{zone}</span>
+                </label>
+              );
+            })}
+          </div>
+          {zones.length > 0 ? (
+            <p className="font-data text-[11px] text-brand-text-secondary">
+              Seleccionadas ({zones.length}): {zones.join(" · ")}
+            </p>
+          ) : null}
+          {zoneError ? (
+            <p role="alert" className="text-sm text-brand-danger">
+              {zoneError}
+            </p>
+          ) : null}
+        </div>
         {defconOut ? (
           <p className="mt-4 text-sm text-brand-danger">{defconOut}</p>
         ) : null}

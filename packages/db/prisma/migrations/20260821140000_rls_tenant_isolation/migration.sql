@@ -40,6 +40,9 @@ BEGIN
     IF EXISTS (
       SELECT 1 FROM information_schema.tables
       WHERE table_schema = 'public' AND table_name = t
+    ) AND EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = t AND column_name = 'organizationId'
     ) THEN
       EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
       -- FORCE solo cuando el rol de app no es owner; con owner se documenta en SECURITY.md

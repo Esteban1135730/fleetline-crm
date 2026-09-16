@@ -9,6 +9,7 @@ import {
   roleForEmployeeCargo,
   statusEs,
   systemStatusEs,
+  HARD_RULES,
   type Role,
 } from "@fsg/shared";
 import {
@@ -24,6 +25,10 @@ import {
   Coffee,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import {
+  clearFieldError,
+  splitFormApiError,
+} from "@/lib/form-api-error";
 import { useAuth } from "@/lib/auth-context";
 import { EmptyState, KpiCard, Modal, SlideOver, StatusPulseBadge } from "@/components/audit";
 import { BentoPanel } from "@/components/nexa/bento-panel";
@@ -268,10 +273,18 @@ export default function RrhhPage() {
     expiringSoon: number;
   } | null>(null);
   const [altaOpen, setAltaOpen] = useState(false);
+  const [altaFormError, setAltaFormError] = useState("");
+  const [altaFieldErrors, setAltaFieldErrors] = useState<
+    Record<string, string>
+  >({});
   const [excelOpen, setExcelOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [docsOpen, setDocsOpen] = useState(false);
   const [payrollOpen, setPayrollOpen] = useState(false);
+  const [auditConfirmOpen, setAuditConfirmOpen] = useState(false);
+  const [payrollConfirmOpen, setPayrollConfirmOpen] = useState(false);
+  const [auditBusy, setAuditBusy] = useState(false);
+  const [payrollBusy, setPayrollBusy] = useState(false);
   const [trainingOpen, setTrainingOpen] = useState(false);
   const [docsEmployee, setDocsEmployee] = useState<Emp | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -386,9 +399,9 @@ export default function RrhhPage() {
       },
       {
         id: "fatiga" as const,
-        label: "Fatiga",
+        label: "Fatiga operativa",
         count: linkedDrivers.length,
-        tip: "Turnos, licencias y bloqueo operativo",
+        tip: `Horas de turno y score de cansancio. Score ≥ ${HARD_RULES.FATIGUE_BLOCK_SCORE} puede bloquear el despacho del conductor.`,
       },
       {
         id: "nomina" as const,
@@ -408,7 +421,8 @@ export default function RrhhPage() {
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
-    setError("");
+    setAltaFormError("");
+    setAltaFieldErrors({});
     try {
       const res = await api<{
         tempPassword?: string;
@@ -429,7 +443,25 @@ export default function RrhhPage() {
       setStatusMsg(res.message ?? "Expediente y acceso provisionados");
       await loadAll();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo provisionar expediente");
+      const split = splitFormApiError(err, [
+        "name",
+        "document",
+        "email",
+        "phone",
+        "area",
+        "title",
+        "position",
+        "address",
+        "city",
+        "role",
+        "contractType",
+        "hireDate",
+        "baseSalary",
+        "hourlyRate",
+        "driverId",
+      ]);
+      setAltaFormError(split.formError);
+      setAltaFieldErrors(split.fieldErrors);
     }
   }
 
@@ -565,6 +597,7 @@ export default function RrhhPage() {
 
   async function auditLicenses() {
     setError("");
+    setAuditBusy(true);
     try {
       const res = await api<{
         newlyBlocked: number;
@@ -577,9 +610,12 @@ export default function RrhhPage() {
         expiringSoon: res.expiringSoon,
       });
       setStatusMsg("Auditoría de licencias completada");
+      setAuditConfirmOpen(false);
       await loadAll();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Auditoría fallida");
+    } finally {
+      setAuditBusy(false);
     }
   }
 
@@ -605,9 +641,15 @@ export default function RrhhPage() {
     }
   }
 
-  async function runPayroll(e: FormEvent) {
+  function requestPayroll(e: FormEvent) {
     e.preventDefault();
     setError("");
+    setPayrollConfirmOpen(true);
+  }
+
+  async function confirmPayroll() {
+    setError("");
+    setPayrollBusy(true);
     try {
       await api("/rrhh/payroll/calculate", {
         method: "POST",
@@ -618,11 +660,14 @@ export default function RrhhPage() {
           ).toISOString(),
         }),
       });
+      setPayrollConfirmOpen(false);
       setPayrollOpen(false);
-      setStatusMsg("Liquidación calculada — corrida indexada");
+      setStatusMsg("Liquidación ejecutada — corrida indexada en nómina");
       await loadAll();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Fallo de liquidación");
+    } finally {
+      setPayrollBusy(false);
     }
   }
 
@@ -682,7 +727,11 @@ export default function RrhhPage() {
               variant="primary"
               className="w-auto px-4 py-2"
               data-testid="rrhh-alta-open"
-              onClick={() => setAltaOpen(true)}
+              onClick={() => {
+                setAltaFormError("");
+                setAltaFieldErrors({});
+                setAltaOpen(true);
+              }}
             >
               + Nuevo empleado
             </Button>
@@ -788,7 +837,7 @@ export default function RrhhPage() {
             type="button"
             variant="ghost"
             className="w-auto px-3 py-1.5 text-xs"
-            onClick={() => void auditLicenses()}
+            onClick={() => setAuditConfirmOpen(true)}
           >
             Ejecutar auditoría
           </Button>
@@ -849,7 +898,11 @@ export default function RrhhPage() {
               title="Sin expedientes"
               description="Indexa el primer expediente de capital humano."
               actionLabel="+ Nuevo empleado"
-              onAction={() => setAltaOpen(true)}
+              onAction={() => {
+                setAltaFormError("");
+                setAltaFieldErrors({});
+                setAltaOpen(true);
+              }}
             />
           ) : (
             <BentoPanel title="Expedientes digitales" subtitle={`${filteredRows.length} registro(s)`} tour="panel">
@@ -860,7 +913,7 @@ export default function RrhhPage() {
                   "C.C.",
                   "Afiliaciones",
                   "Licencia",
-                  "Fatiga",
+                  "Aptitud fatiga",
                   "Estado",
                   "Acciones",
                 ]}
@@ -972,7 +1025,25 @@ export default function RrhhPage() {
 
       {tab === "fatiga" ? (
         <section className="space-y-4" data-testid="rrhh-panel-fatiga">
-          <BentoPanel title="Control de turnos" subtitle="Entrada / salida · auditoría">
+          <div className="rounded-xl border border-brand-border bg-brand-surface px-4 py-3 text-sm leading-relaxed text-brand-text-secondary">
+            <p className="font-semibold text-brand-text-primary">
+              Fatiga operativa (conductores)
+            </p>
+            <p className="mt-1">
+              Mide el cansancio acumulado por horas de turno continuo y diario
+              (límites PESV). El <strong>score</strong> sube con el tiempo
+              trabajado: en ámbar ({HARD_RULES.FATIGUE_YELLOW_MIN}–
+              {HARD_RULES.FATIGUE_YELLOW_MAX}) hay alerta; si llega a{" "}
+              <strong>{HARD_RULES.FATIGUE_BLOCK_SCORE} o más</strong>, el sistema
+              puede <strong>bloquear el despacho</strong> del conductor hasta que
+              descanse (cierre de turno / recuperación).
+            </p>
+          </div>
+
+          <BentoPanel
+            title="Control de turnos"
+            subtitle="Entrada y salida · actualiza el score de fatiga"
+          >
             <div className="flex flex-wrap items-end justify-end gap-3">
               <div className="min-w-[220px] flex-1">
                 <label className="mb-1 block font-data text-[10px] uppercase tracking-wider text-brand-text-secondary">
@@ -1012,13 +1083,13 @@ export default function RrhhPage() {
           {!linkedDrivers.length ? (
             <EmptyState
               title="Sin conductores vinculados"
-              description="Vincula expedientes a flota para monitorear fatiga."
+              description="Vincula expedientes a flota para monitorear fatiga operativa y bloqueos de despacho."
             />
           ) : (
             <BentoPanel
-              title="Monitor de fatiga"
+              title="Monitor de fatiga operativa"
               icon={<Activity aria-hidden />}
-              subtitle="Score · licencia · despacho"
+              subtitle={`Score · licencia · despacho (bloqueo ≥ ${HARD_RULES.FATIGUE_BLOCK_SCORE})`}
             >
               <NexaTable
                 columns={["Conductor", "C.C.", "Score", "Aptitud", "Licencia", "Despacho"]}
@@ -1303,6 +1374,11 @@ export default function RrhhPage() {
             onChange={setForm}
             mode="create"
             drivers={drivers}
+            formError={altaFormError}
+            fieldErrors={altaFieldErrors}
+            onFieldEdit={(key) =>
+              setAltaFieldErrors((prev) => clearFieldError(prev, key))
+            }
           />
         </form>
       </SlideOver>
@@ -1455,12 +1531,17 @@ export default function RrhhPage() {
               variant="primary"
               className="w-auto px-4 py-2"
             >
-              Calcular liquidación
+              Continuar a confirmación
             </Button>
           </>
         }
       >
-        <form id="rrhh-payroll-form" onSubmit={runPayroll} className="space-y-4">
+        <form id="rrhh-payroll-form" onSubmit={requestPayroll} className="space-y-4">
+          <p className="rounded-lg border border-brand-border bg-brand-surface px-3 py-2 text-xs leading-relaxed text-brand-text-secondary">
+            Esta acción <strong className="text-brand-text-primary">ejecuta</strong>{" "}
+            la liquidación del periodo (no es una simulación). Revise las fechas
+            antes de confirmar.
+          </p>
           <div>
             <label className="mb-1 block font-data text-[10px] uppercase tracking-wider text-brand-text-secondary">
               Periodo desde
@@ -1569,6 +1650,97 @@ export default function RrhhPage() {
           </div>
         </form>
       </SlideOver>
+
+      <Modal
+        open={auditConfirmOpen}
+        onClose={() => !auditBusy && setAuditConfirmOpen(false)}
+        title="¿Ejecutar auditoría documental?"
+        description="Revisión real sobre licencias y afiliaciones"
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-auto px-4 py-2"
+              disabled={auditBusy}
+              onClick={() => setAuditConfirmOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              className="w-auto px-4 py-2"
+              disabled={auditBusy}
+              onClick={() => void auditLicenses()}
+            >
+              {auditBusy ? "Ejecutando…" : "Sí, ejecutar auditoría"}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-2 text-sm leading-relaxed text-brand-text-secondary">
+          <p>
+            Se revisarán licencias de conducción y documentos de compliance
+            (EPS, ARL, AFP) de los expedientes vinculados.
+          </p>
+          <p>
+            <strong className="text-brand-text-primary">Impacto:</strong> los
+            conductores con licencia vencida u otros hallazgos críticos pueden
+            quedar <strong>bloqueados para despacho</strong>. El resultado se
+            refleja de inmediato en los contadores de bloqueados / vencidas.
+          </p>
+        </div>
+      </Modal>
+
+      <Modal
+        open={payrollConfirmOpen}
+        onClose={() => !payrollBusy && setPayrollConfirmOpen(false)}
+        title="¿Ejecutar liquidación de nómina?"
+        description="Acción definitiva — no es una simulación"
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-auto px-4 py-2"
+              disabled={payrollBusy}
+              onClick={() => setPayrollConfirmOpen(false)}
+            >
+              Volver
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              className="w-auto px-4 py-2"
+              disabled={payrollBusy}
+              onClick={() => void confirmPayroll()}
+            >
+              {payrollBusy ? "Liquidando…" : "Sí, liquidar periodo"}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-2 text-sm leading-relaxed text-brand-text-secondary">
+          <p>
+            Se ejecutará la liquidación del periodo{" "}
+            <strong className="font-data text-brand-text-primary">
+              {payrollForm.periodStart}
+            </strong>{" "}
+            a{" "}
+            <strong className="font-data text-brand-text-primary">
+              {payrollForm.periodEnd}
+            </strong>
+            .
+          </p>
+          <p>
+            <strong className="text-brand-text-primary">Impacto:</strong> se
+            crea una corrida de nómina real con turnos y kilometraje indexados.
+            No es un ensayo: los valores quedan registrados en el módulo de
+            nómina.
+          </p>
+        </div>
+      </Modal>
 
       <Modal
         open={!!provisionResult}

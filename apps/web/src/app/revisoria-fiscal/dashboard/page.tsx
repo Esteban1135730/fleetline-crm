@@ -16,6 +16,7 @@ import {
   Modal,
   SlideOverHelp,
   StatusPulseBadge,
+  StoredAttachmentViewer,
 } from "@/components/audit";
 
 type PucNode = {
@@ -84,7 +85,16 @@ type Dash = {
 };
 
 type Drill = {
-  invoice: { number: string; amount: number; counterparty: string };
+  invoice: {
+    id: string;
+    number: string;
+    amount: number;
+    counterparty: string;
+    hasSupport?: boolean;
+    supportFileRef?: string | null;
+    supportOriginalName?: string | null;
+    supportMimeType?: string | null;
+  };
   thread: {
     budgetSignature: string | null;
     purchaseOrder: {
@@ -567,31 +577,47 @@ export default function RevisoriaFiscalDashboardPage() {
         }
       >
         {drill ? (
-          <ol className="list-decimal space-y-2 pl-5 text-sm text-[var(--brand-text-primary)]">
-            <li>
-              Firma presupuesto:{" "}
-              <span className="font-mono text-brand-warning">
-                {drill.thread.budgetSignature ?? "—"}
-              </span>
-            </li>
-            <li>
-              OC:{" "}
-              {drill.thread.purchaseOrder
-                ? `${drill.thread.purchaseOrder.code} · ${drill.thread.purchaseOrder.status} · ${drill.thread.purchaseOrder.approvedBy ?? "—"}`
-                : "Sin OC"}
-            </li>
-            <li>
-              Almacén:{" "}
-              {drill.thread.warehouseReceipts.map((g) => g.code).join(", ") ||
-                "Sin remisión"}
-            </li>
-            <li>
-              Egreso:{" "}
-              {drill.thread.egreso
-                .map((e) => `${statusEs(e.status)} ${money(e.amount)}`)
-                .join(" · ") || "Sin comprobante"}
-            </li>
-          </ol>
+          <div className="space-y-4">
+            <ol className="list-decimal space-y-2 pl-5 text-sm text-[var(--brand-text-primary)]">
+              <li>
+                Firma presupuesto:{" "}
+                <span className="font-mono text-brand-warning">
+                  {drill.thread.budgetSignature ?? "—"}
+                </span>
+              </li>
+              <li>
+                OC:{" "}
+                {drill.thread.purchaseOrder
+                  ? `${drill.thread.purchaseOrder.code} · ${drill.thread.purchaseOrder.status} · ${drill.thread.purchaseOrder.approvedBy ?? "—"}`
+                  : "Sin OC"}
+              </li>
+              <li>
+                Almacén:{" "}
+                {drill.thread.warehouseReceipts.map((g) => g.code).join(", ") ||
+                  "Sin remisión"}
+              </li>
+              <li>
+                Egreso:{" "}
+                {drill.thread.egreso
+                  .map((e) => `${statusEs(e.status)} ${money(e.amount)}`)
+                  .join(" · ") || "Sin egreso programado"}
+              </li>
+            </ol>
+            <StoredAttachmentViewer
+              title="Comprobante / soporte de factura"
+              emptyLabel="Sin comprobante adjunto en esta factura"
+              hasFile={Boolean(
+                drill.invoice.hasSupport || drill.invoice.supportFileRef,
+              )}
+              supportPath={
+                drill.invoice.hasSupport || drill.invoice.supportFileRef
+                  ? `/api/v1/revisoria-fiscal/invoices/${drill.invoice.id}/support`
+                  : null
+              }
+              fileName={drill.invoice.supportOriginalName}
+              mimeType={drill.invoice.supportMimeType}
+            />
+          </div>
         ) : null}
       </Modal>
 

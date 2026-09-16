@@ -17,6 +17,10 @@ import { statusEs } from "@fsg/shared";
 import { EmptyState, KpiCard, SlideOver } from "@/components/audit";
 import { BentoPanel } from "@/components/nexa/bento-panel";
 import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
+import {
+  WorkbenchSearch,
+  WorkbenchToolbar,
+} from "@/components/workbench-toolbar";
 
 type Account = { id: string; code: string; name: string; type?: string };
 
@@ -91,11 +95,16 @@ export default function ContabilidadPage() {
     name: "",
     type: "ASSET",
   });
+  const [pucQuery, setPucQuery] = useState("");
 
-  async function load() {
+  async function load(puc?: string) {
+    const pucParam = (puc ?? pucQuery).trim();
+    const journalPath = pucParam
+      ? `/accounting/journal?puc=${encodeURIComponent(pucParam)}`
+      : "/accounting/journal";
     const [b, e, a, p] = await Promise.all([
       api<AccountRow[]>("/accounting/trial-balance"),
-      api<Entry[]>("/accounting/journal"),
+      api<Entry[]>(journalPath),
       api<Account[]>("/accounting/accounts"),
       api<PeriodInfo>("/accounting/period").catch(() => null),
     ]);
@@ -106,8 +115,12 @@ export default function ContabilidadPage() {
   }
 
   useEffect(() => {
-    void load().catch(console.error);
-  }, []);
+    const t = window.setTimeout(() => {
+      void load(pucQuery).catch(console.error);
+    }, pucQuery ? 300 : 0);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pucQuery]);
 
   const macros = useMemo(() => {
     const net = (type: string, invert: boolean) =>
@@ -382,73 +395,101 @@ export default function ContabilidadPage() {
 
         <BentoPanel
           title="Asientos contables"
-          subtitle={`${entries.length} publicados`}
+          subtitle={
+            pucQuery.trim()
+              ? `${entries.length} coincidencia(s) PUC`
+              : `${entries.length} publicados`
+          }
           icon={<FileSpreadsheet aria-hidden />}
         >
-          {entries.length === 0 ? (
-            <EmptyState
-              icon={<FileSpreadsheet className="h-7 w-7" aria-hidden />}
-              title="Sin asientos publicados"
-              description="Abre el panel de partida doble para el primer asiento."
-              actionLabel="Nuevo asiento"
-              onAction={() => setEntryOpen(true)}
+          <WorkbenchToolbar>
+            <WorkbenchSearch
+              value={pucQuery}
+              onChange={setPucQuery}
+              placeholder="Filtrar por código o cuenta PUC…"
             />
-          ) : (
-            <NexaTable
-              columns={[
-                "Asiento",
-                "Descripción",
-                "Cuenta",
-                "Débito",
-                "Crédito",
-                "Estado",
-                "",
-              ]}
-            >
-              {journalRows.map((row, idx) => (
-                <NexaRow key={`${row.entryId}-${row.lineIdx}-${idx}`}>
-                  <NexaCell mono className="text-xs text-brand-primary">
-                    {row.lineIdx === 0 ? row.number : ""}
-                  </NexaCell>
-                  <NexaCell className="text-xs">
-                    {row.lineIdx === 0 ? row.description : ""}
-                  </NexaCell>
-                  <NexaCell mono className="text-xs">
-                    {row.accountCode}{" "}
-                    <span className="font-sans text-brand-text-secondary">
-                      {row.accountName}
-                    </span>
-                  </NexaCell>
-                  <NexaCell mono>
-                    {row.debit ? row.debit.toLocaleString("es-CO") : "—"}
-                  </NexaCell>
-                  <NexaCell mono>
-                    {row.credit ? row.credit.toLocaleString("es-CO") : "—"}
-                  </NexaCell>
-                  <NexaCell>
-                    {row.lineIdx === 0 ? (
-                      <Badge tone={row.status === "VOID" ? "danger" : "success"}>
-                        {statusEs(row.status)}
-                      </Badge>
-                    ) : null}
-                  </NexaCell>
-                  <NexaCell>
-                    {row.lineIdx === 0 &&
-                    row.status !== "VOID" &&
-                    !row.periodLocked ? (
-                      <Button
-                        variant="ghost"
-                        className="w-auto text-xs"
-                        onClick={() => void voidEntry(row.entryId, row.number)}
-                      >
-                        Anular
-                      </Button>
-                    ) : null}
-                  </NexaCell>
-                </NexaRow>
-              ))}
-            </NexaTable>
-          )}
+          </WorkbenchToolbar>
+          <div className="mt-3">
+            {entries.length === 0 ? (
+              <EmptyState
+                icon={<FileSpreadsheet className="h-7 w-7" aria-hidden />}
+                title={
+                  pucQuery.trim()
+                    ? "Sin asientos para ese PUC"
+                    : "Sin asientos publicados"
+                }
+                description={
+                  pucQuery.trim()
+                    ? "Prueba otro código o nombre de cuenta."
+                    : "Abre el panel de partida doble para el primer asiento."
+                }
+                actionLabel={pucQuery.trim() ? undefined : "Nuevo asiento"}
+                onAction={
+                  pucQuery.trim() ? undefined : () => setEntryOpen(true)
+                }
+              />
+            ) : (
+              <NexaTable columns={["Cuenta", "Referencia", "Debe", "Haber", ""]}>
+                {journalRows.map((row, idx) => (
+                  <NexaRow key={`${row.entryId}-${row.lineIdx}-${idx}`}>
+                    <NexaCell>
+                      <span className="font-data text-xs text-brand-primary">
+                        {row.accountCode}
+                      </span>{" "}
+                      <span className="text-xs text-brand-text-secondary">
+                        {row.accountName}
+                      </span>
+                    </NexaCell>
+                    <NexaCell className="text-xs">
+                      {row.lineIdx === 0 ? (
+                        <>
+                          <span className="font-data text-brand-primary">
+                            {row.number}
+                          </span>
+                          {row.description ? (
+                            <span className="mt-0.5 block text-brand-text-secondary">
+                              {row.description}
+                            </span>
+                          ) : null}
+                        </>
+                      ) : (
+                        <span className="font-data text-[10px] text-brand-text-secondary">
+                          {row.number}
+                        </span>
+                      )}
+                    </NexaCell>
+                    <NexaCell mono>
+                      {row.debit ? row.debit.toLocaleString("es-CO") : "—"}
+                    </NexaCell>
+                    <NexaCell mono>
+                      {row.credit ? row.credit.toLocaleString("es-CO") : "—"}
+                    </NexaCell>
+                    <NexaCell>
+                      {row.lineIdx === 0 &&
+                      row.status !== "VOID" &&
+                      !row.periodLocked ? (
+                        <Button
+                          variant="ghost"
+                          className="w-auto text-xs"
+                          onClick={() =>
+                            void voidEntry(row.entryId, row.number)
+                          }
+                        >
+                          Anular
+                        </Button>
+                      ) : row.lineIdx === 0 ? (
+                        <Badge
+                          tone={row.status === "VOID" ? "danger" : "success"}
+                        >
+                          {statusEs(row.status)}
+                        </Badge>
+                      ) : null}
+                    </NexaCell>
+                  </NexaRow>
+                ))}
+              </NexaTable>
+            )}
+          </div>
         </BentoPanel>
       </div>
 

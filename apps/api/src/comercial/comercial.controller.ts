@@ -10,6 +10,7 @@ import {
   CreateContractSchema,
   SecopOpportunitiesQuerySchema,
 } from "./dto/comercial.dto";
+import { pageMeta, parsePagination } from "../security/pagination";
 
 type AuthReq = { user: { organizationId: string; userId: string } };
 
@@ -35,8 +36,32 @@ export class ComercialController {
 
   @Get("contracts")
   @Permissions("contratos", "READ")
-  listContracts(@Req() req: AuthReq) {
-    return this.contracts.list(req.user.organizationId);
+  async listContracts(
+    @Req() req: AuthReq,
+    @Query() query: Record<string, string>,
+  ) {
+    const hasPaging = ["page", "limit", "skip", "take"].some(
+      (k) => query[k] != null && String(query[k]).trim() !== "",
+    );
+    const page = hasPaging
+      ? parsePagination(query, { defaultTake: 10, maxTake: 100 })
+      : null;
+    const { items, total, summary } = await this.contracts.list(
+      req.user.organizationId,
+      page,
+    );
+    return {
+      items,
+      meta: page
+        ? pageMeta(total, page)
+        : {
+            total,
+            page: 1,
+            take: total || 10,
+            pages: 1,
+          },
+      summary,
+    };
   }
 
   @Post("contracts")

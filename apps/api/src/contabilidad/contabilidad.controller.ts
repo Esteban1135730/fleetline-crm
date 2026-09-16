@@ -5,6 +5,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from "@nestjs/common";
@@ -40,14 +41,26 @@ export class ContabilidadController {
 
   @Get("journal-entries")
   @Permissions("contabilidad", "READ")
-  journalEntries(@Req() req: AuthReq) {
-    return this.ledger.listJournalEntries(req.user.organizationId);
+  journalEntries(
+    @Req() req: AuthReq,
+    @Query("puc") puc?: string,
+    @Query("q") q?: string,
+  ) {
+    return this.ledger.listJournalEntries(req.user.organizationId, {
+      puc: puc || q,
+    });
   }
 
   @Get("journal")
   @Permissions("contabilidad", "READ")
-  journalUi(@Req() req: AuthReq) {
-    return this.ledger.listJournalForUi(req.user.organizationId);
+  journalUi(
+    @Req() req: AuthReq,
+    @Query("puc") puc?: string,
+    @Query("q") q?: string,
+  ) {
+    return this.ledger.listJournalForUi(req.user.organizationId, {
+      puc: puc || q,
+    });
   }
 
   @Get("accounts")

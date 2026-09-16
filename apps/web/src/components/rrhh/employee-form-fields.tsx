@@ -88,17 +88,25 @@ function FieldLabel({
   children,
   className = "",
   hint,
+  error,
 }: {
   label: string;
   children: React.ReactNode;
   className?: string;
   hint?: string;
+  error?: string;
 }) {
   return (
     <label className={`form-field ${className}`.trim()}>
       <span className="form-field-label">{label}</span>
       {children}
-      {hint ? <span className="form-hint">{hint}</span> : null}
+      {error ? (
+        <span role="alert" className="mt-1 block text-xs text-[var(--brand-danger)]">
+          {error}
+        </span>
+      ) : hint ? (
+        <span className="form-hint">{hint}</span>
+      ) : null}
     </label>
   );
 }
@@ -113,6 +121,9 @@ type Props = {
   drivers?: DriverOpt[];
   legacyArea?: boolean;
   legacyTitle?: boolean;
+  formError?: string;
+  fieldErrors?: Record<string, string>;
+  onFieldEdit?: (key: keyof EmployeeFormValues) => void;
 };
 
 export function EmployeeFormFields({
@@ -123,8 +134,13 @@ export function EmployeeFormFields({
   drivers = [],
   legacyArea = false,
   legacyTitle = false,
+  formError = "",
+  fieldErrors = {},
+  onFieldEdit,
 }: Props) {
   function patch(partial: Partial<EmployeeFormValues>) {
+    const key = Object.keys(partial)[0] as keyof EmployeeFormValues | undefined;
+    if (key) onFieldEdit?.(key);
     onChange({ ...form, ...partial });
   }
 
@@ -133,7 +149,10 @@ export function EmployeeFormFields({
     const title = cargos.includes(form.title)
       ? form.title
       : (cargos[0] ?? form.title);
-    patch({
+    onFieldEdit?.("area");
+    onFieldEdit?.("title");
+    onChange({
+      ...form,
       area,
       title,
       role: roleForEmployeeCargo(title) as Role,
@@ -141,7 +160,9 @@ export function EmployeeFormFields({
   }
 
   function onCargoChange(title: string) {
-    patch({
+    onFieldEdit?.("title");
+    onChange({
+      ...form,
       title,
       role: roleForEmployeeCargo(title) as Role,
     });
@@ -149,67 +170,86 @@ export function EmployeeFormFields({
 
   return (
     <div className="grid max-w-full grid-cols-1 gap-x-3 gap-y-3.5 sm:grid-cols-2">
+      {formError ? (
+        <p
+          role="alert"
+          className="col-span-full rounded border border-[var(--brand-danger)]/40 bg-[var(--brand-danger)]/10 px-3 py-2 text-sm text-[var(--brand-danger)]"
+        >
+          {formError}
+        </p>
+      ) : null}
       <SectionTitle>Identidad</SectionTitle>
-      <FieldLabel label="Nombre completo" className="sm:col-span-2">
+      <FieldLabel
+        label="Nombre completo"
+        className="sm:col-span-2"
+        error={fieldErrors.name}
+      >
         <input
-          className="field w-full min-w-0"
+          className={`field w-full min-w-0 ${fieldErrors.name ? "border-[var(--brand-danger)]" : ""}`}
           value={form.name}
           onChange={(e) => patch({ name: e.target.value })}
           required
           autoComplete="name"
           data-field="personName"
+          aria-invalid={Boolean(fieldErrors.name) || undefined}
         />
       </FieldLabel>
-      <FieldLabel label="Documento">
+      <FieldLabel label="Documento" error={fieldErrors.document}>
         <input
-          className="field font-data"
+          className={`field font-data ${fieldErrors.document ? "border-[var(--brand-danger)]" : ""}`}
           value={form.document}
           onChange={(e) => patch({ document: e.target.value })}
           required={mode === "create"}
           readOnly={mode === "edit" && !canManageIdentity}
           inputMode="numeric"
           data-field="document"
+          aria-invalid={Boolean(fieldErrors.document) || undefined}
         />
       </FieldLabel>
-      <FieldLabel label="Correo (login)">
+      <FieldLabel label="Correo (login)" error={fieldErrors.email}>
         <input
-          className="field"
+          className={`field ${fieldErrors.email ? "border-[var(--brand-danger)]" : ""}`}
           type="email"
           value={form.email}
           onChange={(e) => patch({ email: e.target.value })}
           required={mode === "create"}
           autoComplete="email"
+          aria-invalid={Boolean(fieldErrors.email) || undefined}
         />
       </FieldLabel>
-      <FieldLabel label="Teléfono">
+      <FieldLabel label="Teléfono" error={fieldErrors.phone}>
         <input
-          className="field"
+          className={`field ${fieldErrors.phone ? "border-[var(--brand-danger)]" : ""}`}
           value={form.phone}
           onChange={(e) => patch({ phone: e.target.value })}
           autoComplete="tel"
+          aria-invalid={Boolean(fieldErrors.phone) || undefined}
         />
       </FieldLabel>
-      <FieldLabel label="Dirección">
+      <FieldLabel label="Dirección" error={fieldErrors.address}>
         <input
-          className="field"
+          className={`field ${fieldErrors.address ? "border-[var(--brand-danger)]" : ""}`}
           value={form.address}
           onChange={(e) => patch({ address: e.target.value })}
+          aria-invalid={Boolean(fieldErrors.address) || undefined}
         />
       </FieldLabel>
-      <FieldLabel label="Ciudad">
+      <FieldLabel label="Ciudad" error={fieldErrors.city}>
         <input
-          className="field"
+          className={`field ${fieldErrors.city ? "border-[var(--brand-danger)]" : ""}`}
           value={form.city}
           onChange={(e) => patch({ city: e.target.value })}
+          aria-invalid={Boolean(fieldErrors.city) || undefined}
         />
       </FieldLabel>
 
       <SectionTitle>Vinculación laboral</SectionTitle>
-      <FieldLabel label="Área">
+      <FieldLabel label="Área" error={fieldErrors.area}>
         <select
-          className="field"
+          className={`field ${fieldErrors.area ? "border-[var(--brand-danger)]" : ""}`}
           value={form.area}
           onChange={(e) => onAreaChange(e.target.value)}
+          aria-invalid={Boolean(fieldErrors.area) || undefined}
         >
           {legacyArea && form.area ? (
             <option value={form.area}>{form.area} (legado)</option>
@@ -221,11 +261,14 @@ export function EmployeeFormFields({
           ))}
         </select>
       </FieldLabel>
-      <FieldLabel label="Cargo">
+      <FieldLabel label="Cargo" error={fieldErrors.title || fieldErrors.position}>
         <select
-          className="field"
+          className={`field ${fieldErrors.title || fieldErrors.position ? "border-[var(--brand-danger)]" : ""}`}
           value={form.title}
           onChange={(e) => onCargoChange(e.target.value)}
+          aria-invalid={
+            Boolean(fieldErrors.title || fieldErrors.position) || undefined
+          }
         >
           {legacyTitle && form.title ? (
             <option value={form.title}>{form.title} (legado)</option>

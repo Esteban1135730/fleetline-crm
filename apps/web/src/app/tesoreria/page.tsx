@@ -22,6 +22,7 @@ import {
   KpiCard,
   SlideOver,
   StatusPulseBadge,
+  StoredAttachmentViewer,
 } from "@/components/audit";
 import { BentoPanel } from "@/components/nexa/bento-panel";
 import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
@@ -59,6 +60,9 @@ type Invoice = {
   paymentApprovedBy?: { name: string } | null;
   customer?: { name: string } | null;
   trip?: { code: string } | null;
+  supportFileRef?: string | null;
+  supportOriginalName?: string | null;
+  supportMimeType?: string | null;
 };
 
 type Customer = { id: string; name: string };
@@ -124,8 +128,12 @@ export default function FinanzasPage() {
   const [payBusy, setPayBusy] = useState(false);
   const [payError, setPayError] = useState("");
   const [payPin, setPayPin] = useState("");
-  const [payEvidence, setPayEvidence] = useState("");
+  const [payReceivedBy, setPayReceivedBy] = useState("");
+  const [payConfirmCollection, setPayConfirmCollection] = useState(false);
   const [registrarEvidence, setRegistrarEvidence] = useState<File[]>([]);
+  const [payEvidence, setPayEvidence] = useState<File[]>([]);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailInvoice, setDetailInvoice] = useState<Invoice | null>(null);
   const [form, setForm] = useState({
     type: "RECEIVABLE" as "RECEIVABLE" | "PAYABLE",
     amount: "",
@@ -231,7 +239,7 @@ export default function FinanzasPage() {
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
-    await api("/finance/invoices", {
+    const created = await api<Invoice>("/finance/invoices", {
       method: "POST",
       body: JSON.stringify({
         type: form.type,
@@ -244,6 +252,14 @@ export default function FinanzasPage() {
         description: form.description || undefined,
       }),
     });
+    if (registrarEvidence[0] && created?.id) {
+      const fd = new FormData();
+      fd.append("file", registrarEvidence[0]);
+      await api(`/finance/invoices/${created.id}/support`, {
+        method: "POST",
+        body: fd,
+      });
+    }
     setForm({
       type: form.type,
       amount: "",
@@ -261,9 +277,16 @@ export default function FinanzasPage() {
     setPayTarget(inv);
     setPayBank(BANK_ACCOUNTS[0].id);
     setPayPin("");
-    setPayEvidence("");
+    setPayReceivedBy("");
+    setPayConfirmCollection(false);
+    setPayEvidence([]);
     setPayError("");
     setPayOpen(true);
+  }
+
+  function openDetail(inv: Invoice) {
+    setDetailInvoice(inv);
+    setDetailOpen(true);
   }
 
   async function confirmPay() {
@@ -273,16 +296,35 @@ export default function FinanzasPage() {
       setPayError("PIN de seguridad de 6 dígitos requerido para aprobar/pagar");
       return;
     }
-    if (needsPin && !payEvidence.trim()) {
+    if (
+      needsPin &&
+      !payEvidence[0] &&
+      !payTarget.supportFileRef
+    ) {
       setPayError("Comprobante obligatorio: adjunte archivo de evidencia");
       return;
+    }
+    if (payTarget.type === "RECEIVABLE") {
+      if (payReceivedBy.trim().length < 2) {
+        setPayError("Indique quién recibió el dinero");
+        return;
+      }
+      if (!payConfirmCollection) {
+        setPayError("Marque la casilla para confirmar el cobro");
+        return;
+      }
     }
     setPayBusy(true);
     setPayError("");
     try {
-      const pinBody = needsPin
-        ? { pin: payPin.trim(), evidenceRef: payEvidence.trim() }
-        : {};
+      if (payEvidence[0]) {
+        const fd = new FormData();
+        fd.append("file", payEvidence[0]);
+        await api(`/finance/invoices/${payTarget.id}/support`, {
+          method: "POST",
+          body: fd,
+        });
+      }
       if (payTarget.type === "PAYABLE" && !payTarget.paymentApprovedAt) {
         await api(`/finance/invoices/${payTarget.id}/approve-payment`, {
           method: "PATCH",
@@ -291,12 +333,23 @@ export default function FinanzasPage() {
       }
       await api(`/finance/invoices/${payTarget.id}/pay`, {
         method: "PATCH",
-        body: JSON.stringify({ bankRef: payBank, ...pinBody }),
+        body: JSON.stringify({
+          bankRef: payBank,
+          ...(needsPin ? { pin: payPin.trim() } : {}),
+          ...(payTarget.type === "RECEIVABLE"
+            ? {
+                receivedByName: payReceivedBy.trim(),
+                confirmCollection: true,
+              }
+            : {}),
+        }),
       });
       setPayOpen(false);
       setPayTarget(null);
       setPayPin("");
-      setPayEvidence("");
+      setPayReceivedBy("");
+      setPayConfirmCollection(false);
+      setPayEvidence([]);
       await load();
     } catch (err) {
       setPayError(
@@ -535,31 +588,40 @@ export default function FinanzasPage() {
                       ) : null}
                     </NexaCell>
                     <NexaCell>
-                      {inv.status !== "PAID" && inv.status !== "CANCELLED" ? (
-                        <div className="flex flex-wrap justify-end gap-1">
-                          <Button
-                            variant="primary"
-                            className="w-auto"
-                            onClick={() => openPayPanel(inv)}
-                          >
-                            {inv.type === "PAYABLE"
-                              ? "Aprobar y pagar"
-                              : "Registrar cobro"}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            className="w-auto"
-                            onClick={async () => {
-                              await api(`/finance/invoices/${inv.id}/cancel`, {
-                                method: "PATCH",
-                              });
-                              await load();
-                            }}
-                          >
-                            Anular
-                          </Button>
-                        </div>
-                      ) : null}
+                      <div className="flex flex-wrap justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          className="w-auto"
+                          onClick={() => openDetail(inv)}
+                        >
+                          Ver detalle
+                        </Button>
+                        {inv.status !== "PAID" && inv.status !== "CANCELLED" ? (
+                          <>
+                            <Button
+                              variant="primary"
+                              className="w-auto"
+                              onClick={() => openPayPanel(inv)}
+                            >
+                              {inv.type === "PAYABLE"
+                                ? "Aprobar y pagar"
+                                : "Registrar cobro"}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              className="w-auto"
+                              onClick={async () => {
+                                await api(`/finance/invoices/${inv.id}/cancel`, {
+                                  method: "PATCH",
+                                });
+                                await load();
+                              }}
+                            >
+                              Anular
+                            </Button>
+                          </>
+                        ) : null}
+                      </div>
                     </NexaCell>
                   </NexaRow>
                 );
@@ -765,16 +827,65 @@ export default function FinanzasPage() {
                 />
               </label>
             ) : null}
-            <EvidenceDropzone
-              acceptLabel="Comprobante de transferencia (PDF/imagen) — obligatorio en CxP"
-              onFiles={(files) => {
-                const f = files[0];
-                setPayEvidence(f ? `local://${f.name}` : "");
-              }}
+            {payTarget.type === "RECEIVABLE" ? (
+              <>
+                <label className="flex flex-col gap-1 font-data text-[10px] uppercase tracking-wider text-brand-text-secondary">
+                  Quién recibió el dinero
+                  <input
+                    className="field"
+                    placeholder="Nombre de quien recibió el cobro"
+                    value={payReceivedBy}
+                    onChange={(e) => {
+                      setPayReceivedBy(e.target.value);
+                      setPayError("");
+                    }}
+                    required
+                    autoComplete="name"
+                  />
+                </label>
+                <label className="flex items-start gap-2 rounded-lg border border-brand-border bg-brand-surface px-3 py-2 text-sm text-brand-text-primary">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={payConfirmCollection}
+                    onChange={(e) => {
+                      setPayConfirmCollection(e.target.checked);
+                      setPayError("");
+                    }}
+                  />
+                  <span>
+                    Confirmo que el cobro de{" "}
+                    <strong className="font-data tabular-nums">
+                      {formatCop(Number(payTarget.amount))}
+                    </strong>{" "}
+                    fue recibido y queda registrado.
+                  </span>
+                </label>
+              </>
+            ) : null}
+            <StoredAttachmentViewer
+              title="Comprobante actual"
+              emptyLabel="Sin comprobante adjunto aún"
+              hasFile={Boolean(payTarget.supportFileRef)}
+              supportPath={
+                payTarget.supportFileRef
+                  ? `/finance/invoices/${payTarget.id}/support`
+                  : null
+              }
+              fileName={payTarget.supportOriginalName}
+              mimeType={payTarget.supportMimeType}
             />
-            {payTarget.type === "PAYABLE" && payEvidence ? (
-              <p className="font-data text-[11px] text-brand-primary">
-                Evidencia: {payEvidence.replace("local://", "")}
+            <EvidenceDropzone
+              acceptLabel={
+                payTarget.type === "PAYABLE"
+                  ? "Comprobante de transferencia (PDF/imagen) — obligatorio en CxP"
+                  : "Comprobante de transferencia (PDF/imagen)"
+              }
+              onFiles={setPayEvidence}
+            />
+            {payEvidence.length > 0 ? (
+              <p className="font-data text-xs text-brand-text-secondary">
+                {payEvidence.length} archivo(s) se adjuntarán al confirmar
               </p>
             ) : null}
             {payError ? (
@@ -784,8 +895,52 @@ export default function FinanzasPage() {
             ) : null}
             <p className="text-xs text-brand-text-secondary">
               Al confirmar se registra pago, se actualiza saldo 1110 y se
-              contabiliza en Libro Mayor.
+              contabiliza en Libro Mayor. No se puede confirmar dos veces el
+              mismo cobro.
             </p>
+          </div>
+        ) : null}
+      </SlideOver>
+
+      <SlideOver
+        open={detailOpen}
+        onClose={() => {
+          setDetailOpen(false);
+          setDetailInvoice(null);
+        }}
+        title={detailInvoice ? detailInvoice.number : "Detalle"}
+        description="Pago / compra · comprobante asociado"
+        widthClass="max-w-md"
+      >
+        {detailInvoice ? (
+          <div className="space-y-4">
+            <div>
+              <p className="font-data text-xs text-brand-primary">
+                {detailInvoice.type === "PAYABLE" ? "CxP" : "CxC"} ·{" "}
+                {statusEs(detailInvoice.status)}
+              </p>
+              <p className="mt-1 font-data text-2xl font-bold tabular-nums">
+                {formatCop(Number(detailInvoice.amount))}
+              </p>
+              <p className="mt-1 text-sm text-brand-text-secondary">
+                {detailInvoice.customer?.name ||
+                  detailInvoice.supplierName ||
+                  detailInvoice.description ||
+                  "—"}
+              </p>
+            </div>
+            <StoredAttachmentViewer
+              title="Comprobante"
+              emptyLabel="Sin comprobante adjunto"
+              hasFile={Boolean(detailInvoice.supportFileRef)}
+              supportPath={
+                detailInvoice.supportFileRef
+                  ? `/finance/invoices/${detailInvoice.id}/support`
+                  : null
+              }
+              fileName={detailInvoice.supportOriginalName}
+              mimeType={detailInvoice.supportMimeType}
+            />
           </div>
         ) : null}
       </SlideOver>

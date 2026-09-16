@@ -9,6 +9,7 @@ import {
   EvidenceDropzone,
   KpiCard,
   SlideOver,
+  SlideOverHelp,
   StatusPulseBadge,
 } from "@/components/audit";
 import { BentoPanel } from "@/components/nexa/bento-panel";
@@ -217,19 +218,37 @@ export default function SarlaftPage() {
           <h1 className="font-sans text-2xl font-semibold tracking-tight text-brand-text-primary md:text-3xl">
             AML / KYC Defense Grid
           </h1>
+          <p className="mt-1 max-w-2xl text-sm text-brand-text-secondary">
+            Debida diligencia de contrapartes: registra consultas, evidencia y
+            riesgo. Un resultado alto/bloqueado o una alerta abierta puede
+            impedir altas en Comercial y pagos en Tesorería/Compras hasta
+            resolución del Oficial de Cumplimiento.
+          </p>
         </div>
-        <Button
-          type="button"
-          variant="primary"
-          className="w-auto px-4 py-2"
-          onClick={() => {
-            setFormError("");
-            setFormOpen(true);
-          }}
-        >
-          <Plus className="mr-1.5 inline h-4 w-4" aria-hidden />
-          Nueva consulta
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <SlideOverHelp
+            title="Qué es SARLAFT en NEXA"
+            summary="Prevención de lavado de activos y financiamiento del terrorismo aplicada a clientes, proveedores y operaciones."
+            steps={[
+              "Finalidad: conocer al sujeto (KYC), cruzar listas restrictivas y dejar trazabilidad auditada de la debida diligencia.",
+              "En esta pantalla: crear consultas, ajustar el nivel de riesgo, abrir el expediente y adjuntar evidencias (Policía, Procuraduría, Registraduría, antecedentes, OFAC/ONU/PEPS).",
+              "Impacto: alertas abiertas y sujetos bloqueados pueden frenar alta de cliente (Comercial) y desembolsos/CxP (Tesorería/Compras). Logística y otras áreas también respetan el bloqueo cuando aplica.",
+              "Override: solo roles privilegiados pueden forzar operaciones pese a SARLAFT; queda registro de auditoría.",
+            ]}
+          />
+          <Button
+            type="button"
+            variant="primary"
+            className="w-auto px-4 py-2"
+            onClick={() => {
+              setFormError("");
+              setFormOpen(true);
+            }}
+          >
+            <Plus className="mr-1.5 inline h-4 w-4" aria-hidden />
+            Nueva consulta
+          </Button>
+        </div>
       </header>
 
       {alerts.length > 0 ? (
@@ -274,7 +293,7 @@ export default function SarlaftPage() {
         <EmptyState
           icon={<ShieldAlert className="h-7 w-7" />}
           title="Sin consultas SARLAFT"
-          description="Registre la primera debida diligencia del periodo."
+          description="Registre la primera debida diligencia: nombre, documento y riesgo. El resultado puede bloquear altas comerciales o pagos si el sujeto queda en alto riesgo o bloqueado."
           actionLabel="+ Nueva consulta"
           onAction={() => setFormOpen(true)}
         />
