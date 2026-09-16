@@ -12,6 +12,7 @@ import {
 import { PrismaService } from "../prisma/prisma.service";
 import { evaluateContractGate } from "./contract.calc";
 import type { CreateContractDto } from "./dto/comercial.dto";
+import type { PageParams } from "../security/pagination";
 
 export const CONTRACT_DISPATCH_DENIED = "CONTRACT_QUOTA_OR_VALIDITY_BLOCKED";
 
@@ -19,15 +20,36 @@ export const CONTRACT_DISPATCH_DENIED = "CONTRACT_QUOTA_OR_VALIDITY_BLOCKED";
 export class CommercialContractService {
   constructor(private prisma: PrismaService) {}
 
-  list(organizationId: string) {
-    return this.prisma.transportContract.findMany({
-      where: { organizationId },
-      include: {
-        customer: { select: { id: true, name: true, nit: true, segment: true } },
-        _count: { select: { trips: true } },
+  async list(organizationId: string, page?: PageParams | null) {
+    const where = { organizationId };
+    const include = {
+      customer: { select: { id: true, name: true, nit: true, segment: true } },
+      _count: { select: { trips: true } },
+    } as const;
+
+    const [items, total, activeAgg] = await Promise.all([
+      this.prisma.transportContract.findMany({
+        where,
+        include,
+        orderBy: { startsAt: "desc" },
+        ...(page ? { skip: page.skip, take: page.take } : {}),
+      }),
+      this.prisma.transportContract.count({ where }),
+      this.prisma.transportContract.aggregate({
+        where: { organizationId, status: ContractStatus.ACTIVE },
+        _count: { _all: true },
+        _sum: { monthlyValue: true },
+      }),
+    ]);
+
+    return {
+      items,
+      total,
+      summary: {
+        activeCount: activeAgg._count._all,
+        mrr: Number(activeAgg._sum.monthlyValue ?? 0),
       },
-      orderBy: { startsAt: "desc" },
-    });
+    };
   }
 
   async create(organizationId: string, dto: CreateContractDto) {

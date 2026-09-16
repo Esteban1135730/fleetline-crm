@@ -400,8 +400,12 @@ export default function RecepcionDashboardPage() {
             Recepción
           </p>
           <h1 className="font-sans text-2xl font-semibold tracking-tight text-brand-text-primary md:text-3xl">
-            Atención omnicanal
+            Recepción · visitantes y mensajes
           </h1>
+          <p className="mt-1 max-w-xl text-sm text-brand-text-secondary">
+            Registro de visitas, mensajes entrantes (WhatsApp, correo, llamadas)
+            y pase a Comercial o QHSE.
+          </p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
           <Button
@@ -428,7 +432,7 @@ export default function RecepcionDashboardPage() {
               setPanel("lead");
             }}
           >
-            + Nuevo prospecto
+            + Cliente potencial
           </Button>
           <Button
             type="button"
@@ -466,34 +470,42 @@ export default function RecepcionDashboardPage() {
         </p>
       ) : null}
 
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard
           label="Visitas hoy"
           value={metrics?.visitors ?? "—"}
           tone="ok"
-          icon={<Users />}
-          delta={waiting > 0 ? `${waiting} en espera` : "Destino: tablero de visitantes"}
+          icon={<Users className="h-5 w-5" aria-hidden />}
+          delta={
+            waiting > 0
+              ? `${waiting} en espera en sala`
+              : "Visitantes del día"
+          }
+          tip="Cuántas personas se registraron hoy en recepción."
         />
         <KpiCard
-          label="Prospectos convertidos"
+          label="Clientes potenciales enviados"
           value={metrics?.leadsConverted ?? "—"}
           tone="warn"
-          icon={<UserPlus />}
-          delta="Destino: Comercial"
+          icon={<UserPlus className="h-5 w-5" aria-hidden />}
+          delta="Pase a Comercial"
+          tip="Leads enviados a Comercial desde recepción o bandeja."
         />
         <KpiCard
           label="PQRS rápidas"
           value={metrics?.pqrsQuick ?? "—"}
           tone="danger"
-          icon={<AlertTriangle />}
-          delta="Destino: QHSE"
+          icon={<AlertTriangle className="h-5 w-5" aria-hidden />}
+          delta="Tickets enviados a QHSE"
+          tip="Quejas o reclamos enviados a Calidad / QHSE."
         />
         <KpiCard
-          label="DEFCON 1 (bandeja)"
+          label="Urgencias en bandeja"
           value={defconCount}
           tone={defconCount > 0 ? "danger" : "ok"}
-          icon={<AlertTriangle />}
-          delta="accidente · abogado · peligro"
+          icon={<AlertTriangle className="h-5 w-5" aria-hidden />}
+          delta="Accidente, abogado, peligro…"
+          tip="Mensajes con temas críticos en la bandeja."
         />
       </section>
 
@@ -502,16 +514,22 @@ export default function RecepcionDashboardPage() {
           id="omnicanal"
           className="nexa-panel xl:col-span-4 flex max-h-[78vh] flex-col overflow-hidden"
         >
-          <div className="flex items-center gap-2 border-b border-[var(--brand-border)] px-4 py-3 font-display text-sm font-semibold">
-            <MessageSquare className="h-4 w-4 text-brand-text-secondary" aria-hidden />
-            Bandeja omnicanal
+          <div className="border-b border-[var(--brand-border)] px-4 py-3">
+            <div className="flex items-center gap-2 font-display text-sm font-semibold">
+              <MessageSquare className="h-4 w-4 text-brand-text-secondary" aria-hidden />
+              Bandeja de mensajes
+            </div>
+            <p className="mt-1 text-xs leading-relaxed text-brand-text-secondary">
+              Aquí llegan WhatsApp, correo y llamadas. Seleccione un mensaje
+              para leerlo y enviarlo a Comercial cuando pida cotización.
+            </p>
           </div>
           {inbox.length === 0 ? (
             <div className="p-4">
               <EmptyState
                 icon={<MessageSquare className="h-7 w-7" />}
-                title="Sin chats entrantes"
-                description="La cola omnicanal está vacía. Los mensajes aparecerán aquí."
+                title="Sin mensajes pendientes"
+                description="Cuando llegue un WhatsApp, correo o llamada a recepción, aparecerá aquí para que lo revise y actúe."
               />
             </div>
           ) : (
@@ -562,11 +580,26 @@ export default function RecepcionDashboardPage() {
             </ul>
           )}
           {selectedChat ? (
-            <div className="border-t border-[var(--brand-border)] p-3">
-              <p className="mb-2 line-clamp-3 text-xs text-[var(--brand-text-secondary)]">
+            <div className="space-y-2 border-t border-[var(--brand-border)] p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-brand-text-secondary">
+                Mensaje seleccionado
+              </p>
+              <p className="line-clamp-4 text-xs text-[var(--brand-text-secondary)]">
                 {selectedChat.message}
               </p>
-              <div className="flex justify-end">
+              <p className="text-[11px] text-brand-text-secondary">
+                Acciones en recepción: enviar a Comercial (asigna al gestor y
+                saca el caso de esta bandeja). La respuesta detallada del chat
+                se hace en Atención al cliente.
+              </p>
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button
+                  variant="ghost"
+                  className="w-auto border border-brand-border px-3 py-1.5 text-xs"
+                  onClick={() => setSelectedChat(null)}
+                >
+                  Cerrar vista
+                </Button>
                 <Button
                   variant="ghost"
                   className="w-auto border border-brand-warning/50 px-4 py-2 text-brand-warning hover:bg-brand-warning/10"
@@ -576,9 +609,13 @@ export default function RecepcionDashboardPage() {
                     setPanel("lead");
                   }}
                 >
-                  Convertir a Lead
+                  Enviar a Comercial
                 </Button>
               </div>
+            </div>
+          ) : inbox.length > 0 ? (
+            <div className="border-t border-[var(--brand-border)] px-3 py-2 text-xs text-brand-text-secondary">
+              Seleccione un mensaje para leerlo y enviarlo a Comercial si aplica.
             </div>
           ) : null}
         </section>
@@ -661,7 +698,7 @@ export default function RecepcionDashboardPage() {
                               : "active"
                         }
                       >
-                        {v.boardStatus}
+                        {statusEs(v.boardStatus)}
                       </StatusPulseBadge>
                     </NexaCell>
                     <NexaCell mono>{v.badgeRfid || "—"}</NexaCell>
@@ -790,9 +827,12 @@ export default function RecepcionDashboardPage() {
             <FieldHint message={visitFieldErrors.company} />
           </div>
           <div>
+            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-brand-text-secondary">
+              Anfitrión <span className="text-brand-danger">*</span>
+            </label>
             <input
               className={`field h-11 min-h-[44px] ${visitFieldErrors.hostName ? "border-[var(--brand-danger)]" : ""}`}
-              placeholder="Anfitrión"
+              placeholder="Nombre de quien recibe al visitante"
               value={visitForm.hostName}
               onChange={(e) => {
                 setVisitFieldErrors((prev) => clearFieldError(prev, "hostName"));
@@ -800,7 +840,13 @@ export default function RecepcionDashboardPage() {
               }}
               required
               aria-invalid={Boolean(visitFieldErrors.hostName) || undefined}
+              title="Persona de la empresa a la que viene a ver el visitante"
             />
+            <p className="mt-1 text-xs leading-relaxed text-brand-text-secondary">
+              Es la persona de la empresa que recibe al visitante (por ejemplo,
+              el contacto de Comercial o RRHH). Es obligatorio para saber a quién
+              avisar y registrar la visita correctamente.
+            </p>
             <FieldHint message={visitFieldErrors.hostName} />
           </div>
           <select
@@ -837,11 +883,11 @@ export default function RecepcionDashboardPage() {
       <SlideOver
         open={panel === "lead"}
         onClose={() => setPanel("none")}
-        title="Nuevo prospecto"
+        title="Cliente potencial"
         description={
           selectedChat
-            ? `Chat ${selectedChat.code} · pase a Comercial`
-            : "Prospecto presencial (llegada directa). Llega a Comercial como cotización en borrador."
+            ? `Mensaje ${selectedChat.code} · se enviará a Comercial como cotización en borrador`
+            : "Persona o empresa que llegó interesada en un servicio. Comercial recibe una cotización en borrador."
         }
         footer={
           <>
@@ -866,6 +912,11 @@ export default function RecepcionDashboardPage() {
       >
         <form id="lead-form" onSubmit={submitLead} className="space-y-3">
           {leadFormError ? <FormAlert message={leadFormError} /> : null}
+          <p className="rounded-lg border border-brand-border bg-brand-surface px-3 py-2 text-xs leading-relaxed text-brand-text-secondary">
+            <strong className="text-brand-text-primary">Cliente potencial:</strong>{" "}
+            alguien que aún no es cliente, pero pide cotización o información de
+            servicio. Al guardar, Comercial lo ve en su embudo.
+          </p>
           <div>
             <input
               className={`field h-11 min-h-[44px] ${leadFieldErrors.companyName ? "border-[var(--brand-danger)]" : ""}`}
@@ -927,7 +978,7 @@ export default function RecepcionDashboardPage() {
         title="Nueva PQRS"
         description={
           pqrsDefcon
-            ? "DEFCON 1 — lenguaje crítico detectado. Escala inmediata a QHSE."
+            ? "Urgencia — se detectó lenguaje crítico. Escala de inmediato a QHSE."
             : "Radicación rápida hacia Torre de Control / QHSE."
         }
         footer={
@@ -1003,7 +1054,8 @@ export default function RecepcionDashboardPage() {
               role="alert"
               className="rounded-md border border-[var(--brand-danger)]/40 bg-[color-mix(in_srgb,var(--brand-danger)_12%,transparent)] px-3 py-2 text-xs font-medium text-[var(--brand-danger)]"
             >
-              DEFCON 1 — keywords críticas. Priorizar escalamiento a QHSE.
+              Urgencia detectada (accidente, abogado, peligro…). Priorice el
+              escalamiento a QHSE.
             </p>
           ) : null}
         </form>

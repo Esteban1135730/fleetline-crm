@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { normalizeCrisisZones } from "@fsg/shared";
 
 export const JarvisVoiceQuerySchema = z.object({
   utterance: z.string().min(3),
@@ -19,7 +20,13 @@ export type CapexSimularDto = z.infer<typeof CapexSimularSchema>;
 
 export const DefconActivarSchema = z.object({
   defconLevel: z.coerce.number().int().min(1).max(5).optional().default(2),
-  conflictZones: z.array(z.string().min(1)).min(1),
+  conflictZones: z
+    .array(z.string().min(1))
+    .min(1, "Seleccione al menos una zona de crisis")
+    .transform((zones) => normalizeCrisisZones(zones))
+    .refine((zones) => zones.length >= 1, {
+      message: "Seleccione zonas válidas del catálogo de crisis",
+    }),
   notes: z.string().optional(),
   notifyDrivers: z.boolean().optional().default(true),
   notifyCustomers: z.boolean().optional().default(true),

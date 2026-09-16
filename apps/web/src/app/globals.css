@@ -2271,10 +2271,13 @@ html.light .flt-command-panel {
   max-width: 100%;
 }
 
+/* Ancho completo en grids (KPI): evita huecos por inline-flex */
 .flt-tip.w-full,
+.flt-tip.\!block,
 .flt-dept .flt-tip {
-  display: flex;
+  display: block;
   width: 100%;
+  max-width: none;
 }
 
 .flt-tip::after {

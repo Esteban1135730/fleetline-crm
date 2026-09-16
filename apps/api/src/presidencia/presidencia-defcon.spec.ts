@@ -39,7 +39,7 @@ describe("planDefconCascade — notificación en cascada", () => {
   it("omite audiencias cuando notify* es false", () => {
     const plan = planDefconCascade({
       defconLevel: 2,
-      conflictZones: ["Zona A"],
+      conflictZones: ["Kennedy"],
       driversInZones: 5,
       customersActive: 10,
       parentsActive: 3,

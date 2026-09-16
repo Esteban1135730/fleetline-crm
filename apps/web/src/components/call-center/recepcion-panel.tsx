@@ -167,9 +167,12 @@ export default function RecepcionPanel() {
           ) : null}
         </div>
         <div>
+          <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--brand-text-secondary)]">
+            Anfitrión <span className="text-[var(--brand-danger)]">*</span>
+          </label>
           <input
             className={`field ${fieldErrors.hostName ? "border-[var(--brand-danger)]" : ""}`}
-            placeholder="Anfitrión"
+            placeholder="Nombre de quien recibe al visitante"
             value={form.hostName}
             onChange={(e) => {
               setFieldErrors((prev) => clearFieldError(prev, "hostName"));
@@ -177,7 +180,12 @@ export default function RecepcionPanel() {
             }}
             required
             aria-invalid={Boolean(fieldErrors.hostName) || undefined}
+            title="Persona de la empresa a la que viene a ver el visitante"
           />
+          <p className="mt-1 text-xs leading-relaxed text-[var(--brand-text-secondary)]">
+            Persona de la empresa que recibe al visitante. Obligatorio para
+            avisar al contacto correcto y dejar registro de la visita.
+          </p>
           {fieldErrors.hostName ? (
             <p className="mt-1 text-xs text-[var(--brand-danger)]">
               {fieldErrors.hostName}
@@ -280,7 +288,8 @@ export default function RecepcionPanel() {
                       />
                       <input
                         className="field py-1 text-xs"
-                        placeholder="Anfitrión"
+                        placeholder="Anfitrión (quién recibe)"
+                        title="Persona de la empresa que recibe al visitante"
                         value={editForm.hostName}
                         onChange={(e) =>
                           setEditForm({ ...editForm, hostName: e.target.value })

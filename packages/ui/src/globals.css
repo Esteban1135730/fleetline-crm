@@ -302,6 +302,14 @@ html.light .flt-kpi {
   vertical-align: middle;
 }
 
+/* KPI / bloques a ancho completo: el tip no debe quedar inline-flex */
+.flt-tip.block,
+.flt-tip.\!block {
+  display: block;
+  width: 100%;
+  max-width: none;
+}
+
 .flt-tip::after {
   content: attr(data-tip);
   position: absolute;

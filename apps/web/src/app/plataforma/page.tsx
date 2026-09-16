@@ -10,7 +10,7 @@ import {
   UserX,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { statusEs } from "@fsg/shared";
+import { ROLE_LABELS, statusEs, type Role } from "@fsg/shared";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
 import { SlideOver, StatusPulseBadge } from "@/components/audit";
@@ -165,7 +165,7 @@ export default function PlataformaPage() {
         method: "PATCH",
         body: JSON.stringify(body),
       });
-      setOk("Tenant actualizado");
+      setOk("Empresa actualizada");
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error");
@@ -186,6 +186,10 @@ export default function PlataformaPage() {
     }
   }
 
+  function roleLabel(role: string) {
+    return ROLE_LABELS[role as Role] || statusEs(role) || role;
+  }
+
   if (loading || user?.role !== "platform_master") {
     return (
       <div className="p-8 text-sm text-brand-text-secondary">
@@ -199,10 +203,10 @@ export default function PlataformaPage() {
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-sans text-lg font-semibold tracking-tight text-brand-text-primary">
-            Usuario maestro · multiempresa
+            Usuario Maestro · multiempresa
           </h1>
           <p className="mt-0.5 font-data text-[10px] uppercase tracking-[0.12em] text-brand-text-secondary">
-            Config · tenants · licencias
+            Configuración · empresas · licencias
           </p>
         </div>
         <Button
@@ -218,8 +222,8 @@ export default function PlataformaPage() {
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <BentoPanel
-          title="Tenants"
-          subtitle="Registrados"
+          title="Empresas"
+          subtitle="Registradas en la plataforma"
           icon={<Building2 aria-hidden />}
         >
           <p className="font-data text-3xl font-bold tabular-nums text-brand-text-primary">
@@ -227,8 +231,8 @@ export default function PlataformaPage() {
           </p>
         </BentoPanel>
         <BentoPanel
-          title="Activos"
-          subtitle="Operación nominal"
+          title="Activas"
+          subtitle="En operación normal"
           icon={<ShieldAlert aria-hidden />}
         >
           <p className="font-data text-3xl font-bold tabular-nums text-brand-success">
@@ -236,8 +240,8 @@ export default function PlataformaPage() {
           </p>
         </BentoPanel>
         <BentoPanel
-          title="Suspendidos"
-          subtitle="Kill-switch"
+          title="Suspendidas"
+          subtitle="Acceso bloqueado"
           icon={<UserX aria-hidden />}
         >
           <p className="font-data text-3xl font-bold tabular-nums text-brand-danger">
@@ -246,7 +250,7 @@ export default function PlataformaPage() {
         </BentoPanel>
         <BentoPanel
           title="Licencias"
-          subtitle="Cupos totales"
+          subtitle="Cupos totales de usuarios"
           icon={<Users aria-hidden />}
         >
           <p className="font-data text-3xl font-bold tabular-nums text-brand-primary">
@@ -265,8 +269,12 @@ export default function PlataformaPage() {
       <WorkbenchToolbar>
         <WorkbenchTabs
           tabs={[
-            { id: "tenants", label: "Tenants", count: orgs.length },
-            { id: "usuarios", label: "Cross-tenant", count: users.length },
+            { id: "tenants", label: "Empresas", count: orgs.length },
+            {
+              id: "usuarios",
+              label: "Usuarios (todas las empresas)",
+              count: users.length,
+            },
           ]}
           value={tab}
           onChange={setTab}
@@ -276,16 +284,22 @@ export default function PlataformaPage() {
           onChange={setSearch}
           placeholder={
             tab === "tenants"
-              ? "Buscar empresa, NIT o tenantId…"
+              ? "Buscar empresa, NIT o código…"
               : "Buscar usuario o empresa…"
           }
         />
       </WorkbenchToolbar>
 
       {tab === "tenants" ? (
-        <BentoPanel title="Tenants registrados" subtitle="Multiempresa">
+        <BentoPanel title="Empresas registradas" subtitle="Gestión multiempresa">
           <NexaTable
-            columns={["Empresa", "NIT / tenantId", "Licencias", "Estado", "Acciones"]}
+            columns={[
+              "Empresa",
+              "NIT / código",
+              "Licencias",
+              "Estado",
+              "Acciones",
+            ]}
           >
             {filteredOrgs.map((o) => (
               <NexaRow key={o.id}>
@@ -297,7 +311,7 @@ export default function PlataformaPage() {
                   </p>
                 </NexaCell>
                 <NexaCell mono className="text-xs">
-                  {o.userCount}/{o.maxUsers} · libre {o.licensesRemaining}
+                  {o.userCount}/{o.maxUsers} · libres {o.licensesRemaining}
                 </NexaCell>
                 <NexaCell>
                   <StatusPulseBadge
@@ -337,7 +351,7 @@ export default function PlataformaPage() {
                           patchOrg(o.tenantId, {
                             status: "SUSPENDED",
                             suspendedReason:
-                              "Suspendido desde consola maestro",
+                              "Suspendido desde consola Usuario Maestro",
                           })
                         }
                       >
@@ -367,8 +381,8 @@ export default function PlataformaPage() {
         </BentoPanel>
       ) : (
         <BentoPanel
-          title="Usuarios cross-tenant"
-          subtitle="Vista maestro · top 80"
+          title="Usuarios de todas las empresas"
+          subtitle="Vista Usuario Maestro · primeros 80"
         >
           <NexaTable
             columns={["Usuario", "Rol", "Empresa", "Estado", "Acción"]}
@@ -381,8 +395,8 @@ export default function PlataformaPage() {
                     {u.email}
                   </p>
                 </NexaCell>
-                <NexaCell mono className="text-xs">
-                  {u.role}
+                <NexaCell className="text-xs">
+                  {roleLabel(u.role)}
                 </NexaCell>
                 <NexaCell className="text-xs">
                   {u.organization?.name || "—"}
@@ -404,7 +418,7 @@ export default function PlataformaPage() {
                     </Button>
                   ) : (
                     <span className="font-data text-[10px] text-brand-text-secondary">
-                      Maestro
+                      Usuario Maestro
                     </span>
                   )}
                 </NexaCell>
@@ -417,8 +431,8 @@ export default function PlataformaPage() {
       <SlideOver
         open={slideOpen}
         onClose={() => setSlideOpen(false)}
-        title="Registrar empresa + admin"
-        description="Cada tenant incluye administrador inicial y cupo de licencias."
+        title="Registrar empresa y administrador"
+        description="Cada empresa incluye un administrador inicial y un cupo de licencias (usuarios)."
         widthClass="max-w-lg"
         footer={
           <div className="flex justify-end gap-2">
@@ -437,7 +451,7 @@ export default function PlataformaPage() {
               className="w-auto"
               disabled={busy}
             >
-              Registrar tenant
+              Registrar empresa
             </Button>
           </div>
         }

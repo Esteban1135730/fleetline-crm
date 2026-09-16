@@ -684,7 +684,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       const dept: NavDepartment = {
         id: "call_center",
         label: "Recepción",
-        tip: "Recepción omnicanal · visitas · PQRS · radar de lectura",
+        tip: "Visitas · mensajes entrantes · PQRS · consulta de rutas",
         items: RECEPCIONISTA_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,

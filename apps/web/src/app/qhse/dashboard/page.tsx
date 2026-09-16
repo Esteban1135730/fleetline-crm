@@ -9,6 +9,7 @@ import { statusEs } from "@fsg/shared";
 import {
   EmptyState,
   KpiCard,
+  SlideOverHelp,
   StatusPulseBadge,
 } from "@/components/audit";
 import { BentoPanel } from "@/components/nexa/bento-panel";
@@ -160,21 +161,36 @@ export default function QhsePreventionDashboardPage() {
       <header className="flex flex-wrap items-start justify-between gap-3 border-b border-brand-border pb-4">
         <div>
           <p className="font-data text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-primary">
-            QHSE
+            Calidad · Seguridad · Ambiente
           </p>
           <h1 className="font-sans text-2xl font-semibold tracking-tight text-brand-text-primary md:text-3xl">
-            Radar de Prevención
+            Radar de prevención (QHSE)
           </h1>
+          <p className="mt-1 max-w-2xl text-sm text-brand-text-secondary">
+            Vista de riesgos PESV, satisfacción del servicio (escala 0–10) y
+            huella ambiental.
+          </p>
         </div>
-        <Button
-          type="button"
-          variant="primary"
-          className="w-auto px-4 py-2"
-          disabled={busy}
-          onClick={() => void exportCarbon()}
-        >
-          {busy ? "Calculando…" : "Exportar huella PDF"}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <SlideOverHelp
+            title="Qué es QHSE"
+            summary="Quality, Health, Safety & Environment — calidad, salud, seguridad y ambiente."
+            steps={[
+              "Este tablero resume preoperacionales incompletos, licencias/cursos y puntaje del conductor.",
+              "La satisfacción NPS se mide de 0 a 10 (máximo 10).",
+              "Use los reportes del módulo QHSE para registrar incidentes y encuestas.",
+            ]}
+          />
+          <Button
+            type="button"
+            variant="primary"
+            className="w-auto px-4 py-2"
+            disabled={busy}
+            onClick={() => void exportCarbon()}
+          >
+            {busy ? "Calculando…" : "Exportar huella PDF"}
+          </Button>
+        </div>
       </header>
 
       {error ? (
@@ -214,7 +230,7 @@ export default function QhsePreventionDashboardPage() {
       <BentoPanel
         id="esg"
         title="Sostenibilidad · PESV"
-        subtitle="Satisfacción y huella CO₂"
+        subtitle="Satisfacción 0–10 y huella CO₂"
         icon={<Star className="h-4 w-4" />}
         action={
           nps ? (
@@ -231,7 +247,8 @@ export default function QhsePreventionDashboardPage() {
           Satisfacción{" "}
           <span className="font-data tabular-nums">{npsDisplay(nps?.nps)}</span>
           <span className="ml-3 font-data text-base text-brand-text-secondary">
-            avg {nps?.average != null ? nps.average : "N/A"} · n={nps?.sampleSize ?? 0}
+            avg {nps?.average != null ? `${nps.average}/10` : "N/A"} · n=
+            {nps?.sampleSize ?? 0} · máx. 10
           </span>
         </p>
         {carbon ? (

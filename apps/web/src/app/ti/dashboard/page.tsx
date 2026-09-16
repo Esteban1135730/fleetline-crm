@@ -33,6 +33,7 @@ import {
   EmptyState,
   KpiCard,
   SlideOver,
+  SlideOverHelp,
   StatusPulseBadge,
 } from "@/components/audit";
 import { BentoPanel } from "@/components/nexa/bento-panel";
@@ -183,6 +184,7 @@ export default function TiDashboardPage() {
   const [onboardUrl, setOnboardUrl] = useState("");
   const [qrPayload, setQrPayload] = useState("");
   const [pairCode, setPairCode] = useState("");
+  const [mdmExpiresAt, setMdmExpiresAt] = useState("");
   const [mdmOpen, setMdmOpen] = useState(false);
   const [ticketOpen, setTicketOpen] = useState(false);
   const [ticketBusy, setTicketBusy] = useState(false);
@@ -271,6 +273,7 @@ export default function TiDashboardPage() {
       });
       setQrPayload(res.qrPayload);
       setPairCode(res.pairCode);
+      setMdmExpiresAt(res.expiresAt);
       setMdmOpen(true);
       setInfo(
         `MDM Kiosk-Mode · código ${res.pairCode} · expira ${formatSession(res.expiresAt)}`,
@@ -399,8 +402,22 @@ export default function TiDashboardPage() {
           <h1 className="font-sans text-2xl font-semibold tracking-tight text-brand-text-primary md:text-3xl">
             NOC · Autonomous Core
           </h1>
+          <p className="mt-1 max-w-2xl text-sm text-brand-text-secondary">
+            Monitoreo de infraestructura, usuarios, helpdesk y emparejamiento
+            MDM de dispositivos con la app FSG Pilot.
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <SlideOverHelp
+            title="MDM Provisioning · QR"
+            summary="El QR empareja temporalmente una tablet u otro dispositivo con la organización vía FSG Pilot."
+            steps={[
+              "Pulse «MDM Provisioning (QR)» o «QR dispositivo» para generar un código de emparejamiento de un solo uso (válido unos minutos).",
+              "Muestre el QR o el código al operador: la app FSG Pilot lo escanea/ingresa para vincular el dispositivo a esta empresa.",
+              "Si el emparejamiento va con bloqueo, el dispositivo queda en modo quiosco (uso controlado de la app de flota) mientras la sesión esté vigente.",
+              "Cuando el código expire, debe generar uno nuevo; no reutilice payloads vencidos.",
+            ]}
+          />
           <Button
             type="button"
             variant="ghost"
@@ -643,7 +660,7 @@ export default function TiDashboardPage() {
         open={mdmOpen}
         onClose={() => setMdmOpen(false)}
         title="MDM · Provisioning Kiosk-Mode"
-        description="Escaneo QR · nexa-mdm:// · VPN túnel directo"
+        description="Emparejamiento temporal FSG Pilot · código de un solo uso"
         widthClass="max-w-md"
         footer={
           <Button type="button" variant="ghost" className="w-auto" onClick={() => setMdmOpen(false)}>
@@ -652,22 +669,42 @@ export default function TiDashboardPage() {
         }
       >
         <div className="space-y-4">
+          <div className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-primary)]/5 px-3 py-3 text-sm text-[var(--brand-text-primary)]">
+            <p className="font-semibold">¿Para qué sirve este QR?</p>
+            <p className="mt-1 text-xs leading-relaxed text-[var(--brand-text-secondary)]">
+              Vincula un dispositivo a esta organización mediante la app{" "}
+              <span className="font-mono">FSG Pilot</span>. Al escanearlo (o
+              ingresar el código), se crea la sesión MDM: el dispositivo queda
+              emparejado y, con bloqueo activo, opera en modo quiosco para uso
+              controlado en flota.
+            </p>
+          </div>
           <div className="rounded-lg border border-[var(--brand-border)] bg-brand-surface p-4 text-center">
             <QrCode className="mx-auto h-16 w-16 text-brand-primary" aria-hidden />
             <p className="mt-3 font-mono text-lg font-bold tracking-widest">{pairCode || "——"}</p>
             <p className="mt-1 text-xs text-[var(--brand-text-secondary)]">Código de emparejamiento</p>
+            {mdmExpiresAt ? (
+              <p className="mt-2 font-data text-[11px] text-brand-warning">
+                Expira {formatSession(mdmExpiresAt)}
+              </p>
+            ) : null}
           </div>
           {qrPayload ? (
             <div className="rounded-lg border border-[var(--brand-border)] p-3">
               <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--brand-text-secondary)]">
-                Payload encriptado
+                Payload del QR (<span className="font-mono">fleetline-mdm://</span>)
               </p>
               <p className="break-all font-mono text-[10px] text-[var(--brand-primary)]">{qrPayload}</p>
             </div>
           ) : null}
-          <p className="text-xs text-[var(--brand-text-secondary)]">
-            Al escanear, la tablet entra en modo quiosco, bloquea apps externas y levanta túnel VPN a la flota.
-          </p>
+          <ol className="list-decimal space-y-1.5 pl-4 text-xs leading-relaxed text-[var(--brand-text-secondary)]">
+            <li>Abra FSG Pilot en la tablet del conductor u operador.</li>
+            <li>Escanee el QR o digite el código de emparejamiento.</li>
+            <li>
+              Confirme el vínculo: el dispositivo queda asociado a esta empresa
+              mientras el código esté vigente.
+            </li>
+          </ol>
         </div>
       </SlideOver>
 

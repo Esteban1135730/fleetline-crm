@@ -13,6 +13,7 @@ import { Badge, Button, Tooltip } from "@fsg/ui";
 import {
   Calculator,
   FileText,
+  Pencil,
   Plus,
   Users,
   ShieldCheck,
@@ -87,13 +88,23 @@ type Contract = {
   channel: string;
   status: string;
   route?: string | null;
+  routeLabel?: string | null;
   monthlyValue?: string | number | null;
   endDate?: string | null;
+  endsAt?: string | null;
   customer: { name: string };
   _count: { trips: number };
 };
 
+type ContractsListResponse = {
+  items: Contract[];
+  meta: { total: number; page: number; take: number; pages: number };
+  summary: { activeCount: number; mrr: number };
+};
+
 type TabId = "cotizador" | "contratos" | "clientes";
+
+const CONTRACTS_PAGE_SIZE = 10;
 
 const CHANNEL_ES: Record<string, string> = {
   PRIVATE: "Empresa privada",
@@ -166,6 +177,15 @@ export default function ComercialPage() {
   });
   const [contractError, setContractError] = useState("");
   const [contractBusy, setContractBusy] = useState(false);
+  const [editingContractId, setEditingContractId] = useState<string | null>(
+    null,
+  );
+  const [contractsPage, setContractsPage] = useState(1);
+  const [contractsTotal, setContractsTotal] = useState(0);
+  const [contractsSummary, setContractsSummary] = useState({
+    activeCount: 0,
+    mrr: 0,
+  });
   const [contractForm, setContractForm] = useState({
     name: "",
     customerId: "",
@@ -193,15 +213,20 @@ export default function ComercialPage() {
   const [conversionQuote, setConversionQuote] = useState<Quote | null>(null);
   const [conversionTripCode, setConversionTripCode] = useState<string | null>(null);
 
-  async function load() {
+  async function load(page = contractsPage) {
     const [c, q, ctr] = await Promise.all([
       api<Customer[]>("/comercial/customers"),
       api<Quote[]>("/comercial/quotes"),
-      api<Contract[]>("/comercial/contracts"),
+      api<ContractsListResponse>(
+        `/comercial/contracts?page=${page}&limit=${CONTRACTS_PAGE_SIZE}`,
+      ),
     ]);
     setCustomers(c);
     setQuotes(q);
-    setContracts(ctr);
+    setContracts(ctr.items);
+    setContractsTotal(ctr.meta.total);
+    setContractsPage(ctr.meta.page);
+    setContractsSummary(ctr.summary);
     if (!contractForm.customerId && c[0])
       setContractForm((f) => ({ ...f, customerId: c[0].id }));
     if (!calcForm.customerId && c[0])
@@ -253,18 +278,16 @@ export default function ComercialPage() {
       (sum, q) => sum + Number(q.amount),
       0,
     );
-    const mrr = contracts
-      .filter((c) => c.status === "ACTIVE")
-      .reduce((sum, c) => sum + Number(c.monthlyValue ?? 0), 0);
+    const mrr = contractsSummary.mrr;
     return {
       negociacion,
       ganado,
       pipelineValue,
       mrr,
       activas: pipelineQuotes.length,
-      contratosActivos: contracts.filter((c) => c.status === "ACTIVE").length,
+      contratosActivos: contractsSummary.activeCount,
     };
-  }, [quotes, pipelineQuotes, contracts]);
+  }, [quotes, pipelineQuotes, contractsSummary]);
 
   async function runCalculate() {
     setCalcBusy(true);
@@ -382,7 +405,57 @@ export default function ComercialPage() {
     }
   }
 
-  async function onCreateContract(e: FormEvent) {
+  function closeContractSlide() {
+    setContractSlideOpen(false);
+    setEditingContractId(null);
+    setContractError("");
+    setContractForm((f) => ({
+      ...f,
+      name: "",
+      route: "",
+      startDate: "",
+      endDate: "",
+      monthlyValue: "",
+      channel: "PRIVATE",
+    }));
+  }
+
+  function openNewContract() {
+    setEditingContractId(null);
+    setContractError("");
+    setContractForm((f) => ({
+      ...f,
+      name: "",
+      route: "",
+      startDate: "",
+      endDate: "",
+      monthlyValue: "",
+      channel: "PRIVATE",
+      customerId: f.customerId || customers[0]?.id || "",
+    }));
+    setContractSlideOpen(true);
+  }
+
+  function openEditContract(ctr: Contract) {
+    const endRaw = ctr.endDate || ctr.endsAt || "";
+    setEditingContractId(ctr.id);
+    setContractError("");
+    setContractForm({
+      name: ctr.name,
+      customerId: customers.find((c) => c.name === ctr.customer.name)?.id || "",
+      channel:
+        ctr.channel === "PUBLIC_TENDER" ? "PUBLIC_TENDER" : "PRIVATE",
+      route: ctr.route || ctr.routeLabel || "",
+      startDate: "",
+      endDate: endRaw ? String(endRaw).slice(0, 10) : "",
+      monthlyValue: ctr.monthlyValue
+        ? String(Math.round(Number(ctr.monthlyValue)))
+        : "",
+    });
+    setContractSlideOpen(true);
+  }
+
+  async function onSaveContract(e: FormEvent) {
     e.preventDefault();
     setContractError("");
     const monthlyRaw = contractForm.monthlyValue.replace(/\D/g, "");
@@ -396,33 +469,52 @@ export default function ComercialPage() {
     }
     setContractBusy(true);
     try {
-      await api("/comercial/contracts", {
-        method: "POST",
-        body: JSON.stringify({
-          name: contractForm.name,
-          customerId: contractForm.customerId,
-          channel: contractForm.channel,
-          route: contractForm.route,
-          startDate: contractForm.startDate,
-          endDate: contractForm.endDate,
-          monthlyValue: Number(monthlyRaw),
-        }),
-      });
-      setContractForm((f) => ({
-        ...f,
-        name: "",
-        route: "",
-        monthlyValue: "",
-      }));
-      setContractSlideOpen(false);
-      await load();
+      if (editingContractId) {
+        await api(`/comercial/contracts/${editingContractId}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            name: contractForm.name.trim() || undefined,
+            route: contractForm.route.trim() || undefined,
+            monthlyValue: Number(monthlyRaw),
+            endDate: contractForm.endDate.trim() || undefined,
+          }),
+        });
+      } else {
+        await api("/comercial/contracts", {
+          method: "POST",
+          body: JSON.stringify({
+            name: contractForm.name,
+            customerId: contractForm.customerId,
+            channel: contractForm.channel,
+            route: contractForm.route,
+            startDate: contractForm.startDate,
+            endDate: contractForm.endDate,
+            monthlyValue: Number(monthlyRaw),
+          }),
+        });
+      }
+      const pageToLoad = editingContractId ? contractsPage : 1;
+      closeContractSlide();
+      await load(pageToLoad);
     } catch (err) {
       setContractError(
-        err instanceof Error ? err.message : "No se pudo crear el contrato",
+        err instanceof Error
+          ? err.message
+          : editingContractId
+            ? "No se pudo actualizar el contrato"
+            : "No se pudo crear el contrato",
       );
     } finally {
       setContractBusy(false);
     }
+  }
+
+  async function patchContractStatus(id: string, status: string) {
+    await api(`/comercial/contracts/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    });
+    await load(contractsPage);
   }
 
   async function saveQuoteFromCalc(e: FormEvent) {
@@ -704,7 +796,7 @@ export default function ComercialPage() {
               type="button"
               variant="primary"
               className="w-auto px-4 py-2"
-              onClick={() => setContractSlideOpen(true)}
+              onClick={openNewContract}
             >
               <Plus className="mr-1.5 h-4 w-4" aria-hidden />
               Nuevo contrato
@@ -1188,7 +1280,7 @@ export default function ComercialPage() {
 
           <BentoPanel
             title="Contratos operativos"
-            subtitle={`${contracts.length} registro(s)`}
+            subtitle={`${contractsTotal} registro(s)`}
             icon={<FileText aria-hidden />}
           >
             {!contracts.length ? (
@@ -1197,151 +1289,149 @@ export default function ComercialPage() {
                 title="Sin contratos"
                 description="Registra un contrato operativo de empresa o licitación."
                 actionLabel="+ Nuevo contrato"
-                onAction={() => setContractSlideOpen(true)}
+                onAction={openNewContract}
               />
             ) : (
-              <NexaTable
-                columns={[
-                  "Código",
-                  "Cliente",
-                  "Canal",
-                  "Viajes",
-                  "Valor/mes",
-                  "Estado",
-                  "Acciones",
-                ]}
-              >
-                {contracts.map((ctr) => (
-                  <NexaRow key={ctr.id}>
-                    <NexaCell>
-                      <span className="font-data text-xs text-brand-primary">
-                        {ctr.code}
-                      </span>
-                      <div>{ctr.name}</div>
-                    </NexaCell>
-                    <NexaCell>{ctr.customer.name}</NexaCell>
-                    <NexaCell>
-                      <Badge
-                        tone={
-                          ctr.channel === "PUBLIC_TENDER" ? "info" : "success"
-                        }
-                      >
-                        {CHANNEL_ES[ctr.channel] || ctr.channel}
-                      </Badge>
-                    </NexaCell>
-                    <NexaCell mono>{ctr._count.trips}</NexaCell>
-                    <NexaCell mono>
-                      {ctr.monthlyValue
-                        ? formatCop(Number(ctr.monthlyValue))
-                        : "—"}
-                    </NexaCell>
-                    <NexaCell>
-                      <StatusPulseBadge
-                        tone={
-                          ctr.status === "ACTIVE"
-                            ? "active"
-                            : ctr.status === "SUSPENDED"
-                              ? "fatiga"
-                              : "neutral"
-                        }
-                        pulse={false}
-                      >
-                        {statusEs(ctr.status)}
-                      </StatusPulseBadge>
-                    </NexaCell>
-                    <NexaCell>
-                      <div className="flex flex-wrap justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          className="w-auto"
-                          onClick={async () => {
-                            const n = window.prompt("Nombre", ctr.name);
-                            if (n === null) return;
-                            const route = window.prompt(
-                              "Ruta",
-                              ctr.route || "",
-                            );
-                            if (route === null) return;
-                            const monthlyValue = window.prompt(
-                              "Valor mensual COP",
-                              ctr.monthlyValue
-                                ? String(ctr.monthlyValue)
-                                : "",
-                            );
-                            if (monthlyValue === null) return;
-                            const endDate = window.prompt(
-                              "Fecha fin (YYYY-MM-DD)",
-                              ctr.endDate ? ctr.endDate.slice(0, 10) : "",
-                            );
-                            if (endDate === null) return;
-                            await api(`/comercial/contracts/${ctr.id}`, {
-                              method: "PATCH",
-                              body: JSON.stringify({
-                                name: n.trim() || ctr.name,
-                                route: route.trim() || undefined,
-                                monthlyValue: monthlyValue.trim()
-                                  ? Number(monthlyValue)
-                                  : undefined,
-                                endDate: endDate.trim() || undefined,
-                              }),
-                            });
-                            await load();
-                          }}
+              <>
+                <NexaTable
+                  columns={[
+                    "Código",
+                    "Cliente",
+                    "Canal",
+                    "Viajes",
+                    "Valor/mes",
+                    "Estado",
+                    "Acciones",
+                  ]}
+                >
+                  {contracts.map((ctr) => (
+                    <NexaRow key={ctr.id}>
+                      <NexaCell>
+                        <span className="font-data text-xs text-brand-primary">
+                          {ctr.code}
+                        </span>
+                        <div>{ctr.name}</div>
+                      </NexaCell>
+                      <NexaCell>{ctr.customer.name}</NexaCell>
+                      <NexaCell>
+                        <Badge
+                          tone={
+                            ctr.channel === "PUBLIC_TENDER"
+                              ? "info"
+                              : "success"
+                          }
                         >
-                          Editar
-                        </Button>
-                        {ctr.status !== "ACTIVE" ? (
+                          {CHANNEL_ES[ctr.channel] || ctr.channel}
+                        </Badge>
+                      </NexaCell>
+                      <NexaCell mono>{ctr._count.trips}</NexaCell>
+                      <NexaCell mono>
+                        {ctr.monthlyValue
+                          ? formatCop(Number(ctr.monthlyValue))
+                          : "—"}
+                      </NexaCell>
+                      <NexaCell>
+                        <StatusPulseBadge
+                          tone={
+                            ctr.status === "ACTIVE"
+                              ? "active"
+                              : ctr.status === "SUSPENDED"
+                                ? "fatiga"
+                                : "neutral"
+                          }
+                          pulse={false}
+                        >
+                          {statusEs(ctr.status)}
+                        </StatusPulseBadge>
+                      </NexaCell>
+                      <NexaCell>
+                        <div className="flex flex-wrap justify-end gap-1">
                           <Button
-                            variant="ghost"
+                            variant="secondary"
                             className="w-auto"
-                            onClick={async () => {
-                              await api(`/comercial/contracts/${ctr.id}`, {
-                                method: "PATCH",
-                                body: JSON.stringify({ status: "ACTIVE" }),
-                              });
-                              await load();
-                            }}
+                            title="Editar contrato"
+                            onClick={() => openEditContract(ctr)}
                           >
-                            Activar
+                            <Pencil
+                              className="mr-1 inline h-3.5 w-3.5"
+                              aria-hidden
+                            />
+                            Editar
                           </Button>
-                        ) : null}
-                        {ctr.status === "ACTIVE" ? (
-                          <Button
-                            variant="ghost"
-                            className="w-auto"
-                            onClick={async () => {
-                              await api(`/comercial/contracts/${ctr.id}`, {
-                                method: "PATCH",
-                                body: JSON.stringify({
-                                  status: "SUSPENDED",
-                                }),
-                              });
-                              await load();
-                            }}
-                          >
-                            Suspender
-                          </Button>
-                        ) : null}
-                        {ctr.status !== "ENDED" ? (
-                          <Button
-                            variant="ghost"
-                            className="w-auto"
-                            onClick={async () => {
-                              await api(`/comercial/contracts/${ctr.id}`, {
-                                method: "PATCH",
-                                body: JSON.stringify({ status: "ENDED" }),
-                              });
-                              await load();
-                            }}
-                          >
-                            Cerrar
-                          </Button>
-                        ) : null}
-                      </div>
-                    </NexaCell>
-                  </NexaRow>
-                ))}
-              </NexaTable>
+                          {ctr.status !== "ACTIVE" ? (
+                            <Button
+                              variant="ghost"
+                              className="w-auto"
+                              onClick={() =>
+                                void patchContractStatus(ctr.id, "ACTIVE")
+                              }
+                            >
+                              Activar
+                            </Button>
+                          ) : null}
+                          {ctr.status === "ACTIVE" ? (
+                            <Button
+                              variant="ghost"
+                              className="w-auto"
+                              onClick={() =>
+                                void patchContractStatus(ctr.id, "SUSPENDED")
+                              }
+                            >
+                              Suspender
+                            </Button>
+                          ) : null}
+                          {ctr.status !== "ENDED" ? (
+                            <Button
+                              variant="ghost"
+                              className="w-auto"
+                              onClick={() =>
+                                void patchContractStatus(ctr.id, "ENDED")
+                              }
+                            >
+                              Cerrar
+                            </Button>
+                          ) : null}
+                        </div>
+                      </NexaCell>
+                    </NexaRow>
+                  ))}
+                </NexaTable>
+                {contractsTotal > CONTRACTS_PAGE_SIZE ? (
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-brand-border pt-3">
+                    <p className="font-data text-xs text-brand-text-secondary">
+                      Página {contractsPage} de{" "}
+                      {Math.max(
+                        1,
+                        Math.ceil(contractsTotal / CONTRACTS_PAGE_SIZE),
+                      )}{" "}
+                      · {contractsTotal} total
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="w-auto px-3 py-1.5"
+                        disabled={contractsPage <= 1}
+                        onClick={() => void load(contractsPage - 1)}
+                      >
+                        Anterior
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="w-auto px-3 py-1.5"
+                        disabled={
+                          contractsPage >=
+                          Math.ceil(contractsTotal / CONTRACTS_PAGE_SIZE)
+                        }
+                        onClick={() => void load(contractsPage + 1)}
+                      >
+                        Siguiente
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+              </>
             )}
           </BentoPanel>
         </div>
@@ -1556,12 +1646,17 @@ export default function ComercialPage() {
 
       <SlideOver
         open={contractSlideOpen}
-        onClose={() => {
-          setContractSlideOpen(false);
-          setContractError("");
-        }}
-        title="Nuevo contrato operativo"
-        description="Contrato B2B o licitación pública con MRR"
+        onClose={closeContractSlide}
+        title={
+          editingContractId
+            ? "Editar contrato operativo"
+            : "Nuevo contrato operativo"
+        }
+        description={
+          editingContractId
+            ? "Actualiza nombre, ruta, valor mensual o fecha de fin"
+            : "Contrato B2B o licitación pública con MRR"
+        }
         widthClass="max-w-2xl"
         footer={
           <div className="flex flex-wrap justify-end gap-2">
@@ -1569,7 +1664,7 @@ export default function ComercialPage() {
               type="button"
               variant="ghost"
               className="w-auto px-4 py-2"
-              onClick={() => setContractSlideOpen(false)}
+              onClick={closeContractSlide}
             >
               Cancelar
             </Button>
@@ -1580,14 +1675,14 @@ export default function ComercialPage() {
               className="w-auto px-4 py-2"
               disabled={contractBusy}
             >
-              Crear contrato
+              {editingContractId ? "Guardar cambios" : "Crear contrato"}
             </Button>
           </div>
         }
       >
         <form
           id="comercial-contract-form"
-          onSubmit={onCreateContract}
+          onSubmit={onSaveContract}
           className="grid grid-cols-1 gap-3 md:grid-cols-2"
         >
           <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary md:col-span-2">
@@ -1604,44 +1699,48 @@ export default function ComercialPage() {
               title="Nombre comercial del contrato"
             />
           </label>
-          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
-            Cliente
-            <select
-              className="field"
-              value={contractForm.customerId}
-              onChange={(e) =>
-                setContractForm({
-                  ...contractForm,
-                  customerId: e.target.value,
-                })
-              }
-              required
-              title="Cliente del contrato"
-            >
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
-            Canal
-            <select
-              className="field"
-              value={contractForm.channel}
-              onChange={(e) =>
-                setContractForm({
-                  ...contractForm,
-                  channel: e.target.value as "PRIVATE" | "PUBLIC_TENDER",
-                })
-              }
-              title="Empresa privada o licitación pública"
-            >
-              <option value="PRIVATE">Empresa privada</option>
-              <option value="PUBLIC_TENDER">Licitación pública</option>
-            </select>
-          </label>
+          {!editingContractId ? (
+            <>
+              <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
+                Cliente
+                <select
+                  className="field"
+                  value={contractForm.customerId}
+                  onChange={(e) =>
+                    setContractForm({
+                      ...contractForm,
+                      customerId: e.target.value,
+                    })
+                  }
+                  required
+                  title="Cliente del contrato"
+                >
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
+                Canal
+                <select
+                  className="field"
+                  value={contractForm.channel}
+                  onChange={(e) =>
+                    setContractForm({
+                      ...contractForm,
+                      channel: e.target.value as "PRIVATE" | "PUBLIC_TENDER",
+                    })
+                  }
+                  title="Empresa privada o licitación pública"
+                >
+                  <option value="PRIVATE">Empresa privada</option>
+                  <option value="PUBLIC_TENDER">Licitación pública</option>
+                </select>
+              </label>
+            </>
+          ) : null}
           <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary md:col-span-2">
             Ruta
             <input
@@ -1655,23 +1754,27 @@ export default function ComercialPage() {
               title="Corredor o ruta del contrato"
             />
           </label>
-          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
-            Fecha inicio
-            <input
-              className="field"
-              type="date"
-              value={contractForm.startDate}
-              onChange={(e) =>
-                setContractForm({
-                  ...contractForm,
-                  startDate: e.target.value,
-                })
-              }
-              required
-              title="Inicio de vigencia"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
+          {!editingContractId ? (
+            <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
+              Fecha inicio
+              <input
+                className="field"
+                type="date"
+                value={contractForm.startDate}
+                onChange={(e) =>
+                  setContractForm({
+                    ...contractForm,
+                    startDate: e.target.value,
+                  })
+                }
+                required
+                title="Inicio de vigencia"
+              />
+            </label>
+          ) : null}
+          <label
+            className={`flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary ${editingContractId ? "md:col-span-2" : ""}`}
+          >
             Fecha fin
             <input
               className="field"
@@ -1680,7 +1783,7 @@ export default function ComercialPage() {
               onChange={(e) =>
                 setContractForm({ ...contractForm, endDate: e.target.value })
               }
-              required
+              required={!editingContractId}
               title="Fin de vigencia"
             />
           </label>

@@ -23,7 +23,7 @@ const FALLBACK: ModuleGuide = {
 export const MODULE_GUIDES: Partial<Record<ModuleId | "cuenta", ModuleGuide>> =
   {
     plataforma: {
-      title: "Consola maestro",
+      title: "Consola Usuario Maestro",
       summary: "Alta de empresas y administrador por organización.",
       steps: [
         "Registre la empresa con NIT único y datos del administrador.",
@@ -51,11 +51,11 @@ export const MODULE_GUIDES: Partial<Record<ModuleId | "cuenta", ModuleGuide>> =
     },
     rrhh: {
       title: "Cómo operar Recursos Humanos",
-      summary: "Personal, aptitud y fatiga operativa.",
+      summary: "Personal, fatiga operativa, nómina y PESV.",
       steps: [
-        "Consulte el estado laboral y fatiga antes de autorizar despacho.",
-        "Actualice novedades de personal por área.",
-        "Coordine con QHSE ante incidentes que involucren personas.",
+        "Consulte fatiga operativa y licencias antes de autorizar despacho.",
+        "Ejecute la auditoría documental solo cuando quiera aplicar bloqueos reales.",
+        "La liquidación de nómina confirma el periodo de forma definitiva (no es simulación).",
       ],
     },
     revisoria_fiscal: {
@@ -114,21 +114,23 @@ export const MODULE_GUIDES: Partial<Record<ModuleId | "cuenta", ModuleGuide>> =
       ],
     },
     qhse: {
-      title: "Cómo operar calidad y SST",
-      summary: "Calidad, seguridad e incidentes.",
+      title: "Calidad, seguridad y medio ambiente (QHSE)",
+      summary:
+        "QHSE = Quality, Health, Safety & Environment: calidad del servicio, salud/seguridad ocupacional (PESV) e incidentes ambientales/operativos.",
       steps: [
-        "Registre el evento con tipo, severidad y área involucrada.",
-        "Use el puntaje de satisfacción cuando aplique encuesta de servicio.",
-        "Escalone incidentes críticos a Gerencia y RRHH.",
+        "Registre eventos: incidente, auditoría, NPS (satisfacción 0–10) u otro tipo disponible.",
+        "Consulte el radar de prevención (preoperacionales, licencias) y cierre reportes abiertos.",
+        "Exporte la auditoría PESV o la huella CO₂ cuando necesite evidencias para autoridades o gerencia.",
       ],
     },
     sarlaft: {
-      title: "Cómo registrar SARLAFT",
-      summary: "Listas de riesgo y bloqueo operativo.",
+      title: "Para qué sirve SARLAFT",
+      summary:
+        "Debida diligencia AML/KYC: consulta sujetos contra listas restrictivas, clasifica riesgo y puede bloquear operaciones en Comercial, Compras, Logística y Tesorería.",
       steps: [
-        "Registre el chequeo con documento y nivel de riesgo.",
-        "Riesgo alto o bloqueado impide alta de cliente y pago CxP.",
-        "Solo roles privilegiados pueden forzar override con auditoría.",
+        "Registre una consulta con nombre, documento y nivel de riesgo; el sistema también puede cruzar listas (OFAC/ONU/PEPS) y abrir alertas.",
+        "Adjunte evidencias (Policía, Procuraduría, Registraduría, antecedentes, listas) en el expediente del chequeo.",
+        "Riesgo alto/bloqueado o alerta abierta puede impedir alta de cliente y pagos CxP; solo roles privilegiados fuerzan override con auditoría.",
       ],
     },
     tramites: {
@@ -142,20 +144,22 @@ export const MODULE_GUIDES: Partial<Record<ModuleId | "cuenta", ModuleGuide>> =
     },
     tecnologia_ti: {
       title: "Cómo operar Tecnología y TI",
-      summary: "Centro de monitoreo, salud de API/base de datos y alertas.",
+      summary:
+        "Monitoreo NOC, usuarios, helpdesk y emparejamiento MDM de tablets (FSG Pilot) por QR temporal.",
       steps: [
-        "Verifique la conexión de API y la latencia de base de datos.",
-        "Revise alertas abiertas y asigne resolución.",
-        "Documente incidentes de disponibilidad para auditoría.",
+        "Revise salud de infraestructura, CPU y alertas del centro de operaciones.",
+        "Genere alta de usuario o tickets de mesa de ayuda según el caso.",
+        "MDM Provisioning crea un QR/código temporal: al escanearlo con la app FSG Pilot, el dispositivo se empareja (modo quiosco/bloqueo si aplica) hasta que expire el código.",
       ],
     },
     archivo: {
-      title: "Cómo usar Archivo y Papelería",
-      summary: "Sala documental con sello digital.",
+      title: "Para qué sirve Archivo",
+      summary:
+        "Bóveda documental y papelería: localizar expedientes/unidades/personas, consultar digitalización, prestar carpetas físicas y despachar suministros, con trazabilidad de custodia.",
       steps: [
-        "Suba el archivo: el sistema genera hash de integridad.",
-        "Filtre por categoría o busque título, tag o hash.",
-        "Revise la auditoría de bóveda para trazabilidad.",
+        "Busque por contrato, placa, cédula o texto: verá expedientes, vehículos, conductores, personal o clientes y si hay PDF digital.",
+        "Consulte la cola OCR, pendientes de digitalizar, préstamos activos, inventario y el log de custodia (hash e historial).",
+        "Acciones operativas: préstamo (check-out) de carpeta física y despacho de papelería/suministros. No hay compartir ni versionado en esta pantalla.",
       ],
     },
     juridico: {
@@ -169,11 +173,11 @@ export const MODULE_GUIDES: Partial<Record<ModuleId | "cuenta", ModuleGuide>> =
     },
     call_center: {
       title: "Cómo operar Recepción y centro de llamadas",
-      summary: "Visitantes y tickets de atención.",
+      summary: "Visitantes, mensajes entrantes y pase a Comercial o QHSE.",
       steps: [
-        "Alterne las pestañas Centro de llamadas / Recepción según el flujo.",
-        "Registre tickets con canal, prioridad y agente.",
-        "En recepción, registre el ingreso y la salida de cada visitante.",
+        "Revise la bandeja de mensajes (WhatsApp, correo, llamadas) y seleccione uno para actuar.",
+        "Registre visitantes con anfitrión (persona de la empresa que los recibe) y gafete.",
+        "Si alguien pide cotización, envíelo a Comercial como cliente potencial; las PQRS van a QHSE.",
       ],
     },
     taller: {

@@ -50,12 +50,23 @@ type Purchase = {
 
 const STATUS_FLOW = ["REQUESTED", "APPROVED", "ORDERED", "RECEIVED"] as const;
 const STATUS_ES: Record<string, string> = {
-  REQUESTED: "Solicitada",
+  REQUESTED: "Pendiente",
   APPROVED: "Aprobada",
-  ORDERED: "Pedida",
+  ORDERED: "En camino",
   RECEIVED: "Recibida",
   CANCELLED: "Cancelada",
 };
+
+function purchaseStatusTone(
+  status: string,
+): "active" | "fatiga" | "danger" | "neutral" {
+  if (status === "RECEIVED") return "active";
+  if (status === "CANCELLED") return "danger";
+  if (status === "ORDERED") return "fatiga";
+  if (status === "REQUESTED") return "fatiga";
+  if (status === "APPROVED") return "active";
+  return "neutral";
+}
 
 const emptyForm = {
   description: "",
@@ -152,7 +163,7 @@ export default function ComprasPage() {
       return;
     }
     if (!form.supplierId) {
-      setFormError("Seleccione un proveedor homologado del directorio");
+      setFormError("Seleccione un proveedor del directorio");
       return;
     }
     if (selectedSupplier?.sarlaftBlocked) {
@@ -234,7 +245,7 @@ export default function ComprasPage() {
       setSlideOpen(true);
     } catch (err) {
       setSupplierError(
-        err instanceof Error ? err.message : "No se pudo homologar el proveedor",
+        err instanceof Error ? err.message : "No se pudo agregar el proveedor",
       );
     } finally {
       setSupplierBusy(false);
@@ -269,7 +280,7 @@ export default function ComprasPage() {
             }}
           >
             <Building2 className="mr-1 h-4 w-4" />
-            Homologar proveedor
+            Agregar proveedor
           </Button>
           <Button
             type="button"
@@ -321,7 +332,7 @@ export default function ComprasPage() {
               Directorio de proveedores
             </h2>
             <p className="text-xs text-[var(--brand-text-secondary)]">
-              Homologación comercial — no crea usuarios del CRM
+              Alta en directorio comercial — no crea usuarios del CRM
             </p>
           </div>
           <Button
@@ -341,9 +352,9 @@ export default function ComprasPage() {
           <div className="p-6">
             <EmptyState
               icon={<Building2 className="h-7 w-7" />}
-              title="Sin proveedores homologados"
+              title="Sin proveedores registrados"
               description="Registre NIT y razón social para usarlos en órdenes de compra."
-              actionLabel="+ Homologar proveedor"
+              actionLabel="+ Agregar proveedor"
               onAction={() => {
                 setSupplierError("");
                 setSupplierSlideOpen(true);
@@ -445,16 +456,10 @@ export default function ComprasPage() {
                   <NexaCell mono>{formatCop(Number(r.amount || 0))}</NexaCell>
                   <NexaCell>
                     <StatusPulseBadge
-                      tone={
-                        r.status === "RECEIVED"
-                          ? "active"
-                          : r.status === "CANCELLED"
-                            ? "neutral"
-                            : r.status === "REQUESTED"
-                              ? "fatiga"
-                              : "active"
+                      tone={purchaseStatusTone(r.status)}
+                      pulse={
+                        r.status === "REQUESTED" || r.status === "ORDERED"
                       }
-                      pulse={r.status === "REQUESTED"}
                     >
                       {STATUS_ES[r.status] || r.status}
                     </StatusPulseBadge>
@@ -585,7 +590,7 @@ export default function ComprasPage() {
             />
           </label>
           <label className="text-xs text-[var(--brand-text-secondary)]">
-            Proveedor homologado
+            Proveedor
             <select
               className="field mt-1 w-full"
               data-testid="compras-supplier"
@@ -614,7 +619,7 @@ export default function ComprasPage() {
               </p>
             ) : selectedSupplier ? (
               <p className="mt-1 text-[10px] text-[var(--brand-text-secondary)]">
-                Rating {selectedSupplier.rating.toFixed(1)}/5 · homologado
+                Rating {selectedSupplier.rating.toFixed(1)}/5 · en directorio
               </p>
             ) : suppliers.length === 0 ? (
               <p className="mt-1 text-[10px] text-[var(--brand-warning)]">
@@ -628,7 +633,7 @@ export default function ComprasPage() {
                     setSupplierSlideOpen(true);
                   }}
                 >
-                  homologar ahora
+                  agregar ahora
                 </button>
               </p>
             ) : null}
@@ -705,8 +710,8 @@ export default function ComprasPage() {
       <SlideOver
         open={supplierSlideOpen}
         onClose={() => setSupplierSlideOpen(false)}
-        title="Homologar proveedor"
-        description="Directorio comercial. No crea cuenta de usuario ni acceso al CRM."
+        title="Agregar proveedor"
+        description="Alta en el directorio comercial. No crea cuenta de usuario ni acceso al CRM."
         footer={
           <>
             <Button

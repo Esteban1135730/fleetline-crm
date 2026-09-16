@@ -20,6 +20,7 @@ import {
   EvidenceDropzone,
   KpiCard,
   SlideOver,
+  SlideOverHelp,
   StatusPulseBadge,
 } from "@/components/audit";
 import { BentoPanel } from "@/components/nexa/bento-panel";
@@ -120,6 +121,15 @@ export default function CalidadPage() {
       setFormError("Indique la descripción de la novedad");
       return;
     }
+    let score: number | undefined;
+    if (form.type === "NPS") {
+      const n = Number(form.score);
+      if (!Number.isFinite(n) || n < 0 || n > 10) {
+        setFormError("El puntaje de satisfacción debe estar entre 0 y 10");
+        return;
+      }
+      score = n;
+    }
     const title = form.date ? `${description} · ${form.date}` : description;
     setBusy(true);
     try {
@@ -129,7 +139,7 @@ export default function CalidadPage() {
           type: form.type,
           title,
           description,
-          score: form.type === "NPS" ? Number(form.score) : undefined,
+          score,
         }),
       });
       setForm({ ...EMPTY_FORM, date: new Date().toISOString().slice(0, 10) });
@@ -165,13 +175,27 @@ export default function CalidadPage() {
       <header className="flex flex-wrap items-start justify-between gap-3 border-b border-brand-border pb-4">
         <div>
           <p className="font-data text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-primary">
-            QHSE / PESV
+            Calidad · Seguridad · Ambiente
           </p>
           <h1 className="font-sans text-2xl font-semibold tracking-tight text-brand-text-primary md:text-3xl">
-            Safety Command Center
+            QHSE · Centro de seguridad
           </h1>
+          <p className="mt-1 max-w-2xl text-sm text-brand-text-secondary">
+            Quality, Health, Safety &amp; Environment: reportes de calidad,
+            incidentes, PESV y satisfacción del servicio.
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <SlideOverHelp
+            title="Qué es QHSE"
+            summary="Módulo de calidad, salud ocupacional, seguridad vial (PESV) y ambiente operativo."
+            steps={[
+              "Aquí registra novedades: incidentes, auditorías y encuestas de satisfacción (NPS).",
+              "El puntaje de satisfacción va de 0 a 10 (máximo 10).",
+              "Puede cerrar o reabrir reportes y exportar la auditoría PESV a Excel.",
+              "El tablero «Radar de prevención» resume riesgos de preoperacionales y licencias.",
+            ]}
+          />
           <Button
             type="button"
             variant="ghost"
@@ -235,8 +259,9 @@ export default function CalidadPage() {
       {summary ? (
         <div className="stagger grid grid-cols-1 gap-4 md:grid-cols-4">
           <KpiCard
-            label="Satisfacción"
+            label="Satisfacción (0–10)"
             value={npsDisplay(summary.nps)}
+            delta="Puntaje máximo 10"
             tone={
               summary.nps == null
                 ? "neutral"
@@ -264,25 +289,29 @@ export default function CalidadPage() {
       {!rows.length ? (
         <EmptyState
           icon={<ClipboardList className="h-7 w-7" />}
-          title="Sin reportes QHSE"
+          title="Sin reportes de calidad / seguridad"
           description="Registre el primer evento de calidad, incidente o auditoría."
-          actionLabel="+ Nuevo Reporte QHSE"
+          actionLabel="+ Nuevo reporte"
           onAction={openForm}
         />
       ) : (
         <BentoPanel
-          title="Registro QHSE / PESV"
-          subtitle={`${rows.length} eventos`}
+          title="Registro de calidad y seguridad"
+          subtitle={`${rows.length} eventos · satisfacción 0–10`}
           icon={<ClipboardList className="h-4 w-4" />}
         >
-          <NexaTable columns={["Tipo", "Título", "Score", "Estado", "Acciones"]}>
+          <NexaTable
+            columns={["Tipo", "Título", "Satisfacción", "Estado", "Acciones"]}
+          >
             {rows.map((r) => (
               <NexaRow key={r.id}>
                 <NexaCell>
                   <Badge>{r.type}</Badge>
                 </NexaCell>
                 <NexaCell>{r.title}</NexaCell>
-                <NexaCell mono>{r.score != null ? r.score : "N/A"}</NexaCell>
+                <NexaCell mono>
+                  {r.score != null ? `${r.score}/10` : "N/A"}
+                </NexaCell>
                 <NexaCell>
                   <StatusPulseBadge
                     tone={r.status === "OPEN" ? "danger" : "active"}
@@ -319,8 +348,8 @@ export default function CalidadPage() {
       <SlideOver
         open={formOpen}
         onClose={() => setFormOpen(false)}
-        title="Nuevo reporte QHSE"
-        description="Tipo, fecha, descripción y evidencia adjunta."
+        title="Nuevo reporte de calidad / seguridad"
+        description="Tipo, fecha, descripción y evidencia. Satisfacción NPS: 0 a 10 (máximo 10)."
         footer={
           <>
             <Button
@@ -396,7 +425,7 @@ export default function CalidadPage() {
           {form.type === "NPS" ? (
             <label className="block space-y-1.5">
               <span className="text-xs font-semibold uppercase tracking-wider text-brand-text-secondary">
-                Puntaje de satisfacción
+                Puntaje de satisfacción (0–10)
               </span>
               <input
                 className="field w-full font-data"
@@ -404,15 +433,21 @@ export default function CalidadPage() {
                 inputMode="numeric"
                 min={0}
                 max={10}
-                placeholder="0 a 10"
+                placeholder="Máximo 10"
                 value={form.score}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    score: e.target.value.replace(/\D/g, "").slice(0, 2),
-                  })
-                }
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/\D/g, "").slice(0, 2);
+                  const n = Number(raw);
+                  const capped =
+                    raw === ""
+                      ? ""
+                      : String(Math.min(10, Number.isFinite(n) ? n : 0));
+                  setForm({ ...form, score: capped });
+                }}
               />
+              <span className="block text-[11px] text-brand-text-secondary">
+                Escala de 0 a 10. El valor máximo permitido es 10.
+              </span>
             </label>
           ) : null}
           <div className="space-y-1.5">
