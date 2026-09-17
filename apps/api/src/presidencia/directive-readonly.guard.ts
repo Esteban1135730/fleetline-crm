@@ -9,7 +9,7 @@ import { Reflector } from "@nestjs/core";
 
 export const ALLOW_DIRECTIVE_QUERY_KEY = "allowDirectiveQuery";
 
-/** Marca un handler como consulta directiva permitida (p. ej. Text-to-SQL). */
+/** Marca un handler como consulta directiva permitida (p. ej. text-to-SQL). */
 export const AllowDirectiveQuery = () =>
   SetMetadata(ALLOW_DIRECTIVE_QUERY_KEY, true);
 
@@ -27,6 +27,22 @@ function isDirectiveSession(user?: {
 }
 
 /**
+ * Autogestión de sesión: debe funcionar aunque el perfil sea
+ * solo-lectura operativa (p. ej. cambio de clave temporal al primer login).
+ */
+function isAuthSelfServicePath(path: string): boolean {
+  const p = (path.split("?")[0] || "").replace(/\/+$/, "") || "/";
+  return (
+    p === "/auth/password" ||
+    p === "/auth/logout" ||
+    p === "/auth/refresh" ||
+    p.endsWith("/auth/password") ||
+    p.endsWith("/auth/logout") ||
+    p.endsWith("/auth/refresh")
+  );
+}
+
+/**
  * Founder's Canvas / vistas directivas: consulta consolidada sin mutación operativa.
  * Excepción: handlers anotados con @AllowDirectiveQuery() (IA / what-if de lectura).
  */
@@ -37,6 +53,9 @@ export class DirectiveReadOnlyGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const req = context.switchToHttp().getRequest<{
       method?: string;
+      url?: string;
+      originalUrl?: string;
+      path?: string;
       user?: { role?: string; directiveReadOnly?: boolean };
     }>();
 
@@ -46,6 +65,11 @@ export class DirectiveReadOnlyGuard implements CanActivate {
 
     const method = String(req.method || "GET").toUpperCase();
     if (method === "GET" || method === "HEAD" || method === "OPTIONS") {
+      return true;
+    }
+
+    const path = String(req.originalUrl || req.url || req.path || "");
+    if (isAuthSelfServicePath(path)) {
       return true;
     }
 

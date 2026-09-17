@@ -355,7 +355,8 @@ export const ROLE_PERMISSIONS: Record<string, RolePermissionMap> = {
   auxiliar_patio: {
     patio_lavado: ["CREATE", "READ", "UPDATE"],
     patio_parqueo: ["CREATE", "READ", "UPDATE"],
-    patio_acceso: ["READ"],
+    /** Mismo flujo de ingreso/salida que coordinador (portería). */
+    patio_acceso: ["CREATE", "READ", "UPDATE"],
   },
 
   sub_gerente: {
@@ -1394,30 +1395,16 @@ export type RoleNavItem = {
   tip: string;
 };
 
+/**
+ * Menús curados: solo pantallas/rutas independientes.
+ * Secciones internas de un dashboard (#anclas) no van al sidebar.
+ */
 export const RECEPCIONISTA_NAV: RoleNavItem[] = [
   {
     href: "/recepcion/dashboard",
-    label: "Recepción omnicanal",
+    label: "Recepción",
     view: "call_center",
-    tip: "Bandeja WhatsApp / correo / llamadas",
-  },
-  {
-    href: "/recepcion/dashboard#visitantes",
-    label: "Visitantes",
-    view: "call_center",
-    tip: "Tablero de visitantes · ingreso y gafete",
-  },
-  {
-    href: "/recepcion/dashboard#pqrs",
-    label: "Radicar PQRS",
-    view: "call_center",
-    tip: "Quejas e incidentes de primer contacto",
-  },
-  {
-    href: "/recepcion/dashboard#radar",
-    label: "Radar de Rutas (Lectura)",
-    view: "logistica",
-    tip: "Estado GPS de buses · sin despacho",
+    tip: "Visitantes · mensajes · PQRS · radar de rutas",
   },
 ];
 
@@ -1427,25 +1414,13 @@ export const LIDER_TI_NAV: RoleNavItem[] = [
     href: "/ti/dashboard",
     label: "Centro de Control TI",
     view: "tecnologia_ti",
-    tip: "Salud de APIs, usuarios y mesa de ayuda",
+    tip: "Salud de APIs, mesa de ayuda e integraciones",
   },
   {
-    href: "/ti/dashboard#usuarios",
-    label: "Usuarios y roles",
+    href: "/usuarios",
+    label: "Usuarios",
     view: "usuarios",
-    tip: "Aprovisionamiento y suspensión",
-  },
-  {
-    href: "/ti/dashboard#helpdesk",
-    label: "Mesa de ayuda",
-    view: "tecnologia_ti",
-    tip: "Tickets técnicos internos",
-  },
-  {
-    href: "/ti/dashboard#integraciones",
-    label: "Integraciones y servicios",
-    view: "tecnologia_ti",
-    tip: "GPS, WhatsApp, facturación electrónica",
+    tip: "Cuentas de acceso y roles por persona",
   },
 ];
 
@@ -1457,24 +1432,6 @@ export const GESTOR_DOCUMENTAL_NAV: RoleNavItem[] = [
     view: "archivo",
     tip: "Búsqueda universal · custodia · inventario",
   },
-  {
-    href: "/archivo/dashboard#pendientes",
-    label: "Pendientes de digitalizar",
-    view: "archivo",
-    tip: "Escaneos solicitados",
-  },
-  {
-    href: "/archivo/dashboard#prestamos",
-    label: "Carpetas en préstamo",
-    view: "archivo",
-    tip: "Cadena de custodia física",
-  },
-  {
-    href: "/archivo/dashboard#inventario",
-    label: "Inventario administrativo",
-    view: "archivo",
-    tip: "Papelería y dotación · stock crítico",
-  },
 ];
 
 /** Sidebar forzado — Auxiliar Contable (Mateo) */
@@ -1485,51 +1442,15 @@ export const AUXILIAR_CONTABLE_NAV: RoleNavItem[] = [
     view: "contabilidad",
     tip: "CxP · legalizaciones · conciliación",
   },
-  {
-    href: "/contabilidad/auxiliar/dashboard#facturas",
-    label: "Facturas por radicar",
-    view: "contabilidad",
-    tip: "Cruce triple · causar / devolver",
-  },
-  {
-    href: "/contabilidad/auxiliar/dashboard#legalizaciones",
-    label: "Anticipos por legalizar",
-    view: "contabilidad",
-    tip: "Viáticos y caja menor",
-  },
-  {
-    href: "/contabilidad/auxiliar/dashboard#conciliacion",
-    label: "Transacciones por conciliar",
-    view: "contabilidad",
-    tip: "Cruce automático del extracto bancario",
-  },
 ];
 
 /** Sidebar forzado — Gestor Contable (Diana) */
 export const GESTOR_CONTABLE_NAV: RoleNavItem[] = [
   {
     href: "/contabilidad/gestor/dashboard",
-    label: "Libro diario y facturación",
+    label: "Contabilidad",
     view: "contabilidad",
     tip: "PUC · DIAN · cartera digital · costeo de flota",
-  },
-  {
-    href: "/contabilidad/gestor/dashboard#gastos",
-    label: "Gastos de ruta",
-    view: "contabilidad",
-    tip: "Auditar peajes y tanqueos",
-  },
-  {
-    href: "/contabilidad/gestor/dashboard#facturacion",
-    label: "Facturación B2B",
-    view: "contabilidad",
-    tip: "Prefactura y timbrado DIAN",
-  },
-  {
-    href: "/contabilidad/gestor/dashboard#diario",
-    label: "Libro diario",
-    view: "contabilidad",
-    tip: "Filtro por placa / cuenta PUC",
   },
 ];
 
@@ -1542,12 +1463,6 @@ export const DIRECTOR_FINANCIERO_NAV: RoleNavItem[] = [
     tip: "Resultados · aprobación de lotes · simulador de rentabilidad",
   },
   {
-    href: "/finanzas/cfo/dashboard#aprobaciones",
-    label: "Aprobaciones con clave",
-    view: "tesoreria",
-    tip: "Lotes sobre el tope · clave de dirección financiera",
-  },
-  {
     href: "/comercial",
     label: "Contratos y cotizaciones",
     view: "comercial",
@@ -1555,13 +1470,13 @@ export const DIRECTOR_FINANCIERO_NAV: RoleNavItem[] = [
   },
   {
     href: "/tesoreria",
-    label: "Tesorería (lectura/ops)",
+    label: "Tesorería",
     view: "tesoreria",
     tip: "Cola de dispersión y cartera",
   },
   {
     href: "/contabilidad/gestor/dashboard",
-    label: "Contabilidad (auditoría)",
+    label: "Contabilidad",
     view: "contabilidad",
     tip: "Lectura PUC · facturación · costeo",
   },
@@ -1571,33 +1486,15 @@ export const DIRECTOR_FINANCIERO_NAV: RoleNavItem[] = [
 export const LIDER_QHSE_NAV: RoleNavItem[] = [
   {
     href: "/qhse/dashboard",
-    label: "Radar de Prevención",
+    label: "Calidad y SST",
     view: "qhse",
-    tip: "Semáforos · telemetría · tablero de siniestros",
-  },
-  {
-    href: "/qhse/dashboard#novedades",
-    label: "Bandeja de novedades",
-    view: "qhse",
-    tip: "Excesos · frenadas · PQRS en vivo",
-  },
-  {
-    href: "/qhse/dashboard#siniestros",
-    label: "Sala de siniestros",
-    view: "qhse",
-    tip: "Investigación · ARL · orden taller",
-  },
-  {
-    href: "/qhse/dashboard#esg",
-    label: "Huella ambiental",
-    view: "qhse",
-    tip: "NPS · emisiones · exportación",
+    tip: "Semáforos · telemetría · siniestros · ambiental",
   },
   {
     href: "/rrhh",
-    label: "Fatiga y capacitaciones",
+    label: "Recursos Humanos",
     view: "rrhh",
-    tip: "Salud ocupacional · alcoholimetría",
+    tip: "Fatiga · capacitaciones · salud ocupacional",
   },
 ];
 
@@ -1605,39 +1502,21 @@ export const LIDER_QHSE_NAV: RoleNavItem[] = [
 export const LIDER_COMPRAS_NAV: RoleNavItem[] = [
   {
     href: "/compras/dashboard",
-    label: "Centro de proveedores",
+    label: "Compras",
     view: "compras",
-    tip: "Requisiciones · tablero de órdenes · ahorros",
-  },
-  {
-    href: "/compras/dashboard#requisiciones",
-    label: "Bandeja requisiciones",
-    view: "compras",
-    tip: "Crítico · stock bajo · admin",
-  },
-  {
-    href: "/compras/dashboard#ordenes",
-    label: "Tablero de órdenes",
-    view: "compras",
-    tip: "Cotizando → Recibido",
-  },
-  {
-    href: "/compras/dashboard#ahorros",
-    label: "Ahorros y proveedores",
-    view: "compras",
-    tip: "Calificación · ahorros · homologados",
+    tip: "Requisiciones · órdenes · ahorros y proveedores",
   },
   {
     href: "/taller",
-    label: "Inventario Taller",
+    label: "Taller",
     view: "taller",
-    tip: "Re-orden · recepción mercancía",
+    tip: "Inventario · re-orden · recepción mercancía",
   },
   {
     href: "/tramites",
-    label: "SOAT y pólizas",
+    label: "Trámites",
     view: "tramites",
-    tip: "Renovación · OCR pólizas",
+    tip: "SOAT · pólizas · documentos de flota",
   },
 ];
 
@@ -1650,34 +1529,16 @@ export const DIRECTOR_OPERATIVO_NAV: RoleNavItem[] = [
     tip: "Gantt táctico · radar novedades · SLA",
   },
   {
-    href: "/operaciones/director/dashboard#gantt",
-    label: "Gantt de flota",
-    view: "logistica",
-    tip: "Arrastrar y soltar · reasignación en vivo",
-  },
-  {
-    href: "/operaciones/director/dashboard#novedades",
-    label: "Radar novedades",
-    view: "logistica",
-    tip: "Tráfico · ingreso · SOS",
-  },
-  {
-    href: "/operaciones/director/dashboard#capacidad",
-    label: "Planeación de capacidad",
-    view: "logistica",
-    tip: "Taller + RRHH · picos demanda",
-  },
-  {
     href: "/taller",
-    label: "Paradas de flota",
+    label: "Taller",
     view: "taller",
-    tip: "Aprobar mantenimiento sincronizado",
+    tip: "Paradas de flota y mantenimiento",
   },
   {
     href: "/parqueadero",
-    label: "Patio inteligente",
+    label: "Patio",
     view: "parqueadero",
-    tip: "Inmovilizaciones · patio",
+    tip: "Inmovilizaciones e ingreso/salida",
   },
 ];
 
@@ -1687,19 +1548,7 @@ export const GESTOR_OPERATIVO_NAV: RoleNavItem[] = [
     href: "/operaciones/despacho/dashboard",
     label: "Microdespacho",
     view: "logistica",
-    tip: "Gantt diario · filtros · acuse en la app",
-  },
-  {
-    href: "/operaciones/despacho/dashboard#gantt",
-    label: "Gantt diario",
-    view: "logistica",
-    tip: "Azul asignado · Verde en ruta · Gris taller · Rojo bloqueado",
-  },
-  {
-    href: "/operaciones/despacho/dashboard#relevo",
-    label: "Relevo flash",
-    view: "logistica",
-    tip: "Viaje descubierto · retén GPS",
+    tip: "Gantt diario · relevo · acuse en la app",
   },
   {
     href: "/logistica/servicios",
@@ -1721,19 +1570,7 @@ export const COORDINADOR_CAMPO_NAV: RoleNavItem[] = [
     href: "/operaciones/campo/dashboard",
     label: "Comando de campo",
     view: "logistica",
-    tip: "Radar de geocerca · error de dedo · sin conexión",
-  },
-  {
-    href: "/operaciones/campo/dashboard#radar",
-    label: "Radar en vivo",
-    view: "logistica",
-    tip: "Geocerca 5 km · ETA llegada",
-  },
-  {
-    href: "/operaciones/campo/dashboard#acciones",
-    label: "Acciones de sitio",
-    view: "logistica",
-    tip: "Novedad · Manifiesto · Base",
+    tip: "Radar de geocerca · acciones en sitio",
   },
 ];
 
@@ -1743,25 +1580,7 @@ export const OPERADOR_CENTRO_CONTROL_NAV: RoleNavItem[] = [
     href: "/centro-control/dashboard",
     label: "Torre de control",
     view: "logistica",
-    tip: "Pantalla de monitoreo · excepciones · SOS",
-  },
-  {
-    href: "/centro-control/dashboard#anomalias",
-    label: "Excepciones",
-    view: "logistica",
-    tip: "Desvíos · fatiga · alarmas",
-  },
-  {
-    href: "/centro-control/dashboard#voip",
-    label: "Consola de llamadas",
-    view: "logistica",
-    tip: "Marcación rápida conductores",
-  },
-  {
-    href: "/centro-control/dashboard#warroom",
-    label: "Sala de crisis",
-    view: "logistica",
-    tip: "Emergencia · protocolo extremo · sensores",
+    tip: "Monitoreo · excepciones · SOS · sala de crisis",
   },
 ];
 
@@ -1769,20 +1588,20 @@ export const OPERADOR_CENTRO_CONTROL_NAV: RoleNavItem[] = [
 export const COORDINADOR_PATIO_NAV: RoleNavItem[] = [
   {
     href: "/patio/dashboard",
-    label: "Patio inteligente",
+    label: "Patio",
     view: "parqueadero",
     tip: "Mapa de patio · talanquera",
-  },
-  {
-    href: "/patio/dashboard#talanquera",
-    label: "Consola Talanquera",
-    view: "parqueadero",
-    tip: "Lectura de placa · bloqueo operativo",
   },
 ];
 
 /** Sidebar forzado — Auxiliar Patio (Juan) */
 export const AUXILIAR_PATIO_NAV: RoleNavItem[] = [
+  {
+    href: "/patio/dashboard",
+    label: "Patio",
+    view: "parqueadero",
+    tip: "Ingreso · salida · talanquera",
+  },
   {
     href: "/patio/yard-app",
     label: "App de patio",
@@ -1815,21 +1634,9 @@ export const SUBGERENTE_NAV: RoleNavItem[] = [
 export const COORDINADOR_TALLER_NAV: RoleNavItem[] = [
   {
     href: "/taller/coordinador/dashboard",
-    label: "Torre de Taller",
+    label: "Taller",
     view: "taller",
-    tip: "Tablero de órdenes · Bahías · control de calidad",
-  },
-  {
-    href: "/taller/coordinador/dashboard#bahias",
-    label: "Plano de bahías",
-    view: "taller",
-    tip: "Mapa de bahías · cronómetro",
-  },
-  {
-    href: "/taller/coordinador/dashboard#qc",
-    label: "Alta médica",
-    view: "taller",
-    tip: "Control de calidad · liberación Logística",
+    tip: "Órdenes · bahías · control de calidad",
   },
 ];
 
@@ -1840,12 +1647,6 @@ export const AUXILIAR_ALMACEN_TALLER_NAV: RoleNavItem[] = [
     label: "Almacén del taller",
     view: "taller",
     tip: "Código · referencia · despacho en mostrador",
-  },
-  {
-    href: "/taller/almacen/dashboard#despacho",
-    label: "Despacho rápido",
-    view: "taller",
-    tip: "Escanear · imputar costo",
   },
 ];
 
@@ -1863,33 +1664,15 @@ export const MECANICO_NAV: RoleNavItem[] = [
 export const REVISOR_FISCAL_NAV: RoleNavItem[] = [
   {
     href: "/revisoria-fiscal/dashboard",
-    label: "Centro de revisoría",
+    label: "Revisoría fiscal",
     view: "revisoria_fiscal",
-    tip: "Impuestos · detalle · cierre de periodo",
+    tip: "Impuestos · muestreo · DIAN · cierre de periodo",
   },
   {
-    href: "/revisoria-fiscal/dashboard#balance",
-    label: "Balance PUC",
+    href: "/contabilidad/gestor/dashboard",
+    label: "Contabilidad",
     view: "contabilidad",
-    tip: "Árbol colapsable hasta factura",
-  },
-  {
-    href: "/revisoria-fiscal/dashboard#muestreo",
-    label: "Bandeja de Muestreo",
-    view: "revisoria_fiscal",
-    tip: "5% aleatorio del mes",
-  },
-  {
-    href: "/revisoria-fiscal/dashboard#impuestos",
-    label: "Panel DIAN",
-    view: "revisoria_fiscal",
-    tip: "Retenciones · prevalidador",
-  },
-  {
-    href: "/revisoria-fiscal/dashboard#cierre",
-    label: "Dictamen y Cierre",
-    view: "revisoria_fiscal",
-    tip: "Cierre definitivo del periodo",
+    tip: "Lectura PUC · balance · costeo",
   },
 ];
 
@@ -1897,27 +1680,9 @@ export const REVISOR_FISCAL_NAV: RoleNavItem[] = [
 export const AUDITOR_CONTROL_INTERNO_NAV: RoleNavItem[] = [
   {
     href: "/control-interno/dashboard",
-    label: "Centro forense",
+    label: "Control interno",
     view: "revisoria_fiscal",
-    tip: "Caja negra · hallazgos · auditoría",
-  },
-  {
-    href: "/control-interno/dashboard#audit-log",
-    label: "Caja Negra",
-    view: "revisoria_fiscal",
-    tip: "Bitácora inmutable",
-  },
-  {
-    href: "/control-interno/dashboard#anomalias",
-    label: "Radar anomalías",
-    view: "revisoria_fiscal",
-    tip: "Alertas automáticas · bloqueos",
-  },
-  {
-    href: "/control-interno/dashboard#hallazgos",
-    label: "Hallazgos",
-    view: "revisoria_fiscal",
-    tip: "Abierta → Descargos → Cerrada",
+    tip: "Caja negra · anomalías · hallazgos",
   },
 ];
 
@@ -1925,27 +1690,9 @@ export const AUDITOR_CONTROL_INTERNO_NAV: RoleNavItem[] = [
 export const PRESIDENTE_NAV: RoleNavItem[] = [
   {
     href: "/presidencia/dashboard",
-    label: "Lienzo de presidencia",
+    label: "Presidencia",
     view: "presidencia",
-    tip: "4 pilares · asistente · inversión · crisis",
-  },
-  {
-    href: "/presidencia/dashboard#jarvis",
-    label: "Asistente de presidencia",
-    view: "presidencia",
-    tip: "Comandos de voz y lenguaje natural",
-  },
-  {
-    href: "/presidencia/dashboard#capex",
-    label: "Simulador de inversión",
-    view: "presidencia",
-    tip: "Inversión flota · utilización",
-  },
-  {
-    href: "/presidencia/dashboard#defcon",
-    label: "Protocolo de crisis",
-    view: "presidencia",
-    tip: "Protocolo extremo · sala de crisis",
+    tip: "Tablero ejecutivo · asistente · inversión · crisis",
   },
 ];
 
@@ -1953,27 +1700,9 @@ export const PRESIDENTE_NAV: RoleNavItem[] = [
 export const GESTOR_VINCULACIONES_NAV: RoleNavItem[] = [
   {
     href: "/vinculaciones/dashboard",
-    label: "Alta de afiliados",
+    label: "Vinculaciones",
     view: "rrhh",
-    tip: "Embudo legal · OCR · RUNT/SIMIT",
-  },
-  {
-    href: "/vinculaciones/dashboard#kanban",
-    label: "Embudo de afiliados",
-    view: "rrhh",
-    tip: "Solicitud → Activo en flota",
-  },
-  {
-    href: "/vinculaciones/dashboard#vencimientos",
-    label: "Matriz vencimientos",
-    view: "rrhh",
-    tip: "SOAT · TO · Pólizas · Tecno",
-  },
-  {
-    href: "/vinculaciones/dashboard#ocr",
-    label: "Visor OCR",
-    view: "rrhh",
-    tip: "Pantalla partida · validación del documento",
+    tip: "Alta de afiliados · vencimientos · OCR",
   },
 ];
 
@@ -1981,27 +1710,9 @@ export const GESTOR_VINCULACIONES_NAV: RoleNavItem[] = [
 export const DIRECTOR_COMERCIAL_NAV: RoleNavItem[] = [
   {
     href: "/comercial/director/dashboard",
-    label: "Centro de Conversión",
+    label: "Dirección comercial",
     view: "comercial",
-    tip: "Embudo empresas · cuota · renovaciones",
-  },
-  {
-    href: "/comercial/director/dashboard#pipeline",
-    label: "Embudo comercial",
-    view: "comercial",
-    tip: "Lead → Cerrado Ganado",
-  },
-  {
-    href: "/comercial/director/dashboard#cotizador",
-    label: "Cotizador Inteligente",
-    view: "comercial",
-    tip: "Costo real $/km · límites de margen",
-  },
-  {
-    href: "/comercial/director/dashboard#renovaciones",
-    label: "Radar renovaciones",
-    view: "comercial",
-    tip: "90 días · NPS · cartera",
+    tip: "Embudo · cotizador · renovaciones",
   },
 ];
 
@@ -2009,27 +1720,9 @@ export const DIRECTOR_COMERCIAL_NAV: RoleNavItem[] = [
 export const GESTOR_COMERCIAL_NAV: RoleNavItem[] = [
   {
     href: "/comercial/gestor/dashboard",
-    label: "Acción Rápida",
+    label: "Gestión comercial",
     view: "comercial",
-    tip: "Tareas · mini-embudo · línea de tiempo",
-  },
-  {
-    href: "/comercial/gestor/dashboard#tareas",
-    label: "Bandeja de tareas",
-    view: "comercial",
-    tip: "Llamadas · correos · reuniones",
-  },
-  {
-    href: "/comercial/gestor/dashboard#pipeline",
-    label: "Embudo personal",
-    view: "comercial",
-    tip: "Cartera personal",
-  },
-  {
-    href: "/comercial/gestor/dashboard#marcador",
-    label: "Marcador integrado",
-    view: "comercial",
-    tip: "Llamada + notas de voz",
+    tip: "Tareas · embudo personal · marcador",
   },
 ];
 
@@ -2037,27 +1730,9 @@ export const GESTOR_COMERCIAL_NAV: RoleNavItem[] = [
 export const COORDINADOR_COMERCIAL_NAV: RoleNavItem[] = [
   {
     href: "/comercial/coordinador/dashboard",
-    label: "Centro Analítico",
+    label: "Coordinación comercial",
     view: "comercial",
-    tip: "Tabla de posiciones · proyección · SECOP",
-  },
-  {
-    href: "/comercial/coordinador/dashboard#leaderboard",
-    label: "Tabla de posiciones",
-    view: "comercial",
-    tip: "Posiciones y ventas",
-  },
-  {
-    href: "/comercial/coordinador/dashboard#secop",
-    label: "Seguimiento SECOP",
-    view: "comercial",
-    tip: "Gantt de licitaciones públicas",
-  },
-  {
-    href: "/comercial/coordinador/dashboard#sla",
-    label: "Tiempos y asignación en ronda",
-    view: "comercial",
-    tip: "2h contacto · reasignación",
+    tip: "Tabla de posiciones · SECOP · tiempos",
   },
 ];
 
@@ -2065,27 +1740,9 @@ export const COORDINADOR_COMERCIAL_NAV: RoleNavItem[] = [
 export const GERENTE_GENERAL_NAV: RoleNavItem[] = [
   {
     href: "/gerencia/dashboard",
-    label: "Puente de Decisiones",
+    label: "Gerencia",
     view: "gerencia",
-    tip: "Cuadro de mando · excepciones · aprobaciones",
-  },
-  {
-    href: "/gerencia/dashboard#aprobaciones",
-    label: "Bandeja ejecutiva",
-    view: "gerencia",
-    tip: "Pagos · contratos · PIN",
-  },
-  {
-    href: "/gerencia/dashboard#scorecard",
-    label: "Cuadro de mando integral",
-    view: "gerencia",
-    tip: "Ventas × Ops × Finanzas",
-  },
-  {
-    href: "/gerencia/dashboard#comando",
-    label: "Directorio de Comando",
-    view: "gerencia",
-    tip: "Sala de crisis con directores",
+    tip: "Cuadro de mando · aprobaciones · comando",
   },
 ];
 
@@ -2093,35 +1750,91 @@ export const GERENTE_GENERAL_NAV: RoleNavItem[] = [
 export const DIRECTOR_JURIDICO_NAV: RoleNavItem[] = [
   {
     href: "/juridico/dashboard",
-    label: "Centro jurídico",
+    label: "Dirección jurídica",
     view: "juridico",
-    tip: "Riesgos · Contratos · SARLAFT",
+    tip: "Contratos, calendario y expedientes",
   },
   {
-    href: "/juridico/dashboard#contratos",
-    label: "Gestor de Contratos",
-    view: "juridico",
-    tip: "Revisión automática · comentarios",
-  },
-  {
-    href: "/juridico/dashboard#calendario",
-    label: "Calendario Judicial",
-    view: "juridico",
-    tip: "Audiencias · plazos inamovibles",
-  },
-  {
-    href: "/juridico/dashboard#sarlaft",
-    label: "Riesgo SARLAFT",
+    href: "/sarlaft",
+    label: "SARLAFT",
     view: "sarlaft",
-    tip: "Semáforos · listas restrictivas",
-  },
-  {
-    href: "/juridico/dashboard#expediente",
-    label: "Expediente Probatorio",
-    view: "juridico",
-    tip: "PDF inmutable por placa",
+    tip: "Listas restrictivas y semáforos de riesgo",
   },
 ];
+
+/** Sidebar — Centro jurídico (base; sin ampliar a módulos de dirección) */
+export const JURIDICO_NAV: RoleNavItem[] = [
+  {
+    href: "/juridico/dashboard",
+    label: "Jurídico",
+    view: "juridico",
+    tip: "Contratos, calendario y expedientes",
+  },
+  {
+    href: "/sarlaft",
+    label: "SARLAFT",
+    view: "sarlaft",
+    tip: "Listas restrictivas y riesgo",
+  },
+];
+
+/** Sidebar — Tesorería */
+export const TESORERIA_NAV: RoleNavItem[] = [
+  {
+    href: "/tesoreria",
+    label: "Tesorería",
+    view: "tesoreria",
+    tip: "CxC / CxP y dispersión de caja",
+  },
+];
+
+/**
+ * Menú curado por rol (sidebar). Si un rol no aparece aquí,
+ * se usa el catálogo de hubs filtrado por ROLE_VIEWS.
+ */
+export const ROLE_CURATED_NAV: Partial<
+  Record<string, readonly RoleNavItem[]>
+> = {
+  recepcionista: RECEPCIONISTA_NAV,
+  recepcion: RECEPCIONISTA_NAV,
+  lider_ti: LIDER_TI_NAV,
+  tecnologia: LIDER_TI_NAV,
+  gestor_documental: GESTOR_DOCUMENTAL_NAV,
+  archivo: GESTOR_DOCUMENTAL_NAV,
+  auxiliar_contable: AUXILIAR_CONTABLE_NAV,
+  gestor_contable: GESTOR_CONTABLE_NAV,
+  director_financiero: DIRECTOR_FINANCIERO_NAV,
+  tesoreria: TESORERIA_NAV,
+  lider_qhse: LIDER_QHSE_NAV,
+  qhse: LIDER_QHSE_NAV,
+  lider_compras: LIDER_COMPRAS_NAV,
+  compras: LIDER_COMPRAS_NAV,
+  director_operativo: DIRECTOR_OPERATIVO_NAV,
+  gestor_operativo: GESTOR_OPERATIVO_NAV,
+  coordinador_campo: COORDINADOR_CAMPO_NAV,
+  operador_centro_control: OPERADOR_CENTRO_CONTROL_NAV,
+  centro_control: OPERADOR_CENTRO_CONTROL_NAV,
+  auditor_control_interno: AUDITOR_CONTROL_INTERNO_NAV,
+  control_interno: AUDITOR_CONTROL_INTERNO_NAV,
+  presidente: PRESIDENTE_NAV,
+  presidencia: PRESIDENTE_NAV,
+  gestor_vinculaciones: GESTOR_VINCULACIONES_NAV,
+  vinculaciones: GESTOR_VINCULACIONES_NAV,
+  director_comercial: DIRECTOR_COMERCIAL_NAV,
+  gestor_comercial: GESTOR_COMERCIAL_NAV,
+  coordinador_comercial: COORDINADOR_COMERCIAL_NAV,
+  gerente_general: GERENTE_GENERAL_NAV,
+  director_juridico: DIRECTOR_JURIDICO_NAV,
+  juridico: JURIDICO_NAV,
+  revisor_fiscal: REVISOR_FISCAL_NAV,
+  coordinador_taller: COORDINADOR_TALLER_NAV,
+  auxiliar_almacen_taller: AUXILIAR_ALMACEN_TALLER_NAV,
+  mecanico: MECANICO_NAV,
+  coordinador_patio: COORDINADOR_PATIO_NAV,
+  auxiliar_patio: AUXILIAR_PATIO_NAV,
+  conductor: CONDUCTOR_PILOT_NAV,
+  sub_gerente: SUBGERENTE_NAV,
+};
 
 export const RBAC_FORBIDDEN_MESSAGE =
   "No tienes permisos para acceder a este recurso.";

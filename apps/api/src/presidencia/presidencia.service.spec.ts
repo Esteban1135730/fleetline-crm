@@ -16,6 +16,7 @@ function mockCtx(
   method: string,
   user?: { role?: string; directiveReadOnly?: boolean },
   allowQuery = false,
+  path = "/operaciones/algo",
 ) {
   const reflector = {
     getAllAndOverride: jest.fn().mockReturnValue(allowQuery),
@@ -25,7 +26,7 @@ function mockCtx(
     getHandler: () => ({}),
     getClass: () => ({}),
     switchToHttp: () => ({
-      getRequest: () => ({ method, user }),
+      getRequest: () => ({ method, user, originalUrl: path, url: path, path }),
     }),
   } as never;
   return { guard, ctx, reflector };
@@ -69,6 +70,16 @@ describe("DirectiveReadOnlyGuard — Founder's Canvas", () => {
         mockCtx("POST", { role: "despacho" }).ctx,
       ),
     ).toBe(true);
+  });
+
+  it("permite PATCH /auth/password en sesión directiva (primer login)", () => {
+    const { guard, ctx } = mockCtx(
+      "PATCH",
+      { role: "presidente", directiveReadOnly: true },
+      false,
+      "/auth/password",
+    );
+    expect(guard.canActivate(ctx)).toBe(true);
   });
 });
 

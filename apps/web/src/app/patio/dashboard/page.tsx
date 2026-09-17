@@ -128,6 +128,7 @@ export default function CoordinadorPatioDashboard() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [panelError, setPanelError] = useState<string | null>(null);
   const [lastBlocks, setLastBlocks] = useState<string[]>([]);
   const [lastPlate, setLastPlate] = useState<string | null>(null);
 
@@ -145,6 +146,12 @@ export default function CoordinadorPatioDashboard() {
     void load();
   }, [load]);
 
+  const closePanel = useCallback(() => {
+    setPanel("none");
+    setPanelError(null);
+    setLastBlocks([]);
+  }, []);
+
   const blocked = useMemo(
     () =>
       (dash?.talanquera || []).filter((t) => t.denied || !t.gateOpened).length,
@@ -159,7 +166,7 @@ export default function CoordinadorPatioDashboard() {
     setPanel(mode);
     setPlate(prefillPlate?.toUpperCase() ?? "");
     setMsg(null);
-    setError(null);
+    setPanelError(null);
     setLastBlocks([]);
   }
 
@@ -186,7 +193,7 @@ export default function CoordinadorPatioDashboard() {
     if (!plate.trim()) return;
     setBusy(true);
     setMsg(null);
-    setError(null);
+    setPanelError(null);
     setLastBlocks([]);
     setLastPlate(plate.trim().toUpperCase());
     try {
@@ -205,6 +212,7 @@ export default function CoordinadorPatioDashboard() {
             `Ingreso OK · ${res.plate || plate} — talanquera abierta y bahía LIFO.`,
         );
         setPanel("none");
+        setPanelError(null);
         setPlate("");
         await load();
       } else {
@@ -219,6 +227,7 @@ export default function CoordinadorPatioDashboard() {
         );
         setLastBlocks([]);
         setPanel("none");
+        setPanelError(null);
         setPlate("");
         await load();
       }
@@ -231,8 +240,9 @@ export default function CoordinadorPatioDashboard() {
           : e instanceof Error
             ? e.message
             : "Bloqueo de talanquera";
-      setError(readable);
-      await load();
+      // Mantener el panel abierto; el error se muestra dentro del SlideOver.
+      setPanelError(readable);
+      setError(null);
     } finally {
       setBusy(false);
     }
@@ -579,7 +589,7 @@ export default function CoordinadorPatioDashboard() {
 
       <SlideOver
         open={panel !== "none"}
-        onClose={() => setPanel("none")}
+        onClose={closePanel}
         title={
           panel === "ingreso" ? "Registrar ingreso" : "Validar salida LPR"
         }
@@ -594,7 +604,8 @@ export default function CoordinadorPatioDashboard() {
               type="button"
               variant="secondary"
               className="w-auto px-4 py-2"
-              onClick={() => setPanel("none")}
+              onClick={closePanel}
+              disabled={busy}
             >
               Cancelar
             </Button>
@@ -611,6 +622,52 @@ export default function CoordinadorPatioDashboard() {
           </>
         }
       >
+        {panelError ? (
+          <div
+            role="alert"
+            className="mb-4 space-y-2 rounded-lg border border-[var(--brand-danger)]/40 bg-[color-mix(in_srgb,var(--brand-danger)_10%,transparent)] px-3 py-3"
+          >
+            <p className="text-sm text-[var(--brand-danger)]">{panelError}</p>
+            {lastBlocks.length > 0 ? (
+              <ul className="space-y-1 text-xs text-[var(--brand-text-primary)]">
+                {lastBlocks.map((b) => (
+                  <li key={b} className="flex items-start gap-2">
+                    <Ban className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--brand-danger)]" />
+                    <span>{blockLabel(b)}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            <div className="flex flex-wrap gap-2 pt-1">
+              {lastBlocks.some((b) => /NO_ACTIVE_TRIP|TRIP/i.test(b)) ? (
+                <Link
+                  href="/logistica"
+                  className="rounded-md border border-[var(--brand-border)] px-2 py-1 text-[11px] hover:bg-[var(--brand-canvas)]"
+                >
+                  Ir a Logística
+                </Link>
+              ) : null}
+              {lastBlocks.some((b) =>
+                /DOC|COMPLIANCE|JURIDICO|SOAT/i.test(b),
+              ) ? (
+                <Link
+                  href="/tramites"
+                  className="rounded-md border border-[var(--brand-border)] px-2 py-1 text-[11px] hover:bg-[var(--brand-canvas)]"
+                >
+                  Ir a Trámites
+                </Link>
+              ) : null}
+              {lastBlocks.some((b) => /MAINTENANCE|TALLER/i.test(b)) ? (
+                <Link
+                  href="/taller/coordinador/dashboard"
+                  className="rounded-md border border-[var(--brand-border)] px-2 py-1 text-[11px] hover:bg-[var(--brand-canvas)]"
+                >
+                  Abrir Taller
+                </Link>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
         <label className="flex flex-col gap-1 text-xs uppercase tracking-wide text-[var(--brand-text-secondary)]">
           Placa
           <input

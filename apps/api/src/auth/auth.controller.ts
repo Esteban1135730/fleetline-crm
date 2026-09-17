@@ -8,7 +8,7 @@ import {
   Req,
   Res,
 } from "@nestjs/common";
-import { Throttle } from "@nestjs/throttler";
+import { SkipThrottle } from "@nestjs/throttler";
 import { Field, LoginSchema } from "@fsg/shared";
 import { z } from "zod";
 import type { Request, Response } from "express";
@@ -48,7 +48,7 @@ export class AuthController {
   ) {}
 
   @Public()
-  @Throttle({ default: { limit: 5, ttl: 900_000 } })
+  @SkipThrottle()
   @Post("login")
   async login(
     @Body() body: unknown,
@@ -67,7 +67,7 @@ export class AuthController {
   }
 
   @Public()
-  @Throttle({ default: { limit: 5, ttl: 900_000 } })
+  @SkipThrottle()
   @Post("register")
   async register(@Body() body: unknown, @Req() req: Request) {
     const dto = RegisterOrgSchema.parse(body ?? {});
@@ -76,6 +76,7 @@ export class AuthController {
   }
 
   @Public()
+  @SkipThrottle()
   @Post("logout")
   logout(@Res({ passthrough: true }) res: Response) {
     res.clearCookie(ACCESS_COOKIE, clearCookieOptions());

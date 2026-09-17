@@ -48,7 +48,7 @@ export const BANK_ACCOUNT_TYPES = [
   { value: "CORRIENTE", label: "Corriente" },
 ] as const;
 
-const DEFAULT_AREA = "Operaciones";
+const DEFAULT_AREA = "Operaciones y Flota";
 
 export const EMPTY_EMPLOYEE_FORM: EmployeeFormValues = {
   name: "",
@@ -282,7 +282,7 @@ export function EmployeeFormFields({
       </FieldLabel>
       <FieldLabel
         label="Acceso al sistema"
-        hint="Se asigna automáticamente según el cargo"
+        hint="Rol de permisos según el cargo (8 áreas del sistema)"
       >
         <div className="form-readonly">
           {ROLE_LABELS[form.role] ?? form.role}

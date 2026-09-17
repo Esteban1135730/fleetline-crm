@@ -5,38 +5,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   MODULE_LABELS,
-  NAV_DEPARTMENTS,
-  RECEPCIONISTA_NAV,
-  LIDER_TI_NAV,
-  GESTOR_DOCUMENTAL_NAV,
-  AUXILIAR_CONTABLE_NAV,
-  GESTOR_CONTABLE_NAV,
-  DIRECTOR_FINANCIERO_NAV,
-  LIDER_QHSE_NAV,
-  LIDER_COMPRAS_NAV,
-  DIRECTOR_OPERATIVO_NAV,
-  GESTOR_OPERATIVO_NAV,
-  COORDINADOR_CAMPO_NAV,
-  OPERADOR_CENTRO_CONTROL_NAV,
-  AUDITOR_CONTROL_INTERNO_NAV,
-  PRESIDENTE_NAV,
-  GESTOR_VINCULACIONES_NAV,
-  DIRECTOR_COMERCIAL_NAV,
-  GESTOR_COMERCIAL_NAV,
-  COORDINADOR_COMERCIAL_NAV,
-  GERENTE_GENERAL_NAV,
-  DIRECTOR_JURIDICO_NAV,
-  REVISOR_FISCAL_NAV,
-  COORDINADOR_TALLER_NAV,
-  AUXILIAR_ALMACEN_TALLER_NAV,
-  MECANICO_NAV,
-  COORDINADOR_PATIO_NAV,
-  AUXILIAR_PATIO_NAV,
-  CONDUCTOR_PILOT_NAV,
-  SUBGERENTE_NAV,
   ROLE_DEFAULT_NAV_DEPT,
   ROLE_LABELS,
-  ROLE_VIEWS,
   navDeptForPath,
   normalizeRole,
   resolveModuleId,
@@ -49,6 +19,7 @@ import { Button, Tooltip } from "@fsg/ui";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
 import { brand } from "@/lib/brand";
+import { buildNavDepartmentsForRole } from "@/lib/build-nav";
 import { guideForPath } from "@/lib/module-guides";
 import { ThemeToggle } from "@/lib/theme";
 import { ShellProvider, useShell } from "@/lib/shell-context";
@@ -90,12 +61,25 @@ function pathMatches(href: string, pathname: string) {
 }
 
 function readOpenDepts(fallback: NavDeptId[]): NavDeptId[] {
+  const valid = new Set<string>([
+    "direccion",
+    "soporte",
+    "comercial",
+    "juridico",
+    "finanzas",
+    "riesgos",
+    "operaciones",
+    "compras_mtto",
+  ]);
   try {
     const raw = localStorage.getItem(NAV_OPEN_KEY);
     if (!raw) return fallback;
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return fallback;
-    return parsed.filter((x): x is NavDeptId => typeof x === "string");
+    const next = parsed.filter(
+      (x): x is NavDeptId => typeof x === "string" && valid.has(x),
+    );
+    return next.length ? next : fallback;
   } catch {
     return fallback;
   }
@@ -303,12 +287,12 @@ function SideNav({
       <aside
         className={`flt-sidebar ${sidebarCollapsed ? "is-collapsed" : "is-expanded"}`}
         data-tour="sidebar"
-        aria-label="Áreas corporativas"
+        aria-label="Menú por áreas"
       >
         <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-[var(--brand-border)] px-3">
           {!sidebarCollapsed ? (
             <p className="min-w-0 truncate px-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--brand-text-secondary)]">
-              Áreas
+              Menú
             </p>
           ) : (
             <span className="mx-auto text-[var(--brand-primary)]">
@@ -341,7 +325,7 @@ function SideNav({
           </Tooltip>
         </div>
 
-        <nav className="flex-1 overflow-y-auto py-2" aria-label="Áreas corporativas">
+        <nav className="flex-1 overflow-y-auto py-2" aria-label="Áreas del sistema">
           {departments.map((dept) => {
             const multi = dept.items.length > 1;
             const anyActive = dept.items.some((i) =>
@@ -372,7 +356,7 @@ function SideNav({
                 <Link
                   key={dept.id}
                   href={primary.href}
-                  title={primary.tip || dept.tip}
+                  title={dept.tip || primary.tip}
                   className={`flt-nav-item ${anyActive ? "is-active" : ""}`}
                   onClick={() => {
                     if (window.innerWidth < 1024) setSidebarCollapsed(true);
@@ -382,7 +366,7 @@ function SideNav({
                     view={primary.view}
                     className="h-3.5 w-3.5 shrink-0"
                   />
-                  <span className="min-w-0 flex-1 truncate">{primary.label}</span>
+                  <span className="min-w-0 flex-1 truncate">{dept.label}</span>
                 </Link>
               );
             }
@@ -678,446 +662,12 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
 
   const departments = useMemo(() => {
     if (!user) return [];
-    const role = normalizeRole(user.role);
-
-    if (role === "recepcionista") {
-      const dept: NavDepartment = {
-        id: "call_center",
-        label: "Recepción",
-        tip: "Visitas · mensajes entrantes · PQRS · consulta de rutas",
-        items: RECEPCIONISTA_NAV.map((i) => ({
-          href: i.href,
-          view: i.view as ModuleId,
-          label: i.label,
-          tip: i.tip,
-        })),
-      };
-      return [dept];
-    }
-
-    if (role === "lider_ti") {
-      const dept: NavDepartment = {
-        id: "tecnologia_ti",
-        label: "Tecnología e infraestructura",
-        tip: "Centro de control · usuarios · mesa de ayuda · supervisión",
-        items: LIDER_TI_NAV.map((i) => ({
-          href: i.href,
-          view: i.view as ModuleId,
-          label: i.label,
-          tip: i.tip,
-        })),
-      };
-      return [dept];
-    }
-
-    if (role === "gestor_documental") {
-      const dept: NavDepartment = {
-        id: "archivo",
-        label: "Archivo y Papelería",
-        tip: "Custodia · papelería · búsqueda universal",
-        items: GESTOR_DOCUMENTAL_NAV.map((i) => ({
-          href: i.href,
-          view: i.view as ModuleId,
-          label: i.label,
-          tip: i.tip,
-        })),
-      };
-      return [dept];
-    }
-
-    if (role === "auxiliar_contable") {
-      const dept: NavDepartment = {
-        id: "contabilidad",
-        label: "Operación financiera",
-        tip: "CxP · legalizaciones · conciliación bancaria",
-        items: AUXILIAR_CONTABLE_NAV.map((i) => ({
-          href: i.href,
-          view: i.view as ModuleId,
-          label: i.label,
-          tip: i.tip,
-        })),
-      };
-      return [dept];
-    }
-
-    if (role === "gestor_contable") {
-      const dept: NavDepartment = {
-        id: "contabilidad",
-        label: "Contabilidad 4.0",
-        tip: "PUC · DIAN · cartera digital · costeo de flota",
-        items: GESTOR_CONTABLE_NAV.map((i) => ({
-          href: i.href,
-          view: i.view as ModuleId,
-          label: i.label,
-          tip: i.tip,
-        })),
-      };
-      return [dept];
-    }
-
-    if (role === "director_financiero") {
-      const dept: NavDepartment = {
-        id: "tesoreria",
-        label: "Dirección Financiera",
-        tip: "Dirección financiera · aprobación · resultados · contratos",
-        items: DIRECTOR_FINANCIERO_NAV.map((i) => ({
-          href: i.href,
-          view: i.view as ModuleId,
-          label: i.label,
-          tip: i.tip,
-        })),
-      };
-      return [dept];
-    }
-
-    if (role === "lider_qhse" || role === "qhse") {
-      const dept: NavDepartment = {
-        id: "qhse",
-        label: "Calidad y SST",
-        tip: "Radar · telemetría · siniestros · ambiental",
-        items: LIDER_QHSE_NAV.map((i) => ({
-          href: i.href,
-          view: i.view as ModuleId,
-          label: i.label,
-          tip: i.tip,
-        })),
-      };
-      return [dept];
-    }
-
-    if (role === "lider_compras" || role === "compras") {
-      const dept: NavDepartment = {
-        id: "compras",
-        label: "Compras inteligentes",
-        tip: "Proveedores · órdenes · almacén · SOAT",
-        items: LIDER_COMPRAS_NAV.map((i) => ({
-          href: i.href,
-          view: i.view as ModuleId,
-          label: i.label,
-          tip: i.tip,
-        })),
-      };
-      return [dept];
-    }
-
-    if (role === "director_operativo") {
-      const dept: NavDepartment = {
-        id: "logistica",
-        label: "Dirección Operativa",
-        tip: "Torre de control · cronograma · capacidad",
-        items: DIRECTOR_OPERATIVO_NAV.map((i) => ({
-          href: i.href,
-          view: i.view as ModuleId,
-          label: i.label,
-          tip: i.tip,
-        })),
-      };
-      return [dept];
-    }
-
-    if (role === "gestor_operativo") {
-      const dept: NavDepartment = {
-        id: "logistica",
-        label: "Microdespacho",
-        tip: "Asignación · relevo rápido · bloqueos",
-        items: GESTOR_OPERATIVO_NAV.map((i) => ({
-          href: i.href,
-          view: i.view as ModuleId,
-          label: i.label,
-          tip: i.tip,
-        })),
-      };
-      return [dept];
-    }
-
-    if (role === "coordinador_campo") {
-      const dept: NavDepartment = {
-        id: "logistica",
-        label: "Comando de campo",
-        tip: "Geocerca · abordaje · auditoría en sitio",
-        items: COORDINADOR_CAMPO_NAV.map((i) => ({
-          href: i.href,
-          view: i.view as ModuleId,
-          label: i.label,
-          tip: i.tip,
-        })),
-      };
-      return [dept];
-    }
-
-    if (role === "operador_centro_control" || role === "centro_control") {
-      const dept: NavDepartment = {
-        id: "logistica",
-        label: "Torre de control 24/7",
-        tip: "Excepciones · emergencia · sensores",
-        items: OPERADOR_CENTRO_CONTROL_NAV.map((i) => ({
-          href: i.href,
-          view: i.view as ModuleId,
-          label: i.label,
-          tip: i.tip,
-        })),
-      };
-      return [dept];
-    }
-
-    if (role === "auditor_control_interno" || role === "control_interno") {
-      const dept: NavDepartment = {
-        id: "revisoria_fiscal",
-        label: "Centro forense",
-        tip: "Caja negra · hallazgos · auditoría",
-        items: AUDITOR_CONTROL_INTERNO_NAV.map((i) => ({
-          href: i.href,
-          view: i.view as ModuleId,
-          label: i.label,
-          tip: i.tip,
-        })),
-      };
-      return [dept];
-    }
-
-    if (role === "presidente" || role === "presidencia") {
-      const dept: NavDepartment = {
-        id: "presidencia",
-        label: "Lienzo de presidencia",
-        tip: "Asistente · inversión · crisis",
-        items: PRESIDENTE_NAV.map((i) => ({
-          href: i.href,
-          view: i.view as ModuleId,
-          label: i.label,
-          tip: i.tip,
-        })),
-      };
-      return [dept];
-    }
-
-    if (role === "gestor_vinculaciones" || role === "vinculaciones") {
-      const dept: NavDepartment = {
-        id: "rrhh",
-        label: "Alta de afiliados",
-        tip: "Afiliados · RUNT/SIMIT · lectura de documentos",
-        items: GESTOR_VINCULACIONES_NAV.map((i) => ({
-          href: i.href,
-          view: i.view as ModuleId,
-          label: i.label,
-          tip: i.tip,
-        })),
-      };
-      return [dept];
-    }
-
-    if (role === "director_comercial") {
-      const dept: NavDepartment = {
-        id: "comercial",
-        label: "Dirección Comercial",
-        tip: "Embudo empresas · Cotizador · Firma digital",
-        items: DIRECTOR_COMERCIAL_NAV.map((i) => ({
-          href: i.href,
-          view: i.view as ModuleId,
-          label: i.label,
-          tip: i.tip,
-        })),
-      };
-      return [dept];
-    }
-
-    if (role === "gestor_comercial") {
-      const dept: NavDepartment = {
-        id: "comercial",
-        label: "Ejecución comercial",
-        tip: "Tareas · Marcador · Cobro anticipado",
-        items: GESTOR_COMERCIAL_NAV.map((i) => ({
-          href: i.href,
-          view: i.view as ModuleId,
-          label: i.label,
-          tip: i.tip,
-        })),
-      };
-      return [dept];
-    }
-
-    if (role === "coordinador_comercial") {
-      const dept: NavDepartment = {
-        id: "comercial",
-        label: "Coordinación Comercial",
-        tip: "Tabla de posiciones · SECOP · asignación en ronda",
-        items: COORDINADOR_COMERCIAL_NAV.map((i) => ({
-          href: i.href,
-          view: i.view as ModuleId,
-          label: i.label,
-          tip: i.tip,
-        })),
-      };
-      return [dept];
-    }
-
-    if (role === "gerente_general") {
-      const dept: NavDepartment = {
-        id: "gerencia",
-        label: "Gerencia General",
-        tip: "Cuadro de mando · excepciones · PIN",
-        items: GERENTE_GENERAL_NAV.map((i) => ({
-          href: i.href,
-          view: i.view as ModuleId,
-          label: i.label,
-          tip: i.tip,
-        })),
-      };
-      return [dept];
-    }
-
-    if (role === "director_juridico" || role === "juridico") {
-      const dept: NavDepartment = {
-        id: "juridico",
-        label: "Centro jurídico",
-        tip: "Contratos · SARLAFT · Expedientes",
-        items: DIRECTOR_JURIDICO_NAV.map((i) => ({
-          href: i.href,
-          view: i.view as ModuleId,
-          label: i.label,
-          tip: i.tip,
-        })),
-      };
-      return [dept];
-    }
-
-    if (role === "revisor_fiscal") {
-      const dept: NavDepartment = {
-        id: "revisoria_fiscal",
-        label: "Centro de revisoría",
-        tip: "DIAN · Detalle · Cierre de periodo",
-        items: REVISOR_FISCAL_NAV.map((i) => ({
-          href: i.href,
-          view: i.view as ModuleId,
-          label: i.label,
-          tip: i.tip,
-        })),
-      };
-      return [dept];
-    }
-
-    if (role === "coordinador_taller") {
-      const dept: NavDepartment = {
-        id: "taller",
-        label: "Taller 4.0",
-        tip: "Tablero · Bahías · control de calidad",
-        items: COORDINADOR_TALLER_NAV.map((i) => ({
-          href: i.href,
-          view: i.view as ModuleId,
-          label: i.label,
-          tip: i.tip,
-        })),
-      };
-      return [dept];
-    }
-
-    if (role === "auxiliar_almacen_taller") {
-      const dept: NavDepartment = {
-        id: "taller",
-        label: "Almacén del taller",
-        tip: "Código · despacho en mostrador",
-        items: AUXILIAR_ALMACEN_TALLER_NAV.map((i) => ({
-          href: i.href,
-          view: i.view as ModuleId,
-          label: i.label,
-          tip: i.tip,
-        })),
-      };
-      return [dept];
-    }
-
-    if (role === "mecanico") {
-      const dept: NavDepartment = {
-        id: "taller",
-        label: "App de taller",
-        tip: "Órdenes · cronómetro · foto y voz",
-        items: MECANICO_NAV.map((i) => ({
-          href: i.href,
-          view: i.view as ModuleId,
-          label: i.label,
-          tip: i.tip,
-        })),
-      };
-      return [dept];
-    }
-
-    if (role === "coordinador_patio") {
-      const dept: NavDepartment = {
-        id: "parqueadero",
-        label: "Patio inteligente",
-        tip: "Mapa de patio · Talanquera",
-        items: COORDINADOR_PATIO_NAV.map((i) => ({
-          href: i.href,
-          view: i.view as ModuleId,
-          label: i.label,
-          tip: i.tip,
-        })),
-      };
-      return [dept];
-    }
-
-    if (role === "auxiliar_patio") {
-      const dept: NavDepartment = {
-        id: "parqueadero",
-        label: "App de patio",
-        tip: "Lavado · movimientos de patio",
-        items: AUXILIAR_PATIO_NAV.map((i) => ({
-          href: i.href,
-          view: i.view as ModuleId,
-          label: i.label,
-          tip: i.tip,
-        })),
-      };
-      return [dept];
-    }
-
-    if (role === "conductor") {
-      const dept: NavDepartment = {
-        id: "logistica",
-        label: "App del conductor",
-        tip: "Preoperacional · emergencia · viático",
-        items: CONDUCTOR_PILOT_NAV.map((i) => ({
-          href: i.href,
-          view: i.view as ModuleId,
-          label: i.label,
-          tip: i.tip,
-        })),
-      };
-      return [dept];
-    }
-
-    if (role === "sub_gerente") {
-      const dept: NavDepartment = {
-        id: "gerencia",
-        label: "Ejecución Táctica",
-        tip: "Conflictos · kilómetros en vacío · Proyectos",
-        items: SUBGERENTE_NAV.map((i) => ({
-          href: i.href,
-          view: i.view as ModuleId,
-          label: i.label,
-          tip: i.tip,
-        })),
-      };
-      return [dept];
-    }
-
-    const allowed = new Set(ROLE_VIEWS[role] || []);
-    return NAV_DEPARTMENTS.filter((dept) =>
-      dept.items.some(
-        (item) =>
-          item.view === "cuenta" || allowed.has(item.view as ModuleId),
-      ),
-    ).map((dept) => ({
-      ...dept,
-      items: dept.items.filter(
-        (item) =>
-          item.view === "cuenta" || allowed.has(item.view as ModuleId),
-      ),
-    }));
+    return buildNavDepartmentsForRole(user.role);
   }, [user]);
 
   const defaultOpenId: NavDeptId = user
-    ? ROLE_DEFAULT_NAV_DEPT[normalizeRole(user.role)] || "logistica"
-    : "logistica";
+    ? ROLE_DEFAULT_NAV_DEPT[normalizeRole(user.role)] || "operaciones"
+    : "operaciones";
 
   const flatNav: FlatNavItem[] = useMemo(() => {
     const areas = departments.flatMap((d) =>
@@ -1168,7 +718,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
             defaultOpenId={
               departments.some((d) => d.id === defaultOpenId)
                 ? defaultOpenId
-                : departments[0]?.id || "logistica"
+                : departments[0]?.id || "operaciones"
             }
             onLogout={logout}
           />

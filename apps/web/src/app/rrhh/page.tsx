@@ -163,7 +163,7 @@ type TabId = "personal" | "fatiga" | "nomina" | "capacitaciones";
 
 const STATUSES = ["ACTIVE", "VACATION", "MEDICAL", "INACTIVE"] as const;
 
-const DEFAULT_AREA = "Operaciones";
+const DEFAULT_AREA = "Operaciones y Flota";
 
 function resolveAreaForForm(area: string, title: string): string {
   if (isKnownEmployeeArea(area)) return area;

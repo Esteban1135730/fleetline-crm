@@ -172,11 +172,11 @@ export default function TramitesPage() {
     );
   }, []);
 
-  function openForm() {
+  function openForm(opts?: { alta?: boolean }) {
     setFormError("");
     setForm(EMPTY_FORM);
     setAlta(EMPTY_ALTA);
-    setShowAlta(vehicles.length === 0);
+    setShowAlta(Boolean(opts?.alta) || vehicles.length === 0);
     setFormOpen(true);
   }
 
@@ -185,28 +185,47 @@ export default function TramitesPage() {
     setFormError("");
     setBusy(true);
     try {
-      let vehicleId = form.vehicleId;
+      const wantsAlta = showAlta || !form.vehicleId;
+      let vehicleId = wantsAlta ? "" : form.vehicleId;
+
       if (!vehicleId) {
         const plate = alta.plate.trim();
+        const brand = alta.brand.trim();
+        const model = alta.model.trim();
         if (!plate) {
-          setFormError("Seleccione una placa o matricule la unidad");
+          setFormError("Indique la placa de la unidad");
+          return;
+        }
+        if (!brand || !model) {
+          setFormError("Indique marca y modelo de la unidad");
           return;
         }
         const created = await api<Vehicle>("/tramites/vehicles", {
           method: "POST",
           body: JSON.stringify({
             plate,
-            brand: alta.brand.trim() || "N/D",
-            model: alta.model.trim() || "N/D",
+            brand,
+            model,
             year: Number(alta.year) || new Date().getFullYear(),
           }),
         });
         vehicleId = created.id;
       }
+
+      // Solo matricular unidad (sin documento) si no hay vigencia.
       if (!form.validTo) {
+        if (wantsAlta) {
+          setForm(EMPTY_FORM);
+          setAlta(EMPTY_ALTA);
+          setShowAlta(false);
+          setFormOpen(false);
+          await load();
+          return;
+        }
         setFormError("Indique la vigencia del documento");
         return;
       }
+
       await api("/tramites/procedures", {
         method: "POST",
         body: JSON.stringify({
@@ -219,6 +238,7 @@ export default function TramitesPage() {
       });
       setForm(EMPTY_FORM);
       setAlta(EMPTY_ALTA);
+      setShowAlta(false);
       setFormOpen(false);
       await load();
     } catch (err) {
@@ -275,15 +295,26 @@ export default function TramitesPage() {
             RUNT en vivo · Kill-Switch activo
           </p>
         </div>
-        <Button
-          type="button"
-          variant="primary"
-          className="w-auto px-4 py-2"
-          onClick={openForm}
-        >
-          <Plus className="mr-1.5 inline h-4 w-4" aria-hidden />
-          Nuevo trámite
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-auto px-4 py-2"
+            onClick={() => openForm({ alta: true })}
+          >
+            <Plus className="mr-1.5 inline h-4 w-4" aria-hidden />
+            Matricular unidad
+          </Button>
+          <Button
+            type="button"
+            variant="primary"
+            className="w-auto px-4 py-2"
+            onClick={() => openForm()}
+          >
+            <Plus className="mr-1.5 inline h-4 w-4" aria-hidden />
+            Nuevo trámite
+          </Button>
+        </div>
       </header>
 
       {matrix && matrix.counts.red > 0 ? (
@@ -596,16 +627,29 @@ export default function TramitesPage() {
 
       <SlideOver
         open={formOpen}
-        onClose={() => setFormOpen(false)}
-        title="Nuevo trámite"
-        description="SOAT, RTM, TO · sincronización RUNT o carga OCR anti-fraude"
+        onClose={() => {
+          setFormOpen(false);
+          setShowAlta(false);
+          setFormError("");
+        }}
+        title={showAlta && !form.vehicleId ? "Matricular unidad" : "Nuevo trámite"}
+        description={
+          showAlta && !form.vehicleId
+            ? "Alta de placa en flota. Puede dejar la vigencia vacía y solo matricular, o completar el documento (SOAT/RTM)."
+            : "SOAT, RTM, TO · sincronización RUNT o carga OCR anti-fraude"
+        }
         footer={
           <>
             <Button
               type="button"
               variant="ghost"
               className="w-auto px-4 py-2"
-              onClick={() => setFormOpen(false)}
+              onClick={() => {
+                setFormOpen(false);
+                setShowAlta(false);
+                setFormError("");
+              }}
+              disabled={busy}
             >
               Cancelar
             </Button>
@@ -616,7 +660,11 @@ export default function TramitesPage() {
               className="w-auto px-4 py-2"
               disabled={busy}
             >
-              {busy ? "Registrando…" : "Registrar"}
+              {busy
+                ? "Guardando…"
+                : showAlta && !form.validTo
+                  ? "Matricular unidad"
+                  : "Registrar"}
             </Button>
           </>
         }
@@ -633,18 +681,18 @@ export default function TramitesPage() {
             </span>
             <select
               className="field w-full font-data"
-              value={form.vehicleId}
+              value={showAlta ? "__alta__" : form.vehicleId}
               onChange={(e) => {
                 const id = e.target.value;
                 if (id === "__alta__") {
                   setShowAlta(true);
-                  setForm({ ...form, vehicleId: "" });
+                  setForm((prev) => ({ ...prev, vehicleId: "" }));
                   return;
                 }
                 setShowAlta(false);
-                setForm({ ...form, vehicleId: id });
+                setForm((prev) => ({ ...prev, vehicleId: id }));
               }}
-              required={vehicles.length > 0 && !showAlta}
+              required={!showAlta && vehicles.length > 0}
             >
               <option value="">
                 {vehicles.length
@@ -661,7 +709,21 @@ export default function TramitesPage() {
               ))}
               <option value="__alta__">+ Matricular unidad nueva</option>
             </select>
-            {form.vehicleId ? (
+            {!showAlta ? (
+              <Button
+                type="button"
+                variant="ghost"
+                className="mt-2 w-auto text-xs"
+                onClick={() => {
+                  setShowAlta(true);
+                  setForm((prev) => ({ ...prev, vehicleId: "" }));
+                }}
+              >
+                <Plus className="mr-1 inline h-3 w-3" aria-hidden />
+                Matricular unidad nueva
+              </Button>
+            ) : null}
+            {form.vehicleId && !showAlta ? (
               <Button
                 type="button"
                 variant="ghost"
@@ -676,6 +738,10 @@ export default function TramitesPage() {
           </label>
           {showAlta || vehicles.length === 0 ? (
             <div className="grid grid-cols-2 gap-3 rounded-lg border border-brand-border p-3">
+              <p className="col-span-2 font-sans text-xs text-brand-text-secondary">
+                Complete placa, marca y modelo. La vigencia del documento es
+                opcional si solo quiere dar de alta la unidad.
+              </p>
               <label className="col-span-2 block space-y-1.5">
                 <span className="font-data text-[10px] font-semibold uppercase tracking-wider text-brand-text-secondary">
                   Placa
@@ -688,7 +754,7 @@ export default function TramitesPage() {
                   onChange={(e) =>
                     setAlta({ ...alta, plate: e.target.value.toUpperCase() })
                   }
-                  required={!form.vehicleId}
+                  required={showAlta || !form.vehicleId}
                 />
               </label>
               <label className="block space-y-1.5">
@@ -701,7 +767,7 @@ export default function TramitesPage() {
                   placeholder="Chevrolet"
                   value={alta.brand}
                   onChange={(e) => setAlta({ ...alta, brand: e.target.value })}
-                  required={!form.vehicleId}
+                  required={showAlta || !form.vehicleId}
                 />
               </label>
               <label className="block space-y-1.5">
@@ -714,7 +780,7 @@ export default function TramitesPage() {
                   placeholder="NPR"
                   value={alta.model}
                   onChange={(e) => setAlta({ ...alta, model: e.target.value })}
-                  required={!form.vehicleId}
+                  required={showAlta || !form.vehicleId}
                 />
               </label>
               <label className="col-span-2 block space-y-1.5">
@@ -761,13 +827,14 @@ export default function TramitesPage() {
           <label className="block space-y-1.5">
             <span className="font-data text-[10px] font-semibold uppercase tracking-wider text-brand-text-secondary">
               Vigente hasta
+              {showAlta ? " (opcional)" : ""}
             </span>
             <input
               className="field w-full font-data"
               type="date"
               value={form.validTo}
               onChange={(e) => setForm({ ...form, validTo: e.target.value })}
-              required
+              required={!showAlta}
             />
           </label>
           <label className="block space-y-1.5">

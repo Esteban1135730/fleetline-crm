@@ -102,71 +102,84 @@ export const ROLES: Role[] = [
 
 /**
  * Roles del desplegable «Alta de usuario» por empresa.
- * Lista canónica alineada al seed / MANUAL_DE_USO_SISTEMA (sin maestro ni apps externas).
+ * Perfiles funcionales primarios (~18). Los códigos legado
+ * siguen en RoleSchema / ROLE_VIEWS para usuarios existentes.
  */
 export const ORG_ASSIGNABLE_ROLES: Role[] = [
   "org_admin",
+  // Dirección
   "presidente",
   "gerente_general",
   "sub_gerente",
+  // Soporte Corporativo
   "recepcionista",
   "lider_ti",
   "gestor_documental",
+  "gestor_vinculaciones",
+  // Comercial
+  "director_comercial",
+  "gestor_comercial",
+  "coordinador_comercial",
+  // Jurídico
+  "juridico",
+  "director_juridico",
+  // Finanzas
   "auxiliar_contable",
   "gestor_contable",
   "tesoreria",
   "director_financiero",
+  // Riesgos y Control
   "lider_qhse",
-  "lider_compras",
+  "auditor_control_interno",
+  "revisor_fiscal",
+  // Operaciones y Flota
   "director_operativo",
   "gestor_operativo",
   "coordinador_campo",
   "operador_centro_control",
-  "auditor_control_interno",
-  "gestor_vinculaciones",
-  "director_comercial",
-  "gestor_comercial",
-  "coordinador_comercial",
-  "director_juridico",
-  "revisor_fiscal",
+  "conductor",
+  "monitora",
+  // Compras, Mantenimiento y Patio
+  "lider_compras",
   "coordinador_taller",
   "auxiliar_almacen_taller",
-  "auxiliar_contable_taller",
   "mecanico",
   "coordinador_patio",
   "auxiliar_patio",
-  "conductor",
-  // Alias / roles de área aún usados en flotas existentes
-  "presidencia",
-  "control_interno",
-  "centro_control",
-  "coordinador_operativo",
-  "qhse",
-  "compras",
-  "juridico",
-  "vinculaciones",
-  "tecnologia",
-  "archivo",
 ];
 
-/** Agrupación UI del desplegable de roles (usuarios por empresa) */
+/**
+ * Agrupación UI del desplegable de roles — alineada a los 8 hubs.
+ * Solo perfiles primarios (sin duplicados legado).
+ */
 export const ORG_ASSIGNABLE_ROLE_GROUPS: ReadonlyArray<{
   label: string;
   roles: readonly Role[];
 }> = [
   {
-    label: "Alta dirección",
+    label: "Dirección",
+    roles: ["org_admin", "presidente", "gerente_general", "sub_gerente"],
+  },
+  {
+    label: "Soporte Corporativo",
     roles: [
-      "org_admin",
-      "presidente",
-      "presidencia",
-      "gerente_general",
-      "sub_gerente",
+      "recepcionista",
+      "lider_ti",
+      "gestor_documental",
+      "gestor_vinculaciones",
     ],
   },
   {
-    label: "Recepción & TI & Archivo",
-    roles: ["recepcionista", "lider_ti", "tecnologia", "gestor_documental", "archivo"],
+    label: "Comercial",
+    roles: [
+      "director_comercial",
+      "gestor_comercial",
+      "coordinador_comercial",
+    ],
+  },
+  {
+    label: "Jurídico",
+    roles: ["juridico", "director_juridico"],
   },
   {
     label: "Finanzas",
@@ -178,46 +191,29 @@ export const ORG_ASSIGNABLE_ROLE_GROUPS: ReadonlyArray<{
     ],
   },
   {
-    label: "QHSE & Compras",
-    roles: ["lider_qhse", "qhse", "lider_compras", "compras"],
+    label: "Riesgos y Control",
+    roles: ["lider_qhse", "auditor_control_interno", "revisor_fiscal"],
   },
   {
-    label: "Operaciones & Control",
+    label: "Operaciones y Flota",
     roles: [
       "director_operativo",
       "gestor_operativo",
-      "coordinador_operativo",
       "coordinador_campo",
       "operador_centro_control",
-      "centro_control",
-      "auditor_control_interno",
-      "control_interno",
+      "conductor",
+      "monitora",
     ],
   },
   {
-    label: "Vinculaciones & Comercial",
+    label: "Compras, Mantenimiento y Patio",
     roles: [
-      "gestor_vinculaciones",
-      "vinculaciones",
-      "director_comercial",
-      "gestor_comercial",
-      "coordinador_comercial",
-    ],
-  },
-  {
-    label: "Jurídico & Revisoría",
-    roles: ["director_juridico", "juridico", "revisor_fiscal"],
-  },
-  {
-    label: "Taller & Patio & Conductor",
-    roles: [
+      "lider_compras",
       "coordinador_taller",
       "auxiliar_almacen_taller",
-      "auxiliar_contable_taller",
       "mecanico",
       "coordinador_patio",
       "auxiliar_patio",
-      "conductor",
     ],
   },
 ];
@@ -332,12 +328,12 @@ export const ROLE_RANK: Record<string, number> = {
   taller: 68,
 };
 
-/** Alias legado → rol canónico */
+/** Alias legado → rol canónico (sin ampliar permisos del destino) */
 const ROLE_ALIASES: Record<string, Role> = {
   gerencia: "gerente_general",
   finanzas: "tesoreria",
   despacho: "gestor_operativo",
-  rrhh: "vinculaciones",
+  rrhh: "gestor_vinculaciones",
   atencion: "recepcionista",
   recepcion: "recepcionista",
   sistemas: "lider_ti",
@@ -348,6 +344,9 @@ const ROLE_ALIASES: Record<string, Role> = {
   revisoria_fiscal: "revisor_fiscal",
   supervisor: "centro_control",
   comercial: "gestor_comercial",
+  /** Duplicados con ROLE_VIEWS idénticos al canónico */
+  qhse: "lider_qhse",
+  compras: "lider_compras",
 };
 
 export function normalizeRole(role: string): Role {
@@ -405,6 +404,8 @@ export function normalizeRole(role: string): Role {
   if (r === "finanzas" || r === "tesorero") return "tesoreria";
   if (r === "tecnologia" || r === "sistemas" || r === "lider_ti") return "lider_ti";
   if (r === "archivo" || r === "gestor_documental") return "gestor_documental";
+  if (r === "qhse" || r === "calidad") return "lider_qhse";
+  if (r === "compras") return "lider_compras";
   if ((ROLES as string[]).includes(r)) return r as Role;
   if (ROLE_ALIASES[r]) return ROLE_ALIASES[r];
   return "gestor_operativo";

@@ -126,27 +126,44 @@ export const DEPARTMENTS: Department[] = [
 ];
 
 /**
- * Catálogo RRHH: Área (grupo organigrama) → Cargos (títulos laborales).
+ * Catálogo RRHH: Área (8 hubs) → Cargos (perfiles funcionales).
  * El formulario de alta usa Área arriba y Cargo abajo (dependiente).
+ * El rol de acceso se deriva del cargo vía EMPLOYEE_CARGO_ROLE.
  */
 export const EMPLOYEE_AREA_CATALOG: ReadonlyArray<{
   area: string;
   cargos: readonly string[];
 }> = [
   {
-    area: "Alta dirección",
-    cargos: ["Presidente", "Gerente general", "Subgerente"],
+    area: "Dirección",
+    cargos: [
+      "Presidente",
+      "Gerente general",
+      "Subgerente",
+      "Administrador de empresa",
+    ],
   },
   {
-    area: "Soporte corporativo",
+    area: "Soporte Corporativo",
     cargos: [
       "Recepcionista",
       "Líder de tecnología",
       "Gestor documental",
-      "Director de recursos humanos",
-      "Analista de vinculaciones",
-      "Gestor de trámites",
+      "Gestor de vinculaciones",
     ],
+  },
+  {
+    area: "Comercial",
+    cargos: [
+      "Director comercial",
+      "Gestor comercial",
+      "Coordinador comercial",
+      "Ejecutivo de ventas",
+    ],
+  },
+  {
+    area: "Jurídico",
+    cargos: ["Jurídico", "Director jurídico"],
   },
   {
     area: "Finanzas",
@@ -158,55 +175,49 @@ export const EMPLOYEE_AREA_CATALOG: ReadonlyArray<{
     ],
   },
   {
-    area: "Calidad & Abastecimiento",
-    cargos: ["Líder de calidad y SST", "Líder de compras"],
+    area: "Riesgos y Control",
+    cargos: [
+      "Líder de calidad y SST",
+      "Auditor control interno",
+      "Revisor fiscal",
+    ],
   },
   {
-    area: "Operaciones",
+    area: "Operaciones y Flota",
     cargos: [
       "Director operativo",
       "Gestor operativo",
       "Coordinador de campo",
       "Operador centro de control",
-      "Auditor control interno",
       "Conductor",
       "Monitora escolar",
     ],
   },
   {
-    area: "Comercial y jurídico",
+    area: "Compras, Mantenimiento y Patio",
     cargos: [
-      "Director comercial",
-      "Gestor comercial",
-      "Ejecutivo de ventas",
-      "Coordinador comercial",
-      "Director jurídico",
-      "Revisor fiscal",
-    ],
-  },
-  {
-    area: "Mantenimiento y patio",
-    cargos: [
+      "Líder de compras",
       "Coordinador de taller",
-      "Mecánico",
       "Auxiliar de almacén",
+      "Mecánico",
       "Coordinador de patio",
       "Auxiliar de patio",
     ],
   },
 ];
 
-/** Valores del desplegable Área (grupos organigrama) */
+/** Valores del desplegable Área (8 hubs) */
 export const EMPLOYEE_AREAS = EMPLOYEE_AREA_CATALOG.map(
   (entry) => entry.area,
 ) as unknown as readonly [
-  "Alta dirección",
-  "Soporte corporativo",
+  "Dirección",
+  "Soporte Corporativo",
+  "Comercial",
+  "Jurídico",
   "Finanzas",
-  "Calidad & Abastecimiento",
-  "Operaciones",
-  "Comercial y jurídico",
-  "Mantenimiento y patio",
+  "Riesgos y Control",
+  "Operaciones y Flota",
+  "Compras, Mantenimiento y Patio",
 ];
 
 export type EmployeeArea = (typeof EMPLOYEE_AREAS)[number];
@@ -221,8 +232,17 @@ export const EMPLOYEE_TITLES = [
 
 export type EmployeeTitle = (typeof EMPLOYEE_TITLES)[number];
 
-/** Sub-áreas legadas — expedientes indexados antes del catálogo Área→Cargo */
+/**
+ * Áreas legadas — expedientes indexados antes de los 8 hubs.
+ * Se muestran como "(legado)" al editar; no aparecen en el alta nueva.
+ */
 export const LEGACY_EMPLOYEE_AREAS = [
+  "Alta dirección",
+  "Soporte corporativo",
+  "Calidad & Abastecimiento",
+  "Operaciones",
+  "Comercial y jurídico",
+  "Mantenimiento y patio",
   "Presidencia",
   "Gerencia",
   "Subgerencia",
@@ -248,7 +268,6 @@ export const LEGACY_EMPLOYEE_AREAS = [
   "Parqueadero / Patio",
   "Conductores / Flota",
   "Trámites",
-  "Operaciones",
   "Centro de llamadas",
   "HSQE / Calidad",
   "Recursos Humanos",
@@ -286,14 +305,18 @@ export function isKnownEmployeeArea(area: string): boolean {
 /**
  * Mapa cargo laboral → rol de acceso Fleetline.
  * El alta RRHH deriva el rol del cargo (sin select aparte).
+ * Incluye alias de cargos legados para no romper expedientes existentes.
  */
 export const EMPLOYEE_CARGO_ROLE: Readonly<Record<string, string>> = {
   Presidente: "presidente",
   "Gerente general": "gerente_general",
   Subgerente: "sub_gerente",
+  "Administrador de empresa": "org_admin",
   Recepcionista: "recepcionista",
   "Líder de tecnología": "lider_ti",
   "Gestor documental": "gestor_documental",
+  "Gestor de vinculaciones": "gestor_vinculaciones",
+  /** Legado RRHH */
   "Director de recursos humanos": "gestor_vinculaciones",
   "Analista de vinculaciones": "gestor_vinculaciones",
   "Gestor de trámites": "juridico",
@@ -314,6 +337,7 @@ export const EMPLOYEE_CARGO_ROLE: Readonly<Record<string, string>> = {
   "Gestor comercial": "gestor_comercial",
   "Ejecutivo de ventas": "gestor_comercial",
   "Coordinador comercial": "coordinador_comercial",
+  Jurídico: "juridico",
   "Director jurídico": "director_juridico",
   "Revisor fiscal": "revisor_fiscal",
   "Coordinador de taller": "coordinador_taller",
