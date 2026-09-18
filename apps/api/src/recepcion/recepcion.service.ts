@@ -121,6 +121,11 @@ export class RecepcionService {
       );
     }
 
+    const badgeRfid = dto.badgeRfid?.trim() || null;
+    if (badgeRfid) {
+      await this.assertBadgeRfidUnique(organizationId, badgeRfid);
+    }
+
     const { passCode, qrPayload } = buildVisitorPass({
       organizationId,
       document: dto.document.trim(),
@@ -139,7 +144,7 @@ export class RecepcionService {
         kind,
         visitClass,
         boardStatus,
-        badgeRfid: dto.badgeRfid?.trim() || null,
+        badgeRfid,
         hostUserId: dto.hostUserId || null,
         siteLabel,
         phone: dto.phone,
@@ -147,7 +152,7 @@ export class RecepcionService {
         arlExpiresAt: dto.arlExpiresAt,
         passCode,
         qrPayload,
-        badgeIssuedAt: dto.badgeRfid ? new Date() : null,
+        badgeIssuedAt: badgeRfid ? new Date() : null,
         checkedInAt: new Date(),
       },
     });
@@ -212,19 +217,48 @@ export class RecepcionService {
     });
     if (!existing) throw new NotFoundException("Visita no encontrada");
 
+    const nextBadge =
+      data.badgeRfid !== undefined ? data.badgeRfid.trim() || null : undefined;
+    if (nextBadge) {
+      await this.assertBadgeRfidUnique(organizationId, nextBadge, id);
+    }
+
     const boardStatus = data.boardStatus;
     return this.prisma.visitor.update({
       where: { id },
       data: {
         boardStatus,
-        badgeRfid: data.badgeRfid ?? undefined,
-        badgeIssuedAt: data.badgeRfid ? new Date() : undefined,
+        badgeRfid: nextBadge === undefined ? undefined : nextBadge,
+        badgeIssuedAt: nextBadge ? new Date() : undefined,
         checkedOutAt:
           boardStatus === VisitBoardStatus.CHECKED_OUT
             ? new Date()
             : undefined,
       },
     });
+  }
+
+  /** RFID único por organización mientras la visita esté abierta. */
+  private async assertBadgeRfidUnique(
+    organizationId: string,
+    badgeRfid: string,
+    excludeId?: string,
+  ) {
+    const dup = await this.prisma.visitor.findFirst({
+      where: {
+        organizationId,
+        badgeRfid,
+        checkedOutAt: null,
+        boardStatus: { not: VisitBoardStatus.CHECKED_OUT },
+        ...(excludeId ? { id: { not: excludeId } } : {}),
+      },
+      select: { id: true, name: true, passCode: true },
+    });
+    if (dup) {
+      throw new BadRequestException(
+        `Gafete RFID ya asignado a ${dup.name} (pase ${dup.passCode || dup.id})`,
+      );
+    }
   }
 
   /** Radar solo lectura — GPS básico de buses en ruta */

@@ -19,6 +19,11 @@ export class AuthService {
     private jwt: JwtService,
   ) {}
 
+  /** Compat: el bloqueo por IP en login quedó desactivado. */
+  clearLoginLock(_ip?: string) {
+    return { cleared: "all" as const, disabled: true as const };
+  }
+
   private toPublicUser(user: {
     id: string;
     email: string;
@@ -46,7 +51,7 @@ export class AuthService {
     };
   }
 
-  async login(email: string, password: string) {
+  async login(email: string, password: string, _clientIp?: string) {
     const user = await this.prisma.user.findUnique({
       where: { email: email.toLowerCase().trim() },
       include: { organization: true },
@@ -68,7 +73,9 @@ export class AuthService {
       throw new UnauthorizedException("Cuenta rechazada — contacta al admin de empresa");
     }
     const ok = await verifyPassword(password, user.passwordHash);
-    if (!ok) throw new UnauthorizedException("Credenciales inválidas");
+    if (!ok) {
+      throw new UnauthorizedException("Credenciales inválidas");
+    }
 
     /** Siempre: clave genérica detectada → forzar cambio. */
     const usedGeneric = isKnownGenericPassword(password);
@@ -98,7 +105,6 @@ export class AuthService {
       user: this.toPublicUser({ ...user, mustChangePassword }),
     };
   }
-
   async me(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },

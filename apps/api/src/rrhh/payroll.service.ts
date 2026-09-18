@@ -71,6 +71,13 @@ export class PayrollService {
         });
       }
 
+      const periodMs =
+        dto.periodEnd.getTime() - dto.periodStart.getTime();
+      const periodCalendarDays = Math.max(
+        1,
+        Math.round(periodMs / 86_400_000) || 30,
+      );
+
       const breakdown = calculatePayrollLine({
         employeeId: emp.id,
         driverId,
@@ -82,6 +89,7 @@ export class PayrollService {
         overtimeMultiplier: dto.overtimeMultiplier,
         nightMultiplier: dto.nightMultiplier,
         ordinaryDayHours: dto.ordinaryDayHours,
+        periodCalendarDays,
       });
 
       // Pre-nómina Logística: acumula TripOvertimeLine (motor CSV horas extras)
@@ -130,7 +138,7 @@ export class PayrollService {
             (breakdown.nightAmount + logisticsNight) * 100,
           ) / 100;
           breakdown.grossTotal = Math.round(
-            (Number(emp.baseSalary) +
+            (breakdown.baseProrated +
               breakdown.overtimeAmount +
               breakdown.nightAmount +
               breakdown.tripCommissions) *
@@ -171,7 +179,7 @@ export class PayrollService {
           create: linesData.map((l) => ({
             employeeId: l.employeeId,
             driverId: l.driverId,
-            baseSalary: l.baseSalary,
+            baseSalary: l.baseProrated,
             ordinaryHours: l.ordinaryHours,
             overtimeHours: l.overtimeHours,
             overtimeAmount: l.overtimeAmount,
@@ -180,6 +188,12 @@ export class PayrollService {
             completedTrips: l.completedTrips,
             tripCommissions: l.tripCommissions,
             grossTotal: l.grossTotal,
+            meta: {
+              baseMonthly: l.baseSalary,
+              baseProrated: l.baseProrated,
+              daysWorked: l.daysWorked,
+              periodCalendarDays: l.periodCalendarDays,
+            },
           })),
         },
       },

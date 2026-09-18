@@ -7,6 +7,7 @@ import {
   Query,
   Req,
   Res,
+  UseGuards,
 } from "@nestjs/common";
 import { SkipThrottle } from "@nestjs/throttler";
 import { Field, LoginSchema } from "@fsg/shared";
@@ -21,6 +22,8 @@ import {
   sessionCookieOptions,
 } from "../security/session-cookie";
 import { parsePagination, pageMeta } from "../security/pagination";
+import { Roles, RolesGuard } from "./roles.guard";
+import { JwtAuthGuard } from "./jwt-auth.guard";
 
 const RegisterOrgSchema = z.object({
   organizationName: Field.legalName,
@@ -61,7 +64,7 @@ export class AuthController {
         (req.headers["x-turnstile-token"] as string | undefined),
       req.ip,
     );
-    const result = await this.auth.login(dto.email, dto.password);
+    const result = await this.auth.login(dto.email, dto.password, req.ip);
     res.cookie(ACCESS_COOKIE, result.accessToken, sessionCookieOptions());
     return result;
   }
@@ -73,6 +76,23 @@ export class AuthController {
     const dto = RegisterOrgSchema.parse(body ?? {});
     await this.turnstile.assertValid(dto.turnstileToken, req.ip);
     return this.auth.registerOrganization(dto);
+  }
+
+  /** Compat: bloqueo por IP desactivado; endpoint queda como no-op. */
+  @Post("unlock-login")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(
+    "lider_ti",
+    "tecnologia",
+    "sistemas",
+    "org_admin",
+    "platform_master",
+    "LIDER_TI",
+    "TECNOLOGIA",
+  )
+  @SkipThrottle()
+  unlockLogin(@Body() body: { ip?: string } | undefined) {
+    return this.auth.clearLoginLock(body?.ip);
   }
 
   @Public()

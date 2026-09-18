@@ -1,0 +1,14 @@
+{
+  "stylesheet": ["docs/nexa-backlog-pdf.css"],
+  "pdf_options": {
+    "format": "A4",
+    "margin": {
+      "top": "18mm",
+      "right": "14mm",
+      "bottom": "18mm",
+      "left": "14mm"
+    },
+    "printBackground": true
+  },
+  "basedir": "."
+}

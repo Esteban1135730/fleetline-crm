@@ -22,7 +22,7 @@ import {
 
 type AuthReq = { user: { organizationId: string; userId: string } };
 
-@Controller("pqrs")
+@Controller(["pqrs", "api/v1/pqrs"])
 @UseGuards(JwtAuthGuard, ModulesGuard)
 @RequireModule("call_center", "pqrs", "atencion", "recepcion")
 export class PqrsController {

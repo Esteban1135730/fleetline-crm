@@ -122,11 +122,13 @@ export class FinanceController {
   approvePayment(
     @Req() req: { user: { organizationId: string; userId: string } },
     @Param("id") id: string,
+    @Body() body?: { pin?: string },
   ) {
     return this.service.approvePayment(
       req.user.organizationId,
       id,
       req.user.userId,
+      body?.pin,
     );
   }
 
@@ -138,15 +140,19 @@ export class FinanceController {
     @Body()
     body?: {
       forceDespiteSarlaft?: boolean;
+      pin?: string;
+      bankRef?: string;
+      evidenceRef?: string;
       receivedByName?: string;
       confirmCollection?: boolean;
-      bankRef?: string;
     },
   ) {
     return this.service.markPaid(req.user.organizationId, id, {
       forceDespiteSarlaft: body?.forceDespiteSarlaft,
       actorUserId: req.user.userId,
       actorRole: req.user.role,
+      pin: body?.pin,
+      evidenceRef: body?.evidenceRef,
       receivedByName: body?.receivedByName,
       confirmCollection: body?.confirmCollection,
       bankRef: body?.bankRef,

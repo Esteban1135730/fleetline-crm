@@ -74,4 +74,13 @@ export class TramitesController {
   runNightlySweep() {
     return this.nightly.runSweep();
   }
+
+  /**
+   * TRA-03: sync RUNT de flota (batch). Respeta rate-limit env.
+   */
+  @Post("sync-fleet")
+  @RequireModule("tramites", "sistemas")
+  syncFleet(@Req() req: { user: { organizationId: string } }) {
+    return this.nightly.syncFleetFromRuntPublic(req.user.organizationId);
+  }
 }

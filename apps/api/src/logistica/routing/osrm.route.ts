@@ -26,7 +26,14 @@ export function straightRouteFallback(
 export async function fetchDrivingRoute(
   origin: LatLng,
   dest: LatLng,
-): Promise<{ points: LatLng[]; distanceM: number; durationS: number }> {
+): Promise<{
+  points: LatLng[];
+  distanceM: number;
+  durationS: number;
+  /** true si OSRM falló y se usó línea recta */
+  degraded?: boolean;
+  routingError?: string;
+}> {
   const coords = `${origin.lng},${origin.lat};${dest.lng},${dest.lat}`;
   const url = `${OSRM_BASE}/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=false`;
 
@@ -56,12 +63,17 @@ export async function fetchDrivingRoute(
       points,
       distanceM: route.distance,
       durationS: route.duration,
+      degraded: false,
     };
-  } catch {
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "OSRM no disponible";
     return {
       points: straightRouteFallback(origin, dest),
       distanceM: 0,
       durationS: 0,
+      degraded: true,
+      routingError: `Ruteo degradado (${message}). Configure OSRM_URL / NOMINATIM_USER_AGENT.`,
     };
   }
 }

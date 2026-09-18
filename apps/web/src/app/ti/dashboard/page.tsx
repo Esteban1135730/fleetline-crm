@@ -402,9 +402,9 @@ export default function TiDashboardPage() {
           <h1 className="font-sans text-2xl font-semibold tracking-tight text-brand-text-primary md:text-3xl">
             NOC · Autonomous Core
           </h1>
-          <p className="mt-1 max-w-2xl text-sm text-brand-text-secondary">
-            Monitoreo de infraestructura, usuarios, helpdesk y emparejamiento
-            MDM de dispositivos con la app FSG Pilot.
+          <p className="mt-1 max-w-2xl font-sans text-sm text-brand-text-secondary">
+            Persona: Líder TI — NOC, IAM, helpdesk e integraciones. MDM empareja
+            dispositivos con FSG Pilot por QR temporal.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

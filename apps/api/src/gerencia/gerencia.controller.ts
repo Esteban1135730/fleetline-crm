@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Post,
+  Query,
   Req,
   UseGuards,
 } from "@nestjs/common";
@@ -44,8 +45,18 @@ export class GerenciaController {
 
   @Get("dashboard")
   @Permissions("balance_scorecard", "READ")
-  dashboard(@Req() req: AuthReq) {
-    return this.gerencia.dashboard(req.user.organizationId);
+  dashboard(
+    @Req() req: AuthReq,
+    @Query("period") period?: string,
+  ) {
+    const p =
+      period === "day" ||
+      period === "week" ||
+      period === "month" ||
+      period === "year"
+        ? period
+        : "week";
+    return this.gerencia.dashboard(req.user.organizationId, p);
   }
 
   @Get("strategy-hub")

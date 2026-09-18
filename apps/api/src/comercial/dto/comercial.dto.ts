@@ -19,6 +19,7 @@ export const CreateContractSchema = z.object({
   ratePerKm: z.coerce.number().nonnegative().optional(),
   secopProcessId: z.string().optional(),
   status: z.enum(["DRAFT", "ACTIVE", "SUSPENDED", "ENDED"]).optional(),
+  force: z.boolean().optional(),
 });
 export type CreateContractDto = z.infer<typeof CreateContractSchema>;
 

@@ -88,11 +88,11 @@ export const MODULE_GUIDES: Partial<Record<ModuleId | "cuenta", ModuleGuide>> =
     logistica: {
       title: "Cómo operar Logística",
       summary:
-        "Submenú: Programación de Servicios / Gestión de Conductores y Nómina de Extras.",
+        "Programación, conductores y extras operativos (pre-nómina). La liquidación formal vive en RRHH.",
       steps: [
         "Programación: cree el servicio con placa, conductor, horario y puntos origen/destino.",
-        "Pendiente = ruta sugerida; En proceso = GPS en vivo con TripAuditLog del servidor.",
         "Conductores: novedades con relevos PESV; al cerrar servicio se liquidan extras CO.",
+        "Extras operativos: audite HED/HEN/RN aquí; la corrida contractual se calcula en RRHH → Nómina.",
       ],
     },
     comercial: {
@@ -101,7 +101,7 @@ export const MODULE_GUIDES: Partial<Record<ModuleId | "cuenta", ModuleGuide>> =
       steps: [
         "Alta de cliente con NIT válido (SARLAFT puede bloquear sujetos de alto riesgo).",
         "Cree cotización y convierta a contrato cuando esté ganada.",
-        "El contrato genera viaje borrador en Logística para despacho.",
+        "El despacho del viaje se genera después desde Logística → Servicios (no al crear el contrato).",
       ],
     },
     compras: {
@@ -135,21 +135,21 @@ export const MODULE_GUIDES: Partial<Record<ModuleId | "cuenta", ModuleGuide>> =
     },
     tramites: {
       title: "Cómo interpretar el semáforo",
-      summary: "Documentación de flota y bloqueo de despacho.",
+      summary: "Documentación de flota, Sync RUNT y bloqueo de despacho.",
       steps: [
         "Verde: apto (>15 días). Amarillo: vence pronto (≤15). Rojo: vencido — no despachar.",
-        "Registre SOAT, tecnomecánica o tarjeta de operación con fecha de vigencia.",
-        "Filtre Alertas/bloqueados para priorizar renovaciones antes del despacho.",
+        "Sync RUNT: consulta gov/mock y actualiza SOAT/TM/TO sin pisar renovaciones locales vigentes.",
+        "El barrido nocturno recalcula vencimientos; con RUNT_NIGHTLY_SYNC=true también refresca desde RUNT.",
       ],
     },
     tecnologia_ti: {
       title: "Cómo operar Tecnología y TI",
       summary:
-        "Monitoreo NOC, usuarios, helpdesk y emparejamiento MDM de tablets (FSG Pilot) por QR temporal.",
+        "Persona: Líder TI / SysAdmin — NOC, IAM, helpdesk e integraciones. Sin finanzas, RRHH ni despacho.",
       steps: [
-        "Revise salud de infraestructura, CPU y alertas del centro de operaciones.",
-        "Genere alta de usuario o tickets de mesa de ayuda según el caso.",
-        "MDM Provisioning crea un QR/código temporal: al escanearlo con la app FSG Pilot, el dispositivo se empareja (modo quiosco/bloqueo si aplica) hasta que expire el código.",
+        "Verifique salud de API, base de datos y colas (NOC / DLQ).",
+        "Gestione usuarios, onboarding y tickets de mesa de ayuda.",
+        "MDM Provisioning: QR/código temporal para emparejar FSG Pilot (quiosco si aplica) hasta que expire.",
       ],
     },
     archivo: {

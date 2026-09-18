@@ -331,26 +331,9 @@ export class CustomersService {
       },
     });
 
-    const routeParts = (contract.routeLabel || "Origen → Destino").split(
-      /→|->|-/,
-    );
-    const origin = (routeParts[0] || "Origen").trim() || "Origen";
-    const destination =
-      (routeParts[1] || routeParts[0] || "Destino").trim() || "Destino";
-
-    const draftTrip = await this.logistics.createDraftTripFromContract(
-      organizationId,
-      {
-        contractId: contract.id,
-        customerId: q.customerId,
-        origin,
-        destination,
-        fareAmount: Number(q.amount),
-        notes: `Auto desde cotización ${q.code} → contrato ${contract.code}`,
-      },
-    );
-
-    return { ...contract, draftTrip };
+    // COM-03: el contrato no crea viaje automático en Logística.
+    // El despacho se genera después desde Servicios / GPS.
+    return { ...contract, draftTrip: null };
   }
 
   listContracts(organizationId: string) {

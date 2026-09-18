@@ -624,7 +624,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
   const { user, loading, logout, homePath, canAccess } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
-  const { setSystemStatus } = useShell();
+  const { setSystemStatus, crisisActive, crisisCode, setCrisisActive } =
+    useShell();
 
   useEffect(() => {
     if (!loading && !user && pathname !== "/login") {
@@ -647,6 +648,15 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     api<{ db: string }>("/health")
       .then((h) => setSystemStatus(h.db === "ok" ? "NOMINAL" : "ALERT"))
       .catch(() => setSystemStatus("OFFLINE"));
+    api<{ active: boolean; session?: { code?: string } | null }>(
+      "/api/v1/presidencia/defcon/active",
+    )
+      .then((res) => {
+        if (res.active) {
+          setCrisisActive(true, res.session?.code ?? null);
+        }
+      })
+      .catch(() => undefined);
     if ("serviceWorker" in navigator) {
       void (async () => {
         const regs = await navigator.serviceWorker.getRegistrations();
@@ -658,7 +668,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
         });
       })().catch(() => undefined);
     }
-  }, [user, setSystemStatus]);
+  }, [user, setSystemStatus, setCrisisActive]);
 
   const departments = useMemo(() => {
     if (!user) return [];
@@ -707,6 +717,18 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flt-shell">
+      {crisisActive ? (
+        <div
+          className="pointer-events-none fixed inset-0 z-[1] animate-pulse bg-brand-danger/10"
+          aria-hidden
+        />
+      ) : null}
+      {crisisActive ? (
+        <div className="relative z-[2] border-b border-brand-danger/40 bg-brand-danger/20 px-4 py-1.5 text-center font-data text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-danger">
+          Protocolo de crisis activo
+          {crisisCode ? ` · ${crisisCode}` : ""} — modo sala de guerra
+        </div>
+      ) : null}
       <TopBar
           userName={user.name}
           roleLabel={ROLE_LABELS[normalizeRole(user.role)] || user.role}

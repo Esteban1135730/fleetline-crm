@@ -8,6 +8,7 @@ import {
 } from "@nestjs/common";
 import {
   DriverNoveltyKind,
+  EmployeeStatus,
   TripAuditAction,
   TripStatus,
   VehicleStatus,
@@ -100,6 +101,9 @@ export class LogisticaOpsService {
       durationS: route.durationS,
       distanceKm: Math.round((route.distanceM / 1000) * 100) / 100,
       durationMin: Math.round(route.durationS / 60),
+      degraded: Boolean(route.degraded),
+      routingError: route.routingError ?? null,
+      osrmConfigured: Boolean(process.env.OSRM_URL),
     };
   }
 
@@ -182,6 +186,19 @@ export class LogisticaOpsService {
           `Vehículo ${v.plate} no asignado — ${v.complianceReason || "COMPLIANCE_BLOCKED"}`,
         );
         vehicleId = undefined;
+      } else {
+        const busy = await this.findVehicleActiveAssignment(
+          organizationId,
+          vehicleId,
+          dto.departAt,
+          dto.arriveAt,
+        );
+        if (busy) {
+          dispatchNotes.push(
+            `Vehículo ${v.plate} no asignado — ya en servicio ${busy.code}`,
+          );
+          vehicleId = undefined;
+        }
       }
     }
 
@@ -790,6 +807,17 @@ export class LogisticaOpsService {
       },
     });
 
+    // LOG-02: sincronizar estado del empleado RRHH vinculado al conductor
+    const employeeStatus = noveltyKindToEmployeeStatus(
+      dto.kind as DriverNoveltyKind,
+    );
+    if (employeeStatus) {
+      await this.prisma.employee.updateMany({
+        where: { organizationId, driverId: dto.driverId },
+        data: { status: employeeStatus },
+      });
+    }
+
     const impacted = await this.prisma.trip.findMany({
       where: {
         organizationId,
@@ -1060,6 +1088,21 @@ export class LogisticaOpsService {
     }
 
     const now = new Date();
+    const activeTrips = await this.prisma.trip.findMany({
+      where: {
+        organizationId,
+        status: { in: ACTIVE_STATUSES },
+        vehicleId: { not: null },
+      },
+      select: { vehicleId: true, code: true },
+    });
+    const tripByVehicle = new Map<string, string>();
+    for (const t of activeTrips) {
+      if (t.vehicleId && !tripByVehicle.has(t.vehicleId)) {
+        tripByVehicle.set(t.vehicleId, t.code);
+      }
+    }
+
     const docOk = (
       docs: Array<{ type: string; status: string; expiresAt: Date | null }>,
       type: string,
@@ -1121,6 +1164,8 @@ export class LogisticaOpsService {
         }
         if (!soat.ok) blockers.push(soat.label);
         if (!tecno.ok) blockers.push(tecno.label);
+        const assignedCode = tripByVehicle.get(v.id);
+        if (assignedCode) blockers.push(`Asignada a ${assignedCode}`);
         const authorizedDriverIds = driverIdsByVehicle.get(v.id) ?? [];
         return {
           id: v.id,
@@ -1129,6 +1174,7 @@ export class LogisticaOpsService {
           complianceBlocked: v.complianceBlocked,
           ready: blockers.length === 0,
           blockers,
+          assignedServiceCode: assignedCode ?? null,
           authorizedDriverIds,
         };
       }),
@@ -1383,6 +1429,14 @@ export class LogisticaOpsService {
       input.vehicleId,
     );
 
+    await this.assertVehicleAssignable(
+      organizationId,
+      input.vehicleId,
+      trip.departAt,
+      trip.arriveAt,
+      trip.id,
+    );
+
     const gate = await this.gate.evaluate({
       organizationId,
       vehicleId: input.vehicleId,
@@ -1420,6 +1474,86 @@ export class LogisticaOpsService {
   /** Lista conductores (delegado a LogisticsService). */
   listDrivers(organizationId: string) {
     return this.logistics.listDrivers(organizationId);
+  }
+
+  /** LOG-03: unidad bloqueada o ya en servicio activo. */
+  private async assertVehicleAssignable(
+    organizationId: string,
+    vehicleId: string,
+    departAt: Date,
+    arriveAt: Date | null | undefined,
+    excludeTripId?: string,
+  ) {
+    const v = await this.prisma.vehicle.findFirst({
+      where: { id: vehicleId, organizationId },
+    });
+    if (!v) throw new NotFoundException("Vehículo no encontrado");
+    if (
+      v.status === VehicleStatus.MAINTENANCE ||
+      v.status === VehicleStatus.OUT_OF_SERVICE ||
+      v.complianceBlocked
+    ) {
+      throw new UnprocessableEntityException({
+        error: "VEHICLE_BLOCKED",
+        message: `Unidad ${v.plate} no disponible (${v.complianceReason || v.status})`,
+      });
+    }
+
+    const busy = await this.findVehicleActiveAssignment(
+      organizationId,
+      vehicleId,
+      departAt,
+      arriveAt,
+      excludeTripId,
+    );
+    if (busy) {
+      throw new UnprocessableEntityException({
+        error: "VEHICLE_ALREADY_ASSIGNED",
+        message: `Unidad ${v.plate} ya asignada al servicio ${busy.code}`,
+      });
+    }
+  }
+
+  private async findVehicleActiveAssignment(
+    organizationId: string,
+    vehicleId: string,
+    departAt: Date,
+    arriveAt: Date | null | undefined,
+    excludeTripId?: string,
+  ) {
+    const windowEnd =
+      arriveAt ?? new Date(departAt.getTime() + 24 * 60 * 60 * 1000);
+    return this.prisma.trip.findFirst({
+      where: {
+        organizationId,
+        vehicleId,
+        ...(excludeTripId ? { id: { not: excludeTripId } } : {}),
+        status: { in: ACTIVE_STATUSES },
+        departAt: { lte: windowEnd },
+        OR: [{ arriveAt: { gte: departAt } }, { arriveAt: null }],
+      },
+      select: { id: true, code: true },
+    });
+  }
+}
+
+function noveltyKindToEmployeeStatus(
+  kind: DriverNoveltyKind,
+): EmployeeStatus | null {
+  switch (kind) {
+    case DriverNoveltyKind.INCAPACITY:
+      return EmployeeStatus.MEDICAL;
+    case DriverNoveltyKind.VACATION_PAID:
+    case DriverNoveltyKind.REST:
+      return EmployeeStatus.VACATION;
+    case DriverNoveltyKind.UNJUSTIFIED_ABSENCE:
+      return EmployeeStatus.INACTIVE;
+    case DriverNoveltyKind.AVAILABLE:
+    case DriverNoveltyKind.AVAILABLE_NO_CONTRACT:
+    case DriverNoveltyKind.ASSIGNED:
+      return EmployeeStatus.ACTIVE;
+    default:
+      return null;
   }
 }
 

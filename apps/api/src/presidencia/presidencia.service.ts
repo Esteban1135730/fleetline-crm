@@ -267,35 +267,101 @@ export class PresidenciaService {
     return months;
   }
 
-  /** Export forense — eliminaciones y anulaciones últimos 30 días. */
+  /** Export forense — mutaciones sensibles + hallazgos de control (últimos 30 días). */
   async forensicExport(organizationId: string) {
     const since = new Date();
     since.setDate(since.getDate() - 30);
-    const rows = await this.prisma.auditLog.findMany({
-      where: {
-        organizationId,
-        createdAt: { gte: since },
-        action: {
-          in: ["DELETE", "CANCEL", "VOID", "ANNULL", "REJECT"],
+
+    const [auditRows, findings, voids, softCloses] = await Promise.all([
+      this.prisma.auditLog.findMany({
+        where: {
+          organizationId,
+          createdAt: { gte: since },
+          OR: [
+            {
+              action: {
+                in: [
+                  "DELETE",
+                  "CANCEL",
+                  "VOID",
+                  "ANNULL",
+                  "REJECT",
+                  "JOURNAL_VOIDED",
+                  "ACCOUNTING_PERIOD_SOFT_CLOSED",
+                  "ACCOUNTING_PERIOD_REOPENED",
+                ],
+              },
+            },
+            { action: { contains: "DELETE" } },
+            { action: { contains: "VOID" } },
+            { action: { contains: "REJECT" } },
+          ],
         },
-      },
-      orderBy: { createdAt: "desc" },
-      take: 500,
-      include: { user: { select: { name: true, email: true } } },
-    });
+        orderBy: { createdAt: "desc" },
+        take: 500,
+        include: { user: { select: { name: true, email: true } } },
+      }),
+      this.prisma.forensicFinding.findMany({
+        where: { organizationId, createdAt: { gte: since } },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          severity: true,
+          createdAt: true,
+        },
+      }),
+      this.prisma.journalEntry.count({
+        where: {
+          organizationId,
+          status: "VOID",
+          updatedAt: { gte: since },
+        },
+      }),
+      this.prisma.accountingPeriod.count({
+        where: {
+          organizationId,
+          status: { in: ["SOFT_CLOSED", "HARD_LOCKED"] },
+        },
+      }),
+    ]);
+
+    const rows = auditRows.map((r) => ({
+      at: r.createdAt,
+      action: r.action,
+      entity: r.entity,
+      entityId: r.entityId,
+      module: r.module,
+      user: r.user?.name ?? r.userId,
+      email: r.user?.email ?? null,
+      meta: r.meta,
+    }));
+
     return {
       exportedAt: new Date().toISOString(),
+      organizationId,
       windowDays: 30,
+      summary: {
+        auditEvents: rows.length,
+        journalVoids: voids,
+        closedPeriods: softCloses,
+        forensicFindings: findings.length,
+      },
       count: rows.length,
-      rows: rows.map((r) => ({
-        at: r.createdAt,
-        action: r.action,
-        entity: r.entity,
-        entityId: r.entityId,
-        module: r.module,
-        user: r.user?.name ?? r.userId,
-        meta: r.meta,
+      rows,
+      findings: findings.map((f) => ({
+        id: f.id,
+        title: f.title,
+        status: f.status,
+        severity: f.severity,
+        at: f.createdAt,
       })),
+      note:
+        rows.length === 0 && findings.length === 0
+          ? "Sin eventos sensibles ni hallazgos en la ventana de 30 días."
+          : null,
     };
   }
 
@@ -825,5 +891,22 @@ export class PresidenciaService {
       warRoomOpen: cascade.warRoomOpen,
       message: `Protocolo DEFCON ${level} activado (${code}) — cascada en curso`,
     };
+  }
+
+  async getActiveDefcon(organizationId: string) {
+    const session = await this.prisma.presidentialDefconSession.findFirst({
+      where: { organizationId, status: "ACTIVE" },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        code: true,
+        defconLevel: true,
+        status: true,
+        warRoomOpen: true,
+        conflictZones: true,
+        createdAt: true,
+      },
+    });
+    return { active: Boolean(session), session };
   }
 }

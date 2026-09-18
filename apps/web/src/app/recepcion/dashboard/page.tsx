@@ -22,6 +22,7 @@ import {
   SlideOver,
   StatusPulseBadge,
 } from "@/components/audit";
+import { BentoPanel } from "@/components/nexa/bento-panel";
 import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
 
 const VISIT_FIELDS = [
@@ -104,6 +105,18 @@ type RadarItem = {
 
 type Metrics = { visitors: number; leadsConverted: number; pqrsQuick: number };
 
+type PqrsTicket = {
+  id: string;
+  code?: string;
+  subject?: string;
+  requester?: string;
+  status: string;
+  priority?: string;
+  pqrsType?: string | null;
+  message?: string;
+  createdAt: string;
+};
+
 const DEFCON_KEYWORDS = [
   "accidente",
   "abogado",
@@ -152,6 +165,10 @@ export default function RecepcionDashboardPage() {
   const [inbox, setInbox] = useState<InboxItem[]>([]);
   const [visitors, setVisitors] = useState<VisitorRow[]>([]);
   const [radar, setRadar] = useState<RadarItem[]>([]);
+  const [radarError, setRadarError] = useState("");
+  const [pqrsTickets, setPqrsTickets] = useState<PqrsTicket[]>([]);
+  const [pqrsStatus, setPqrsStatus] = useState("");
+  const [visitBusyId, setVisitBusyId] = useState<string | null>(null);
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [boardFilter, setBoardFilter] = useState<string>("");
   const [error, setError] = useState("");
@@ -202,24 +219,50 @@ export default function RecepcionDashboardPage() {
   const load = useCallback(async () => {
     setError("");
     try {
-      const [ib, vis, met] = await Promise.all([
+      const pqrsQs = pqrsStatus ? `?status=${pqrsStatus}` : "";
+      const [ib, vis, met, pqrs, radarRes] = await Promise.all([
         api<InboxItem[]>("/api/v1/recepcion/omnicanal/inbox"),
         api<VisitorRow[]>(
           `/api/v1/recepcion/visitas/today${boardFilter ? `?boardStatus=${boardFilter}` : ""}`,
         ),
         api<Metrics>("/api/v1/recepcion/metrics/daily"),
+        api<PqrsTicket[] | { items?: PqrsTicket[] }>(
+          `/api/v1/pqrs/tickets${pqrsQs}`,
+        ).catch(() => []),
+        api<{ items: RadarItem[] }>(
+          `/api/v1/recepcion/rutas/radar-status?q=${encodeURIComponent(radarQ)}`,
+        ).catch(() => ({ items: [] as RadarItem[] })),
       ]);
       setInbox(ib);
       setVisitors(vis);
       setMetrics(met);
+      setPqrsTickets(Array.isArray(pqrs) ? pqrs : pqrs.items ?? []);
+      setRadar(radarRes.items ?? []);
+      setRadarError("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error de conexión");
     }
-  }, [boardFilter]);
+  }, [boardFilter, pqrsStatus, radarQ]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  async function updateVisitorStatus(id: string, boardStatus: string) {
+    setVisitBusyId(id);
+    setError("");
+    try {
+      await api(`/api/v1/recepcion/visitas/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ boardStatus }),
+      });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo actualizar visita");
+    } finally {
+      setVisitBusyId(null);
+    }
+  }
 
   async function onDocumentBlur() {
     if (visitForm.document.length < 4) return;
@@ -366,14 +409,15 @@ export default function RecepcionDashboardPage() {
   }
 
   async function searchRadar() {
-    setError("");
+    setRadarError("");
     try {
       const res = await api<{ items: RadarItem[] }>(
         `/api/v1/recepcion/rutas/radar-status?q=${encodeURIComponent(radarQ)}`,
       );
       setRadar(res.items);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error");
+      setRadarError(err instanceof Error ? err.message : "Radar sin señal");
+      setRadar([]);
     }
   }
 
@@ -666,7 +710,7 @@ export default function RecepcionDashboardPage() {
                 />
               </div>
             ) : (
-              <NexaTable columns={["Visitante", "Clase", "Estado", "RFID"]}>
+              <NexaTable columns={["Visitante", "Clase", "Estado", "RFID", "Acciones"]}>
                 {visitors.map((v) => (
                   <NexaRow key={v.id}>
                     <NexaCell>
@@ -702,6 +746,34 @@ export default function RecepcionDashboardPage() {
                       </StatusPulseBadge>
                     </NexaCell>
                     <NexaCell mono>{v.badgeRfid || "—"}</NexaCell>
+                    <NexaCell>
+                      <div className="flex flex-wrap gap-1">
+                        {v.boardStatus === "WAITING" ? (
+                          <Button
+                            variant="ghost"
+                            className="w-auto px-2 py-1 text-xs"
+                            disabled={visitBusyId === v.id}
+                            onClick={() =>
+                              void updateVisitorStatus(v.id, "CHECKED_IN")
+                            }
+                          >
+                            Ingresó
+                          </Button>
+                        ) : null}
+                        {v.boardStatus !== "CHECKED_OUT" ? (
+                          <Button
+                            variant="ghost"
+                            className="w-auto px-2 py-1 text-xs"
+                            disabled={visitBusyId === v.id}
+                            onClick={() =>
+                              void updateVisitorStatus(v.id, "CHECKED_OUT")
+                            }
+                          >
+                            Finalizar
+                          </Button>
+                        ) : null}
+                      </div>
+                    </NexaCell>
                   </NexaRow>
                 ))}
               </NexaTable>
@@ -728,6 +800,11 @@ export default function RecepcionDashboardPage() {
                 Buscar
               </Button>
             </div>
+            {radarError ? (
+              <p role="alert" className="mb-2 text-xs text-brand-danger">
+                {radarError}
+              </p>
+            ) : null}
             {radar.length === 0 ? (
               <p className="text-xs text-brand-text-secondary">Sin resultados de radar</p>
             ) : (
@@ -740,7 +817,7 @@ export default function RecepcionDashboardPage() {
                     <span className="font-data">{r.vehicle?.plate || "s/p"}</span>
                     {" · "}
                     {r.schoolOrRoute} · {statusEs(r.status)}
-                    {r.vehicle ? (
+                    {r.vehicle?.lat != null && r.vehicle?.lng != null ? (
                       <span className="font-data text-[var(--brand-text-secondary)]">
                         {" "}
                         ({r.vehicle.lat.toFixed(4)}, {r.vehicle.lng.toFixed(4)})
@@ -753,6 +830,66 @@ export default function RecepcionDashboardPage() {
           </div>
         </section>
       </div>
+
+      <BentoPanel
+        id="pqrs"
+        title="Bandeja PQRS"
+        subtitle="Tickets creados · filtro por estado"
+        className="mt-4"
+      >
+        <div className="mb-3 flex flex-wrap gap-2">
+          {["", "OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"].map((s) => (
+            <button
+              key={s || "all"}
+              type="button"
+              className={`flt-nav-item !inline-flex !w-auto px-2 py-1 text-xs ${pqrsStatus === s ? "is-active" : ""}`}
+              onClick={() => setPqrsStatus(s)}
+            >
+              {s === ""
+                ? "Todas"
+                : s === "OPEN"
+                  ? "Abiertas"
+                  : s === "IN_PROGRESS"
+                    ? "En curso"
+                    : s === "RESOLVED"
+                      ? "Resueltas"
+                      : "Cerradas"}
+            </button>
+          ))}
+        </div>
+        {pqrsTickets.length === 0 ? (
+          <EmptyState
+            icon={<AlertTriangle className="h-7 w-7" />}
+            title="Sin PQRS"
+            description="Crea un ticket rápido o espera ingresos omnicanal."
+            actionLabel="+ PQRS"
+            onAction={() => setPanel("pqrs")}
+          />
+        ) : (
+          <NexaTable columns={["Código", "Solicitante", "Estado", "Asunto"]}>
+            {pqrsTickets.map((t) => (
+              <NexaRow key={t.id}>
+                <NexaCell mono>{t.code || t.id.slice(0, 8)}</NexaCell>
+                <NexaCell>{t.requester || "—"}</NexaCell>
+                <NexaCell>
+                  <StatusPulseBadge
+                    tone={
+                      t.status === "OPEN" || t.status === "IN_PROGRESS"
+                        ? "fatiga"
+                        : "active"
+                    }
+                  >
+                    {statusEs(t.status)}
+                  </StatusPulseBadge>
+                </NexaCell>
+                <NexaCell className="text-xs text-brand-text-secondary">
+                  {t.subject || t.message || "—"}
+                </NexaCell>
+              </NexaRow>
+            ))}
+          </NexaTable>
+        )}
+      </BentoPanel>
 
       <SlideOver
         open={panel === "visit"}

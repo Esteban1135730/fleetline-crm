@@ -127,6 +127,7 @@ export default function FinanzasPage() {
   const [payBank, setPayBank] = useState(BANK_ACCOUNTS[0].id);
   const [payBusy, setPayBusy] = useState(false);
   const [payError, setPayError] = useState("");
+  const [payPin, setPayPin] = useState("");
   const [payReceivedBy, setPayReceivedBy] = useState("");
   const [payConfirmCollection, setPayConfirmCollection] = useState(false);
   const [registrarEvidence, setRegistrarEvidence] = useState<File[]>([]);
@@ -275,6 +276,7 @@ export default function FinanzasPage() {
   function openPayPanel(inv: Invoice) {
     setPayTarget(inv);
     setPayBank(BANK_ACCOUNTS[0].id);
+    setPayPin("");
     setPayReceivedBy("");
     setPayConfirmCollection(false);
     setPayEvidence([]);
@@ -289,6 +291,19 @@ export default function FinanzasPage() {
 
   async function confirmPay() {
     if (!payTarget) return;
+    const needsPin = payTarget.type === "PAYABLE";
+    if (needsPin && !/^\d{6}$/.test(payPin.trim())) {
+      setPayError("PIN de seguridad de 6 dígitos requerido para aprobar/pagar");
+      return;
+    }
+    if (
+      needsPin &&
+      !payEvidence[0] &&
+      !payTarget.supportFileRef
+    ) {
+      setPayError("Comprobante obligatorio: adjunte archivo de evidencia");
+      return;
+    }
     if (payTarget.type === "RECEIVABLE") {
       if (payReceivedBy.trim().length < 2) {
         setPayError("Indique quién recibió el dinero");
@@ -302,23 +317,6 @@ export default function FinanzasPage() {
     setPayBusy(true);
     setPayError("");
     try {
-      if (payTarget.type === "PAYABLE" && !payTarget.paymentApprovedAt) {
-        await api(`/finance/invoices/${payTarget.id}/approve-payment`, {
-          method: "PATCH",
-        });
-      }
-      await api(`/finance/invoices/${payTarget.id}/pay`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          bankRef: payBank,
-          ...(payTarget.type === "RECEIVABLE"
-            ? {
-                receivedByName: payReceivedBy.trim(),
-                confirmCollection: true,
-              }
-            : {}),
-        }),
-      });
       if (payEvidence[0]) {
         const fd = new FormData();
         fd.append("file", payEvidence[0]);
@@ -327,8 +325,28 @@ export default function FinanzasPage() {
           body: fd,
         });
       }
+      if (payTarget.type === "PAYABLE" && !payTarget.paymentApprovedAt) {
+        await api(`/finance/invoices/${payTarget.id}/approve-payment`, {
+          method: "PATCH",
+          body: JSON.stringify({ pin: payPin.trim() }),
+        });
+      }
+      await api(`/finance/invoices/${payTarget.id}/pay`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          bankRef: payBank,
+          ...(needsPin ? { pin: payPin.trim() } : {}),
+          ...(payTarget.type === "RECEIVABLE"
+            ? {
+                receivedByName: payReceivedBy.trim(),
+                confirmCollection: true,
+              }
+            : {}),
+        }),
+      });
       setPayOpen(false);
       setPayTarget(null);
+      setPayPin("");
       setPayReceivedBy("");
       setPayConfirmCollection(false);
       setPayEvidence([]);
@@ -792,6 +810,23 @@ export default function FinanzasPage() {
                 ))}
               </select>
             </label>
+            {payTarget.type === "PAYABLE" ? (
+              <label className="flex flex-col gap-1 font-data text-[10px] uppercase tracking-wider text-brand-text-secondary">
+                PIN de seguridad (6 dígitos)
+                <input
+                  className="field font-data tracking-[0.3em]"
+                  type="password"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  placeholder="••••••"
+                  value={payPin}
+                  onChange={(e) =>
+                    setPayPin(e.target.value.replace(/\D/g, "").slice(0, 6))
+                  }
+                />
+              </label>
+            ) : null}
             {payTarget.type === "RECEIVABLE" ? (
               <>
                 <label className="flex flex-col gap-1 font-data text-[10px] uppercase tracking-wider text-brand-text-secondary">
@@ -841,7 +876,11 @@ export default function FinanzasPage() {
               mimeType={payTarget.supportMimeType}
             />
             <EvidenceDropzone
-              acceptLabel="Comprobante de transferencia (PDF/imagen)"
+              acceptLabel={
+                payTarget.type === "PAYABLE"
+                  ? "Comprobante de transferencia (PDF/imagen) — obligatorio en CxP"
+                  : "Comprobante de transferencia (PDF/imagen)"
+              }
               onFiles={setPayEvidence}
             />
             {payEvidence.length > 0 ? (

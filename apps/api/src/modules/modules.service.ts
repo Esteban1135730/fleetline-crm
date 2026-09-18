@@ -321,7 +321,9 @@ export class ModulesService {
       open: events.filter((ev) => ev.status === "OPEN").length,
       nps: npsAvg != null ? Number(npsAvg.toFixed(1)) : null,
       npsSamples: npsEvents.length,
-      incidents: events.filter((ev) => ev.kind === "INCIDENT").length,
+      incidents: events.filter(
+        (ev) => ev.kind === "INCIDENT" && String(ev.status).toUpperCase() !== "CLOSED",
+      ).length,
     };
   }
 

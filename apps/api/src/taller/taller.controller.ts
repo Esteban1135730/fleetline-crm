@@ -85,6 +85,17 @@ export class TallerController {
     return this.workOrders.coordinadorDashboard(req.user.organizationId);
   }
 
+  @Get("predictive-alerts")
+  @Permissions("taller_ot", "READ")
+  predictiveAlerts(@Req() req: AuthReq) {
+    return this.workOrders
+      .coordinadorDashboard(req.user.organizationId)
+      .then((d) => ({
+        items: d.predictiveAlerts,
+        thresholdKm: 500,
+      }));
+  }
+
   @Get("almacen/dashboard")
   @Permissions("taller_inventario", "READ")
   async almacenDash(@Req() req: AuthReq) {
