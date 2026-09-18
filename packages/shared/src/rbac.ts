@@ -1572,6 +1572,12 @@ export const COORDINADOR_CAMPO_NAV: RoleNavItem[] = [
     view: "logistica",
     tip: "Radar de geocerca · acciones en sitio",
   },
+  {
+    href: "/logistica/servicios",
+    label: "Servicios y GPS",
+    view: "logistica",
+    tip: "Consulta de rutas / servicios programados",
+  },
 ];
 
 /** Sidebar forzado — Operador Centro de Control / Watchtower (Valeria) */
@@ -1581,6 +1587,18 @@ export const OPERADOR_CENTRO_CONTROL_NAV: RoleNavItem[] = [
     label: "Torre de control",
     view: "logistica",
     tip: "Monitoreo · excepciones · SOS · sala de crisis",
+  },
+  {
+    href: "/logistica/servicios",
+    label: "Servicios y GPS",
+    view: "logistica",
+    tip: "Consulta de rutas / servicios programados",
+  },
+  {
+    href: "/operaciones/despacho/dashboard",
+    label: "Microdespacho",
+    view: "logistica",
+    tip: "Gantt operativo · lectura y seguimiento",
   },
 ];
 

@@ -909,4 +909,45 @@ export class PresidenciaService {
     });
     return { active: Boolean(session), session };
   }
+
+  /** Cierra todas las sesiones DEFCON ACTIVE de la organización. */
+  async desactivarDefcon(organizationId: string, userId: string) {
+    const active = await this.prisma.presidentialDefconSession.findMany({
+      where: { organizationId, status: "ACTIVE" },
+      select: { id: true, code: true },
+    });
+    if (!active.length) {
+      return {
+        closed: 0,
+        message: "No hay protocolo de crisis activo",
+      };
+    }
+    const now = new Date();
+    await this.prisma.presidentialDefconSession.updateMany({
+      where: { organizationId, status: "ACTIVE" },
+      data: {
+        status: "RESOLVED",
+        closedAt: now,
+        warRoomOpen: false,
+        meta: {
+          closedById: userId,
+          closedAt: now.toISOString(),
+        },
+      },
+    });
+    await this.kafka.emit("presidencia.defcon.deactivated", {
+      organizationId,
+      closedById: userId,
+      codes: active.map((s) => s.code),
+      closedAt: now.toISOString(),
+    });
+    this.logger.warn(
+      `DEFCON desactivado · org=${organizationId} · sesiones=${active.length} · by=${userId}`,
+    );
+    return {
+      closed: active.length,
+      codes: active.map((s) => s.code),
+      message: `Protocolo de crisis desactivado (${active.map((s) => s.code).join(", ")})`,
+    };
+  }
 }

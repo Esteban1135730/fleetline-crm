@@ -654,6 +654,9 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       .then((res) => {
         if (res.active) {
           setCrisisActive(true, res.session?.code ?? null);
+        } else {
+          // Sincronizar apagado: limpia sessionStorage y el banner.
+          setCrisisActive(false);
         }
       })
       .catch(() => undefined);

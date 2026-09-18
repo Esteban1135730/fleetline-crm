@@ -150,4 +150,15 @@ export class PresidenciaController {
   defconActive(@Req() req: AuthReq) {
     return this.presidencia.getActiveDefcon(req.user.organizationId);
   }
+
+  /** POST /api/v1/presidencia/defcon/desactivar — apagar protocolo */
+  @Post("defcon/desactivar")
+  @AllowDirectiveQuery()
+  @Permissions("defcon_crisis", "UPDATE")
+  defconDesactivar(@Req() req: AuthReq) {
+    return this.presidencia.desactivarDefcon(
+      req.user.organizationId,
+      req.user.userId,
+    );
+  }
 }

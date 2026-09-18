@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Post,
@@ -181,6 +182,28 @@ export class ServiciosController {
   @Post(":id/cerrar")
   cerrar(@Req() req: AuthReq, @Param("id") id: string) {
     return this.ops.markCompleted(
+      req.user.organizationId,
+      id,
+      req.user.userId,
+    );
+  }
+
+  /** DELETE /logistica/servicios/:id — borrar (cancelar) ruta */
+  @Delete(":id")
+  @Permissions("logistica_despacho", "UPDATE")
+  @Roles(
+    "gestor_operativo",
+    "director_operativo",
+    "centro_control",
+    "operador_centro_control",
+    "supervisor_logistica",
+    "coordinador_operativo",
+    "org_admin",
+    "platform_master",
+    "gerente_general",
+  )
+  borrar(@Req() req: AuthReq, @Param("id") id: string) {
+    return this.ops.borrarServicio(
       req.user.organizationId,
       id,
       req.user.userId,

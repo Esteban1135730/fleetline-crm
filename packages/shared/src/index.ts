@@ -469,6 +469,17 @@ export const MODULE_ALIASES: Record<string, ModuleId> = {
   gerencia_general: "gerencia",
   operaciones: "logistica",
   despacho: "logistica",
+  /** URL /centro-control/* → módulo logistica (torre / watchtower) */
+  "centro-control": "logistica",
+  centro_control: "logistica",
+  watchtower: "logistica",
+  /** URL /control-interno/* */
+  "control-interno": "revisoria_fiscal",
+  control_interno: "revisoria_fiscal",
+  /** URL /vinculaciones/* */
+  vinculaciones: "rrhh",
+  /** URL /subgerencia/* */
+  subgerencia: "gerencia",
   patio: "parqueadero",
   yard: "parqueadero",
   pilot: "apps",

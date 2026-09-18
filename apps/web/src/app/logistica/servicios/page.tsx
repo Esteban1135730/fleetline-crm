@@ -12,6 +12,7 @@ import {
   Plus,
   Radio,
   ShieldAlert,
+  Trash2,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { statusEs } from "@fsg/shared";
@@ -304,10 +305,21 @@ export default function LogisticaServiciosPage() {
   }, []);
 
   useEffect(() => {
-    void Promise.all([loadServicios(), loadPool(), loadClock()]).catch((e) =>
-      setError(e instanceof Error ? e.message : "Conexión fallida"),
-    );
-    const t = setInterval(() => void loadClock(), 1000);
+    void Promise.all([
+      loadServicios().catch((e) => {
+        setError(
+          e instanceof Error
+            ? e.message
+            : "No se pudieron cargar los servicios",
+        );
+        setListLoaded(true);
+      }),
+      loadPool().catch(() => {
+        /* pool opcional — no tumba la lista */
+      }),
+      loadClock().catch(() => undefined),
+    ]);
+    const t = setInterval(() => void loadClock().catch(() => undefined), 1000);
     return () => clearInterval(t);
   }, [loadServicios, loadPool, loadClock]);
 
@@ -472,6 +484,25 @@ export default function LogisticaServiciosPage() {
       await loadServicios();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo cerrar");
+    }
+  }
+
+  async function borrarRuta(id: string, code: string) {
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm(`¿Eliminar la ruta ${code}? Esta acción la saca del tablero.`)
+    ) {
+      return;
+    }
+    try {
+      const res = await api<{ message?: string }>(`/logistica/servicios/${id}`, {
+        method: "DELETE",
+      });
+      setStatusMsg(res.message || `Ruta ${code} eliminada`);
+      if (selectedId === id) setSelectedId(null);
+      await loadServicios();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo borrar la ruta");
     }
   }
 
@@ -717,6 +748,16 @@ export default function LogisticaServiciosPage() {
                     onClick={() => void cerrar(selected.id)}
                   >
                     Cerrar
+                  </Button>
+                ) : null}
+                {selected.status !== "IN_TRANSIT" ? (
+                  <Button
+                    variant="ghost"
+                    className="w-auto px-2 py-1 text-xs text-[var(--brand-danger)]"
+                    onClick={() => void borrarRuta(selected.id, selected.code)}
+                  >
+                    <Trash2 className="mr-1 h-3 w-3" />
+                    Borrar ruta
                   </Button>
                 ) : null}
               </div>

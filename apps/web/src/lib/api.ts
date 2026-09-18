@@ -200,11 +200,28 @@ export async function apiRequest<T>(
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({ message: res.statusText }));
+      const code =
+        typeof (err as { error?: unknown }).error === "string"
+          ? (err as { error: string }).error
+          : "";
+      let fallback = `Error ${res.status}`;
+      if (code === "PASSWORD_CHANGE_REQUIRED") {
+        fallback =
+          "Debes cambiar la contraseña temporal antes de consultar rutas o servicios";
+      } else if (res.status >= 500) {
+        fallback = "Error del servidor al consultar datos. Reintente en unos segundos.";
+      } else if (res.status === 403) {
+        fallback = "No tienes permisos para este recurso";
+      }
       const error = new Error(
-        formatApiError(err, `Error ${res.status}`),
+        formatApiError(err, fallback),
       ) as Error & {
+        status?: number;
+        code?: string;
         violations?: Array<{ path?: string; message?: string }>;
       };
+      error.status = res.status;
+      error.code = code || undefined;
       if (Array.isArray((err as { violations?: unknown }).violations)) {
         error.violations = (
           err as {
