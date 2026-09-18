@@ -490,7 +490,9 @@ export default function LogisticaServiciosPage() {
   async function borrarRuta(id: string, code: string) {
     if (
       typeof window !== "undefined" &&
-      !window.confirm(`¿Eliminar la ruta ${code}? Esta acción la saca del tablero.`)
+      !window.confirm(
+        `¿Borrar la ruta ${code}?\n\nSe cancelará y saldrá de despachos activos. Esta acción no se puede deshacer desde aquí.`,
+      )
     ) {
       return;
     }
@@ -683,7 +685,7 @@ export default function LogisticaServiciosPage() {
                 />
               ) : (
                 <NexaTable
-                  columns={["Código", "Ruta", "Tripulación", "Estado"]}
+                  columns={["Código", "Ruta", "Tripulación", "Estado", ""]}
                 >
                   {filteredServicios.map((s) => (
                     <NexaRow
@@ -715,6 +717,29 @@ export default function LogisticaServiciosPage() {
                         >
                           {statusEs(s.status)}
                         </StatusPulseBadge>
+                      </NexaCell>
+                      <NexaCell>
+                        {s.status !== "IN_TRANSIT" ? (
+                          <button
+                            type="button"
+                            className="inline-flex h-7 w-7 items-center justify-center rounded border border-transparent text-[var(--brand-danger)] hover:border-[var(--brand-danger)]/40 hover:bg-[var(--brand-danger)]/10"
+                            title={`Borrar ruta ${s.code}`}
+                            aria-label={`Borrar ruta ${s.code}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void borrarRuta(s.id, s.code);
+                            }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                          </button>
+                        ) : (
+                          <span
+                            className="inline-flex h-7 w-7 items-center justify-center text-[var(--brand-text-secondary)] opacity-40"
+                            title="Cierre el viaje en tránsito antes de borrar"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                          </span>
+                        )}
                       </NexaCell>
                     </NexaRow>
                   ))}
@@ -1253,6 +1278,19 @@ export default function LogisticaServiciosPage() {
                       : "neutral"
                 }
               />
+            ) : null}
+            {selected && !createOpen && selected.status !== "IN_TRANSIT" ? (
+              <Button
+                type="button"
+                variant="ghost"
+                className="absolute left-3 top-3 z-20 w-auto border border-[var(--brand-danger)]/40 bg-[var(--brand-surface)]/90 px-2 py-1.5 text-xs text-[var(--brand-danger)] shadow-sm backdrop-blur-sm hover:bg-[var(--brand-danger)]/10"
+                title={`Borrar ruta ${selected.code}`}
+                aria-label={`Borrar ruta ${selected.code}`}
+                onClick={() => void borrarRuta(selected.id, selected.code)}
+              >
+                <Trash2 className="mr-1 h-3.5 w-3.5" aria-hidden />
+                Borrar ruta
+              </Button>
             ) : null}
           </div>
         </BentoPanel>

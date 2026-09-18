@@ -69,6 +69,34 @@ describe("Hard Lock de periodo contable", () => {
     expect(() => rejectMutationIfHardLocked(null, "2026-07")).not.toThrow();
   });
 
+  it("exige frase CERRAR YYYY-MM y casilla de riesgo en el DTO", async () => {
+    const { HardLockSchema, hardLockConfirmPhrase } = await import(
+      "./dto/revisoria-fiscal.dto"
+    );
+    expect(hardLockConfirmPhrase("2026-09")).toBe("CERRAR 2026-09");
+    expect(() =>
+      HardLockSchema.parse({
+        yearMonth: "2026-09",
+        pdfRef: "uploads/dictamen.pdf",
+      }),
+    ).toThrow();
+    expect(() =>
+      HardLockSchema.parse({
+        yearMonth: "2026-09",
+        pdfRef: "uploads/dictamen.pdf",
+        riskAcknowledged: true,
+        confirmPhrase: "OK",
+      }),
+    ).toThrow();
+    const ok = HardLockSchema.parse({
+      yearMonth: "2026-09",
+      pdfRef: "uploads/dictamen.pdf",
+      riskAcknowledged: true,
+      confirmPhrase: "cerrar 2026-09",
+    });
+    expect(ok.confirmPhrase.toUpperCase()).toContain("2026-09");
+  });
+
   it("assertPeriodWritable rechaza tras hard lock (mock prisma)", async () => {
     const prisma = {
       accountingPeriod: {

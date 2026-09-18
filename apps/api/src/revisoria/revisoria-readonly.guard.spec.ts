@@ -48,6 +48,20 @@ describe("RevisoriaReadOnlyGuard — Módulo 11", () => {
     }
   });
 
+  it("permite cambio de contraseña y logout del revisor", () => {
+    expect(
+      guard.canActivate(mockCtx("PATCH", "revisor_fiscal", "/auth/password")),
+    ).toBe(true);
+    expect(
+      guard.canActivate(
+        mockCtx("PATCH", "revisor_fiscal", "/api/v1/auth/password"),
+      ),
+    ).toBe(true);
+    expect(
+      guard.canActivate(mockCtx("POST", "revisoria", "/auth/logout")),
+    ).toBe(true);
+  });
+
   it("no restringe mutaciones de otros roles", () => {
     expect(guard.canActivate(mockCtx("POST", "finanzas"))).toBe(true);
     expect(guard.canActivate(mockCtx("DELETE", "gerencia"))).toBe(true);

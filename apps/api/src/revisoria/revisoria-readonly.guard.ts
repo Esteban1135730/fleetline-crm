@@ -16,7 +16,7 @@ function isRevisoriaRole(roleRaw: string | undefined): boolean {
   );
 }
 
-/** CREATE permitidos al Revisor: Hard Lock, dictamen y notas de auditoría */
+/** CREATE permitidos al Revisor: Hard Lock, dictamen, notas y cuenta propia */
 const REVISOR_MUTATION_ALLOW = [
   "/revisoria-fiscal/cierre/hard-lock",
   "/api/v1/revisoria-fiscal/cierre/hard-lock",
@@ -25,11 +25,15 @@ const REVISOR_MUTATION_ALLOW = [
   "/revisoria-fiscal/dictamen",
   "/api/v1/revisoria-fiscal/dictamen",
   "/revisoria/findings",
+  /** Credenciales propias — no son mutaciones del ledger */
+  "/auth/password",
+  "/auth/logout",
+  "/auth/refresh",
 ];
 
 /**
  * Módulo 11/18 — Revisoría Fiscal es lectura forense.
- * Excepción: Hard Lock / dictamen / notas (Truth Hub).
+ * Excepción: Hard Lock / dictamen / notas (Truth Hub) y cambio de contraseña.
  */
 @Injectable()
 export class RevisoriaReadOnlyGuard implements CanActivate {
@@ -56,7 +60,9 @@ export class RevisoriaReadOnlyGuard implements CanActivate {
       .toLowerCase();
 
     if (
-      REVISOR_MUTATION_ALLOW.some((p) => path === p || path.startsWith(`${p}/`))
+      REVISOR_MUTATION_ALLOW.some(
+        (p) => path === p || path.endsWith(p) || path.startsWith(`${p}/`),
+      )
     ) {
       return true;
     }
