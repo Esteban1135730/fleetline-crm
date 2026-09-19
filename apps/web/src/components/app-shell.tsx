@@ -7,6 +7,7 @@ import {
   MODULE_LABELS,
   ROLE_DEFAULT_NAV_DEPT,
   ROLE_LABELS,
+  isPathDeniedForRole,
   navDeptForPath,
   normalizeRole,
   resolveModuleId,
@@ -637,6 +638,10 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     if (!user || pathname === "/login") return;
     const seg = pathname.split("/").filter(Boolean)[0] || "dashboard";
     if (seg === "cuenta") return;
+    if (isPathDeniedForRole(user.role, pathname)) {
+      router.replace(homePath);
+      return;
+    }
     const resolved = resolveModuleId(seg) || seg;
     if (!canAccess(resolved)) {
       router.replace(homePath);

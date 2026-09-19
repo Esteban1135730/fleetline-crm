@@ -160,7 +160,7 @@ export default function AuxiliarContableDashboardPage() {
     if (Date.now() < autoMatchCooldownUntil) {
       const secs = Math.ceil((autoMatchCooldownUntil - Date.now()) / 1000);
       setInfo(
-        `Auto-Match ya se ejecutó hace poco — reintente en ${secs}s para evitar duplicados.`,
+        `Auto-Match ya se ejecutó hace poco — reintente en ${secs}s.`,
       );
       return;
     }
@@ -168,27 +168,42 @@ export default function AuxiliarContableDashboardPage() {
     setInfo("Auto-Match en proceso — emparejando extracto bancario…");
     setAutoMatchBusy(true);
     try {
-      const out = await api<{ matchedCount: number; unmatchedCount: number }>(
-        "/api/v1/contabilidad/conciliacion/auto-match",
-        {
-          method: "POST",
-          body: JSON.stringify({
-            bankName: "Bancolombia",
-            closeDaily: false,
-            rows: [
-              {
-                description: "PAGO PROVEEDOR",
-                amount: -150000,
-                externalRef: "FAC-001",
-              },
-            ],
-          }),
-        },
-      );
+      const out = await api<{
+        matchedCount: number;
+        unmatchedCount: number;
+        skippedDuplicates?: number;
+        seededCount?: number;
+        message?: string;
+      }>("/api/v1/contabilidad/conciliacion/auto-match", {
+        method: "POST",
+        body: JSON.stringify({
+          bankName: "Bancolombia",
+          closeDaily: false,
+          rows: [
+            {
+              description: "PAGO PROVEEDOR",
+              amount: -150000,
+              externalRef: "FAC-001",
+            },
+          ],
+        }),
+      });
       setAutoMatchCooldownUntil(Date.now() + AUTO_MATCH_COOLDOWN_MS);
-      setInfo(
-        `Auto-Match listo · ${out.matchedCount} emparejadas · ${out.unmatchedCount} pendientes · espere ${AUTO_MATCH_COOLDOWN_MS / 1000}s para volver a ejecutar`,
-      );
+      if (out.message) {
+        setInfo(out.message);
+      } else if ((out.seededCount ?? 0) > 0) {
+        setInfo(
+          `Auto-Match · cargó ${out.seededCount} movimiento(s) · ${out.matchedCount} emparejadas · ${out.unmatchedCount} pendientes`,
+        );
+      } else if ((out.skippedDuplicates ?? 0) > 0) {
+        setInfo(
+          `Auto-Match · ${out.matchedCount} emparejadas · ${out.unmatchedCount} pendientes · sin duplicar (${out.skippedDuplicates} ya existían)`,
+        );
+      } else {
+        setInfo(
+          `Auto-Match listo · ${out.matchedCount} emparejadas · ${out.unmatchedCount} pendientes`,
+        );
+      }
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error de conciliación");
@@ -383,8 +398,8 @@ export default function AuxiliarContableDashboardPage() {
                   : "Ejecutar Auto-Match"}
             </Button>
             <p className="max-w-xs text-right text-[11px] leading-snug text-brand-text-secondary">
-              Empareja líneas del extracto con pagos/facturas conocidos. Un
-              solo clic por ciclo; espere a que termine antes de repetir.
+              Ejecuta el emparejamiento extracto ↔ factura. Si el movimiento ya
+              está cargado, no lo vuelve a crear.
             </p>
           </form>
         </BentoPanel>

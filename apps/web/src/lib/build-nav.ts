@@ -3,6 +3,7 @@ import {
   ROLE_CURATED_NAV,
   ROLE_VIEWS,
   hubForModule,
+  isPathDeniedForRole,
   normalizeRole,
   type ModuleId,
   type NavDepartment,
@@ -31,10 +32,17 @@ function dedupeByPath(items: NavDeptItem[]): NavDeptItem[] {
   return out;
 }
 
+function isNavAllowedForRole(role: string, item: NavDeptItem): boolean {
+  if (!isIndependentHref(item.href)) return false;
+  if (item.view === "cuenta") return true;
+  if (isPathDeniedForRole(role, item.href)) return false;
+  return true;
+}
+
 /**
- * Construye el menú lateral: 6 hubs, solo opciones permitidas
- * por ROLE_VIEWS. Si el rol tiene menú curado (*_NAV), se reutiliza
- * y se agrupa en hubs (sin inventar permisos nuevos).
+ * Construye el menú lateral: hubs solo con opciones permitidas
+ * por ROLE_VIEWS y sin rutas en ROLE_DENIED_PATH_PREFIXES.
+ * Si el rol tiene menú curado (*_NAV), se reutiliza y se agrupa en hubs.
  */
 export function buildNavDepartmentsForRole(
   role: string | Role,
@@ -48,8 +56,13 @@ export function buildNavDepartmentsForRole(
       curated
         .filter(
           (i) =>
-            isIndependentHref(i.href) &&
-            (i.view === "cuenta" || allowed.has(i.view as ModuleId)),
+            (i.view === "cuenta" || allowed.has(i.view as ModuleId)) &&
+            isNavAllowedForRole(key, {
+              href: i.href,
+              view: i.view as ModuleId,
+              label: i.label,
+              tip: i.tip,
+            }),
         )
         .map((i) => ({
           href: i.href,
@@ -66,8 +79,8 @@ export function buildNavDepartmentsForRole(
     items: dedupeByPath(
       dept.items.filter(
         (item) =>
-          isIndependentHref(item.href) &&
-          (item.view === "cuenta" || allowed.has(item.view as ModuleId)),
+          (item.view === "cuenta" || allowed.has(item.view as ModuleId)) &&
+          isNavAllowedForRole(key, item),
       ),
     ),
   })).filter((dept) => dept.items.length > 0);

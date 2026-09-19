@@ -1,8 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { ROLE_LABELS } from "@fsg/shared";
+import { useEffect, useMemo, useState } from "react";
+import {
+  ROLE_LABELS,
+  isPathDeniedForRole,
+  resolveModuleId,
+} from "@fsg/shared";
 import { Tooltip } from "@fsg/ui";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
@@ -47,12 +51,35 @@ const ACTIONS = [
   },
 ] as const;
 
+function canOpenPath(
+  role: string | undefined,
+  canAccess: (view: string) => boolean,
+  href: string,
+): boolean {
+  if (!role) return false;
+  if (isPathDeniedForRole(role, href)) return false;
+  const seg = href.split("/").filter(Boolean)[0] || "dashboard";
+  const resolved = resolveModuleId(seg) || seg;
+  return canAccess(resolved);
+}
+
 export default function DashboardPage() {
-  const { user } = useAuth();
+  const { user, canAccess } = useAuth();
   const { setHelpOpen } = useShell();
   const [m, setM] = useState<Metrics | null>(null);
   const [error, setError] = useState("");
   const firstName = user?.name?.split(" ")[0] || "Operador";
+
+  const visibleActions = useMemo(
+    () =>
+      ACTIONS.filter((a) =>
+        canOpenPath(user?.role, canAccess, a.href),
+      ),
+    [user?.role, canAccess],
+  );
+
+  const showTesoreria = canOpenPath(user?.role, canAccess, "/tesoreria");
+  const showArchivo = canOpenPath(user?.role, canAccess, "/archivo");
 
   useEffect(() => {
     api<Metrics>("/dashboard/metrics")
@@ -147,7 +174,7 @@ export default function DashboardPage() {
           Acciones rápidas
         </h2>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {ACTIONS.map((a) => (
+          {visibleActions.map((a) => (
             <Tooltip key={a.title} content={a.tip} side="bottom" className="w-full">
               <Link href={a.href} className="flt-quick-action group w-full" title={a.tip}>
                 <span className="min-w-0">
@@ -165,7 +192,9 @@ export default function DashboardPage() {
             </Tooltip>
           ))}
         </div>
+        {showTesoreria || showArchivo ? (
         <div className="flex flex-wrap gap-3 pt-1 text-sm">
+          {showTesoreria ? (
           <Tooltip content="Ir a Tesorería: CxC / CxP y aprobación de pagos">
             <Link
               href="/tesoreria"
@@ -175,6 +204,8 @@ export default function DashboardPage() {
               Tesorería
             </Link>
           </Tooltip>
+          ) : null}
+          {showArchivo ? (
           <Tooltip content="Ir a la sala documental: documentos con sello digital">
             <Link
               href="/archivo"
@@ -184,7 +215,9 @@ export default function DashboardPage() {
               Archivo
             </Link>
           </Tooltip>
+          ) : null}
         </div>
+        ) : null}
       </section>
     </div>
   );
