@@ -776,7 +776,8 @@ export const ROLE_VIEWS: Record<Role, ModuleId[]> = {
     "rrhh",
     "taller",
   ],
-  tesoreria: ["dashboard", "tesoreria", "contabilidad", "compras", "archivo"],
+  /** Sin Archivo: el rol no tiene permiso de lectura documental (archivo_digital) */
+  tesoreria: ["dashboard", "tesoreria", "contabilidad", "compras"],
   juridico: ["dashboard", "juridico", "sarlaft", "archivo", "tramites"],
   director_juridico: [
     "dashboard",
@@ -814,7 +815,6 @@ export const ROLE_VIEWS: Record<Role, ModuleId[]> = {
   compras: [
     "dashboard",
     "compras",
-    "taller",
     "tesoreria",
     "contabilidad",
     "tramites",
@@ -823,7 +823,6 @@ export const ROLE_VIEWS: Record<Role, ModuleId[]> = {
   lider_compras: [
     "dashboard",
     "compras",
-    "taller",
     "tesoreria",
     "contabilidad",
     "tramites",
@@ -847,7 +846,8 @@ export const ROLE_VIEWS: Record<Role, ModuleId[]> = {
   recepcion: ["dashboard", "call_center", "logistica", "apps"],
   mecanico: ["dashboard", "taller"],
   conductor: ["logistica", "apps"],
-  monitora: ["apps", "logistica"],
+  /** Solo app monitora — sin Logística / nómina de conductores */
+  monitora: ["apps"],
   padre: ["apps"],
   pasajero: ["apps"],
 };
@@ -872,6 +872,7 @@ export function modulesForRole(role: string | Role): ModuleId[] {
 }
 
 export * from "./rbac";
+export * from "./mvp-roles";
 export * from "./departments";
 export * from "./hr-documents";
 export * from "./rrhh-excel";

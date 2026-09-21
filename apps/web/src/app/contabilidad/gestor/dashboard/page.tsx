@@ -14,6 +14,7 @@ import { EmptyState, SlideOver } from "@/components/audit";
 import { BentoPanel } from "@/components/nexa/bento-panel";
 import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
 import { WorkbenchSearch, WorkbenchToolbar } from "@/components/workbench-toolbar";
+import { PermissionGuard } from "@/components/auth/PermissionGuard";
 
 type Dash = {
   kpis: {
@@ -234,15 +235,17 @@ export default function GestorContableDashboardPage() {
           </p>
         </div>
         <div className="flex flex-wrap justify-end gap-2">
-          <Button
-            type="button"
-            variant="secondary"
-            className="w-auto px-4 py-2"
-            onClick={() => setFacturacionOpen(true)}
-          >
-            <FileSpreadsheet className="mr-1.5 inline h-4 w-4" aria-hidden />
-            Emitir FE DIAN
-          </Button>
+          <PermissionGuard capability="facturacion_electronica:CREATE">
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-auto px-4 py-2"
+              onClick={() => setFacturacionOpen(true)}
+            >
+              <FileSpreadsheet className="mr-1.5 inline h-4 w-4" aria-hidden />
+              Emitir FE DIAN
+            </Button>
+          </PermissionGuard>
           <Button
             type="button"
             variant="ghost"

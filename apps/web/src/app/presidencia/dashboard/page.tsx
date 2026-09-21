@@ -37,6 +37,7 @@ import { api } from "@/lib/api";
 import { CRISIS_ZONE_PRESETS } from "@fsg/shared";
 import { EmptyState, KpiCard, Modal, SlideOver } from "@/components/audit";
 import { BentoPanel } from "@/components/nexa/bento-panel";
+import { PermissionGuard } from "@/components/auth/PermissionGuard";
 import { useShell } from "@/lib/shell-context";
 
 type Pillars = {
@@ -343,41 +344,49 @@ export default function PresidenciaDashboardPage() {
           </div>
         </div>
         <div className="flex w-auto flex-wrap justify-end gap-2">
-          <Link href="/gerencia/dashboard">
-            <Button type="button" variant="secondary" className="w-auto px-4 py-2">
-              <Gavel className="mr-1.5 inline h-4 w-4" aria-hidden />
-              Excepciones margen
-              {(dash?.pendingMarginExceptions ?? 0) > 0
-                ? ` (${dash?.pendingMarginExceptions})`
-                : ""}
+          <PermissionGuard capability="gerencia_override:UPDATE">
+            <Link href="/gerencia/dashboard">
+              <Button type="button" variant="secondary" className="w-auto px-4 py-2">
+                <Gavel className="mr-1.5 inline h-4 w-4" aria-hidden />
+                Excepciones margen
+                {(dash?.pendingMarginExceptions ?? 0) > 0
+                  ? ` (${dash?.pendingMarginExceptions})`
+                  : ""}
+              </Button>
+            </Link>
+          </PermissionGuard>
+          <PermissionGuard capability="audit_forense:READ">
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-auto px-4 py-2"
+              disabled={busy}
+              onClick={() => void exportForensic()}
+            >
+              <FileSearch className="mr-1.5 inline h-4 w-4" aria-hidden />
+              Auditoría forense
             </Button>
-          </Link>
-          <Button
-            type="button"
-            variant="secondary"
-            className="w-auto px-4 py-2"
-            disabled={busy}
-            onClick={() => void exportForensic()}
-          >
-            <FileSearch className="mr-1.5 inline h-4 w-4" aria-hidden />
-            Auditoría forense
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            className="w-auto px-4 py-2"
-            onClick={() => setCapexOpen(true)}
-          >
-            Simulador de inversión
-          </Button>
-          <Button
-            type="button"
-            variant="primary"
-            className="w-auto px-4 py-2 !bg-brand-danger !text-white"
-            onClick={() => setDefconOpen(true)}
-          >
-            Protocolo de crisis
-          </Button>
+          </PermissionGuard>
+          <PermissionGuard capability="capex_approve:CREATE">
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-auto px-4 py-2"
+              onClick={() => setCapexOpen(true)}
+            >
+              Simulador de inversión
+            </Button>
+          </PermissionGuard>
+          <PermissionGuard capability="defcon_crisis:CREATE">
+            <Button
+              type="button"
+              variant="primary"
+              className="w-auto px-4 py-2 !bg-brand-danger !text-white"
+              onClick={() => setDefconOpen(true)}
+            >
+              Protocolo de crisis
+            </Button>
+          </PermissionGuard>
         </div>
       </header>
 

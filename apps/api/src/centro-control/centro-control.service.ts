@@ -12,6 +12,7 @@ import type {
   ActivarSosDto,
   ApagadoRemotoDto,
   FatigaIntervencionDto,
+  ResolverSosDto,
   TipificarDesvioDto,
 } from "./dto/centro-control.dto";
 import {
@@ -153,11 +154,6 @@ export class CentroControlService {
     operatorId: string,
     dto: ActivarSosDto,
   ) {
-    const count = await this.prisma.watchtowerSosSession.count({
-      where: { organizationId },
-    });
-    const code = `SOS-${new Date().getFullYear()}-${String(count + 1).padStart(4, "0")}`;
-
     let plate = dto.plate;
     if (!plate && dto.vehicleId) {
       const v = await this.prisma.vehicle.findFirst({
@@ -165,6 +161,37 @@ export class CentroControlService {
       });
       plate = v?.plate;
     }
+
+    const activeWhere: {
+      organizationId: string;
+      status: string;
+      OR?: Array<{ plate?: string; vehicleId?: string; tripId?: string }>;
+    } = {
+      organizationId,
+      status: "ACTIVE",
+    };
+    if (plate || dto.vehicleId || dto.tripId) {
+      activeWhere.OR = [
+        ...(plate ? [{ plate }] : []),
+        ...(dto.vehicleId ? [{ vehicleId: dto.vehicleId }] : []),
+        ...(dto.tripId ? [{ tripId: dto.tripId }] : []),
+      ];
+    }
+
+    const existing = await this.prisma.watchtowerSosSession.findFirst({
+      where: activeWhere,
+      orderBy: { createdAt: "desc" },
+    });
+    if (existing) {
+      throw new BadRequestException(
+        `Ya hay un SOS activo (${existing.code}). Resuélvalo antes de activar otro.`,
+      );
+    }
+
+    const count = await this.prisma.watchtowerSosSession.count({
+      where: { organizationId },
+    });
+    const code = `SOS-${new Date().getFullYear()}-${String(count + 1).padStart(4, "0")}`;
 
     const checklist = {
       contactPolice: dto.contactPolice !== false,
@@ -242,6 +269,61 @@ export class CentroControlService {
       ui: { mode: "DEFCON_1_RED", warRoom: true },
       checklist,
       message: `Protocolo SOS activado (${code}) — Modo Rojo DEFCON 1`,
+    };
+  }
+
+  /**
+   * Desactiva / resuelve una sesión SOS activa.
+   */
+  async resolverSos(
+    organizationId: string,
+    operatorId: string,
+    dto: ResolverSosDto,
+  ) {
+    const sos = await this.prisma.watchtowerSosSession.findFirst({
+      where: { id: dto.sosSessionId, organizationId },
+    });
+    if (!sos) throw new NotFoundException("Sesión SOS no encontrada");
+    if (sos.status !== "ACTIVE") {
+      throw new BadRequestException(
+        `La sesión ${sos.code} ya no está activa (${sos.status})`,
+      );
+    }
+
+    const closed = await this.prisma.watchtowerSosSession.update({
+      where: { id: sos.id },
+      data: {
+        status: "CLOSED",
+        closedAt: new Date(),
+        notes: dto.resolutionNotes
+          ? `${sos.notes ? `${sos.notes}\n` : ""}[RESUELTO] ${dto.resolutionNotes}`
+          : sos.notes,
+        meta: {
+          ...((sos.meta as object) || {}),
+          resolvedById: operatorId,
+          resolvedAt: new Date().toISOString(),
+          uiMode: "NOMINAL",
+          warRoom: false,
+        },
+      },
+    });
+
+    await this.kafka.emit("watchtower.sos.resolved", {
+      organizationId,
+      sosId: closed.id,
+      code: closed.code,
+      plate: closed.plate,
+      resolvedById: operatorId,
+    });
+
+    this.logger.warn(
+      `SOS ${closed.code} RESUELTO · placa=${closed.plate ?? "n/a"} · por=${operatorId}`,
+    );
+
+    return {
+      session: closed,
+      ui: { mode: "NOMINAL", warRoom: false },
+      message: `SOS ${closed.code} resuelto — alerta desactivada`,
     };
   }
 

@@ -34,6 +34,7 @@ import {
   AUXILIAR_PATIO_NAV,
   CONDUCTOR_PILOT_NAV,
   SUBGERENTE_NAV,
+  MONITORA_NAV,
   ROLE_DEFAULT_NAV_DEPT,
   ROLE_LABELS,
   ROLE_VIEWS,
@@ -799,7 +800,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       const dept: NavDepartment = {
         id: "compras",
         label: "Compras inteligentes",
-        tip: "Proveedores · órdenes · almacén · SOAT",
+        tip: "Proveedores · órdenes · SOAT",
         items: LIDER_COMPRAS_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
@@ -1086,6 +1087,21 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
         label: "App del conductor",
         tip: "Preoperacional · emergencia · viático",
         items: CONDUCTOR_PILOT_NAV.map((i) => ({
+          href: i.href,
+          view: i.view as ModuleId,
+          label: i.label,
+          tip: i.tip,
+        })),
+      };
+      return [dept];
+    }
+
+    if (role === "monitora") {
+      const dept: NavDepartment = {
+        id: "apps",
+        label: "App monitora",
+        tip: "Acompañamiento escolar · canales operativos",
+        items: MONITORA_NAV.map((i) => ({
           href: i.href,
           view: i.view as ModuleId,
           label: i.label,
