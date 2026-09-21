@@ -873,6 +873,7 @@ export function modulesForRole(role: string | Role): ModuleId[] {
 
 export * from "./rbac";
 export * from "./mvp-roles";
+export * from "./block-flags";
 export * from "./departments";
 export * from "./hr-documents";
 export * from "./rrhh-excel";

@@ -11,6 +11,7 @@ import { GestorComercialController } from "./gestor/gestor-comercial.controller"
 import { GestorComercialService } from "./gestor/gestor-comercial.service";
 import { CoordinadorComercialController } from "./coordinador/coordinador-comercial.controller";
 import { CoordinadorComercialService } from "./coordinador/coordinador-comercial.service";
+import { QuotePdfService } from "./quote-pdf.service";
 
 @Module({
   imports: [AuthModule, forwardRef(() => LogisticsModule)],
@@ -25,6 +26,7 @@ import { CoordinadorComercialService } from "./coordinador/coordinador-comercial
     SecopClient,
     SecopSyncService,
     CommercialRevenueService,
+    QuotePdfService,
     DirectorComercialService,
     GestorComercialService,
     CoordinadorComercialService,
@@ -33,6 +35,7 @@ import { CoordinadorComercialService } from "./coordinador/coordinador-comercial
     CommercialContractService,
     SecopSyncService,
     CommercialRevenueService,
+    QuotePdfService,
     DirectorComercialService,
     GestorComercialService,
     CoordinadorComercialService,

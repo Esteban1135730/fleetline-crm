@@ -2,15 +2,21 @@ import {
   Body,
   Controller,
   Get,
+  Header,
+  Param,
   Post,
   Req,
+  Res,
+  StreamableFile,
   UseGuards,
 } from "@nestjs/common";
+import type { Response } from "express";
 import { JwtAuthGuard } from "../../auth/jwt-auth.guard";
 import { ModulesGuard, RequireModule } from "../../auth/modules.guard";
 import { Roles, RolesGuard } from "../../auth/roles.guard";
 import { Permissions, PermissionsGuard } from "../../auth/permissions.guard";
 import { DirectorComercialService } from "./director-comercial.service";
+import { QuotePdfService } from "../quote-pdf.service";
 import {
   CotizarSchema,
   CreateDealSchema,
@@ -41,7 +47,10 @@ const DIR_COM_ROLES = [
 @RequireModule("comercial")
 @Roles(...DIR_COM_ROLES)
 export class DirectorComercialController {
-  constructor(private director: DirectorComercialService) {}
+  constructor(
+    private director: DirectorComercialService,
+    private quotePdf: QuotePdfService,
+  ) {}
 
   @Get("dashboard")
   @Permissions("crm_comercial", "READ")
@@ -82,6 +91,27 @@ export class DirectorComercialController {
       req.user.userId,
       dto,
     );
+  }
+
+  /** GET /api/v1/comercial/director/quotes/:id/pdf */
+  @Get("quotes/:id/pdf")
+  @Permissions("crm_comercial", "READ")
+  @Header("Content-Type", "application/pdf")
+  async quotePdf(
+    @Req() req: AuthReq,
+    @Param("id") id: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { buffer, pdfRef } = await this.quotePdf.generateIntelligentQuotePdf(
+      req.user.organizationId,
+      id,
+    );
+    const filename = pdfRef.split("/").pop() ?? "oferta.pdf";
+    res.setHeader(
+      "Content-Disposition",
+      `inline; filename="${filename}"`,
+    );
+    return new StreamableFile(buffer);
   }
 
   /** GET /api/v1/comercial/director/renovaciones-radar */

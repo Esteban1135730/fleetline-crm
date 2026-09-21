@@ -11,6 +11,8 @@ import {
   ContractRateType,
   ContractStatus,
   DocuSignEnvelopeStatus,
+  InvoiceStatus,
+  InvoiceType,
   QuoteStatus,
   SalesPipelineStage,
 } from "@fsg/db";
@@ -23,6 +25,7 @@ import {
 } from "@fsg/shared";
 import { PrismaService } from "../../prisma/prisma.service";
 import { KafkaEventsService } from "../../logistics/kafka-events.service";
+import { QuotePdfService } from "../quote-pdf.service";
 import type {
   CotizarDto,
   CreateDealDto,
@@ -47,6 +50,7 @@ export class DirectorComercialService {
   constructor(
     private prisma: PrismaService,
     private kafka: KafkaEventsService,
+    private quotePdf: QuotePdfService,
   ) {}
 
   async dashboard(organizationId: string) {
@@ -265,7 +269,6 @@ export class DirectorComercialService {
       };
     }
 
-    const pdfRef = `quotes/${deal.code}-${Date.now()}.pdf`;
     const quote = await this.prisma.commercialIntelligentQuote.create({
       data: {
         organizationId,
@@ -281,7 +284,7 @@ export class DirectorComercialService {
         requiresCfoApproval,
         cfoApproved: requiresCfoApproval ? true : false,
         cfoApprovedAt: requiresCfoApproval ? new Date() : null,
-        pdfRef,
+        sentAt: new Date(),
         status: QuoteStatus.SENT,
         calcJson: {
           zone: dto.zone,
@@ -292,6 +295,14 @@ export class DirectorComercialService {
         },
       },
     });
+
+    const { pdfRef } = await this.quotePdf.generateIntelligentQuotePdf(
+      organizationId,
+      quote.id,
+    );
+    const quoteWithPdf = await this.prisma.commercialIntelligentQuote.findUniqueOrThrow(
+      { where: { id: quote.id } },
+    );
 
     await this.prisma.commercialDeal.update({
       where: { id: deal.id },
@@ -310,11 +321,12 @@ export class DirectorComercialService {
     return {
       status: "QUOTE_READY",
       message: "Propuesta PDF corporativo generada",
-      quote,
+      quote: quoteWithPdf,
       dealId: deal.id,
       costBreakdown: costs,
       pdfGenerated: true,
       pdfRef,
+      pdfUrl: `/uploads/${pdfRef}`,
     };
   }
 
@@ -449,6 +461,7 @@ export class DirectorComercialService {
       costCenter: won.costCenter,
       capacityRequest: won.capacityRequest,
       recurringBilling: won.recurringBilling,
+      seedInvoice: won.seedInvoice,
       deal: won.deal,
     };
   }
@@ -547,6 +560,31 @@ export class DirectorComercialService {
       },
     });
 
+    // SCRUM-44 — 1ª factura CxC al cerrar ganado (venta → cobro)
+    const invCount = await this.prisma.invoice.count({
+      where: { organizationId: input.organizationId },
+    });
+    const dueDate = new Date(signedAt);
+    dueDate.setDate(dueDate.getDate() + 30);
+    const seedInvoice = await this.prisma.invoice.create({
+      data: {
+        organizationId: input.organizationId,
+        number: `CXC-${new Date().getFullYear()}-${String(invCount + 1).padStart(4, "0")}`,
+        type: InvoiceType.RECEIVABLE,
+        status: InvoiceStatus.ISSUED,
+        counterparty: deal.accountName,
+        amount: input.monthlyValue,
+        dueDate,
+        customerId: input.customerId,
+        prefacturaAnnex: {
+          dealId: input.dealId,
+          contractId: input.contractId,
+          recurringBillingId: recurringBilling.id,
+          source: "comercial.deal.won",
+        },
+      },
+    });
+
     const updatedDeal = await this.prisma.commercialDeal.update({
       where: { id: input.dealId },
       data: {
@@ -570,10 +608,11 @@ export class DirectorComercialService {
       costCenterId: costCenter.id,
       capacityRequestId: capacityRequest.id,
       recurringBillingId: recurringBilling.id,
+      invoiceId: seedInvoice.id,
     });
 
     this.logger.log(
-      `Won ${deal.code} → CostCenter ${costCenter.code} · Capacity ${capacityRequest.id}`,
+      `Won ${deal.code} → CostCenter ${costCenter.code} · Capacity ${capacityRequest.id} · Invoice ${seedInvoice.number}`,
     );
 
     return {
@@ -582,6 +621,7 @@ export class DirectorComercialService {
       costCenter,
       capacityRequest,
       recurringBilling,
+      seedInvoice,
       envelope,
     };
   }
