@@ -12,9 +12,10 @@ import { GestorComercialService } from "./gestor/gestor-comercial.service";
 import { CoordinadorComercialController } from "./coordinador/coordinador-comercial.controller";
 import { CoordinadorComercialService } from "./coordinador/coordinador-comercial.service";
 import { QuotePdfService } from "./quote-pdf.service";
+import { SarlaftModule } from "../sarlaft/sarlaft.module";
 
 @Module({
-  imports: [AuthModule, forwardRef(() => LogisticsModule)],
+  imports: [AuthModule, forwardRef(() => LogisticsModule), SarlaftModule],
   controllers: [
     ComercialController,
     DirectorComercialController,

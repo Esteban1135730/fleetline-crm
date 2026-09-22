@@ -101,5 +101,12 @@ export const SALE_TO_COLLECTION_FLOW = [
   "markPaid|cartera.cruzar",
 ] as const;
 
-/** Mora comercial: InvoiceStatus.OVERDUE (≥60 días → SCRUM-25 creditHold) */
+/** Mora comercial: InvoiceStatus.OVERDUE / ISSUED vencida (≥60 días → SCRUM-25 hard-stop venta) */
 export const COMMERCIAL_ARREARS_DAYS_HARD_STOP = 60;
+
+/**
+ * SCRUM-30 — Al cerrar ganado (WON): crear Trip PENDING sin auto-despacho
+ * (sin vehicleId/driverId). El despacho lo hace Operaciones después.
+ */
+export const WON_DEAL_CREATES_PENDING_TRIP_ONLY = true as const;
+

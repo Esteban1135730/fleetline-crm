@@ -77,6 +77,14 @@ export class DespachoService {
       driver,
       vehicle,
       departAt: trip.departAt,
+      passengersRequired:
+        dto.passengersRequired ||
+        dto.passengerList?.length ||
+        Number(
+          (trip.meta as { passengersRequired?: number } | null)
+            ?.passengersRequired,
+        ) ||
+        0,
     });
     if (!locks.ok) {
       throw new BadRequestException({
@@ -426,6 +434,7 @@ export class DespachoService {
     vehicle: {
       id: string;
       status: VehicleStatus;
+      capacity?: number;
       complianceBlocked: boolean;
       complianceDocs: Array<{
         type: ComplianceDocType;
@@ -435,6 +444,8 @@ export class DespachoService {
       fleetStops: Array<{ status: string; windowStart: Date; windowEnd: Date }>;
     };
     departAt: Date;
+    /** SCRUM-24 — pasajeros requeridos vs capacidad del bus */
+    passengersRequired?: number;
   }) {
     const blocks: string[] = [];
     const checks: Record<string, boolean | string | number | null> = {};
@@ -457,6 +468,14 @@ export class DespachoService {
         s.windowEnd >= input.departAt,
     );
     if (stopActive) blocks.push("VEHICLE_FLEET_STOP");
+
+    const capacity = input.vehicle.capacity ?? 0;
+    const passengersRequired = input.passengersRequired ?? 0;
+    checks.vehicleCapacity = capacity;
+    checks.passengersRequired = passengersRequired;
+    if (passengersRequired > 0 && capacity > 0 && passengersRequired > capacity) {
+      blocks.push("VEHICLE_CAPACITY_EXCEEDED");
+    }
 
     const now = new Date();
     const docOk = (type: ComplianceDocType) => {

@@ -29,6 +29,24 @@ export const LprCheckSchema = z.object({
 });
 export type LprCheckDto = z.infer<typeof LprCheckSchema>;
 
+/**
+ * SCRUM-45 — Decisión canónica ENTRA / NO_ENTRA (placa o cédula).
+ * Samuel (SCRUM-47) consume este payload para la pantalla de portería.
+ */
+export const GateDecisionSchema = z
+  .object({
+    plate: z.string().min(3).optional(),
+    /** Cédula / documento conductor o visitante */
+    document: z.string().min(5).optional(),
+    direction: z.enum(["IN", "OUT"]).optional().default("OUT"),
+    gateId: z.string().optional(),
+    at: z.coerce.date().optional(),
+  })
+  .refine((v) => Boolean(v.plate?.trim()) || Boolean(v.document?.trim()), {
+    message: "Indique plate o document (cédula)",
+  });
+export type GateDecisionDto = z.infer<typeof GateDecisionSchema>;
+
 export const YardMoveSchema = z.object({
   plate: z.string().min(3),
   fromLane: z.string().optional(),

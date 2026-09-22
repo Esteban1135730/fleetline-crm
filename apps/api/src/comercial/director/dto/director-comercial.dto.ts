@@ -16,6 +16,8 @@ export const CotizarSchema = z.object({
   discountPct: z.number().min(0).max(50).default(0),
   /** Autorización CFO previa (margen < 12%) */
   cfoApproved: z.boolean().optional(),
+  /** SCRUM-27 — PIN ejecutivo obligatorio si se aprueba margen bajo */
+  executivePin: z.string().optional(),
   estimatedMonthlyValue: z.number().nonnegative().optional(),
 });
 export type CotizarDto = z.infer<typeof CotizarSchema>;

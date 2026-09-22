@@ -20,6 +20,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { LogisticsService } from "../logistics/logistics.service";
 import { SarlaftGuardService } from "../sarlaft/sarlaft-guard.service";
 import { QuotePdfService } from "../comercial/quote-pdf.service";
+import { assertCustomerCommercialClear } from "../comercial/commercial-hard-stops";
 
 function isWinStatus(status: string) {
   const s = status.toUpperCase();
@@ -173,6 +174,13 @@ export class CustomersService {
       calc?: unknown;
     },
   ) {
+    await assertCustomerCommercialClear(
+      this.prisma,
+      this.sarlaft,
+      organizationId,
+      data.customerId,
+    );
+
     const customer = await this.prisma.customer.findFirst({
       where: { id: data.customerId, organizationId },
     });

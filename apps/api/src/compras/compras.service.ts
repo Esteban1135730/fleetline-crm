@@ -3,12 +3,15 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  UnprocessableEntityException,
 } from "@nestjs/common";
 import {
   InvoiceStatus,
   InvoiceType,
+  PaymentScheduleStatus,
   PurchaseStatus,
 } from "@fsg/db";
+import { HARD_RULES } from "@fsg/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { ThreeWayMatchingService } from "./three-way-matching.service";
 import { SarlaftComplianceGuard } from "../sarlaft/sarlaft-compliance.guard";
@@ -26,6 +29,186 @@ export class ComprasService {
     private threeWay: ThreeWayMatchingService,
     private sarlaft: SarlaftComplianceGuard,
   ) {}
+
+  /**
+   * Cupo mensual Compras (SCRUM-26): env → HARD_RULES.
+   * Spent = OC del mes no CANCELLED.
+   */
+  async getMonthlyBudget(organizationId: string) {
+    const envRaw = process.env.COMPRAS_MONTHLY_BUDGET_COP;
+    const monthlyLimit =
+      envRaw && Number.isFinite(Number(envRaw)) && Number(envRaw) > 0
+        ? Number(envRaw)
+        : HARD_RULES.COMPRAS_MONTHLY_BUDGET_COP;
+
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+    const orders = await this.prisma.purchaseOrder.findMany({
+      where: {
+        organizationId,
+        createdAt: { gte: monthStart, lt: monthEnd },
+        status: { not: PurchaseStatus.CANCELLED },
+      },
+      select: { totalEstimated: true },
+    });
+    const spentThisMonth = orders.reduce(
+      (s, o) => s + Number(o.totalEstimated),
+      0,
+    );
+    const available = Math.max(0, monthlyLimit - spentThisMonth);
+
+    return {
+      monthlyLimit,
+      spentThisMonth,
+      available,
+      currency: "COP",
+      source: envRaw ? "ENV" : "HARD_RULES",
+      period: {
+        from: monthStart.toISOString(),
+        to: monthEnd.toISOString(),
+      },
+    };
+  }
+
+  private async assertWithinBudget(
+    organizationId: string,
+    amount: number,
+  ) {
+    const budget = await this.getMonthlyBudget(organizationId);
+    if (amount > budget.available) {
+      throw new UnprocessableEntityException({
+        error: "COMPRAS_BUDGET_EXCEEDED",
+        message: `Cupo mensual insuficiente — disponible ${budget.available} COP de ${budget.monthlyLimit}`,
+        budget,
+        requested: amount,
+      });
+    }
+    return budget;
+  }
+
+  /**
+   * Al RECEIVED: factura PAYABLE + PaymentSchedule QUEUED (CxP Tesorería).
+   */
+  async ensurePayableOnReceived(
+    organizationId: string,
+    purchaseOrderId: string,
+    opts?: { goodsReceiptId?: string; source?: string },
+  ) {
+    const po = await this.prisma.purchaseOrder.findFirst({
+      where: { id: purchaseOrderId, organizationId },
+      include: { supplier: { select: { id: true, name: true } } },
+    });
+    if (!po) return null;
+    if (po.status !== PurchaseStatus.RECEIVED) return null;
+
+    let invoice = await this.prisma.invoice.findFirst({
+      where: {
+        organizationId,
+        purchaseOrderId: po.id,
+        type: { in: [InvoiceType.PAYABLE, InvoiceType.SUPPLIER_ELECTRONIC] },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (!invoice) {
+      const byCode = await this.prisma.invoice.findFirst({
+        where: {
+          organizationId,
+          type: InvoiceType.PAYABLE,
+          number: { contains: po.code },
+        },
+      });
+      invoice = byCode;
+    }
+
+    const amount = Number(po.totalEstimated);
+    const counterparty =
+      po.supplier?.name ||
+      (typeof po.meta === "object" &&
+      po.meta &&
+      "supplierName" in po.meta &&
+      typeof (po.meta as { supplierName?: unknown }).supplierName === "string"
+        ? (po.meta as { supplierName: string }).supplierName
+        : "Proveedor");
+
+    if (!invoice) {
+      const count = await this.prisma.invoice.count({
+        where: { organizationId },
+      });
+      const year = new Date().getFullYear();
+      const due = new Date();
+      due.setDate(due.getDate() + 30);
+      invoice = await this.prisma.invoice.create({
+        data: {
+          number: `CXP-${year}-${String(count + 1).padStart(4, "0")}`,
+          type: InvoiceType.PAYABLE,
+          status: InvoiceStatus.CLEARED_FOR_PAYMENT,
+          amount,
+          dueDate: due,
+          counterparty,
+          organizationId,
+          supplierId: po.supplierId,
+          purchaseOrderId: po.id,
+          prefacturaAnnex: {
+            description: `Compra ${po.code}: ${po.description}`,
+            source: opts?.source || "purchase.received",
+            goodsReceiptId: opts?.goodsReceiptId ?? null,
+          },
+        },
+      });
+    } else if (!invoice.purchaseOrderId) {
+      invoice = await this.prisma.invoice.update({
+        where: { id: invoice.id },
+        data: {
+          purchaseOrderId: po.id,
+          supplierId: invoice.supplierId ?? po.supplierId,
+          status:
+            invoice.status === InvoiceStatus.DRAFT
+              ? InvoiceStatus.CLEARED_FOR_PAYMENT
+              : invoice.status,
+        },
+      });
+    }
+
+    const existingSchedule = await this.prisma.paymentSchedule.findUnique({
+      where: { invoiceId: invoice.id },
+    });
+    if (existingSchedule) {
+      return { invoice, schedule: existingSchedule, created: false };
+    }
+
+    const due = invoice.dueDate ?? new Date(Date.now() + 7 * 86_400_000);
+    const schedule = await this.prisma.paymentSchedule.create({
+      data: {
+        organizationId,
+        invoiceId: invoice.id,
+        purchaseOrderId: po.id,
+        amount: Number(invoice.amount),
+        counterparty: invoice.counterparty,
+        status: PaymentScheduleStatus.QUEUED,
+        dueDate: due,
+        meta: {
+          source: opts?.source || "purchase.received",
+          goodsReceiptId: opts?.goodsReceiptId ?? null,
+          purchaseOrderCode: po.code,
+        },
+      },
+    });
+
+    if (
+      invoice.status !== InvoiceStatus.CLEARED_FOR_PAYMENT &&
+      invoice.status !== InvoiceStatus.PAID
+    ) {
+      await this.prisma.invoice.update({
+        where: { id: invoice.id },
+        data: { status: InvoiceStatus.CLEARED_FOR_PAYMENT },
+      });
+    }
+
+    return { invoice, schedule, created: true };
+  }
 
   listSuppliers(organizationId: string) {
     return this.prisma.supplier.findMany({
@@ -119,6 +302,8 @@ export class ComprasService {
       inventoryItemId: l.inventoryItemId,
     }));
     const totalEstimated = lines.reduce((s, l) => s + l.lineTotal, 0);
+
+    await this.assertWithinBudget(organizationId, totalEstimated);
 
     if (dto.supplierId) {
       await this.sarlaft.assertSupplierClear(
@@ -215,7 +400,20 @@ export class ComprasService {
       }
     }
 
-    return receipt;
+    const updatedPo = await this.prisma.purchaseOrder.findFirst({
+      where: { id: po.id },
+      select: { status: true },
+    });
+    let cxp: Awaited<ReturnType<ComprasService["ensurePayableOnReceived"]>> =
+      null;
+    if (updatedPo?.status === PurchaseStatus.RECEIVED) {
+      cxp = await this.ensurePayableOnReceived(organizationId, po.id, {
+        goodsReceiptId: receipt.id,
+        source: "goods.receipt.received",
+      });
+    }
+
+    return { ...receipt, cxp };
   }
 
   /**

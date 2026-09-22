@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
-import { AlertTriangle, ClipboardList, Gauge, Wrench } from "lucide-react";
+import { AlertTriangle, ClipboardList, Gauge, Plus, Wrench } from "lucide-react";
 import { api } from "@/lib/api";
 import { statusEs } from "@fsg/shared";
 import { EmptyState, KpiCard, SlideOver } from "@/components/audit";
 import { BentoPanel } from "@/components/nexa/bento-panel";
 import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
+import { useAuth } from "@/lib/auth-context";
+import { hasPermission, normalizeRole } from "@fsg/shared";
 
 type Wo = {
   id: string;
@@ -41,6 +43,9 @@ type Dash = {
 const COLS = ["OPEN", "IN_PROGRESS", "WAITING_PARTS", "DONE"] as const;
 
 export default function CoordinadorTallerDashboard() {
+  const { user } = useAuth();
+  const role = normalizeRole(String(user?.role || ""));
+  const canCreateOt = hasPermission(role, "taller_ot", "CREATE");
   const [dash, setDash] = useState<Dash | null>(null);
   const [vehicles, setVehicles] = useState<
     Array<{ id: string; plate: string; status: string }>
@@ -49,8 +54,15 @@ export default function CoordinadorTallerDashboard() {
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [otOpen, setOtOpen] = useState(false);
+  const [vehicleOpen, setVehicleOpen] = useState(false);
   const [vehicleId, setVehicleId] = useState("");
   const [desc, setDesc] = useState("Preventivo 10.000 km — pre-kitting");
+  const [alta, setAlta] = useState({
+    plate: "",
+    brand: "",
+    model: "",
+    year: String(new Date().getFullYear()),
+  });
 
   const load = useCallback(async () => {
     try {
@@ -72,6 +84,41 @@ export default function CoordinadorTallerDashboard() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  async function agregarVehiculo() {
+    if (!alta.plate.trim() || !alta.brand.trim() || !alta.model.trim()) {
+      setError("Placa, marca y modelo son obligatorios");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setMsg(null);
+    try {
+      const created = await api.post<{ id: string; plate: string }>(
+        "/api/v1/tramites/vehicles",
+        {
+          plate: alta.plate.trim().toUpperCase(),
+          brand: alta.brand.trim(),
+          model: alta.model.trim(),
+          year: Number(alta.year) || new Date().getFullYear(),
+        },
+      );
+      setMsg(`Unidad ${created.plate} registrada`);
+      setVehicleOpen(false);
+      setAlta({
+        plate: "",
+        brand: "",
+        model: "",
+        year: String(new Date().getFullYear()),
+      });
+      setVehicleId(created.id);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo agregar el vehículo");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const openCount = useMemo(
     () => (dash?.kanban?.OPEN ?? []).length,
@@ -141,14 +188,27 @@ export default function CoordinadorTallerDashboard() {
             Torre de Taller 4.0
           </h1>
         </div>
-        <Button
-          type="button"
-          variant="primary"
-          className="w-auto px-4 py-2"
-          onClick={() => setOtOpen(true)}
-        >
-          + Nueva OT
-        </Button>
+        <div className="flex w-auto flex-wrap justify-end gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-auto px-4 py-2"
+            onClick={() => setVehicleOpen(true)}
+          >
+            <Plus className="mr-1.5 inline h-4 w-4" aria-hidden />
+            Agregar vehículo
+          </Button>
+          {canCreateOt ? (
+            <Button
+              type="button"
+              variant="primary"
+              className="w-auto px-4 py-2"
+              onClick={() => setOtOpen(true)}
+            >
+              + Nueva OT
+            </Button>
+          ) : null}
+        </div>
       </header>
 
       {error ? (
@@ -224,8 +284,8 @@ export default function CoordinadorTallerDashboard() {
                   icon={<Wrench className="h-7 w-7" aria-hidden />}
                   title="Sin bahías ocupadas"
                   description="Cree una OT para asignar bahía y mecánico."
-                  actionLabel="+ Nueva OT"
-                  onAction={() => setOtOpen(true)}
+                  actionLabel={canCreateOt ? "+ Nueva OT" : undefined}
+                  onAction={canCreateOt ? () => setOtOpen(true) : undefined}
                 />
               </div>
             ) : null}
@@ -352,6 +412,75 @@ export default function CoordinadorTallerDashboard() {
             onChange={(e) => setDesc(e.target.value)}
           />
         </label>
+      </SlideOver>
+
+      <SlideOver
+        open={vehicleOpen}
+        onClose={() => setVehicleOpen(false)}
+        title="Agregar vehículo"
+        description="Alta de unidad para órdenes de taller y trámites."
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-auto px-4 py-2"
+              onClick={() => setVehicleOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              className="w-auto px-4 py-2"
+              loading={busy}
+              disabled={busy}
+              onClick={() => void agregarVehiculo()}
+            >
+              Registrar unidad
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <label className="flex flex-col gap-1 font-data text-[10px] uppercase tracking-[0.12em] text-brand-text-secondary">
+            Placa
+            <input
+              className="field font-data"
+              value={alta.plate}
+              onChange={(e) =>
+                setAlta({ ...alta, plate: e.target.value.toUpperCase() })
+              }
+              placeholder="ABC-123"
+            />
+          </label>
+          <label className="flex flex-col gap-1 font-data text-[10px] uppercase tracking-[0.12em] text-brand-text-secondary">
+            Marca
+            <input
+              className="field font-sans"
+              value={alta.brand}
+              onChange={(e) => setAlta({ ...alta, brand: e.target.value })}
+              placeholder="Chevrolet"
+            />
+          </label>
+          <label className="flex flex-col gap-1 font-data text-[10px] uppercase tracking-[0.12em] text-brand-text-secondary">
+            Modelo
+            <input
+              className="field font-sans"
+              value={alta.model}
+              onChange={(e) => setAlta({ ...alta, model: e.target.value })}
+              placeholder="NPR"
+            />
+          </label>
+          <label className="flex flex-col gap-1 font-data text-[10px] uppercase tracking-[0.12em] text-brand-text-secondary">
+            Año
+            <input
+              className="field font-data tabular-nums"
+              value={alta.year}
+              onChange={(e) => setAlta({ ...alta, year: e.target.value })}
+            />
+          </label>
+        </div>
       </SlideOver>
     </div>
   );

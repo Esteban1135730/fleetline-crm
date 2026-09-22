@@ -633,7 +633,7 @@ export default function TramitesPage() {
             </span>
             <select
               className="field w-full font-data"
-              value={form.vehicleId}
+              value={showAlta ? "__alta__" : form.vehicleId}
               onChange={(e) => {
                 const id = e.target.value;
                 if (id === "__alta__") {
@@ -659,7 +659,7 @@ export default function TramitesPage() {
                     : ""}
                 </option>
               ))}
-              <option value="__alta__">+ Matricular unidad nueva</option>
+              <option value="__alta__">+ Agregar auto / matricular unidad</option>
             </select>
             {form.vehicleId ? (
               <Button

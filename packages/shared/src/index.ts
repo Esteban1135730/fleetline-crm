@@ -1011,6 +1011,8 @@ export const HARD_RULES = {
   TALLER_PREVENTIVE_ALERT_KM: 500,
   /** Bloqueo UI Pilot App si velocidad > umbral (km/h) */
   PILOT_SPEED_LOCK_KPH: 15,
+  /** Cupo mensual Compras (COP) — override con COMPRAS_MONTHLY_BUDGET_COP */
+  COMPRAS_MONTHLY_BUDGET_COP: 15_000_000,
 } as const;
 
 /** Zona horaria operativa Colombia — vigencias documentales (SOAT, RTM, TO). */

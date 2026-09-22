@@ -55,6 +55,49 @@ describe("Tesorería — Zero-Touch / MFA / 3-Way gate", () => {
       });
       expect(prisma.paymentSchedule.create).toHaveBeenCalled();
     });
+
+    it("al recibir payroll.calculated encola CxP nómina + flat file", async () => {
+      const prisma = {
+        invoice: {
+          findFirst: jest.fn().mockResolvedValue(null),
+          count: jest.fn().mockResolvedValue(3),
+          create: jest.fn(async ({ data }: { data: object }) => ({
+            id: "inv-nom",
+            ...data,
+          })),
+        },
+        payrollRun: {
+          findFirst: jest.fn().mockResolvedValue({
+            id: "run-1",
+            lines: [
+              {
+                grossTotal: 1_200_000,
+                employee: { document: "123", name: "Ana" },
+              },
+            ],
+          }),
+        },
+        paymentSchedule: {
+          create: jest.fn(async ({ data }: { data: object }) => ({
+            id: "ps-nom",
+            ...data,
+          })),
+        },
+      };
+      const queue = new PaymentQueueService(prisma as never);
+      const out = await queue.onPayrollCalculated({
+        organizationId: "org-1",
+        payrollRunId: "run-1",
+        amount: 1_200_000,
+        periodStart: "2026-09-01",
+        periodEnd: "2026-09-15",
+      });
+      expect(out).toMatchObject({
+        schedule: { id: "ps-nom" },
+        flatFileLines: [{ document: "123", name: "Ana", net: 1_200_000 }],
+      });
+      expect(prisma.paymentSchedule.create).toHaveBeenCalled();
+    });
   });
 
   describe("TesoreriaService.assertInvoiceAuthorizedForPayment", () => {

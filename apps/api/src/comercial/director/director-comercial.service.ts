@@ -1,11 +1,6 @@
-import {
-  BadRequestException,
-  Injectable,
-  Logger,
-  NotFoundException,
-  UnprocessableEntityException,
-} from "@nestjs/common";
+import { BadRequestException, Injectable, Logger, NotFoundException, UnprocessableEntityException } from "@nestjs/common";
 import { randomBytes } from "crypto";
+import { compareSync } from "bcryptjs";
 import {
   CommercialChannel,
   ContractRateType,
@@ -15,6 +10,7 @@ import {
   InvoiceType,
   QuoteStatus,
   SalesPipelineStage,
+  TripStatus,
 } from "@fsg/db";
 import {
   COMERCIAL_ZONE_SALARY_PER_KM,
@@ -26,6 +22,9 @@ import {
 import { PrismaService } from "../../prisma/prisma.service";
 import { KafkaEventsService } from "../../logistics/kafka-events.service";
 import { QuotePdfService } from "../quote-pdf.service";
+import { SarlaftGuardService } from "../../sarlaft/sarlaft-guard.service";
+import { assertCustomerCommercialClear } from "../commercial-hard-stops";
+import { assertExecutivePinValid } from "../../gerencia/dto/gerencia.dto";
 import type {
   CotizarDto,
   CreateDealDto,
@@ -51,6 +50,7 @@ export class DirectorComercialService {
     private prisma: PrismaService,
     private kafka: KafkaEventsService,
     private quotePdf: QuotePdfService,
+    private sarlaft: SarlaftGuardService,
   ) {}
 
   async dashboard(organizationId: string) {
@@ -133,6 +133,15 @@ export class DirectorComercialService {
     ownerUserId: string,
     dto: CreateDealDto,
   ) {
+    if (dto.customerId) {
+      await assertCustomerCommercialClear(
+        this.prisma,
+        this.sarlaft,
+        organizationId,
+        dto.customerId,
+      );
+    }
+
     const count = await this.prisma.commercialDeal.count({
       where: { organizationId },
     });
@@ -213,6 +222,19 @@ export class DirectorComercialService {
     const minMargin = HARD_RULES.COMERCIAL_MIN_MARGIN_PCT;
     const requiresCfoApproval = marginPct < minMargin;
     const cfoApproved = Boolean(dto.cfoApproved);
+
+    // SCRUM-27 — Override de margen bajo exige PIN ejecutivo
+    if (requiresCfoApproval && cfoApproved) {
+      const user = await this.prisma.user.findFirst({
+        where: { id: userId, organizationId },
+        select: { executivePinHash: true },
+      });
+      assertExecutivePinValid(
+        dto.executivePin,
+        user?.executivePinHash,
+        (p, h) => compareSync(p, h),
+      );
+    }
 
     if (requiresCfoApproval && !cfoApproved) {
       const quote = await this.prisma.commercialIntelligentQuote.create({
@@ -585,6 +607,30 @@ export class DirectorComercialService {
       },
     });
 
+    // SCRUM-30 — Al ganar: solo viaje PENDING (sin vehículo/conductor = sin auto-despacho)
+    const tripCount = await this.prisma.trip.count({
+      where: { organizationId: input.organizationId },
+    });
+    const pendingTrip = await this.prisma.trip.create({
+      data: {
+        organizationId: input.organizationId,
+        code: `TRP-${new Date().getFullYear()}-${String(tripCount + 1).padStart(4, "0")}`,
+        origin: input.routeLabel || "Por planificar",
+        destination: input.routeLabel || "Por planificar",
+        departAt: signedAt,
+        fareAmount: input.monthlyValue,
+        status: TripStatus.PENDING,
+        customerId: input.customerId,
+        contractId: input.contractId,
+        meta: {
+          source: "comercial.deal.won",
+          dealId: input.dealId,
+          autoDispatch: false,
+          vehiclesRequired: input.vehiclesRequired,
+        },
+      },
+    });
+
     const updatedDeal = await this.prisma.commercialDeal.update({
       where: { id: input.dealId },
       data: {
@@ -609,10 +655,11 @@ export class DirectorComercialService {
       capacityRequestId: capacityRequest.id,
       recurringBillingId: recurringBilling.id,
       invoiceId: seedInvoice.id,
+      tripId: pendingTrip.id,
     });
 
     this.logger.log(
-      `Won ${deal.code} → CostCenter ${costCenter.code} · Capacity ${capacityRequest.id} · Invoice ${seedInvoice.number}`,
+      `Won ${deal.code} → CostCenter ${costCenter.code} · Capacity ${capacityRequest.id} · Invoice ${seedInvoice.number} · Trip ${pendingTrip.code} PENDING`,
     );
 
     return {
@@ -622,6 +669,7 @@ export class DirectorComercialService {
       capacityRequest,
       recurringBilling,
       seedInvoice,
+      pendingTrip,
       envelope,
     };
   }
