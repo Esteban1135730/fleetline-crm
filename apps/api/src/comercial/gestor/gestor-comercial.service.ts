@@ -22,6 +22,7 @@ import {
 } from "@fsg/shared";
 import { PrismaService } from "../../prisma/prisma.service";
 import { KafkaEventsService } from "../../logistics/kafka-events.service";
+import { QuotePdfService } from "../quote-pdf.service";
 import {
   assertAdvancePaymentAllowsDispatch,
   isGestorDiscountAllowed,
@@ -41,6 +42,7 @@ export class GestorComercialService {
   constructor(
     private prisma: PrismaService,
     private kafka: KafkaEventsService,
+    private quotePdf: QuotePdfService,
   ) {}
 
   async dashboard(organizationId: string, ownerUserId: string) {
@@ -222,7 +224,6 @@ export class GestorComercialService {
       (((proposed - costPerKmReal) / proposed) * 100).toFixed(2),
     );
 
-    const pdfRef = `quotes/express/${deal.code}-${Date.now()}.pdf`;
     const sentAt = new Date();
     const quote = await this.prisma.commercialIntelligentQuote.create({
       data: {
@@ -238,7 +239,6 @@ export class GestorComercialService {
         workshopCostPerKm: vehicle.costPerKm * 0.18,
         createdById: ownerUserId,
         sentAt,
-        pdfRef,
         status: QuoteStatus.SENT,
         calcJson: {
           express: true,
@@ -248,6 +248,15 @@ export class GestorComercialService {
         },
       },
     });
+
+    const { pdfRef } = await this.quotePdf.generateIntelligentQuotePdf(
+      organizationId,
+      quote.id,
+    );
+    const quoteWithPdf =
+      await this.prisma.commercialIntelligentQuote.findUniqueOrThrow({
+        where: { id: quote.id },
+      });
 
     await this.prisma.commercialDeal.update({
       where: { id: deal.id },
@@ -294,10 +303,11 @@ export class GestorComercialService {
     return {
       status: "QUOTE_EXPRESS_SENT",
       message: "Cotización express enviada — alerta al abrir PDF activada",
-      quote,
+      quote: quoteWithPdf,
       dealId: deal.id,
       pdfGenerated: true,
       pdfRef,
+      pdfUrl: `/uploads/${pdfRef}`,
     };
   }
 

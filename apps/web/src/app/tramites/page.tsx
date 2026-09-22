@@ -282,7 +282,7 @@ export default function TramitesPage() {
   );
 
   return (
-    <div className="fade-in mx-auto max-w-[1600px] space-y-6 p-4 md:p-6">
+    <div className="fade-in mx-auto max-w-[1600px] space-y-6">
       <header className="flex flex-wrap items-start justify-between gap-3 border-b border-brand-border pb-4">
         <div>
           <p className="font-data text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-primary">
@@ -707,7 +707,7 @@ export default function TramitesPage() {
                     : ""}
                 </option>
               ))}
-              <option value="__alta__">+ Matricular unidad nueva</option>
+              <option value="__alta__">+ Agregar auto / matricular unidad</option>
             </select>
             {!showAlta ? (
               <Button

@@ -6,17 +6,24 @@ import {
 } from "@nestjs/common";
 import {
   FleetModule,
+  ShiftStatus,
   TripStatus,
   VehicleStatus,
   YardAccessKind,
 } from "@fsg/db";
 import { HARD_RULES } from "@fsg/shared";
 import { PrismaService } from "../prisma/prisma.service";
-import type { LprCheckDto, YardAccessLogDto, YardMoveDto } from "./dto/patio.dto";
+import type {
+  GateDecisionDto,
+  LprCheckDto,
+  YardAccessLogDto,
+  YardMoveDto,
+} from "./dto/patio.dto";
 
 export const GATE_CHECKOUT_DENIED = "GATE_CHECKOUT_DENIED_COMPLIANCE_BLOCK";
 export const LPR_HARD_STOP = "LPR_HARD_STOP";
 export const LPR_NO_ACTIVE_TRIP = "NO_ACTIVE_TRIP";
+export const GATE_DECISION_DENIED = "GATE_DECISION_DENIED";
 
 /** Ventana horaria (± horas) alrededor de departAt para viaje "activo" en talanquera */
 const LPR_TRIP_WINDOW_HOURS = 4;
@@ -274,6 +281,7 @@ export class YardAccessService {
     }
 
     return {
+      decision: "ENTRA" as const,
       gateOpened: true,
       alarm: false,
       plate,
@@ -288,7 +296,242 @@ export class YardAccessService {
         : null,
       alcoholCheckId: alcohol?.id,
       accessLogId: access.id,
+      reasons: [] as string[],
       message: "Talanquera abierta — uplink nominal",
+    };
+  }
+
+  /**
+   * SCRUM-45 — Decisión unificada ENTRA / NO_ENTRA por placa o cédula.
+   * No lanza 422: siempre responde payload canónico para la UI de portería.
+   */
+  async gateDecision(
+    organizationId: string,
+    dto: GateDecisionDto,
+    actorUserId?: string,
+  ) {
+    const at = dto.at ?? new Date();
+    const plate = dto.plate?.trim();
+    const document = dto.document?.replace(/\D/g, "").trim();
+
+    if (plate) {
+      try {
+        const opened = await this.lprCheck(
+          organizationId,
+          {
+            plate,
+            gateId: dto.gateId,
+            at,
+          },
+          actorUserId,
+        );
+        return {
+          decision: "ENTRA" as const,
+          subjectType: "VEHICLE" as const,
+          plate: opened.plate,
+          vehicleId: opened.vehicleId,
+          trip: opened.trip,
+          reasons: [] as string[],
+          accessLogId: opened.accessLogId,
+          gateOpened: true,
+          message: opened.message,
+        };
+      } catch (err) {
+        const body =
+          err instanceof UnprocessableEntityException
+            ? (err.getResponse() as {
+                blocks?: string[];
+                accessLogId?: string;
+                plate?: string;
+                vehicleId?: string;
+                message?: string;
+              })
+            : null;
+        const reasons = body?.blocks?.length
+          ? body.blocks
+          : [err instanceof Error ? err.message : GATE_DECISION_DENIED];
+        return {
+          decision: "NO_ENTRA" as const,
+          subjectType: "VEHICLE" as const,
+          plate: body?.plate ?? plate.toUpperCase(),
+          vehicleId: body?.vehicleId ?? null,
+          trip: null,
+          reasons,
+          accessLogId: body?.accessLogId ?? null,
+          gateOpened: false,
+          message: body?.message ?? "Talanquera cerrada",
+        };
+      }
+    }
+
+    return this.gateDecisionByDocument(
+      organizationId,
+      document!,
+      dto.direction ?? "OUT",
+      dto.gateId,
+      at,
+      actorUserId,
+    );
+  }
+
+  private async gateDecisionByDocument(
+    organizationId: string,
+    document: string,
+    direction: "IN" | "OUT",
+    gateId: string | undefined,
+    at: Date,
+    actorUserId?: string,
+  ) {
+    const reasons: string[] = [];
+
+    const driver = await this.prisma.driver.findFirst({
+      where: { organizationId, document },
+      select: {
+        id: true,
+        name: true,
+        document: true,
+        active: true,
+        dispatchBlocked: true,
+        blockReason: true,
+        fatigueScore: true,
+      },
+    });
+
+    if (driver) {
+      if (!driver.active) reasons.push("DRIVER_INACTIVE");
+      if (driver.dispatchBlocked) {
+        reasons.push(driver.blockReason || "DRIVER_DISPATCH_BLOCKED");
+      }
+      if (driver.fatigueScore >= HARD_RULES.DISPATCH_FATIGUE_MAX) {
+        reasons.push("DRIVER_FATIGUE");
+      }
+
+      const alcohol = await this.findValidAlcoholCheck(
+        organizationId,
+        driver.id,
+        "",
+        at,
+      );
+      if (direction === "OUT" && !alcohol) {
+        reasons.push("ALCOHOL_CHECK_MISSING_OR_FAILED");
+      }
+
+      const activeTrip = await this.prisma.trip.findFirst({
+        where: {
+          organizationId,
+          driverId: driver.id,
+          status: { in: ACTIVE_TRIP_STATUSES },
+        },
+        orderBy: { departAt: "asc" },
+        select: {
+          id: true,
+          code: true,
+          status: true,
+          departAt: true,
+          vehicleId: true,
+        },
+      });
+      if (direction === "OUT" && !activeTrip) {
+        reasons.push(LPR_NO_ACTIVE_TRIP);
+      }
+
+      const decision = reasons.length === 0 ? "ENTRA" : "NO_ENTRA";
+      const access = await this.prisma.yardAccessLog.create({
+        data: {
+          organizationId,
+          kind:
+            direction === "IN"
+              ? YardAccessKind.CHECK_IN
+              : YardAccessKind.CHECK_OUT,
+          plate: activeTrip?.vehicleId ? "DOC-GATE" : "DOC-GATE",
+          driverId: driver.id,
+          vehicleId: activeTrip?.vehicleId ?? undefined,
+          gateId: gateId ?? "GATE-MAIN",
+          gateOpened: decision === "ENTRA",
+          denied: decision === "NO_ENTRA",
+          denyReason: decision === "NO_ENTRA" ? GATE_DECISION_DENIED : null,
+          meta: {
+            mode: "DOCUMENT_GATE",
+            document,
+            actorUserId,
+            reasons,
+            tripId: activeTrip?.id,
+          },
+        },
+      });
+
+      return {
+        decision: decision as "ENTRA" | "NO_ENTRA",
+        subjectType: "DRIVER" as const,
+        document,
+        driver: {
+          id: driver.id,
+          name: driver.name,
+          document: driver.document,
+        },
+        trip: activeTrip
+          ? {
+              id: activeTrip.id,
+              code: activeTrip.code,
+              status: activeTrip.status,
+              departAt: activeTrip.departAt,
+            }
+          : null,
+        reasons,
+        accessLogId: access.id,
+        gateOpened: decision === "ENTRA",
+        message:
+          decision === "ENTRA"
+            ? `Acceso autorizado — conductor ${driver.name}`
+            : `Acceso denegado — ${reasons.join(" · ")}`,
+      };
+    }
+
+    const visitor = await this.prisma.visitor.findFirst({
+      where: {
+        organizationId,
+        document,
+        checkedOutAt: null,
+      },
+      orderBy: { checkedInAt: "desc" },
+    });
+
+    if (visitor) {
+      if (visitor.kind === "CONTRACTOR" && !visitor.arlValid) {
+        reasons.push("VISITOR_ARL_INVALID");
+      }
+      if (direction === "OUT" && !visitor.badgeRfid) {
+        reasons.push("VISITOR_BADGE_MISSING");
+      }
+      const decision = reasons.length === 0 ? "ENTRA" : "NO_ENTRA";
+      return {
+        decision: decision as "ENTRA" | "NO_ENTRA",
+        subjectType: "VISITOR" as const,
+        document,
+        visitor: {
+          id: visitor.id,
+          name: visitor.name,
+          hostName: visitor.hostName,
+          boardStatus: visitor.boardStatus,
+        },
+        reasons,
+        accessLogId: null,
+        gateOpened: decision === "ENTRA",
+        message:
+          decision === "ENTRA"
+            ? `Visitante autorizado — ${visitor.name}`
+            : `Visitante denegado — ${reasons.join(" · ")}`,
+      };
+    }
+
+    return {
+      decision: "NO_ENTRA" as const,
+      subjectType: "UNKNOWN" as const,
+      document,
+      reasons: ["DOCUMENT_NOT_FOUND"],
+      accessLogId: null,
+      gateOpened: false,
+      message: "Documento no registrado como conductor ni visitante activo",
     };
   }
 
@@ -798,12 +1041,141 @@ export class YardAccessService {
       },
     });
 
+    /** SCRUM-32: check-out = Timer 0 Logística + inicio turno RRHH */
+    const sideEffects = await this.startLogisticsTimerAndRrhhShift(
+      organizationId,
+      {
+        vehicleId: ctx.vehicle.id,
+        driverId: ctx.driver?.id ?? closed.driverId ?? undefined,
+        accessLogId: access.id,
+        parkingLogId: closed.id,
+      },
+    );
+
     return {
       gateOpened: true,
       access,
       parking: closed,
       odometerDelta,
+      logisticsTimer: sideEffects.logisticsTimer,
+      rrhhShift: sideEffects.rrhhShift,
     };
+  }
+
+  /**
+   * Portería CHECK_OUT → arranca reloj de viaje (IN_TRANSIT) y abre turno RRHH.
+   */
+  private async startLogisticsTimerAndRrhhShift(
+    organizationId: string,
+    ctx: {
+      vehicleId: string;
+      driverId?: string | null;
+      accessLogId: string;
+      parkingLogId: string;
+    },
+  ) {
+    const now = new Date();
+    let logisticsTimer: {
+      tripId: string;
+      code: string;
+      startedAt: Date;
+      status: TripStatus;
+    } | null = null;
+    let rrhhShift: {
+      id: string;
+      driverId: string;
+      checkInAt: Date;
+      created: boolean;
+    } | null = null;
+    let driverId = ctx.driverId ?? null;
+
+    const trip = await this.findActiveTripForVehicle(
+      organizationId,
+      ctx.vehicleId,
+      now,
+    );
+
+    if (trip) {
+      const full = await this.prisma.trip.findFirst({
+        where: { id: trip.id },
+        select: { id: true, code: true, driverId: true, meta: true },
+      });
+      if (full) {
+        const updated = await this.prisma.trip.update({
+          where: { id: full.id },
+          data: {
+            status: TripStatus.IN_TRANSIT,
+            startedAt: now,
+            meta: {
+              ...((full.meta as object) || {}),
+              yardCheckoutAt: now.toISOString(),
+              yardAccessLogId: ctx.accessLogId,
+              parkingLogId: ctx.parkingLogId,
+              logisticsTimerZeroAt: now.toISOString(),
+            },
+          },
+          select: {
+            id: true,
+            code: true,
+            startedAt: true,
+            status: true,
+            driverId: true,
+          },
+        });
+        logisticsTimer = {
+          tripId: updated.id,
+          code: updated.code,
+          startedAt: updated.startedAt ?? now,
+          status: updated.status,
+        };
+        if (!driverId && updated.driverId) {
+          driverId = updated.driverId;
+        }
+      }
+    }
+
+    if (driverId) {
+      const open = await this.prisma.driverShift.findFirst({
+        where: {
+          organizationId,
+          driverId,
+          status: ShiftStatus.OPEN,
+        },
+        orderBy: { checkInAt: "desc" },
+      });
+      if (open) {
+        rrhhShift = {
+          id: open.id,
+          driverId: open.driverId,
+          checkInAt: open.checkInAt,
+          created: false,
+        };
+      } else {
+        const shift = await this.prisma.driverShift.create({
+          data: {
+            organizationId,
+            driverId,
+            checkInAt: now,
+            status: ShiftStatus.OPEN,
+            notes: "Inicio turno por CHECK_OUT portería",
+            meta: {
+              source: "YARD_CHECK_OUT",
+              accessLogId: ctx.accessLogId,
+              parkingLogId: ctx.parkingLogId,
+              tripId: logisticsTimer?.tripId ?? null,
+            },
+          },
+        });
+        rrhhShift = {
+          id: shift.id,
+          driverId: shift.driverId,
+          checkInAt: shift.checkInAt,
+          created: true,
+        };
+      }
+    }
+
+    return { logisticsTimer, rrhhShift };
   }
 
   private async resolveVehicle(

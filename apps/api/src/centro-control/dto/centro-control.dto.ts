@@ -57,6 +57,12 @@ export const FatigaIntervencionSchema = z.object({
 });
 export type FatigaIntervencionDto = z.infer<typeof FatigaIntervencionSchema>;
 
+export const ResolverSosSchema = z.object({
+  sosSessionId: z.string().min(1),
+  resolutionNotes: z.string().min(3).max(500).optional(),
+});
+export type ResolverSosDto = z.infer<typeof ResolverSosSchema>;
+
 export function isFatigueYellowZone(score: number): boolean {
   return (
     score >= HARD_RULES.FATIGUE_YELLOW_MIN &&

@@ -4,7 +4,12 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from "@nestjs/common";
-import { FleetModule } from "@fsg/db";
+import {
+  FleetModule,
+  TripStatus,
+  VehicleStatus,
+  WorkOrderStatus,
+} from "@fsg/db";
 import { HARD_RULES } from "@fsg/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import type {
@@ -15,6 +20,7 @@ import type {
 
 export const PREOP_PHOTOS_REQUIRED = "PREOP_PHOTOS_REQUIRED";
 export const PREOP_ITEMS_FAILED = "PREOP_ITEMS_FAILED";
+export const PREOP_VEHICLE_BLOCK_REASON = "PREOP_CHECKLIST_FAILED";
 
 @Injectable()
 export class PilotService {
@@ -60,19 +66,14 @@ export class PilotService {
       throw new BadRequestException("Conductor no vinculado al viaje");
     }
 
-    const allOk =
-      dto.brakesOk &&
-      dto.lightsOk &&
-      dto.tiresOk &&
-      dto.kitOk &&
-      dto.oilOk;
-
-    if (!allOk) {
-      throw new UnprocessableEntityException({
-        error: PREOP_ITEMS_FAILED,
-        message: "Checklist preoperacional fallido — encendido lógico bloqueado",
-      });
-    }
+    const failedItems = [
+      !dto.brakesOk ? "frenos" : null,
+      !dto.lightsOk ? "luces" : null,
+      !dto.tiresOk ? "llantas" : null,
+      !dto.kitOk ? "kit" : null,
+      !dto.oilOk ? "aceite" : null,
+    ].filter(Boolean) as string[];
+    const allOk = failedItems.length === 0;
 
     const existing = await this.prisma.preoperational.findUnique({
       where: { tripId: trip.id },
@@ -91,15 +92,37 @@ export class PilotService {
         kitOk: dto.kitOk,
         oilOk: dto.oilOk,
         observations: dto.observations,
-        approved: true,
-        payload: { photoRefs: dto.photoRefs, submittedBy: userId },
+        approved: allOk,
+        payload: {
+          photoRefs: dto.photoRefs,
+          submittedBy: userId,
+          failedItems,
+        },
       },
     });
+
+    if (!allOk) {
+      const sideEffects = await this.applyPreopFailureBlocks(
+        organizationId,
+        trip,
+        preop.id,
+        failedItems,
+        userId,
+      );
+      throw new UnprocessableEntityException({
+        error: PREOP_ITEMS_FAILED,
+        message:
+          "Checklist preoperacional fallido — unidad bloqueada en Logística y OT abierta en Taller",
+        failedItems,
+        preoperationalId: preop.id,
+        ...sideEffects,
+      });
+    }
 
     await this.prisma.trip.update({
       where: { id: trip.id },
       data: {
-        status: "AWAITING_FUEC",
+        status: TripStatus.AWAITING_FUEC,
         meta: {
           ...((trip.meta as object) || {}),
           preopApprovedAt: new Date().toISOString(),
@@ -126,6 +149,101 @@ export class PilotService {
       preoperationalId: preop.id,
       tripId: trip.id,
       message: "Preoperacional OK — encendido lógico autorizado",
+    };
+  }
+
+  /**
+   * SCRUM-31: fallo preop → complianceBlocked + OT Taller + trip INCIDENT.
+   */
+  private async applyPreopFailureBlocks(
+    organizationId: string,
+    trip: { id: string; code: string; vehicleId: string | null; meta: unknown },
+    preopId: string,
+    failedItems: string[],
+    userId: string,
+  ) {
+    let vehicleBlocked: {
+      id: string;
+      plate: string;
+      complianceBlocked: boolean;
+    } | null = null;
+    let workOrder: { id: string; code: string } | null = null;
+
+    if (trip.vehicleId) {
+      vehicleBlocked = await this.prisma.vehicle.update({
+        where: { id: trip.vehicleId },
+        data: {
+          status: VehicleStatus.MAINTENANCE,
+          complianceBlocked: true,
+          complianceReason: `${PREOP_VEHICLE_BLOCK_REASON}:${failedItems.join(",")}`,
+        },
+        select: { id: true, plate: true, complianceBlocked: true },
+      });
+
+      const openWo = await this.prisma.workOrder.findFirst({
+        where: {
+          organizationId,
+          vehicleId: trip.vehicleId,
+          status: { in: [WorkOrderStatus.OPEN, WorkOrderStatus.IN_PROGRESS] },
+          description: { contains: "Preop fallido" },
+        },
+        select: { id: true, code: true },
+      });
+      if (openWo) {
+        workOrder = openWo;
+      } else {
+        const woCount = await this.prisma.workOrder.count({
+          where: { organizationId },
+        });
+        workOrder = await this.prisma.workOrder.create({
+          data: {
+            organizationId,
+            vehicleId: trip.vehicleId,
+            code: `OT-PREOP-${String(woCount + 1).padStart(4, "0")}`,
+            description: `Preop fallido viaje ${trip.code} — ítems: ${failedItems.join(", ")}`,
+            status: WorkOrderStatus.OPEN,
+          },
+          select: { id: true, code: true },
+        });
+      }
+    }
+
+    await this.prisma.trip.update({
+      where: { id: trip.id },
+      data: {
+        status: TripStatus.INCIDENT,
+        incidentNote: `Preoperacional fallido: ${failedItems.join(", ")}`,
+        meta: {
+          ...((trip.meta as object) || {}),
+          preopFailedAt: new Date().toISOString(),
+          preopFailedItems: failedItems,
+          logicalIgnitionUnlocked: false,
+          workOrderId: workOrder?.id ?? null,
+        },
+      },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        organizationId,
+        action: "PILOT_PREOP_FAILED",
+        entity: "Preoperational",
+        entityId: preopId,
+        module: FleetModule.APP_CONDUCTOR,
+        userId,
+        meta: {
+          tripId: trip.id,
+          failedItems,
+          vehicleId: trip.vehicleId,
+          workOrderId: workOrder?.id ?? null,
+        },
+      },
+    });
+
+    return {
+      vehicleBlocked,
+      workOrder,
+      tripStatus: TripStatus.INCIDENT,
     };
   }
 
@@ -272,6 +390,224 @@ export class PilotService {
         punctuality: 88,
         fuelEfficiency: 85,
       },
+    };
+  }
+
+  private async resolveDriver(organizationId: string, userId: string) {
+    const driver = await this.prisma.driver.findFirst({
+      where: { organizationId, userId },
+    });
+    if (!driver) {
+      throw new NotFoundException("Conductor no vinculado al usuario");
+    }
+    return driver;
+  }
+
+  /** SCRUM-51 — Persistir estado ON_DUTY / OFF_DUTY / BREAK */
+  async setDutyStatus(
+    organizationId: string,
+    userId: string,
+    dto: import("./dto/pilot.dto").DutyStatusDto,
+  ) {
+    const driver = await this.resolveDriver(organizationId, userId);
+    const now = new Date();
+
+    if (dto.status === "ON_DUTY" || dto.status === "BREAK") {
+      const open = await this.prisma.driverShift.findFirst({
+        where: { organizationId, driverId: driver.id, status: "OPEN" },
+        orderBy: { checkInAt: "desc" },
+      });
+      if (open && dto.status === "ON_DUTY") {
+        await this.prisma.driverShift.update({
+          where: { id: open.id },
+          data: {
+            meta: {
+              ...((open.meta as object) || {}),
+              dutyStatus: dto.status,
+              lat: dto.lat,
+              lng: dto.lng,
+              notes: dto.notes,
+              updatedAt: now.toISOString(),
+            },
+          },
+        });
+        return {
+          driverId: driver.id,
+          status: dto.status,
+          shiftId: open.id,
+          message: "Estado de turno actualizado",
+        };
+      }
+      if (!open) {
+        const shift = await this.prisma.driverShift.create({
+          data: {
+            organizationId,
+            driverId: driver.id,
+            checkInAt: now,
+            status: "OPEN",
+            notes: dto.notes,
+            meta: {
+              dutyStatus: dto.status,
+              lat: dto.lat,
+              lng: dto.lng,
+            },
+          },
+        });
+        return {
+          driverId: driver.id,
+          status: dto.status,
+          shiftId: shift.id,
+          message: "Turno iniciado",
+        };
+      }
+      await this.prisma.driverShift.update({
+        where: { id: open.id },
+        data: {
+          meta: {
+            ...((open.meta as object) || {}),
+            dutyStatus: dto.status,
+            lat: dto.lat,
+            lng: dto.lng,
+            notes: dto.notes,
+          },
+        },
+      });
+      return {
+        driverId: driver.id,
+        status: dto.status,
+        shiftId: open.id,
+        message: "Descanso registrado",
+      };
+    }
+
+    const open = await this.prisma.driverShift.findFirst({
+      where: { organizationId, driverId: driver.id, status: "OPEN" },
+      orderBy: { checkInAt: "desc" },
+    });
+    if (open) {
+      const hours =
+        (now.getTime() - open.checkInAt.getTime()) / (1000 * 60 * 60);
+      await this.prisma.driverShift.update({
+        where: { id: open.id },
+        data: {
+          checkOutAt: now,
+          status: "CLOSED",
+          continuousHours: Number(hours.toFixed(2)),
+          meta: {
+            ...((open.meta as object) || {}),
+            dutyStatus: "OFF_DUTY",
+            lat: dto.lat,
+            lng: dto.lng,
+          },
+        },
+      });
+      return {
+        driverId: driver.id,
+        status: "OFF_DUTY" as const,
+        shiftId: open.id,
+        continuousHours: Number(hours.toFixed(2)),
+        message: "Turno cerrado",
+      };
+    }
+    return {
+      driverId: driver.id,
+      status: "OFF_DUTY" as const,
+      shiftId: null,
+      message: "Sin turno abierto — estado OFF_DUTY",
+    };
+  }
+
+  /** SCRUM-51 — Uplink GPS del conductor (vehículo del viaje activo o indicado) */
+  async reportLocation(
+    organizationId: string,
+    userId: string,
+    dto: import("./dto/pilot.dto").PilotLocationDto,
+  ) {
+    const driver = await this.resolveDriver(organizationId, userId);
+    let vehicleId = dto.vehicleId;
+    let tripId = dto.tripId;
+
+    if (!vehicleId || !tripId) {
+      const active = await this.prisma.trip.findFirst({
+        where: {
+          organizationId,
+          driverId: driver.id,
+          status: {
+            in: ["ASSIGNED", "AWAITING_PREOP", "AWAITING_FUEC", "IN_TRANSIT"],
+          },
+        },
+        orderBy: { departAt: "asc" },
+        select: { id: true, vehicleId: true },
+      });
+      if (active) {
+        tripId = tripId || active.id;
+        vehicleId = vehicleId || active.vehicleId || undefined;
+      }
+    }
+
+    if (!vehicleId) {
+      throw new BadRequestException(
+        "Indique vehicleId o tenga un viaje activo con unidad",
+      );
+    }
+
+    const vehicle = await this.prisma.vehicle.findFirst({
+      where: { id: vehicleId, organizationId },
+    });
+    if (!vehicle) throw new NotFoundException("Vehículo no encontrado");
+
+    await this.prisma.vehicle.update({
+      where: { id: vehicle.id },
+      data: { lat: dto.lat, lng: dto.lng },
+    });
+
+    const snap = await this.prisma.gpsSnapshot.create({
+      data: {
+        vehicleId: vehicle.id,
+        lat: dto.lat,
+        lng: dto.lng,
+        speedKph: dto.speedKph,
+      },
+    });
+
+    if (tripId) {
+      await this.prisma.tripTrackPoint.create({
+        data: {
+          tripId,
+          vehicleId: vehicle.id,
+          lat: dto.lat,
+          lng: dto.lng,
+          speedKph: dto.speedKph,
+        },
+      });
+    }
+
+    const openShift = await this.prisma.driverShift.findFirst({
+      where: { organizationId, driverId: driver.id, status: "OPEN" },
+      orderBy: { checkInAt: "desc" },
+    });
+    if (openShift) {
+      await this.prisma.driverShift.update({
+        where: { id: openShift.id },
+        data: {
+          meta: {
+            ...((openShift.meta as object) || {}),
+            lastLat: dto.lat,
+            lastLng: dto.lng,
+            lastLocationAt: new Date().toISOString(),
+          },
+        },
+      });
+    }
+
+    return {
+      driverId: driver.id,
+      vehicleId: vehicle.id,
+      tripId: tripId ?? null,
+      lat: dto.lat,
+      lng: dto.lng,
+      gpsSnapshotId: snap.id,
+      message: "Ubicación registrada",
     };
   }
 }

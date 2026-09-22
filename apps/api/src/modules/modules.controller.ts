@@ -328,6 +328,12 @@ export class ModulesController {
     return this.svc.listPurchases(req.user.organizationId);
   }
 
+  @Get("compras/budget")
+  @RequireModule("compras")
+  comprasBudget(@Req() req: { user: { organizationId: string } }) {
+    return this.svc.getComprasBudget(req.user.organizationId);
+  }
+
   @Post("compras/orders")
   @RequireModule("compras")
   createPurchase(

@@ -5,6 +5,7 @@
  * Usuarios genéricos (1 por rol) — ver docs/MANUAL_DE_USO_SISTEMA.md
  *
  *  1. superadmin@inretrans.com            → SUPERADMIN
+ *  1b. esteban@inretrans.com              → ORG_ADMIN (panel QA Trace privado)
  *  2. recepcion@inretrans.com             → RECEPCIONISTA
  *  3. ti@inretrans.com                    → LIDER_TI
  *  4. archivo@inretrans.com               → GESTOR_DOCUMENTAL
@@ -733,6 +734,23 @@ async function main() {
     },
   });
   void orgAdmin;
+
+  /** Owner privado del panel QA Trace (solo allowlist esteban*). */
+  await prisma.user.create({
+    data: {
+      email: "esteban@inretrans.com",
+      name: "Esteban — QA Trace",
+      role: RoleCode.ORG_ADMIN,
+      status: UserAccountStatus.ACTIVE,
+      directiveReadOnly: false,
+      mustChangePassword: false,
+      passwordHash,
+      organizationId: org.id,
+    },
+  });
+  console.log(
+    "[seed] QA Trace owner: esteban@inretrans.com (panel /qa-trace)",
+  );
 
   const presidenci = await prisma.user.create({
     data: {

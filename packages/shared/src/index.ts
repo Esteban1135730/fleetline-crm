@@ -755,7 +755,7 @@ export const ROLE_VIEWS: Record<Role, ModuleId[]> = {
     "taller",
   ],
   tesoreria: ["dashboard", "tesoreria", "contabilidad", "compras", "archivo"],
-  juridico: ["dashboard", "juridico", "sarlaft", "tramites"],
+  juridico: ["dashboard", "juridico", "sarlaft", "archivo", "tramites"],
   director_juridico: [
     "dashboard",
     "juridico",
@@ -790,7 +790,6 @@ export const ROLE_VIEWS: Record<Role, ModuleId[]> = {
   compras: [
     "dashboard",
     "compras",
-    "taller",
     "tesoreria",
     "contabilidad",
     "tramites",
@@ -799,7 +798,6 @@ export const ROLE_VIEWS: Record<Role, ModuleId[]> = {
   lider_compras: [
     "dashboard",
     "compras",
-    "taller",
     "tesoreria",
     "contabilidad",
     "tramites",
@@ -817,7 +815,8 @@ export const ROLE_VIEWS: Record<Role, ModuleId[]> = {
   recepcion: ["dashboard", "call_center"],
   mecanico: ["dashboard", "taller"],
   conductor: ["logistica", "apps"],
-  monitora: ["apps", "logistica"],
+  /** Solo app monitora — sin Logística / nómina de conductores */
+  monitora: ["apps"],
   padre: ["apps"],
   pasajero: ["apps"],
 };
@@ -842,6 +841,8 @@ export function modulesForRole(role: string | Role): ModuleId[] {
 }
 
 export * from "./rbac";
+export * from "./mvp-roles";
+export * from "./block-flags";
 export * from "./departments";
 export * from "./hr-documents";
 export * from "./rrhh-excel";
@@ -979,6 +980,8 @@ export const HARD_RULES = {
   TALLER_PREVENTIVE_ALERT_KM: 500,
   /** Bloqueo UI Pilot App si velocidad > umbral (km/h) */
   PILOT_SPEED_LOCK_KPH: 15,
+  /** Cupo mensual Compras (COP) — override con COMPRAS_MONTHLY_BUDGET_COP */
+  COMPRAS_MONTHLY_BUDGET_COP: 15_000_000,
 } as const;
 
 /** Zona horaria operativa Colombia — vigencias documentales (SOAT, RTM, TO). */

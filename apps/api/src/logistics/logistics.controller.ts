@@ -88,6 +88,12 @@ export class LogisticsController {
     return this.service.getGps(req.user.organizationId);
   }
 
+  /** SCRUM-52 — Torre de control: viajes + flota */
+  @Get("tower-board")
+  towerBoard(@Req() req: { user: { organizationId: string } }) {
+    return this.service.towerBoard(req.user.organizationId);
+  }
+
   @Patch("gps/:vehicleId")
   async updateGps(
     @Req() req: { user: { organizationId: string } },

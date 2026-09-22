@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
 import { ThemeProvider } from "@/lib/theme";
@@ -7,23 +6,11 @@ import { AppShell } from "@/components/app-shell";
 import { ForcePasswordGate } from "@/components/force-password-gate";
 import { brand, darkTokens } from "@/lib/brand";
 
-const display = Inter({
-  subsets: ["latin"],
-  variable: "--font-display",
-  weight: ["500", "600", "700", "800"],
-});
-
-const body = Inter({
-  subsets: ["latin"],
-  variable: "--font-body",
-  weight: ["400", "500", "600", "700"],
-});
-
-const mono = JetBrains_Mono({
-  subsets: ["latin"],
-  variable: "--font-mono",
-  weight: ["400", "500", "600", "700"],
-});
+/**
+ * Fuentes vía <link> en runtime (no next/font/google).
+ * En Docker el build no puede descargar de Google Fonts → fallaba el loader.
+ */
+const FONT_CLASSES = "font-nexa";
 
 export const metadata: Metadata = {
   title: `${brand.name} · ${brand.product}`,
@@ -103,11 +90,21 @@ export default function RootLayout({
   return (
     <html
       lang="es"
-      className={`${display.variable} ${body.variable} ${mono.variable} dark`}
+      className={`${FONT_CLASSES} dark`}
       data-theme="dark"
       suppressHydrationWarning
     >
       <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link
+          rel="preconnect"
+          href="https://fonts.gstatic.com"
+          crossOrigin="anonymous"
+        />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+          rel="stylesheet"
+        />
         <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
       </head>
       <body className="antialiased" suppressHydrationWarning>

@@ -1,18 +1,16 @@
-import {
-  BadRequestException,
-  Injectable,
-  Logger,
-  NotFoundException,
-  UnprocessableEntityException,
-} from "@nestjs/common";
+import { BadRequestException, Injectable, Logger, NotFoundException, UnprocessableEntityException } from "@nestjs/common";
 import { randomBytes } from "crypto";
+import { compareSync } from "bcryptjs";
 import {
   CommercialChannel,
   ContractRateType,
   ContractStatus,
   DocuSignEnvelopeStatus,
+  InvoiceStatus,
+  InvoiceType,
   QuoteStatus,
   SalesPipelineStage,
+  TripStatus,
 } from "@fsg/db";
 import {
   COMERCIAL_ZONE_SALARY_PER_KM,
@@ -23,6 +21,10 @@ import {
 } from "@fsg/shared";
 import { PrismaService } from "../../prisma/prisma.service";
 import { KafkaEventsService } from "../../logistics/kafka-events.service";
+import { QuotePdfService } from "../quote-pdf.service";
+import { SarlaftGuardService } from "../../sarlaft/sarlaft-guard.service";
+import { assertCustomerCommercialClear } from "../commercial-hard-stops";
+import { assertExecutivePinValid } from "../../gerencia/dto/gerencia.dto";
 import type {
   CotizarDto,
   CreateDealDto,
@@ -47,6 +49,8 @@ export class DirectorComercialService {
   constructor(
     private prisma: PrismaService,
     private kafka: KafkaEventsService,
+    private quotePdf: QuotePdfService,
+    private sarlaft: SarlaftGuardService,
   ) {}
 
   async dashboard(organizationId: string) {
@@ -129,6 +133,15 @@ export class DirectorComercialService {
     ownerUserId: string,
     dto: CreateDealDto,
   ) {
+    if (dto.customerId) {
+      await assertCustomerCommercialClear(
+        this.prisma,
+        this.sarlaft,
+        organizationId,
+        dto.customerId,
+      );
+    }
+
     const count = await this.prisma.commercialDeal.count({
       where: { organizationId },
     });
@@ -210,6 +223,19 @@ export class DirectorComercialService {
     const requiresCfoApproval = marginPct < minMargin;
     const cfoApproved = Boolean(dto.cfoApproved);
 
+    // SCRUM-27 — Override de margen bajo exige PIN ejecutivo
+    if (requiresCfoApproval && cfoApproved) {
+      const user = await this.prisma.user.findFirst({
+        where: { id: userId, organizationId },
+        select: { executivePinHash: true },
+      });
+      assertExecutivePinValid(
+        dto.executivePin,
+        user?.executivePinHash,
+        (p, h) => compareSync(p, h),
+      );
+    }
+
     if (requiresCfoApproval && !cfoApproved) {
       const quote = await this.prisma.commercialIntelligentQuote.create({
         data: {
@@ -265,7 +291,6 @@ export class DirectorComercialService {
       };
     }
 
-    const pdfRef = `quotes/${deal.code}-${Date.now()}.pdf`;
     const quote = await this.prisma.commercialIntelligentQuote.create({
       data: {
         organizationId,
@@ -281,7 +306,7 @@ export class DirectorComercialService {
         requiresCfoApproval,
         cfoApproved: requiresCfoApproval ? true : false,
         cfoApprovedAt: requiresCfoApproval ? new Date() : null,
-        pdfRef,
+        sentAt: new Date(),
         status: QuoteStatus.SENT,
         calcJson: {
           zone: dto.zone,
@@ -292,6 +317,14 @@ export class DirectorComercialService {
         },
       },
     });
+
+    const { pdfRef } = await this.quotePdf.generateIntelligentQuotePdf(
+      organizationId,
+      quote.id,
+    );
+    const quoteWithPdf = await this.prisma.commercialIntelligentQuote.findUniqueOrThrow(
+      { where: { id: quote.id } },
+    );
 
     await this.prisma.commercialDeal.update({
       where: { id: deal.id },
@@ -310,11 +343,12 @@ export class DirectorComercialService {
     return {
       status: "QUOTE_READY",
       message: "Propuesta PDF corporativo generada",
-      quote,
+      quote: quoteWithPdf,
       dealId: deal.id,
       costBreakdown: costs,
       pdfGenerated: true,
       pdfRef,
+      pdfUrl: `/uploads/${pdfRef}`,
     };
   }
 
@@ -449,6 +483,7 @@ export class DirectorComercialService {
       costCenter: won.costCenter,
       capacityRequest: won.capacityRequest,
       recurringBilling: won.recurringBilling,
+      seedInvoice: won.seedInvoice,
       deal: won.deal,
     };
   }
@@ -547,6 +582,55 @@ export class DirectorComercialService {
       },
     });
 
+    // SCRUM-44 — 1ª factura CxC al cerrar ganado (venta → cobro)
+    const invCount = await this.prisma.invoice.count({
+      where: { organizationId: input.organizationId },
+    });
+    const dueDate = new Date(signedAt);
+    dueDate.setDate(dueDate.getDate() + 30);
+    const seedInvoice = await this.prisma.invoice.create({
+      data: {
+        organizationId: input.organizationId,
+        number: `CXC-${new Date().getFullYear()}-${String(invCount + 1).padStart(4, "0")}`,
+        type: InvoiceType.RECEIVABLE,
+        status: InvoiceStatus.ISSUED,
+        counterparty: deal.accountName,
+        amount: input.monthlyValue,
+        dueDate,
+        customerId: input.customerId,
+        prefacturaAnnex: {
+          dealId: input.dealId,
+          contractId: input.contractId,
+          recurringBillingId: recurringBilling.id,
+          source: "comercial.deal.won",
+        },
+      },
+    });
+
+    // SCRUM-30 — Al ganar: solo viaje PENDING (sin vehículo/conductor = sin auto-despacho)
+    const tripCount = await this.prisma.trip.count({
+      where: { organizationId: input.organizationId },
+    });
+    const pendingTrip = await this.prisma.trip.create({
+      data: {
+        organizationId: input.organizationId,
+        code: `TRP-${new Date().getFullYear()}-${String(tripCount + 1).padStart(4, "0")}`,
+        origin: input.routeLabel || "Por planificar",
+        destination: input.routeLabel || "Por planificar",
+        departAt: signedAt,
+        fareAmount: input.monthlyValue,
+        status: TripStatus.PENDING,
+        customerId: input.customerId,
+        contractId: input.contractId,
+        meta: {
+          source: "comercial.deal.won",
+          dealId: input.dealId,
+          autoDispatch: false,
+          vehiclesRequired: input.vehiclesRequired,
+        },
+      },
+    });
+
     const updatedDeal = await this.prisma.commercialDeal.update({
       where: { id: input.dealId },
       data: {
@@ -570,10 +654,12 @@ export class DirectorComercialService {
       costCenterId: costCenter.id,
       capacityRequestId: capacityRequest.id,
       recurringBillingId: recurringBilling.id,
+      invoiceId: seedInvoice.id,
+      tripId: pendingTrip.id,
     });
 
     this.logger.log(
-      `Won ${deal.code} → CostCenter ${costCenter.code} · Capacity ${capacityRequest.id}`,
+      `Won ${deal.code} → CostCenter ${costCenter.code} · Capacity ${capacityRequest.id} · Invoice ${seedInvoice.number} · Trip ${pendingTrip.code} PENDING`,
     );
 
     return {
@@ -582,6 +668,8 @@ export class DirectorComercialService {
       costCenter,
       capacityRequest,
       recurringBilling,
+      seedInvoice,
+      pendingTrip,
       envelope,
     };
   }

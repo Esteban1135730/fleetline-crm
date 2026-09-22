@@ -13,6 +13,7 @@ import { Permissions, PermissionsGuard } from "../auth/permissions.guard";
 import { YardAccessService } from "./yard-access.service";
 import { PhysicalInspectionService } from "./physical-inspection.service";
 import {
+  GateDecisionSchema,
   LprCheckSchema,
   WashCompleteSchema,
   YardAccessLogSchema,
@@ -69,6 +70,18 @@ export class PatioController {
   lprCheck(@Req() req: AuthReq, @Body() body: unknown) {
     const dto = LprCheckSchema.parse(body ?? {});
     return this.access.lprCheck(
+      req.user.organizationId,
+      dto,
+      req.user.userId,
+    );
+  }
+
+  /** SCRUM-45 — Portería: ENTRA / NO_ENTRA por placa o cédula */
+  @Post("talanquera/gate-decision")
+  @Permissions("patio_acceso", "CREATE")
+  gateDecision(@Req() req: AuthReq, @Body() body: unknown) {
+    const dto = GateDecisionSchema.parse(body ?? {});
+    return this.access.gateDecision(
       req.user.organizationId,
       dto,
       req.user.userId,

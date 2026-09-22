@@ -1,12 +1,13 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
 import { Radio, ShieldAlert, Phone } from "lucide-react";
 import { api } from "@/lib/api";
-import { EmptyState, StatusPulseBadge } from "@/components/audit";
+import { EmptyState, Modal, StatusPulseBadge } from "@/components/audit";
 import { BentoPanel } from "@/components/nexa/bento-panel";
 import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
+import { PermissionGuard } from "@/components/auth/PermissionGuard";
 
 type Anomaly = {
   kind: "DESVIO" | "SOS" | "FATIGA";
@@ -65,8 +66,11 @@ export default function CentroControlDashboardPage() {
   const [selectedSos, setSelectedSos] = useState<string>("");
   const [pipOpen, setPipOpen] = useState(false);
   const [tipPlate, setTipPlate] = useState("");
+  const [resolveOpen, setResolveOpen] = useState(false);
+  const [resolveNotes, setResolveNotes] = useState("");
 
   const warRoom = (dash?.ui.warRoom || dash?.ui.defcon === 1) ?? false;
+  const hasActiveSos = (dash?.sosActive?.length ?? 0) > 0;
 
   const load = useCallback(async () => {
     setError(null);
@@ -115,8 +119,15 @@ export default function CentroControlDashboardPage() {
   }
 
   async function activarSos() {
+    if (hasActiveSos) {
+      setError(
+        "Ya hay un SOS activo. Resuelva la alerta actual antes de activar otra.",
+      );
+      return;
+    }
     setBusy(true);
     setMsg(null);
+    setError(null);
     try {
       const res = await api<{ message: string; session: SosSession }>(
         "/api/v1/centro-control/sos/activar-protocolo",
@@ -139,6 +150,40 @@ export default function CentroControlDashboardPage() {
       await load();
     } catch (e) {
       setError((e as Error).message || "No se pudo activar SOS");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function resolverSos() {
+    const id = selectedSos || dash?.sosActive[0]?.id;
+    if (!id) {
+      setError("Seleccione la sesión SOS a resolver");
+      return;
+    }
+    setBusy(true);
+    setMsg(null);
+    setError(null);
+    try {
+      const res = await api<{ message: string }>(
+        "/api/v1/centro-control/sos/resolver",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            sosSessionId: id,
+            resolutionNotes:
+              resolveNotes.trim() || "Alerta resuelta desde torre de control",
+          }),
+        },
+      );
+      setMsg(res.message);
+      setResolveOpen(false);
+      setResolveNotes("");
+      setSelectedSos("");
+      setPipOpen(false);
+      await load();
+    } catch (e) {
+      setError((e as Error).message || "No se pudo resolver el SOS");
     } finally {
       setBusy(false);
     }
@@ -177,7 +222,7 @@ export default function CentroControlDashboardPage() {
 
   return (
     <div
-      className={`fade-in relative mx-auto min-h-[100dvh] max-w-[1400px] space-y-4 p-4 md:p-6 ${
+      className={`fade-in relative mx-auto min-h-[100dvh] max-w-[1400px] space-y-4 ${
         warRoom ? "bg-brand-canvas text-brand-text-primary" : "bg-brand-canvas"
       }`}
     >
@@ -323,15 +368,35 @@ export default function CentroControlDashboardPage() {
             >
               Tipificar + llamada/SMS
             </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              className="w-auto px-4 py-2 !bg-brand-danger !text-white"
-              disabled={busy}
-              onClick={() => void activarSos()}
-            >
-              Activar SOS
-            </Button>
+            <PermissionGuard capability="watchtower_sos:CREATE">
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-auto px-4 py-2 !bg-brand-danger !text-white"
+                disabled={busy || hasActiveSos}
+                title={
+                  hasActiveSos
+                    ? "Ya hay un SOS activo — resuélvalo primero"
+                    : undefined
+                }
+                onClick={() => void activarSos()}
+              >
+                {hasActiveSos ? "SOS ya activo" : "Activar SOS"}
+              </Button>
+            </PermissionGuard>
+            <PermissionGuard capability="watchtower_sos:UPDATE">
+              {hasActiveSos ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-auto px-4 py-2"
+                  disabled={busy}
+                  onClick={() => setResolveOpen(true)}
+                >
+                  Desactivar SOS / Resolver alerta
+                </Button>
+              ) : null}
+            </PermissionGuard>
           </div>
         </BentoPanel>
 
@@ -396,6 +461,55 @@ export default function CentroControlDashboardPage() {
           </div>
         </div>
       ) : null}
+
+      <Modal
+        open={resolveOpen}
+        onClose={() => !busy && setResolveOpen(false)}
+        title="Desactivar SOS / Resolver alerta"
+        description="Confirme que la emergencia quedó atendida. La sesión saldrá de la lista activa."
+      >
+        <div className="space-y-4">
+          <p className="font-sans text-sm text-brand-text-secondary">
+            Sesión:{" "}
+            <span className="font-data text-brand-text-primary">
+              {dash?.sosActive.find((s) => s.id === selectedSos)?.code ||
+                dash?.sosActive[0]?.code ||
+                "—"}
+            </span>
+          </p>
+          <label className="block space-y-1.5">
+            <span className="font-data text-[10px] font-semibold uppercase tracking-wider text-brand-text-secondary">
+              Nota de resolución
+            </span>
+            <textarea
+              className="field min-h-[88px] w-full"
+              value={resolveNotes}
+              onChange={(e) => setResolveNotes(e.target.value)}
+              placeholder="Ej. Unidad contactada · situación controlada"
+            />
+          </label>
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-auto px-4 py-2"
+              disabled={busy}
+              onClick={() => setResolveOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              className="w-auto px-4 py-2"
+              disabled={busy}
+              onClick={() => void resolverSos()}
+            >
+              Confirmar resolución
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

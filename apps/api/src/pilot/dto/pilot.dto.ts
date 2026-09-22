@@ -34,3 +34,22 @@ export const SpeedLockSchema = z.object({
   speedKph: z.coerce.number().nonnegative(),
 });
 export type SpeedLockDto = z.infer<typeof SpeedLockSchema>;
+
+/** SCRUM-51 — Estado operativo del conductor */
+export const DutyStatusSchema = z.object({
+  status: z.enum(["ON_DUTY", "OFF_DUTY", "BREAK"]),
+  notes: z.string().max(500).optional(),
+  lat: z.coerce.number().optional(),
+  lng: z.coerce.number().optional(),
+});
+export type DutyStatusDto = z.infer<typeof DutyStatusSchema>;
+
+/** SCRUM-51 — Uplink de ubicación */
+export const PilotLocationSchema = z.object({
+  lat: z.coerce.number(),
+  lng: z.coerce.number(),
+  vehicleId: z.string().min(1).optional(),
+  tripId: z.string().min(1).optional(),
+  speedKph: z.coerce.number().optional(),
+});
+export type PilotLocationDto = z.infer<typeof PilotLocationSchema>;

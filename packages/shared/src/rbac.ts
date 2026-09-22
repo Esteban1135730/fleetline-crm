@@ -653,24 +653,24 @@ export const ROLE_PERMISSIONS: Record<string, RolePermissionMap> = {
   lider_compras: {
     compras_proveedores: ["CREATE", "READ", "UPDATE", "DELETE"],
     compras_oc: ["CREATE", "READ", "UPDATE", "DELETE"],
-    taller: ["CREATE", "READ", "UPDATE"],
     tramites: ["CREATE", "READ", "UPDATE"],
     contabilidad: ["READ"],
     tesoreria_dispersion: ["READ"],
     cxp_proveedores: ["READ"],
     finanzas: ["READ"],
+    taller: [],
     logistica_despacho: [],
     torre_rutas: [],
   },
   compras: {
     compras_proveedores: ["CREATE", "READ", "UPDATE", "DELETE"],
     compras_oc: ["CREATE", "READ", "UPDATE", "DELETE"],
-    taller: ["CREATE", "READ", "UPDATE"],
     tramites: ["CREATE", "READ", "UPDATE"],
     contabilidad: ["READ"],
     tesoreria_dispersion: ["READ"],
     cxp_proveedores: ["READ"],
     finanzas: ["READ"],
+    taller: [],
     logistica_despacho: [],
     torre_rutas: [],
   },
@@ -791,9 +791,9 @@ export const ROLE_PERMISSIONS: Record<string, RolePermissionMap> = {
     compras_oc: ["READ"],
   },
 
-  /** Módulo 20 — Mecánico FSG Tech App (Pedro) */
+  /** Módulo 20 — Mecánico FSG Tech App (Pedro) — sin crear OT */
   mecanico: {
-    taller_mecanico: ["CREATE", "READ", "UPDATE"],
+    taller_mecanico: ["READ", "UPDATE"],
     taller_ot: ["READ", "UPDATE"],
     taller: ["READ", "UPDATE"],
     taller_inventario: ["READ"],

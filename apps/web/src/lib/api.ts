@@ -4,6 +4,7 @@ import {
   parseJsonBody,
   requestMutationConfirm,
 } from "@/lib/mutation-confirm";
+import { getQaSessionId } from "@/lib/qa-trace";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -137,7 +138,7 @@ export type ApiOptions = RequestInit & {
 };
 
 const SKIP_CONFIRM_PATH =
-  /notifications|\/health\b|\/auth\/me\b|telemetry|gps|heartbeat|presence|socket/i;
+  /notifications|\/health\b|\/auth\/me\b|telemetry|gps|heartbeat|presence|socket|qa-trace/i;
 
 async function confirmMutationIfNeeded(
   path: string,
@@ -181,6 +182,10 @@ export async function apiRequest<T>(
   }
   if (token) {
     (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
+  }
+  const qaSession = getQaSessionId();
+  if (qaSession) {
+    (headers as Record<string, string>)["X-QA-Session"] = qaSession;
   }
   const tenantId = tenantHeaderFor(path);
   if (tenantId) {

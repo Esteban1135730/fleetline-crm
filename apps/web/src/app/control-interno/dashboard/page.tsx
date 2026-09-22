@@ -163,9 +163,13 @@ export default function ControlInternoDashboardPage() {
   );
 
   async function crearHallazgo() {
-    if (!title.trim()) return;
+    if (title.trim().length < 3) {
+      setError("Escriba un título de al menos 3 caracteres para el hallazgo");
+      return;
+    }
     setBusy(true);
     setMsg(null);
+    setError(null);
     try {
       const res = await api<{ message: string }>(
         "/api/v1/control-interno/hallazgos/crear",
@@ -442,7 +446,7 @@ export default function ControlInternoDashboardPage() {
               type="button"
               variant="primary"
               className="w-auto px-4 py-2"
-              disabled={busy}
+              disabled={busy || title.trim().length < 3}
               onClick={() => void crearHallazgo()}
             >
               Crear hallazgo
@@ -454,7 +458,7 @@ export default function ControlInternoDashboardPage() {
               disabled={busy}
               onClick={() => void consolidarOverrides()}
             >
-              Consolidar overrides
+              Aprobar excepciones del día
             </Button>
           </div>
         </div>

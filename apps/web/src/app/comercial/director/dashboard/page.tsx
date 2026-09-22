@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
@@ -82,6 +82,7 @@ export default function DirectorComercialDashboardPage() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [signError, setSignError] = useState<string | null>(null);
   const [cotizarOpen, setCotizarOpen] = useState(false);
   const [firmarOpen, setFirmarOpen] = useState(false);
   const [accountName, setAccountName] = useState("");
@@ -137,11 +138,12 @@ export default function DirectorComercialDashboardPage() {
 
   async function runFirmar() {
     if (!signDealId || !signerEmail) {
-      setError("ID de oportunidad y correo del firmante requeridos");
+      setSignError("ID de oportunidad y correo del firmante requeridos");
       return;
     }
     setBusy(true);
     setMsg(null);
+    setSignError(null);
     setError(null);
     try {
       const res = await api.post<{
@@ -163,7 +165,7 @@ export default function DirectorComercialDashboardPage() {
       setFirmarOpen(false);
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Firma fallida");
+      setSignError(e instanceof Error ? e.message : "Firma fallida");
     } finally {
       setBusy(false);
     }
@@ -173,7 +175,7 @@ export default function DirectorComercialDashboardPage() {
   const gaugeRotation = -90 + (quotaPct / 100) * 180;
 
   return (
-    <div className="fade-in mx-auto max-w-[1600px] space-y-6 p-4 md:p-6">
+    <div className="fade-in mx-auto max-w-[1600px] space-y-6">
       <header className="flex flex-wrap items-start justify-between gap-3 border-b border-brand-border pb-4">
         <div>
           <p className="font-data text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-primary">
@@ -196,7 +198,10 @@ export default function DirectorComercialDashboardPage() {
             type="button"
             variant="primary"
             className="w-auto px-4 py-2"
-            onClick={() => setFirmarOpen(true)}
+            onClick={() => {
+              setSignError(null);
+              setFirmarOpen(true);
+            }}
           >
             <PenLine className="mr-1.5 h-4 w-4" aria-hidden />
             Firma electrónica
@@ -451,7 +456,10 @@ export default function DirectorComercialDashboardPage() {
 
       <SlideOver
         open={firmarOpen}
-        onClose={() => setFirmarOpen(false)}
+        onClose={() => {
+          setFirmarOpen(false);
+          setSignError(null);
+        }}
         title="Firma electrónica · Pase de relevo"
         description="DocuSign → cerrado ganado → centro de costos"
         widthClass="max-w-lg"
@@ -468,6 +476,11 @@ export default function DirectorComercialDashboardPage() {
         }
       >
         <div className="space-y-3">
+          {signError ? (
+            <p className="rounded-md border border-brand-danger/40 bg-brand-danger/10 px-3 py-2 font-data text-xs text-brand-danger">
+              {signError}
+            </p>
+          ) : null}
           <label className="block text-xs text-brand-text-secondary">
             ID de oportunidad
             <input

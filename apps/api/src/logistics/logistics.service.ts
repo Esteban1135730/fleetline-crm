@@ -328,6 +328,104 @@ export class LogisticsService {
     });
   }
 
+  /**
+   * SCRUM-52 — Payload torre: viajes del día + última posición flota + duty conductores.
+   */
+  async towerBoard(organizationId: string) {
+    const now = new Date();
+    const dayStart = new Date(now);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(dayStart);
+    dayEnd.setDate(dayEnd.getDate() + 1);
+
+    const [trips, fleet, openShifts] = await Promise.all([
+      this.prisma.trip.findMany({
+        where: {
+          organizationId,
+          departAt: { gte: dayStart, lt: dayEnd },
+        },
+        include: {
+          vehicle: {
+            select: {
+              id: true,
+              plate: true,
+              lat: true,
+              lng: true,
+              status: true,
+              capacity: true,
+            },
+          },
+          driver: {
+            select: {
+              id: true,
+              name: true,
+              document: true,
+              fatigueScore: true,
+              dispatchBlocked: true,
+            },
+          },
+          customer: { select: { id: true, name: true } },
+        },
+        orderBy: { departAt: "asc" },
+        take: 200,
+      }),
+      this.getGps(organizationId),
+      this.prisma.driverShift.findMany({
+        where: { organizationId, status: "OPEN" },
+        include: {
+          driver: {
+            select: { id: true, name: true, document: true, userId: true },
+          },
+        },
+        orderBy: { checkInAt: "desc" },
+        take: 100,
+      }),
+    ]);
+
+    return {
+      asOf: now.toISOString(),
+      trips: trips.map((t) => ({
+        id: t.id,
+        code: t.code,
+        status: t.status,
+        origin: t.origin,
+        destination: t.destination,
+        departAt: t.departAt,
+        customer: t.customer,
+        driver: t.driver,
+        vehicle: t.vehicle
+          ? {
+              id: t.vehicle.id,
+              plate: t.vehicle.plate,
+              status: t.vehicle.status,
+              capacity: t.vehicle.capacity,
+              lat: t.vehicle.lat,
+              lng: t.vehicle.lng,
+            }
+          : null,
+      })),
+      fleet,
+      driversOnDuty: openShifts.map((s) => ({
+        shiftId: s.id,
+        driverId: s.driverId,
+        name: s.driver.name,
+        document: s.driver.document,
+        checkInAt: s.checkInAt,
+        dutyStatus:
+          (s.meta as { dutyStatus?: string } | null)?.dutyStatus ?? "ON_DUTY",
+        lastLat: (s.meta as { lastLat?: number } | null)?.lastLat ?? null,
+        lastLng: (s.meta as { lastLng?: number } | null)?.lastLng ?? null,
+      })),
+      kpis: {
+        tripsToday: trips.length,
+        inTransit: trips.filter((t) => t.status === "IN_TRANSIT").length,
+        pending: trips.filter((t) => t.status === "PENDING").length,
+        fleetOnline: fleet.filter((v) => v.lat != null && v.lng != null).length,
+        driversOnDuty: openShifts.length,
+      },
+    };
+  }
+
   async updateGps(
     organizationId: string,
     vehicleId: string,
@@ -797,9 +895,81 @@ export class LogisticsService {
       checklist.kitCarretera &&
       checklist.nivelAceite;
     if (!ok) {
-      throw new BadRequestException(
-        "Checklist incompleto: todos los ítems deben estar APTO",
-      );
+      const failedItems = [
+        !checklist.frenos ? "frenos" : null,
+        !checklist.luces ? "luces" : null,
+        !checklist.llantas ? "llantas" : null,
+        !checklist.kitCarretera ? "kit" : null,
+        !checklist.nivelAceite ? "aceite" : null,
+      ].filter(Boolean) as string[];
+
+      await this.prisma.preoperational.upsert({
+        where: { tripId },
+        create: {
+          tripId,
+          driverId: trip.driverId,
+          brakesOk: checklist.frenos,
+          lightsOk: checklist.luces,
+          tiresOk: checklist.llantas,
+          kitOk: checklist.kitCarretera,
+          oilOk: checklist.nivelAceite,
+          observations: checklist.observaciones,
+          approved: false,
+          payload: { ...checklist, failedItems },
+        },
+        update: {
+          brakesOk: checklist.frenos,
+          lightsOk: checklist.luces,
+          tiresOk: checklist.llantas,
+          kitOk: checklist.kitCarretera,
+          oilOk: checklist.nivelAceite,
+          observations: checklist.observaciones,
+          approved: false,
+          payload: { ...checklist, failedItems },
+          signedAt: new Date(),
+        },
+      });
+
+      let workOrder: { id: string; code: string } | null = null;
+      if (trip.vehicleId) {
+        await this.prisma.vehicle.update({
+          where: { id: trip.vehicleId },
+          data: {
+            status: VehicleStatus.MAINTENANCE,
+            complianceBlocked: true,
+            complianceReason: `PREOP_CHECKLIST_FAILED:${failedItems.join(",")}`,
+          },
+        });
+        const woCount = await this.prisma.workOrder.count({
+          where: { organizationId },
+        });
+        workOrder = await this.prisma.workOrder.create({
+          data: {
+            organizationId,
+            vehicleId: trip.vehicleId,
+            code: `OT-PREOP-${String(woCount + 1).padStart(4, "0")}`,
+            description: `Preop fallido viaje ${trip.code} — ítems: ${failedItems.join(", ")}`,
+            status: WorkOrderStatus.OPEN,
+          },
+          select: { id: true, code: true },
+        });
+      }
+
+      await this.prisma.trip.update({
+        where: { id: tripId },
+        data: {
+          status: TripStatus.INCIDENT,
+          incidentNote: `Preoperacional fallido: ${failedItems.join(", ")}`,
+        },
+      });
+
+      throw new UnprocessableEntityException({
+        error: "PREOP_ITEMS_FAILED",
+        message:
+          "Checklist preoperacional fallido — unidad bloqueada y OT abierta en Taller",
+        failedItems,
+        workOrder,
+      });
     }
 
     if (trip.vehicleId) {

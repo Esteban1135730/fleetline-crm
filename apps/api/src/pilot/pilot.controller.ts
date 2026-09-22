@@ -5,7 +5,9 @@ import { Roles, RolesGuard } from "../auth/roles.guard";
 import { Permissions, PermissionsGuard } from "../auth/permissions.guard";
 import { PilotService } from "./pilot.service";
 import {
+  DutyStatusSchema,
   FuelTokenSchema,
+  PilotLocationSchema,
   PreoperacionalSchema,
   SosSchema,
   SpeedLockSchema,
@@ -77,5 +79,29 @@ export class PilotController {
   speedLock(@Body() body: unknown) {
     const dto = SpeedLockSchema.parse(body ?? {});
     return this.pilot.speedLock(dto.speedKph);
+  }
+
+  /** SCRUM-51 — Estado del conductor */
+  @Post("duty-status")
+  @Permissions("pilot_preop", "UPDATE")
+  dutyStatus(@Req() req: AuthReq, @Body() body: unknown) {
+    const dto = DutyStatusSchema.parse(body ?? {});
+    return this.pilot.setDutyStatus(
+      req.user.organizationId,
+      req.user.userId,
+      dto,
+    );
+  }
+
+  /** SCRUM-51 — Ubicación GPS */
+  @Post("location")
+  @Permissions("pilot_preop", "UPDATE")
+  location(@Req() req: AuthReq, @Body() body: unknown) {
+    const dto = PilotLocationSchema.parse(body ?? {});
+    return this.pilot.reportLocation(
+      req.user.organizationId,
+      req.user.userId,
+      dto,
+    );
   }
 }

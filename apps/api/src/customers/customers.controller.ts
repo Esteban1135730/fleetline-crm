@@ -2,21 +2,29 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   Param,
   Patch,
   Post,
   Req,
+  Res,
+  StreamableFile,
   UseGuards,
 } from "@nestjs/common";
+import type { Response } from "express";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { ModulesGuard, RequireModule } from "../auth/modules.guard";
 import { CustomersService } from "./customers.service";
+import { QuotePdfService } from "../comercial/quote-pdf.service";
 
 @Controller("comercial")
 @UseGuards(JwtAuthGuard, ModulesGuard)
 @RequireModule("comercial", "logistica", "finanzas")
 export class CustomersController {
-  constructor(private service: CustomersService) {}
+  constructor(
+    private service: CustomersService,
+    private quotePdf: QuotePdfService,
+  ) {}
 
   @Get("customers")
   list(@Req() req: { user: { organizationId: string } }) {
@@ -80,6 +88,22 @@ export class CustomersController {
     },
   ) {
     return this.service.createQuote(req.user.organizationId, body);
+  }
+
+  @Get("quotes/:id/pdf")
+  @Header("Content-Type", "application/pdf")
+  async quotePdf(
+    @Req() req: { user: { organizationId: string } },
+    @Param("id") id: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { buffer, pdfRef } = await this.quotePdf.generateSimpleQuotePdf(
+      req.user.organizationId,
+      id,
+    );
+    const filename = pdfRef.split("/").pop() ?? "oferta.pdf";
+    res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
+    return new StreamableFile(buffer);
   }
 
   @Patch("quotes/:id/status")

@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "crypto";
 import { readFile } from "fs/promises";
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Injectable, NotFoundException, UnprocessableEntityException } from "@nestjs/common";
 import {
   ArchiveCategory,
   ComplianceDocType,
@@ -8,6 +8,7 @@ import {
   EmployeeStatus,
   InvoiceStatus,
   InvoiceType,
+  PaymentScheduleStatus,
   PurchaseStatus,
   SarlaftRisk,
   TicketChannel,
@@ -1159,6 +1160,43 @@ export class ModulesService {
     return rows.map((po) => this.mapPurchaseRow(po));
   }
 
+  async getComprasBudget(organizationId: string) {
+    const envRaw = process.env.COMPRAS_MONTHLY_BUDGET_COP;
+    const monthlyLimit =
+      envRaw && Number.isFinite(Number(envRaw)) && Number(envRaw) > 0
+        ? Number(envRaw)
+        : HARD_RULES.COMPRAS_MONTHLY_BUDGET_COP;
+
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+    const orders = await this.prisma.purchaseOrder.findMany({
+      where: {
+        organizationId,
+        createdAt: { gte: monthStart, lt: monthEnd },
+        status: { not: PurchaseStatus.CANCELLED },
+      },
+      select: { totalEstimated: true },
+    });
+    const spentThisMonth = orders.reduce(
+      (s, o) => s + Number(o.totalEstimated),
+      0,
+    );
+
+    return {
+      monthlyLimit,
+      spentThisMonth,
+      available: Math.max(0, monthlyLimit - spentThisMonth),
+      currency: "COP",
+      source: envRaw ? "ENV" : "HARD_RULES",
+      period: {
+        from: monthStart.toISOString(),
+        to: monthEnd.toISOString(),
+      },
+    };
+  }
+
   async createPurchase(
     organizationId: string,
     data: {
@@ -1210,6 +1248,17 @@ export class ModulesService {
       throw new BadRequestException("Seleccione un proveedor del directorio");
     }
 
+    const amount = Number(data.amount) || 0;
+    const budget = await this.getComprasBudget(organizationId);
+    if (amount > budget.available) {
+      throw new UnprocessableEntityException({
+        error: "COMPRAS_BUDGET_EXCEEDED",
+        message: `Cupo mensual insuficiente — disponible ${budget.available} COP de ${budget.monthlyLimit}`,
+        budget,
+        requested: amount,
+      });
+    }
+
     const count = await this.prisma.purchaseOrder.count({
       where: { organizationId },
     });
@@ -1221,7 +1270,6 @@ export class ModulesService {
     if (clash) {
       code = `OC-${year}-${String(Date.now()).slice(-6)}`;
     }
-    const amount = Number(data.amount) || 0;
     const qty = Math.max(1, Number(data.quantity) || 1);
     const unitCost = Number((amount / qty).toFixed(2));
     const created = await this.prisma.purchaseOrder.create({
@@ -1272,14 +1320,20 @@ export class ModulesService {
     });
 
     if (next === PurchaseStatus.RECEIVED && po.status !== PurchaseStatus.RECEIVED) {
-        const existing = await this.prisma.invoice.findFirst({
+      let invoice = await this.prisma.invoice.findFirst({
         where: {
           organizationId,
-          type: InvoiceType.PAYABLE,
-          number: { contains: po.code },
+          OR: [
+            { purchaseOrderId: po.id },
+            {
+              type: InvoiceType.PAYABLE,
+              number: { contains: po.code },
+            },
+          ],
         },
+        orderBy: { createdAt: "desc" },
       });
-      if (!existing) {
+      if (!invoice) {
         const count = await this.prisma.invoice.count({
           where: { organizationId },
         });
@@ -1287,17 +1341,52 @@ export class ModulesService {
         due.setDate(due.getDate() + 30);
         const meta = this.purchaseUiMeta(po.meta);
         const year = new Date().getFullYear();
-        await this.prisma.invoice.create({
+        invoice = await this.prisma.invoice.create({
           data: {
-            number: `FC-${year}-${String(count + 1).padStart(3, "0")}`,
+            number: `CXP-${year}-${String(count + 1).padStart(4, "0")}`,
             type: InvoiceType.PAYABLE,
-            status: InvoiceStatus.ISSUED,
+            status: InvoiceStatus.CLEARED_FOR_PAYMENT,
             amount: Number(po.totalEstimated),
             dueDate: due,
             counterparty: po.supplier?.name || meta.supplierName || "Proveedor",
             organizationId,
+            supplierId: po.supplierId,
+            purchaseOrderId: po.id,
             prefacturaAnnex: {
               description: `Compra ${po.code}: ${po.description}`,
+              source: "purchase.status.received",
+            },
+          },
+        });
+      } else if (!invoice.purchaseOrderId) {
+        invoice = await this.prisma.invoice.update({
+          where: { id: invoice.id },
+          data: {
+            purchaseOrderId: po.id,
+            supplierId: invoice.supplierId ?? po.supplierId,
+            status: InvoiceStatus.CLEARED_FOR_PAYMENT,
+          },
+        });
+      }
+
+      const existingSchedule = await this.prisma.paymentSchedule.findUnique({
+        where: { invoiceId: invoice.id },
+      });
+      if (!existingSchedule) {
+        const due =
+          invoice.dueDate ?? new Date(Date.now() + 7 * 86_400_000);
+        await this.prisma.paymentSchedule.create({
+          data: {
+            organizationId,
+            invoiceId: invoice.id,
+            purchaseOrderId: po.id,
+            amount: Number(invoice.amount),
+            counterparty: invoice.counterparty,
+            status: PaymentScheduleStatus.QUEUED,
+            dueDate: due,
+            meta: {
+              source: "purchase.status.received",
+              purchaseOrderCode: po.code,
             },
           },
         });

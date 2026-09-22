@@ -15,6 +15,7 @@ import {
   ActivarSosSchema,
   ApagadoRemotoSchema,
   FatigaIntervencionSchema,
+  ResolverSosSchema,
   TipificarDesvioSchema,
 } from "./dto/centro-control.dto";
 
@@ -68,6 +69,18 @@ export class CentroControlController {
   activarSos(@Req() req: AuthReq, @Body() body: unknown) {
     const dto = ActivarSosSchema.parse(body ?? {});
     return this.cc.activarSos(
+      req.user.organizationId,
+      req.user.userId,
+      dto,
+    );
+  }
+
+  /** POST /api/v1/centro-control/sos/resolver */
+  @Post("sos/resolver")
+  @Permissions("watchtower_sos", "UPDATE")
+  resolverSos(@Req() req: AuthReq, @Body() body: unknown) {
+    const dto = ResolverSosSchema.parse(body ?? {});
+    return this.cc.resolverSos(
       req.user.organizationId,
       req.user.userId,
       dto,

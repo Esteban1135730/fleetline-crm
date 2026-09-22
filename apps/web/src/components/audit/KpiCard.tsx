@@ -34,20 +34,20 @@ export function KpiCard({
 }: KpiCardProps) {
   const max = spark?.length ? Math.max(...spark, 1) : 1;
   const card = (
-    <article className="nexa-panel frosted-glass nexa-panel-interactive frosted-glass-interactive bento-panel-accent relative w-full overflow-hidden p-4">
+    <article className="nexa-panel frosted-glass nexa-panel-interactive frosted-glass-interactive bento-panel-accent relative w-full min-w-0 overflow-hidden p-4">
       {icon ? (
         <div
-          className="pointer-events-none absolute right-3 top-3 text-[var(--brand-text-secondary)]/30 [&_svg]:h-10 [&_svg]:w-10"
+          className="pointer-events-none absolute right-3 top-3 text-[var(--brand-text-secondary)]/30 [&_svg]:h-7 [&_svg]:w-7 sm:[&_svg]:h-10 sm:[&_svg]:w-10"
           aria-hidden
         >
           {icon}
         </div>
       ) : null}
-      <p className="panel-header-mono relative text-brand-text-secondary">
+      <p className="panel-header-mono relative pr-10 text-brand-text-secondary">
         {label}
       </p>
       <p
-        className={`relative mt-2 font-data text-4xl font-bold tracking-tight tabular-nums kpi-depth ${toneValue[tone]}`}
+        className={`relative mt-2 break-all font-data text-2xl font-bold tracking-tight tabular-nums kpi-depth sm:text-3xl lg:text-4xl ${toneValue[tone]}`}
       >
         {value}
       </p>

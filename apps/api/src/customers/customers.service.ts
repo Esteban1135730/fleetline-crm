@@ -19,6 +19,8 @@ import {
 import { PrismaService } from "../prisma/prisma.service";
 import { LogisticsService } from "../logistics/logistics.service";
 import { SarlaftGuardService } from "../sarlaft/sarlaft-guard.service";
+import { QuotePdfService } from "../comercial/quote-pdf.service";
+import { assertCustomerCommercialClear } from "../comercial/commercial-hard-stops";
 
 function isWinStatus(status: string) {
   const s = status.toUpperCase();
@@ -45,6 +47,7 @@ export class CustomersService {
     @Inject(forwardRef(() => LogisticsService))
     private logistics: LogisticsService,
     private sarlaft: SarlaftGuardService,
+    private quotePdf: QuotePdfService,
   ) {}
 
   listCustomers(organizationId: string) {
@@ -171,6 +174,13 @@ export class CustomersService {
       calc?: unknown;
     },
   ) {
+    await assertCustomerCommercialClear(
+      this.prisma,
+      this.sarlaft,
+      organizationId,
+      data.customerId,
+    );
+
     const customer = await this.prisma.customer.findFirst({
       where: { id: data.customerId, organizationId },
     });
@@ -195,7 +205,7 @@ export class CustomersService {
     const count = await this.prisma.quote.count({
       where: { customer: { organizationId } },
     });
-    return this.prisma.quote.create({
+    const created = await this.prisma.quote.create({
       data: {
         code: `COT-2026-${String(count + 1).padStart(3, "0")}`,
         customerId: data.customerId,
@@ -208,6 +218,22 @@ export class CustomersService {
       },
       include: { customer: true },
     });
+
+    const { pdfRef } = await this.quotePdf.generateSimpleQuotePdf(
+      organizationId,
+      created.id,
+    );
+    const withPdf = await this.prisma.quote.findUniqueOrThrow({
+      where: { id: created.id },
+      include: { customer: true },
+    });
+
+    return {
+      ...withPdf,
+      pdfRef,
+      pdfUrl: `/uploads/${pdfRef}`,
+      pdfGenerated: true,
+    };
   }
 
   async updateQuoteStatus(

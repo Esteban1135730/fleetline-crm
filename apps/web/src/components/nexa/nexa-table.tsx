@@ -10,7 +10,7 @@ type NexaTableProps = {
 export function NexaTable({ columns, children, className = "" }: NexaTableProps) {
   return (
     <div
-      className={`data-shell frosted-glass overflow-x-auto rounded-lg ${className}`}
+      className={`data-shell frosted-glass max-h-[min(70vh,40rem)] overflow-auto rounded-lg ${className}`}
     >
       <table className="w-full border-collapse text-left text-sm">
         <thead className="bg-brand-surface-elevated/60 backdrop-blur-md">

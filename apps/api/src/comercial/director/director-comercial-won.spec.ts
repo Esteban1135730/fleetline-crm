@@ -1,65 +1,90 @@
 import { SalesPipelineStage } from "@fsg/db";
 import { DirectorComercialService } from "./director-comercial.service";
 
+function basePrisma(overrides: Record<string, unknown> = {}) {
+  const costCenter = {
+    id: "cc-1",
+    code: "CC-B2B-2026-0001",
+    plate: "B2B-B2B-2026-0001",
+    name: "CC · Colegio Andes",
+    organizationId: "org-1",
+  };
+  return {
+    commercialDeal: {
+      findFirst: jest.fn().mockResolvedValue({
+        id: "deal-1",
+        code: "B2B-2026-0001",
+        accountName: "Colegio Andes",
+        costCenterId: null,
+        organizationId: "org-1",
+      }),
+      update: jest.fn().mockResolvedValue({
+        id: "deal-1",
+        stage: SalesPipelineStage.CERRADO_GANADO,
+        costCenterId: costCenter.id,
+        costCenter,
+      }),
+    },
+    costCenter: {
+      create: jest.fn().mockResolvedValue(costCenter),
+    },
+    transportContract: {
+      update: jest.fn().mockResolvedValue({
+        id: "ctr-1",
+        status: "ACTIVE",
+        costCenterId: costCenter.id,
+        signedAt: new Date(),
+      }),
+    },
+    docuSignEnvelope: {
+      update: jest.fn().mockResolvedValue({
+        id: "env-1",
+        status: "SIGNED",
+      }),
+    },
+    capacityPlanningRequest: {
+      create: jest.fn().mockResolvedValue({
+        id: "cap-1",
+        status: "PENDING",
+      }),
+    },
+    recurringBillingSchedule: {
+      create: jest.fn().mockResolvedValue({
+        id: "bill-1",
+        active: true,
+      }),
+    },
+    invoice: {
+      count: jest.fn().mockResolvedValue(0),
+      create: jest.fn().mockResolvedValue({
+        id: "inv-1",
+        number: "CXC-2026-0001",
+      }),
+    },
+    trip: {
+      count: jest.fn().mockResolvedValue(0),
+      create: jest.fn().mockResolvedValue({
+        id: "trip-1",
+        code: "TRP-2026-0001",
+        status: "PENDING",
+      }),
+    },
+    ...overrides,
+  };
+}
+
 describe("DirectorComercialService.markDealWon — Centro de Costos", () => {
   it("crea automáticamente CostCenter en Contabilidad al marcar Ganado", async () => {
-    const costCenter = {
-      id: "cc-1",
-      code: "CC-B2B-2026-0001",
-      plate: "B2B-B2B-2026-0001",
-      name: "CC · Colegio Andes",
-      organizationId: "org-1",
-    };
-
-    const prisma = {
-      commercialDeal: {
-        findFirst: jest.fn().mockResolvedValue({
-          id: "deal-1",
-          code: "B2B-2026-0001",
-          accountName: "Colegio Andes",
-          costCenterId: null,
-          organizationId: "org-1",
-        }),
-        update: jest.fn().mockResolvedValue({
-          id: "deal-1",
-          stage: SalesPipelineStage.CERRADO_GANADO,
-          costCenterId: costCenter.id,
-          costCenter,
-        }),
-      },
-      costCenter: {
-        create: jest.fn().mockResolvedValue(costCenter),
-      },
-      transportContract: {
-        update: jest.fn().mockResolvedValue({
-          id: "ctr-1",
-          status: "ACTIVE",
-          costCenterId: costCenter.id,
-          signedAt: new Date(),
-        }),
-      },
-      docuSignEnvelope: {
-        update: jest.fn().mockResolvedValue({
-          id: "env-1",
-          status: "SIGNED",
-        }),
-      },
-      capacityPlanningRequest: {
-        create: jest.fn().mockResolvedValue({
-          id: "cap-1",
-          status: "PENDING",
-        }),
-      },
-      recurringBillingSchedule: {
-        create: jest.fn().mockResolvedValue({
-          id: "bill-1",
-          active: true,
-        }),
-      },
-    };
-
+    const prisma = basePrisma();
     const kafka = { emit: jest.fn().mockResolvedValue(undefined) };
-    const svc = new DirectorComercialService(prisma as never, kafka as never);
+    const quotePdf = {} as never;
+    const sarlaft = { assertClear: jest.fn() } as never;
+    const svc = new DirectorComercialService(
+      prisma as never,
+      kafka as never,
+      quotePdf,
+      sarlaft,
+    );
 
     const result = await svc.markDealWon({
       organizationId: "org-1",
@@ -84,14 +109,16 @@ describe("DirectorComercialService.markDealWon — Centro de Costos", () => {
       }),
     );
     expect(result.costCenter.id).toBe("cc-1");
-    expect(prisma.commercialDeal.update).toHaveBeenCalledWith(
+    expect(prisma.trip.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          stage: SalesPipelineStage.CERRADO_GANADO,
-          costCenterId: "cc-1",
+          status: "PENDING",
+          customerId: "cust-1",
+          contractId: "ctr-1",
         }),
       }),
     );
+    expect(result.pendingTrip.id).toBe("trip-1");
     expect(prisma.capacityPlanningRequest.create).toHaveBeenCalled();
     expect(prisma.recurringBillingSchedule.create).toHaveBeenCalled();
     expect(kafka.emit).toHaveBeenCalledWith(
@@ -99,6 +126,7 @@ describe("DirectorComercialService.markDealWon — Centro de Costos", () => {
       expect.objectContaining({
         costCenterId: "cc-1",
         dealId: "deal-1",
+        tripId: "trip-1",
       }),
     );
   });
@@ -117,7 +145,12 @@ describe("DirectorComercialService.markDealWon — Centro de Costos", () => {
       costCenter: { create: jest.fn() },
     };
     const kafka = { emit: jest.fn() };
-    const svc = new DirectorComercialService(prisma as never, kafka as never);
+    const svc = new DirectorComercialService(
+      prisma as never,
+      kafka as never,
+      {} as never,
+      { assertClear: jest.fn() } as never,
+    );
 
     await expect(
       svc.markDealWon({

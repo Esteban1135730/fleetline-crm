@@ -1,8 +1,8 @@
-﻿"use client";
+"use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
-import { Package, QrCode, Search } from "lucide-react";
+import { Camera, Package, QrCode, Search } from "lucide-react";
 import { api } from "@/lib/api";
 import { EmptyState } from "@/components/audit";
 import { BentoPanel } from "@/components/nexa/bento-panel";
@@ -35,10 +35,84 @@ export default function AlmacenTallerDashboard() {
   const [dash, setDash] = useState<Dash | null>(null);
   const [query, setQuery] = useState("");
   const [workOrderId, setWorkOrderId] = useState("");
-  const [partQr, setPartQr] = useState("QR-PART-FRN-001");
+  const [partQr, setPartQr] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const scanTimer = useRef<number | null>(null);
+
+  const stopScan = useCallback(() => {
+    if (scanTimer.current) {
+      window.clearInterval(scanTimer.current);
+      scanTimer.current = null;
+    }
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    setScanning(false);
+  }, []);
+
+  useEffect(() => () => stopScan(), [stopScan]);
+
+  async function startScan() {
+    setError(null);
+    if (!("BarcodeDetector" in window)) {
+      setError(
+        "Este navegador no soporta lector QR. Use el campo y un lector USB, o Chrome/Edge reciente.",
+      );
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" } },
+      });
+      streamRef.current = stream;
+      setScanning(true);
+      await new Promise((r) => setTimeout(r, 50));
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+      // BarcodeDetector es experimental; tipado mínimo local
+      type Detector = { detect: (source: HTMLVideoElement) => Promise<Array<{ rawValue?: string }>> };
+      const DetectorCtor = (
+        window as unknown as {
+          BarcodeDetector?: new (opts: { formats: string[] }) => Detector;
+        }
+      ).BarcodeDetector;
+      if (!DetectorCtor) {
+        setError("Lector QR no disponible en este navegador");
+        stopScan();
+        return;
+      }
+      const detector = new DetectorCtor({ formats: ["qr_code"] });
+      scanTimer.current = window.setInterval(() => {
+        void (async () => {
+          if (!videoRef.current) return;
+          try {
+            const codes = await detector.detect(videoRef.current);
+            const raw = codes[0]?.rawValue;
+            if (raw) {
+              setPartQr(String(raw));
+              setMsg(`QR leído: ${raw}`);
+              stopScan();
+            }
+          } catch {
+            /* frame sin código */
+          }
+        })();
+      }, 500);
+    } catch (e) {
+      setError(
+        e instanceof Error
+          ? e.message
+          : "No se pudo abrir la cámara para escanear",
+      );
+      stopScan();
+    }
+  }
 
   const load = useCallback(async () => {
     try {
@@ -92,7 +166,7 @@ export default function AlmacenTallerDashboard() {
   }
 
   return (
-    <div className="fade-in mx-auto max-w-[1600px] space-y-6 p-4 md:p-6">
+    <div className="fade-in mx-auto max-w-[1600px] space-y-6">
       <header className="flex flex-wrap items-start justify-between gap-3 border-b border-brand-border pb-4">
         <div>
           <p className="font-data text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-primary">
@@ -144,13 +218,44 @@ export default function AlmacenTallerDashboard() {
             <input
               value={partQr}
               onChange={(e) => setPartQr(e.target.value)}
-              placeholder="Escanear QR"
+              placeholder="Escanear QR / serial (lector USB o cámara)"
               className="field font-data"
+              autoFocus
             />
-            <div className="flex justify-end">
+            {scanning ? (
+              <div className="overflow-hidden rounded-lg border border-brand-border">
+                <video
+                  ref={videoRef}
+                  className="h-40 w-full bg-black object-cover"
+                  muted
+                  playsInline
+                />
+                <div className="flex justify-end gap-2 p-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="w-auto px-3 py-1.5 text-xs"
+                    onClick={stopScan}
+                  >
+                    Cerrar cámara
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-auto px-4 py-2"
+                disabled={busy || scanning}
+                onClick={() => void startScan()}
+              >
+                <Camera className="mr-1.5 inline h-4 w-4" aria-hidden />
+                Escanear con cámara
+              </Button>
               <Button
                 className="w-auto px-4 py-2"
-                disabled={busy}
+                disabled={busy || !partQr.trim()}
                 onClick={() => void despachar()}
               >
                 Despachar

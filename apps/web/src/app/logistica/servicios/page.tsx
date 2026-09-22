@@ -561,7 +561,7 @@ export default function LogisticaServiciosPage() {
 
   return (
     <div
-      className="fade-in flex h-[calc(100vh-5.5rem)] min-h-[560px] flex-col gap-3"
+      className="fade-in flex min-h-[calc(100dvh-8rem)] flex-col gap-3"
       data-testid="panel-servicios"
     >
       <header className="shrink-0 space-y-3 border-b border-brand-border pb-3" data-tour="primary">

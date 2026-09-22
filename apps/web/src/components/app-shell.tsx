@@ -5,6 +5,35 @@ import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   MODULE_LABELS,
+  NAV_DEPARTMENTS,
+  RECEPCIONISTA_NAV,
+  LIDER_TI_NAV,
+  GESTOR_DOCUMENTAL_NAV,
+  AUXILIAR_CONTABLE_NAV,
+  GESTOR_CONTABLE_NAV,
+  DIRECTOR_FINANCIERO_NAV,
+  LIDER_QHSE_NAV,
+  LIDER_COMPRAS_NAV,
+  DIRECTOR_OPERATIVO_NAV,
+  GESTOR_OPERATIVO_NAV,
+  COORDINADOR_CAMPO_NAV,
+  OPERADOR_CENTRO_CONTROL_NAV,
+  AUDITOR_CONTROL_INTERNO_NAV,
+  PRESIDENTE_NAV,
+  GESTOR_VINCULACIONES_NAV,
+  DIRECTOR_COMERCIAL_NAV,
+  GESTOR_COMERCIAL_NAV,
+  COORDINADOR_COMERCIAL_NAV,
+  GERENTE_GENERAL_NAV,
+  DIRECTOR_JURIDICO_NAV,
+  REVISOR_FISCAL_NAV,
+  COORDINADOR_TALLER_NAV,
+  AUXILIAR_ALMACEN_TALLER_NAV,
+  MECANICO_NAV,
+  COORDINADOR_PATIO_NAV,
+  AUXILIAR_PATIO_NAV,
+  CONDUCTOR_PILOT_NAV,
+  SUBGERENTE_NAV,
   ROLE_DEFAULT_NAV_DEPT,
   ROLE_LABELS,
   isPathDeniedForRole,
@@ -34,6 +63,8 @@ import { FormGuard } from "@/components/forms/form-guard";
 import { ConfirmMutationHost } from "@/components/confirm-mutation-dialog";
 import { NotificationsProvider } from "@/lib/notifications-context";
 import { TourProvider, useTourOptional } from "@/lib/tour-context";
+import { isQaViewerClient } from "@/lib/qa-trace";
+import { useQaTraceBeacon } from "@/hooks/use-qa-trace-beacon";
 
 const NAV_OPEN_KEY = "flt-nav-depts-open";
 
@@ -516,7 +547,7 @@ function HelpSheet() {
         aria-hidden={!helpOpen}
         aria-label="Centro de ayuda"
       >
-        <div className="flex h-[60px] items-center justify-between border-b border-[var(--brand-border)] px-4">
+        <div className="flex h-[var(--flt-topbar-h)] items-center justify-between border-b border-[var(--brand-border)] px-4">
           <div className="min-w-0">
             <p className="font-data text-[9px] uppercase tracking-[0.16em] text-[var(--brand-text-secondary)]">
               Asistencia contextual
@@ -594,7 +625,7 @@ function InspectorDrawer() {
         className={`flt-inspector ${inspectorOpen ? "is-open" : ""}`}
         aria-hidden={!inspectorOpen}
       >
-        <div className="flex h-[60px] items-center justify-between border-b border-[var(--brand-border)] px-4">
+        <div className="flex h-[var(--flt-topbar-h)] items-center justify-between border-b border-[var(--brand-border)] px-4">
           <div className="min-w-0">
             <p className="font-data text-[9px] uppercase tracking-[0.16em] text-[var(--brand-text-secondary)]">
               Inspector
@@ -627,6 +658,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { setSystemStatus, crisisActive, crisisCode, setCrisisActive } =
     useShell();
+  useQaTraceBeacon();
 
   useEffect(() => {
     if (!loading && !user && pathname !== "/login") {
@@ -638,10 +670,6 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     if (!user || pathname === "/login") return;
     const seg = pathname.split("/").filter(Boolean)[0] || "dashboard";
     if (seg === "cuenta") return;
-    if (isPathDeniedForRole(user.role, pathname)) {
-      router.replace(homePath);
-      return;
-    }
     const resolved = resolveModuleId(seg) || seg;
     if (!canAccess(resolved)) {
       router.replace(homePath);
@@ -680,7 +708,441 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
 
   const departments = useMemo(() => {
     if (!user) return [];
-    return buildNavDepartmentsForRole(user.role);
+    const role = normalizeRole(user.role);
+
+    if (role === "recepcionista") {
+      const dept: NavDepartment = {
+        id: "call_center",
+        label: "Recepción",
+        tip: "Visitas · mensajes entrantes · PQRS · consulta de rutas",
+        items: RECEPCIONISTA_NAV.map((i) => ({
+          href: i.href,
+          view: i.view as ModuleId,
+          label: i.label,
+          tip: i.tip,
+        })),
+      };
+      return [dept];
+    }
+
+    if (role === "lider_ti") {
+      const dept: NavDepartment = {
+        id: "tecnologia_ti",
+        label: "Tecnología e infraestructura",
+        tip: "Centro de control · usuarios · mesa de ayuda · supervisión",
+        items: LIDER_TI_NAV.map((i) => ({
+          href: i.href,
+          view: i.view as ModuleId,
+          label: i.label,
+          tip: i.tip,
+        })),
+      };
+      return [dept];
+    }
+
+    if (role === "gestor_documental") {
+      const dept: NavDepartment = {
+        id: "archivo",
+        label: "Archivo y Papelería",
+        tip: "Custodia · papelería · búsqueda universal",
+        items: GESTOR_DOCUMENTAL_NAV.map((i) => ({
+          href: i.href,
+          view: i.view as ModuleId,
+          label: i.label,
+          tip: i.tip,
+        })),
+      };
+      return [dept];
+    }
+
+    if (role === "auxiliar_contable") {
+      const dept: NavDepartment = {
+        id: "contabilidad",
+        label: "Operación financiera",
+        tip: "CxP · legalizaciones · conciliación bancaria",
+        items: AUXILIAR_CONTABLE_NAV.map((i) => ({
+          href: i.href,
+          view: i.view as ModuleId,
+          label: i.label,
+          tip: i.tip,
+        })),
+      };
+      return [dept];
+    }
+
+    if (role === "gestor_contable") {
+      const dept: NavDepartment = {
+        id: "contabilidad",
+        label: "Contabilidad 4.0",
+        tip: "PUC · DIAN · cartera digital · costeo de flota",
+        items: GESTOR_CONTABLE_NAV.map((i) => ({
+          href: i.href,
+          view: i.view as ModuleId,
+          label: i.label,
+          tip: i.tip,
+        })),
+      };
+      return [dept];
+    }
+
+    if (role === "director_financiero") {
+      const dept: NavDepartment = {
+        id: "tesoreria",
+        label: "Dirección Financiera",
+        tip: "Dirección financiera · aprobación · resultados · contratos",
+        items: DIRECTOR_FINANCIERO_NAV.map((i) => ({
+          href: i.href,
+          view: i.view as ModuleId,
+          label: i.label,
+          tip: i.tip,
+        })),
+      };
+      return [dept];
+    }
+
+    if (role === "lider_qhse" || role === "qhse") {
+      const dept: NavDepartment = {
+        id: "qhse",
+        label: "Calidad y SST",
+        tip: "Radar · telemetría · siniestros · ambiental",
+        items: LIDER_QHSE_NAV.map((i) => ({
+          href: i.href,
+          view: i.view as ModuleId,
+          label: i.label,
+          tip: i.tip,
+        })),
+      };
+      return [dept];
+    }
+
+    if (role === "lider_compras" || role === "compras") {
+      const dept: NavDepartment = {
+        id: "compras",
+        label: "Compras inteligentes",
+        tip: "Proveedores · órdenes · almacén · SOAT",
+        items: LIDER_COMPRAS_NAV.map((i) => ({
+          href: i.href,
+          view: i.view as ModuleId,
+          label: i.label,
+          tip: i.tip,
+        })),
+      };
+      return [dept];
+    }
+
+    if (role === "director_operativo") {
+      const dept: NavDepartment = {
+        id: "logistica",
+        label: "Dirección Operativa",
+        tip: "Torre de control · cronograma · capacidad",
+        items: DIRECTOR_OPERATIVO_NAV.map((i) => ({
+          href: i.href,
+          view: i.view as ModuleId,
+          label: i.label,
+          tip: i.tip,
+        })),
+      };
+      return [dept];
+    }
+
+    if (role === "gestor_operativo") {
+      const dept: NavDepartment = {
+        id: "logistica",
+        label: "Microdespacho",
+        tip: "Asignación · relevo rápido · bloqueos",
+        items: GESTOR_OPERATIVO_NAV.map((i) => ({
+          href: i.href,
+          view: i.view as ModuleId,
+          label: i.label,
+          tip: i.tip,
+        })),
+      };
+      return [dept];
+    }
+
+    if (role === "coordinador_campo") {
+      const dept: NavDepartment = {
+        id: "logistica",
+        label: "Comando de campo",
+        tip: "Geocerca · abordaje · auditoría en sitio",
+        items: COORDINADOR_CAMPO_NAV.map((i) => ({
+          href: i.href,
+          view: i.view as ModuleId,
+          label: i.label,
+          tip: i.tip,
+        })),
+      };
+      return [dept];
+    }
+
+    if (role === "operador_centro_control" || role === "centro_control") {
+      const dept: NavDepartment = {
+        id: "logistica",
+        label: "Torre de control 24/7",
+        tip: "Excepciones · emergencia · sensores",
+        items: OPERADOR_CENTRO_CONTROL_NAV.map((i) => ({
+          href: i.href,
+          view: i.view as ModuleId,
+          label: i.label,
+          tip: i.tip,
+        })),
+      };
+      return [dept];
+    }
+
+    if (role === "auditor_control_interno" || role === "control_interno") {
+      const dept: NavDepartment = {
+        id: "revisoria_fiscal",
+        label: "Centro forense",
+        tip: "Caja negra · hallazgos · auditoría",
+        items: AUDITOR_CONTROL_INTERNO_NAV.map((i) => ({
+          href: i.href,
+          view: i.view as ModuleId,
+          label: i.label,
+          tip: i.tip,
+        })),
+      };
+      return [dept];
+    }
+
+    if (role === "presidente" || role === "presidencia") {
+      const dept: NavDepartment = {
+        id: "presidencia",
+        label: "Lienzo de presidencia",
+        tip: "Asistente · inversión · crisis",
+        items: PRESIDENTE_NAV.map((i) => ({
+          href: i.href,
+          view: i.view as ModuleId,
+          label: i.label,
+          tip: i.tip,
+        })),
+      };
+      return [dept];
+    }
+
+    if (role === "gestor_vinculaciones" || role === "vinculaciones") {
+      const dept: NavDepartment = {
+        id: "rrhh",
+        label: "Alta de afiliados",
+        tip: "Afiliados · RUNT/SIMIT · lectura de documentos",
+        items: GESTOR_VINCULACIONES_NAV.map((i) => ({
+          href: i.href,
+          view: i.view as ModuleId,
+          label: i.label,
+          tip: i.tip,
+        })),
+      };
+      return [dept];
+    }
+
+    if (role === "director_comercial") {
+      const dept: NavDepartment = {
+        id: "comercial",
+        label: "Dirección Comercial",
+        tip: "Embudo empresas · Cotizador · Firma digital",
+        items: DIRECTOR_COMERCIAL_NAV.map((i) => ({
+          href: i.href,
+          view: i.view as ModuleId,
+          label: i.label,
+          tip: i.tip,
+        })),
+      };
+      return [dept];
+    }
+
+    if (role === "gestor_comercial") {
+      const dept: NavDepartment = {
+        id: "comercial",
+        label: "Ejecución comercial",
+        tip: "Tareas · Marcador · Cobro anticipado",
+        items: GESTOR_COMERCIAL_NAV.map((i) => ({
+          href: i.href,
+          view: i.view as ModuleId,
+          label: i.label,
+          tip: i.tip,
+        })),
+      };
+      return [dept];
+    }
+
+    if (role === "coordinador_comercial") {
+      const dept: NavDepartment = {
+        id: "comercial",
+        label: "Coordinación Comercial",
+        tip: "Tabla de posiciones · SECOP · asignación en ronda",
+        items: COORDINADOR_COMERCIAL_NAV.map((i) => ({
+          href: i.href,
+          view: i.view as ModuleId,
+          label: i.label,
+          tip: i.tip,
+        })),
+      };
+      return [dept];
+    }
+
+    if (role === "gerente_general") {
+      const dept: NavDepartment = {
+        id: "gerencia",
+        label: "Gerencia General",
+        tip: "Cuadro de mando · excepciones · PIN",
+        items: GERENTE_GENERAL_NAV.map((i) => ({
+          href: i.href,
+          view: i.view as ModuleId,
+          label: i.label,
+          tip: i.tip,
+        })),
+      };
+      return [dept];
+    }
+
+    if (role === "director_juridico" || role === "juridico") {
+      const dept: NavDepartment = {
+        id: "juridico",
+        label: "Centro jurídico",
+        tip: "Contratos · SARLAFT · Expedientes",
+        items: DIRECTOR_JURIDICO_NAV.map((i) => ({
+          href: i.href,
+          view: i.view as ModuleId,
+          label: i.label,
+          tip: i.tip,
+        })),
+      };
+      return [dept];
+    }
+
+    if (role === "revisor_fiscal") {
+      const dept: NavDepartment = {
+        id: "revisoria_fiscal",
+        label: "Centro de revisoría",
+        tip: "DIAN · Detalle · Cierre de periodo",
+        items: REVISOR_FISCAL_NAV.map((i) => ({
+          href: i.href,
+          view: i.view as ModuleId,
+          label: i.label,
+          tip: i.tip,
+        })),
+      };
+      return [dept];
+    }
+
+    if (role === "coordinador_taller") {
+      const dept: NavDepartment = {
+        id: "taller",
+        label: "Taller 4.0",
+        tip: "Tablero · Bahías · control de calidad",
+        items: COORDINADOR_TALLER_NAV.map((i) => ({
+          href: i.href,
+          view: i.view as ModuleId,
+          label: i.label,
+          tip: i.tip,
+        })),
+      };
+      return [dept];
+    }
+
+    if (role === "auxiliar_almacen_taller") {
+      const dept: NavDepartment = {
+        id: "taller",
+        label: "Almacén del taller",
+        tip: "Código · despacho en mostrador",
+        items: AUXILIAR_ALMACEN_TALLER_NAV.map((i) => ({
+          href: i.href,
+          view: i.view as ModuleId,
+          label: i.label,
+          tip: i.tip,
+        })),
+      };
+      return [dept];
+    }
+
+    if (role === "mecanico") {
+      const dept: NavDepartment = {
+        id: "taller",
+        label: "App de taller",
+        tip: "Órdenes · cronómetro · foto y voz",
+        items: MECANICO_NAV.map((i) => ({
+          href: i.href,
+          view: i.view as ModuleId,
+          label: i.label,
+          tip: i.tip,
+        })),
+      };
+      return [dept];
+    }
+
+    if (role === "coordinador_patio") {
+      const dept: NavDepartment = {
+        id: "parqueadero",
+        label: "Patio inteligente",
+        tip: "Mapa de patio · Talanquera",
+        items: COORDINADOR_PATIO_NAV.map((i) => ({
+          href: i.href,
+          view: i.view as ModuleId,
+          label: i.label,
+          tip: i.tip,
+        })),
+      };
+      return [dept];
+    }
+
+    if (role === "auxiliar_patio") {
+      const dept: NavDepartment = {
+        id: "parqueadero",
+        label: "App de patio",
+        tip: "Lavado · movimientos de patio",
+        items: AUXILIAR_PATIO_NAV.map((i) => ({
+          href: i.href,
+          view: i.view as ModuleId,
+          label: i.label,
+          tip: i.tip,
+        })),
+      };
+      return [dept];
+    }
+
+    if (role === "conductor") {
+      const dept: NavDepartment = {
+        id: "logistica",
+        label: "App del conductor",
+        tip: "Preoperacional · emergencia · viático",
+        items: CONDUCTOR_PILOT_NAV.map((i) => ({
+          href: i.href,
+          view: i.view as ModuleId,
+          label: i.label,
+          tip: i.tip,
+        })),
+      };
+      return [dept];
+    }
+
+    if (role === "sub_gerente") {
+      const dept: NavDepartment = {
+        id: "gerencia",
+        label: "Ejecución Táctica",
+        tip: "Conflictos · kilómetros en vacío · Proyectos",
+        items: SUBGERENTE_NAV.map((i) => ({
+          href: i.href,
+          view: i.view as ModuleId,
+          label: i.label,
+          tip: i.tip,
+        })),
+      };
+      return [dept];
+    }
+
+    const allowed = new Set(ROLE_VIEWS[role] || []);
+    return NAV_DEPARTMENTS.filter((dept) =>
+      dept.items.some(
+        (item) =>
+          item.view === "cuenta" || allowed.has(item.view as ModuleId),
+      ),
+    ).map((dept) => ({
+      ...dept,
+      items: dept.items.filter(
+        (item) =>
+          item.view === "cuenta" || allowed.has(item.view as ModuleId),
+      ),
+    }));
   }, [user]);
 
   const defaultOpenId: NavDeptId = user
@@ -732,7 +1194,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
         />
       ) : null}
       {crisisActive ? (
-        <div className="relative z-[2] border-b border-brand-danger/40 bg-brand-danger/20 px-4 py-1.5 text-center font-data text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-danger">
+        <div className="flt-crisis-banner relative z-[2] border-b border-brand-danger/40 bg-brand-danger/20 px-4 py-1.5 text-center font-data text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-danger">
           Protocolo de crisis activo
           {crisisCode ? ` · ${crisisCode}` : ""} — modo sala de guerra
         </div>

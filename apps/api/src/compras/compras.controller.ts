@@ -60,6 +60,13 @@ export class ComprasController {
     return this.smart.dashboard(req.user.organizationId);
   }
 
+  /** Cupo mensual real (SCRUM-26) — sustituye hardcode UI. */
+  @Get("budget")
+  @Permissions("compras_oc", "READ")
+  budget(@Req() req: AuthReq) {
+    return this.service.getMonthlyBudget(req.user.organizationId);
+  }
+
   /** Directorio de proveedores (no crea usuarios). */
   @Get("proveedores")
   @Permissions("compras_proveedores", "READ")

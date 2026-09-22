@@ -28,6 +28,18 @@ const MODE_ES: Record<string, string> = {
   HISTORY: "Histórico de ruta",
 };
 
+const BOGOTA: L.LatLngExpression = [4.65, -74.1];
+
+function isValidPoint(p: MapPoint | null | undefined): p is MapPoint {
+  if (!p) return false;
+  const { lat, lng } = p;
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
+  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return false;
+  // (0,0) suele ser placeholder GPS inválido
+  if (lat === 0 && lng === 0) return false;
+  return true;
+}
+
 function makeDot(color: string, contrast: string, pulse = false) {
   const size = pulse ? 18 : 14;
   return L.divIcon({
@@ -42,7 +54,7 @@ function makeDot(color: string, contrast: string, pulse = false) {
   });
 }
 
-/** Mapa operativo Leaflet — teselas adaptativas light/dark vía useThemeColors. */
+/** Mapa operativo Leaflet — teselas OSM; cámara estable ante zoom manual. */
 export function FleetMap({
   mode,
   modeLabel,
@@ -60,35 +72,72 @@ export function FleetMap({
   const mapRef = useRef<L.Map | null>(null);
   const layerRef = useRef<L.LayerGroup | null>(null);
   const tileRef = useRef<L.TileLayer | null>(null);
+  /** Si el usuario hizo zoom/pan, no forzar fitBounds hasta cambiar de ruta/modo. */
+  const userCamRef = useRef(false);
+  const fitKeyRef = useRef<string>("");
 
   const track = useMemo(() => {
-    if (mode === "LIVE_GPS" || mode === "HISTORY") {
-      if (history.length) return history;
-      if (live) return [live];
-      return suggested;
-    }
-    return suggested;
+    const raw =
+      mode === "LIVE_GPS" || mode === "HISTORY"
+        ? history.length
+          ? history
+          : live
+            ? [live]
+            : suggested
+        : suggested;
+    return raw.filter(isValidPoint);
   }, [mode, history, live, suggested]);
 
+  const liveOk = isValidPoint(live) ? live : null;
   const label = modeLabel ?? MODE_ES[mode] ?? mode;
 
+  const fitKey = useMemo(() => {
+    const head = track[0];
+    const tail = track[track.length - 1];
+    const livePart = liveOk
+      ? `${liveOk.lat.toFixed(4)},${liveOk.lng.toFixed(4)}`
+      : "";
+    return [
+      mode,
+      track.length,
+      head ? `${head.lat.toFixed(4)},${head.lng.toFixed(4)}` : "",
+      tail ? `${tail.lat.toFixed(4)},${tail.lng.toFixed(4)}` : "",
+      livePart,
+    ].join("|");
+  }, [mode, track, liveOk]);
+
+  // Montaje único del mapa (no recrear por cambio de theme URL).
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
     const map = L.map(containerRef.current, {
       zoomControl: true,
       attributionControl: true,
-    }).setView([4.65, -74.1], 12);
+      // Evita zoom a nivel 0 (tile “mundo”) por gestos erráticos
+      minZoom: 4,
+      maxZoom: 19,
+    }).setView(BOGOTA, 12);
 
     const tile = L.tileLayer(colors.mapTileUrl, {
       maxZoom: 19,
-      attribution: '&copy; <a href="https://carto.com/">CARTO</a> · OSM',
+      minZoom: 4,
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      // No mostrar tile en carga a medias (reduce flash gris/mundo)
+      updateWhenIdle: true,
+      keepBuffer: 2,
     }).addTo(map);
     tileRef.current = tile;
 
     const layers = L.layerGroup().addTo(map);
     mapRef.current = map;
     layerRef.current = layers;
+
+    const markUserCam = () => {
+      userCamRef.current = true;
+    };
+    map.on("zoomstart", markUserCam);
+    map.on("dragstart", markUserCam);
 
     if (!document.getElementById("flt-pulse-keyframes")) {
       const style = document.createElement("style");
@@ -97,26 +146,27 @@ export function FleetMap({
       document.head.appendChild(style);
     }
 
+    requestAnimationFrame(() => map.invalidateSize({ animate: false }));
+
     return () => {
+      map.off("zoomstart", markUserCam);
+      map.off("dragstart", markUserCam);
       map.remove();
       mapRef.current = null;
       layerRef.current = null;
       tileRef.current = null;
     };
-  }, [colors.mapTileUrl]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- montaje único
+  }, []);
 
+  // Cambio de tema: reemplazar URL sin vaciar el mapa
   useEffect(() => {
-    const map = mapRef.current;
     const prev = tileRef.current;
-    if (!map || !prev) return;
-    map.removeLayer(prev);
-    const tile = L.tileLayer(colors.mapTileUrl, {
-      maxZoom: 19,
-      attribution: '&copy; <a href="https://carto.com/">CARTO</a> · OSM',
-    }).addTo(map);
-    tileRef.current = tile;
+    if (!prev) return;
+    prev.setUrl(colors.mapTileUrl);
   }, [themeMode, colors.mapTileUrl]);
 
+  // Dibujo de ruta + encuadre solo cuando cambia la ruta/modo (no en cada zoom)
   useEffect(() => {
     const map = mapRef.current;
     const layers = layerRef.current;
@@ -156,34 +206,50 @@ export function FleetMap({
       }).addTo(layers);
     }
 
-    if (live) {
-      L.marker([live.lat, live.lng], {
+    if (liveOk) {
+      L.marker([liveOk.lat, liveOk.lng], {
         icon: makeDot(colors.success, colors.contrastFg, true),
         title: "Unidad en vivo",
         zIndexOffset: 500,
       }).addTo(layers);
-      boundsPts.push([live.lat, live.lng]);
+      boundsPts.push([liveOk.lat, liveOk.lng]);
     }
 
-    if (boundsPts.length >= 2) {
-      map.fitBounds(L.latLngBounds(boundsPts), { padding: [36, 36], maxZoom: 15 });
-    } else if (boundsPts.length === 1) {
-      map.setView(boundsPts[0], 14);
-    } else {
-      map.setView([4.65, -74.1], 11);
+    const routeChanged = fitKeyRef.current !== fitKey;
+    if (routeChanged) {
+      fitKeyRef.current = fitKey;
+      userCamRef.current = false;
     }
 
-    requestAnimationFrame(() => map.invalidateSize());
-  }, [track, live, mode, colors]);
+    // Solo auto-encuadrar al cambiar de ruta/modo; respetar zoom manual
+    if (!userCamRef.current) {
+      if (boundsPts.length >= 2) {
+        const b = L.latLngBounds(boundsPts);
+        if (b.isValid()) {
+          map.fitBounds(b, {
+            padding: [36, 36],
+            maxZoom: 15,
+            animate: false,
+          });
+        }
+      } else if (boundsPts.length === 1) {
+        map.setView(boundsPts[0], 14, { animate: false });
+      } else {
+        map.setView(BOGOTA, 11, { animate: false });
+      }
+    }
+  }, [track, liveOk, mode, fitKey, colors.mapRoute, colors.secondary, colors.warning, colors.danger, colors.success, colors.contrastFg]);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !fillHeight) return;
     const el = containerRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => map.invalidateSize());
+    const ro = new ResizeObserver(() => {
+      map.invalidateSize({ animate: false });
+    });
     ro.observe(el);
-    requestAnimationFrame(() => map.invalidateSize());
+    requestAnimationFrame(() => map.invalidateSize({ animate: false }));
     return () => ro.disconnect();
   }, [fillHeight]);
 
@@ -200,7 +266,7 @@ export function FleetMap({
           </span>
           <span className="font-data text-[10px] tabular-nums text-brand-text-secondary">
             {track.length} puntos
-            {live ? " · en vivo" : ""}
+            {liveOk ? " · en vivo" : ""}
           </span>
         </div>
       ) : null}
@@ -223,9 +289,7 @@ export function FleetMap({
             <span className="mr-1 inline-block h-2 w-2 rounded-full bg-brand-success" />
             Unidad / ruta
           </span>
-          <span className="ml-auto opacity-70">
-            {themeMode === "dark" ? "Tactical dark" : "Voyager light"} · OSRM
-          </span>
+          <span className="ml-auto opacity-70">OpenStreetMap · OSRM</span>
         </div>
       ) : null}
     </div>

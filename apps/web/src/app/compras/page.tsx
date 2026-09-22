@@ -21,9 +21,6 @@ import {
 import { BentoPanel } from "@/components/nexa/bento-panel";
 import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
 
-/** Cupo mensual operativo (Compras · PDF segundas). */
-const MONTHLY_BUDGET_COP = 15_000_000;
-
 type SupplierOpt = {
   id: string;
   name: string;
@@ -46,6 +43,13 @@ type Purchase = {
   status: string;
   requestedBy?: string | null;
   createdAt: string;
+};
+
+type ComprasBudget = {
+  monthlyLimit: number;
+  spentThisMonth: number;
+  available: number;
+  currency: string;
 };
 
 const STATUS_FLOW = ["REQUESTED", "APPROVED", "ORDERED", "RECEIVED"] as const;
@@ -95,6 +99,7 @@ function formatCop(n: number) {
 export default function ComprasPage() {
   const [rows, setRows] = useState<Purchase[]>([]);
   const [suppliers, setSuppliers] = useState<SupplierOpt[]>([]);
+  const [budget, setBudget] = useState<ComprasBudget | null>(null);
   const [slideOpen, setSlideOpen] = useState(false);
   const [supplierSlideOpen, setSupplierSlideOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
@@ -105,7 +110,7 @@ export default function ComprasPage() {
   const [supplierBusy, setSupplierBusy] = useState(false);
 
   async function load() {
-    const [orders, supplierList] = await Promise.all([
+    const [orders, supplierList, budgetRes] = await Promise.all([
       api<Purchase[]>("/compras/orders"),
       api<SupplierOpt[]>("/compras/proveedores").catch(async () => {
         const dash = await api<{ savings?: { suppliers?: SupplierOpt[] } }>(
@@ -113,37 +118,31 @@ export default function ComprasPage() {
         ).catch(() => ({ savings: { suppliers: [] as SupplierOpt[] } }));
         return dash.savings?.suppliers ?? [];
       }),
+      api<ComprasBudget>("/compras/budget").catch(() => null),
     ]);
     setRows(orders);
     setSuppliers(Array.isArray(supplierList) ? supplierList : []);
+    setBudget(budgetRes);
   }
 
   useEffect(() => {
     void load().catch(console.error);
   }, []);
 
+  const monthlyLimit = budget?.monthlyLimit ?? 0;
   const kpis = useMemo(() => {
     const pending = rows.filter((r) => r.status === "REQUESTED").length;
-    const now = new Date();
-    const monthSpend = rows
-      .filter((r) => {
-        const d = new Date(r.createdAt);
-        return (
-          d.getMonth() === now.getMonth() &&
-          d.getFullYear() === now.getFullYear() &&
-          r.status !== "CANCELLED"
-        );
-      })
-      .reduce((s, r) => s + Number(r.amount), 0);
-    const presupuestoDisponible = Math.max(0, MONTHLY_BUDGET_COP - monthSpend);
+    const monthSpend = budget?.spentThisMonth ?? 0;
+    const presupuestoDisponible =
+      budget?.available ?? Math.max(0, monthlyLimit - monthSpend);
     return { pending, monthSpend, presupuestoDisponible };
-  }, [rows]);
+  }, [rows, budget, monthlyLimit]);
 
   const draftAmount = Number(form.amount.replace(/\D/g, "") || 0);
   const budgetImpactPct = useMemo(() => {
-    if (!draftAmount || !MONTHLY_BUDGET_COP) return 0;
-    return Math.min(100, Math.round((draftAmount / MONTHLY_BUDGET_COP) * 100));
-  }, [draftAmount]);
+    if (!draftAmount || !monthlyLimit) return 0;
+    return Math.min(100, Math.round((draftAmount / monthlyLimit) * 100));
+  }, [draftAmount, monthlyLimit]);
 
   const selectedSupplier = useMemo(
     () => suppliers.find((s) => s.id === form.supplierId),
@@ -151,7 +150,8 @@ export default function ComprasPage() {
   );
 
   const overBudget =
-    draftAmount > Math.max(0, MONTHLY_BUDGET_COP - kpis.monthSpend);
+    monthlyLimit > 0 &&
+    draftAmount > Math.max(0, monthlyLimit - kpis.monthSpend);
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
@@ -176,7 +176,7 @@ export default function ComprasPage() {
       setFormError("Indique el valor en COP");
       return;
     }
-    const disponible = Math.max(0, MONTHLY_BUDGET_COP - kpis.monthSpend);
+    const disponible = Math.max(0, monthlyLimit - kpis.monthSpend);
     if (amount > disponible) {
       setFormError(
         `Hard lock presupuestal: excede el cupo disponible (${formatCop(disponible)}).`,
@@ -314,13 +314,15 @@ export default function ComprasPage() {
           label="Presupuesto Disponible"
           value={formatCop(kpis.presupuestoDisponible)}
           tone={
-            kpis.presupuestoDisponible <= MONTHLY_BUDGET_COP * 0.15
+            monthlyLimit > 0 &&
+            kpis.presupuestoDisponible <= monthlyLimit * 0.15
               ? "danger"
-              : kpis.presupuestoDisponible <= MONTHLY_BUDGET_COP * 0.35
+              : monthlyLimit > 0 &&
+                  kpis.presupuestoDisponible <= monthlyLimit * 0.35
                 ? "warn"
                 : "ok"
           }
-          delta={`Cupo mensual ${formatCop(MONTHLY_BUDGET_COP)}`}
+          delta={`Cupo mensual ${formatCop(monthlyLimit)}`}
           icon={<Wallet />}
         />
       </div>
@@ -557,7 +559,7 @@ export default function ComprasPage() {
             </div>
             <p className="mt-2 text-[11px] text-[var(--brand-text-secondary)]">
               Disponible: {formatCop(kpis.presupuestoDisponible)} · Cupo{" "}
-              {formatCop(MONTHLY_BUDGET_COP)}
+              {formatCop(monthlyLimit)}
             </p>
             {overBudget ? (
               <p className="mt-1 flex items-center gap-1 text-xs text-[var(--brand-danger)]">

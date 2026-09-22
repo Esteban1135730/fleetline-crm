@@ -8,6 +8,8 @@ export const AsignarViajeSchema = z.object({
   /** Publicar itinerario + pasajeros + mapa a App conductor */
   publishToApp: z.boolean().optional().default(true),
   passengerList: z.array(z.string()).optional(),
+  /** SCRUM-24 — cupo de pasajeros si no viene lista */
+  passengersRequired: z.coerce.number().int().positive().optional(),
   mapPolyline: z.string().optional(),
 });
 export type AsignarViajeDto = z.input<typeof AsignarViajeSchema>;

@@ -83,6 +83,7 @@ async function bootstrap() {
       "Authorization",
       "Content-Type",
       "X-Organization-Id",
+      "X-QA-Session",
       "Accept",
       "X-Turnstile-Token",
     ],
