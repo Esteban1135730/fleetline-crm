@@ -165,6 +165,48 @@ describe("ComplianceGateService — Hard-Stop Logística", () => {
     );
   });
 
+  it("bloquea por FUEC_EXPIRED cuando requireFuec y FUEC vencido", async () => {
+    const expired = new Date(Date.now() - 86400000 * 5);
+    const future = new Date(Date.now() + 86400000 * 90);
+    const veh = baseVehicle({
+      complianceDocs: [
+        {
+          id: "d-soat",
+          type: ComplianceDocType.SOAT,
+          status: DocStatus.VALID,
+          expiresAt: future,
+        },
+        {
+          id: "d-tecno",
+          type: ComplianceDocType.TECNOMECANICA,
+          status: DocStatus.VALID,
+          expiresAt: future,
+        },
+        {
+          id: "d-fuec",
+          type: ComplianceDocType.FUEC,
+          status: DocStatus.EXPIRED,
+          expiresAt: expired,
+        },
+      ],
+      fuecDocuments: [],
+    });
+    const prisma = mockPrisma(veh, baseDriver());
+    const gate = new ComplianceGateService(prisma as never);
+    const result = await gate.evaluate({
+      organizationId: orgId,
+      vehicleId: "veh-ok",
+      driverId: "drv-1",
+      departAt: departDay,
+      requireFuec: true,
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.violations.map((v) => v.code)).toContain(
+      COMPLIANCE_BLOCK_CODES.FUEC_EXPIRED,
+    );
+  });
+
   it("bloquea Kill-Switch nocturno si vehicle.nightRestricted", async () => {
     const prisma = mockPrisma(
       baseVehicle({ nightRestricted: true }),

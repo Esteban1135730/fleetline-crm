@@ -191,6 +191,7 @@ describe("CommercialRevenueService — tarificación viaje completado", () => {
         update: tripUpdate,
       },
       invoice: {
+        findFirst: jest.fn().mockResolvedValue(null),
         count: jest.fn().mockResolvedValue(0),
         create: invoiceCreate,
       },
@@ -230,7 +231,7 @@ describe("CommercialRevenueService — tarificación viaje completado", () => {
     expect(result).toMatchObject({ fare: 140_000, distanceKm: 40 });
     expect(tripUpdate).toHaveBeenCalledWith({
       where: { id: "trip-1" },
-      data: { fareAmount: 140_000 },
+      data: { fareAmount: 140_000, distanceKm: 40 },
     });
     expect(contractUpdate).toHaveBeenCalledWith({
       where: { id: "ctr-1" },
@@ -257,5 +258,94 @@ describe("CommercialRevenueService — tarificación viaje completado", () => {
         distanceKm: 40,
       }),
     );
+  });
+
+  it("sin contrato usa fareAmount del viaje y genera DRAFT", async () => {
+    const invoiceCreate = jest.fn().mockResolvedValue({
+      id: "inv-nc",
+      number: "PF-TRP-2002-001",
+    });
+    const prisma = {
+      trip: { update: jest.fn().mockResolvedValue({}) },
+      invoice: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        count: jest.fn().mockResolvedValue(0),
+        create: invoiceCreate,
+      },
+    };
+    const contracts = {
+      consumeTripQuota: jest.fn(),
+    };
+    const kafka = { emitCommercialRevenueGenerated: jest.fn() };
+    const revenue = new CommercialRevenueService(
+      prisma as never,
+      kafka as never,
+      contracts as never,
+    );
+
+    const result = await revenue.priceCompletedTrip({
+      id: "trip-nc",
+      code: "TRP-2002",
+      organizationId: "org-1",
+      contractId: null,
+      customerId: "cust-2",
+      distanceKm: 20,
+      fareAmount: 85_000,
+      contract: null,
+      customer: { id: "cust-2", name: "Cliente Spot", nit: "800" },
+    });
+
+    expect(result).toMatchObject({ fare: 85_000, contractId: null });
+    expect(contracts.consumeTripQuota).not.toHaveBeenCalled();
+    expect(invoiceCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          tripId: "trip-nc",
+          amount: 85_000,
+          status: "DRAFT",
+        }),
+      }),
+    );
+  });
+
+  it("idempotente: no crea segunda prefactura si ya existe tripId", async () => {
+    const existing = {
+      id: "inv-exist",
+      number: "PF-TRP-3003-001",
+      amount: 99_000,
+    };
+    const invoiceCreate = jest.fn();
+    const prisma = {
+      trip: { update: jest.fn() },
+      invoice: {
+        findFirst: jest.fn().mockResolvedValue(existing),
+        count: jest.fn(),
+        create: invoiceCreate,
+      },
+    };
+    const revenue = new CommercialRevenueService(
+      prisma as never,
+      { emitCommercialRevenueGenerated: jest.fn() } as never,
+      { consumeTripQuota: jest.fn() } as never,
+    );
+
+    const result = await revenue.priceCompletedTrip({
+      id: "trip-dup",
+      code: "TRP-3003",
+      organizationId: "org-1",
+      contractId: null,
+      customerId: null,
+      distanceKm: 10,
+      fareAmount: 50_000,
+      contract: null,
+      customer: null,
+    });
+
+    expect(result).toMatchObject({
+      skipped: true,
+      reason: "ALREADY_INVOICED",
+      fare: 99_000,
+    });
+    expect(invoiceCreate).not.toHaveBeenCalled();
   });
 });

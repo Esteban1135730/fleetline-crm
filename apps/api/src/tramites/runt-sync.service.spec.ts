@@ -49,6 +49,7 @@ describe("RuntSyncService — Kill-Switch al sync", () => {
           findUnique: jest.fn(async () => ({
             ...vehicle,
             complianceDocs: [...docsStore],
+            fuecDocuments: [],
           })),
           update: jest.fn(async ({ data }: { data: Record<string, unknown> }) => {
             Object.assign(vehicle, data);
@@ -209,5 +210,64 @@ describe("RuntSyncService — Kill-Switch al sync", () => {
     expect(result.tecnoActiva).toBe(true);
     expect(kafka.emitComplianceVehicleBlocked).not.toHaveBeenCalled();
     expect(vehicle.complianceBlocked).toBe(false);
+  });
+
+  it("FUEC vencido en complianceDocs activa complianceBlocked", async () => {
+    const { prisma, vehicle, docsStore } = buildPrisma(false);
+    const expired = new Date(Date.now() - 10 * 86400000);
+    const future = new Date(Date.now() + 100 * 86400000);
+
+    docsStore.push(
+      {
+        id: "doc-soat",
+        type: ComplianceDocType.SOAT,
+        status: DocStatus.VALID,
+        expiresAt: future,
+        vehicleId,
+        organizationId: orgId,
+      },
+      {
+        id: "doc-tm",
+        type: ComplianceDocType.TECNOMECANICA,
+        status: DocStatus.VALID,
+        expiresAt: future,
+        vehicleId,
+        organizationId: orgId,
+      },
+      {
+        id: "doc-to",
+        type: ComplianceDocType.TARJETA_OPERACION,
+        status: DocStatus.VALID,
+        expiresAt: future,
+        vehicleId,
+        organizationId: orgId,
+      },
+      {
+        id: "doc-fuec",
+        type: ComplianceDocType.FUEC,
+        status: DocStatus.EXPIRED,
+        expiresAt: expired,
+        vehicleId,
+        organizationId: orgId,
+      },
+    );
+
+    const report: RuntVehicleReport = {
+      plate: "BUS-002",
+      source: "RUNT_MOCK",
+      queriedAt: new Date().toISOString(),
+      documents: [],
+    };
+
+    const service = new RuntSyncService(
+      prisma as never,
+      { lookupVehicleByPlate: jest.fn().mockResolvedValue(report) } as never,
+      { emitComplianceVehicleBlocked: jest.fn() } as never,
+    );
+
+    const result = await service.syncVehicleCompliance(vehicleId);
+    expect(result.complianceBlocked).toBe(true);
+    expect(result.blocks).toContain("FUEC_EXPIRED");
+    expect(vehicle.complianceBlocked).toBe(true);
   });
 });

@@ -145,19 +145,33 @@ export class FinanceService {
     });
   }
 
-  async listInvoices(organizationId: string, type?: "RECEIVABLE" | "PAYABLE") {
+  async listInvoices(
+    organizationId: string,
+    type?: "RECEIVABLE" | "PAYABLE",
+    origin?: "trip",
+  ) {
     await this.markOverdue(organizationId);
     const rows = await this.prisma.invoice.findMany({
       where: {
         organizationId,
         ...(type ? { type: type as InvoiceType } : {}),
+        ...(origin === "trip"
+          ? {
+              tripId: { not: null },
+              type: InvoiceType.RECEIVABLE,
+              OR: [
+                { number: { startsWith: "PF-" } },
+                { status: InvoiceStatus.DRAFT },
+              ],
+            }
+          : {}),
       },
       include: {
         customer: true,
         trip: { select: { id: true, code: true } },
         paymentApprovedBy: { select: { id: true, name: true, email: true } },
       },
-      orderBy: { dueDate: "asc" },
+      orderBy: { createdAt: "desc" },
     });
     return rows.map((inv) => this.mapInvoiceUi(inv));
   }

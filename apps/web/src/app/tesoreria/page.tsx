@@ -28,7 +28,7 @@ import { BentoPanel } from "@/components/nexa/bento-panel";
 import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
 import { WorkbenchTabs, WorkbenchToolbar } from "@/components/workbench-toolbar";
 
-type InvoiceTab = "RECEIVABLE" | "PAYABLE";
+type InvoiceTab = "RECEIVABLE" | "PAYABLE" | "TRIP_PREFACTURA";
 
 type CashFlowWeek = {
   semana: string;
@@ -59,6 +59,7 @@ type Invoice = {
   paymentApprovedAt?: string | null;
   paymentApprovedBy?: { name: string } | null;
   customer?: { name: string } | null;
+  tripId?: string | null;
   trip?: { code: string } | null;
   supportFileRef?: string | null;
   supportOriginalName?: string | null;
@@ -179,10 +180,17 @@ export default function FinanzasPage() {
     };
   }, [invoices, summary]);
 
-  const filteredInvoices = useMemo(
-    () => invoices.filter((inv) => inv.type === invoiceTab),
-    [invoices, invoiceTab],
-  );
+  const filteredInvoices = useMemo(() => {
+    if (invoiceTab === "TRIP_PREFACTURA") {
+      return invoices.filter(
+        (inv) =>
+          inv.type === "RECEIVABLE" &&
+          Boolean(inv.tripId || inv.trip) &&
+          (inv.status === "DRAFT" || inv.number.startsWith("PF-")),
+      );
+    }
+    return invoices.filter((inv) => inv.type === invoiceTab);
+  }, [invoices, invoiceTab]);
 
   const cashFlowData = useMemo(
     () =>
@@ -226,6 +234,17 @@ export default function FinanzasPage() {
         label: "CxC",
         count: invoices.filter((i) => i.type === "RECEIVABLE").length,
         tip: "Cuentas por cobrar · clientes",
+      },
+      {
+        id: "TRIP_PREFACTURA" as const,
+        label: "Prefacturas viaje",
+        count: invoices.filter(
+          (i) =>
+            i.type === "RECEIVABLE" &&
+            Boolean(i.tripId || i.trip) &&
+            (i.status === "DRAFT" || i.number.startsWith("PF-")),
+        ).length,
+        tip: "Prefacturas DRAFT generadas al cerrar viaje",
       },
     ],
     [invoices],
@@ -496,7 +515,7 @@ export default function FinanzasPage() {
         </BentoPanel>
       </div>
 
-      <BentoPanel title="Facturas operativas" subtitle="CxP · CxC · cobros y pagos">
+      <BentoPanel title="Facturas operativas" subtitle="CxP · CxC · prefacturas de viaje">
         <WorkbenchToolbar>
           <WorkbenchTabs
             tabs={invoiceTabs}
@@ -509,12 +528,28 @@ export default function FinanzasPage() {
           {filteredInvoices.length === 0 ? (
             <EmptyState
               icon={<Receipt className="h-7 w-7" aria-hidden />}
-              title="Sin facturas en esta vista"
-              description="Registra CxC o CxP para iniciar el flujo de cobros y pagos."
-              actionLabel={
-                invoiceTab === "PAYABLE" ? "Registrar CxP" : "Registrar CxC"
+              title={
+                invoiceTab === "TRIP_PREFACTURA"
+                  ? "Sin prefacturas de viaje"
+                  : "Sin facturas en esta vista"
               }
-              onAction={() => openRegistrar(invoiceTab)}
+              description={
+                invoiceTab === "TRIP_PREFACTURA"
+                  ? "Al completar un viaje se genera una prefactura DRAFT (PF-*) enlazada al servicio."
+                  : "Registra CxC o CxP para iniciar el flujo de cobros y pagos."
+              }
+              actionLabel={
+                invoiceTab === "TRIP_PREFACTURA"
+                  ? undefined
+                  : invoiceTab === "PAYABLE"
+                    ? "Registrar CxP"
+                    : "Registrar CxC"
+              }
+              onAction={
+                invoiceTab === "TRIP_PREFACTURA"
+                  ? undefined
+                  : () => openRegistrar(invoiceTab)
+              }
             />
           ) : (
             <NexaTable

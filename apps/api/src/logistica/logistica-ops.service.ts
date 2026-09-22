@@ -553,6 +553,14 @@ export class LogisticaOpsService {
       actorUserId,
     });
 
+    // Liberar unidad siempre (FinOps / siguiente despacho)
+    if (trip.vehicleId) {
+      await this.prisma.vehicle.update({
+        where: { id: trip.vehicleId },
+        data: { status: VehicleStatus.AVAILABLE },
+      });
+    }
+
     if (trip.driverId) {
       const line = await this.persistOvertimeLine(
         organizationId,
@@ -571,14 +579,17 @@ export class LogisticaOpsService {
         periodStart: startedAt.toISOString(),
         periodEnd: completedAt.toISOString(),
       });
-      await this.kafka.emitTripCompleted({
-        organizationId,
-        amount: Number(trip.fareAmount ?? 0),
-        tripId: trip.id,
-        code: trip.code,
-        contractId: trip.contractId,
-      });
     }
+
+    // Prefactura CxC siempre (con o sin conductor/contrato)
+    await this.kafka.emitTripCompleted({
+      organizationId,
+      amount: Number(trip.fareAmount ?? 0),
+      tripId: trip.id,
+      code: trip.code,
+      contractId: trip.contractId,
+    });
+
     this.gateway.emitUpdate(organizationId);
     return updated;
   }

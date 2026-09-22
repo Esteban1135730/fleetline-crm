@@ -14,6 +14,7 @@ import {
   TicketChannel,
   TicketPriority,
   TicketStatus,
+  VehicleStatus,
 } from "@fsg/db";
 import { HARD_RULES, calendarDaysUntilExpiry, docStatusFromExpiryDate } from "@fsg/shared";
 import { PrismaService } from "../prisma/prisma.service";
@@ -1604,11 +1605,6 @@ export class ModulesService {
         data: {
           soatActivo:
             status === DocStatus.VALID || status === DocStatus.EXPIRING,
-          complianceBlocked: status === DocStatus.EXPIRED,
-          complianceReason:
-            status === DocStatus.EXPIRED
-              ? "HARD-STOP: SOAT vencido — unidad no despachable"
-              : null,
         },
       });
     }
@@ -1618,26 +1614,105 @@ export class ModulesService {
         data: {
           tecnoActiva:
             status === DocStatus.VALID || status === DocStatus.EXPIRING,
-          ...(status === DocStatus.EXPIRED
-            ? {
-                complianceBlocked: true,
-                complianceReason:
-                  "HARD-STOP: Tecnomecánica vencida — unidad no despachable",
-              }
-            : {}),
         },
       });
     }
-    if (typeKey === ComplianceDocType.TARJETA_OPERACION && status === DocStatus.EXPIRED) {
-      await this.prisma.vehicle.update({
-        where: { id: vehicleId },
-        data: {
-          complianceBlocked: true,
-          complianceReason:
-            "HARD-STOP: Tarjeta de operación vencida — unidad no despachable",
-        },
-      });
+    await this.recomputeVehicleComplianceBlock(vehicleId);
+  }
+
+  /**
+   * Recalcula complianceBlocked desde SOAT/TM/TO/FUEC (docs + FuecDocument).
+   * Al renovar un trámite, limpia el flag si ya no hay vencidos.
+   */
+  private async recomputeVehicleComplianceBlock(vehicleId: string) {
+    const vehicle = await this.prisma.vehicle.findUnique({
+      where: { id: vehicleId },
+      include: {
+        complianceDocs: true,
+        fuecDocuments: { orderBy: { validTo: "desc" }, take: 3 },
+      },
+    });
+    if (!vehicle) return;
+
+    const now = new Date();
+    const byType = new Map<string, (typeof vehicle.complianceDocs)[0]>();
+    for (const d of vehicle.complianceDocs) {
+      const prev = byType.get(d.type);
+      const exp = d.expiresAt?.getTime() ?? 0;
+      const prevExp = prev?.expiresAt?.getTime() ?? 0;
+      if (!prev || exp > prevExp) byType.set(d.type, d);
     }
+
+    const critical: ComplianceDocType[] = [
+      ComplianceDocType.SOAT,
+      ComplianceDocType.TECNOMECANICA,
+      ComplianceDocType.TARJETA_OPERACION,
+      ComplianceDocType.FUEC,
+    ];
+    const blocks: string[] = [];
+    for (const type of critical) {
+      const d = byType.get(type);
+      if (type === ComplianceDocType.FUEC) {
+        const fuecRec = vehicle.fuecDocuments[0];
+        const docExpired =
+          d &&
+          (d.status === DocStatus.EXPIRED ||
+            (d.expiresAt != null && d.expiresAt.getTime() <= now.getTime()));
+        const recExpired =
+          fuecRec &&
+          (fuecRec.status === DocStatus.EXPIRED ||
+            fuecRec.validTo.getTime() <= now.getTime());
+        // Solo bloquea persistente si hay FUEC vencido (no si falta)
+        if (docExpired || recExpired) blocks.push("FUEC_EXPIRED");
+        continue;
+      }
+      if (!d) {
+        blocks.push(`${type}_MISSING`);
+        continue;
+      }
+      const expired =
+        d.status === DocStatus.EXPIRED ||
+        d.status === DocStatus.SUSPENDED ||
+        (d.expiresAt != null && d.expiresAt.getTime() <= now.getTime());
+      if (expired) blocks.push(`${type}_EXPIRED`);
+    }
+
+    const soat = byType.get(ComplianceDocType.SOAT);
+    const tecno = byType.get(ComplianceDocType.TECNOMECANICA);
+    const soatActivo = Boolean(
+      soat &&
+        soat.status !== DocStatus.EXPIRED &&
+        soat.status !== DocStatus.SUSPENDED &&
+        (!soat.expiresAt || soat.expiresAt.getTime() > now.getTime()),
+    );
+    const tecnoActiva = Boolean(
+      tecno &&
+        tecno.status !== DocStatus.EXPIRED &&
+        tecno.status !== DocStatus.SUSPENDED &&
+        (!tecno.expiresAt || tecno.expiresAt.getTime() > now.getTime()),
+    );
+
+    const complianceBlocked = blocks.length > 0;
+    const reason = complianceBlocked
+      ? `HARD-STOP: ${blocks.join(", ")} — unidad no despachable`
+      : null;
+
+    const nextStatus = complianceBlocked
+      ? VehicleStatus.COMPLIANCE_BLOCKED
+      : vehicle.status === VehicleStatus.COMPLIANCE_BLOCKED
+        ? VehicleStatus.AVAILABLE
+        : vehicle.status;
+
+    await this.prisma.vehicle.update({
+      where: { id: vehicleId },
+      data: {
+        complianceBlocked,
+        complianceReason: reason,
+        soatActivo,
+        tecnoActiva,
+        status: nextStatus,
+      },
+    });
   }
 
   // —— Parqueadero ——
