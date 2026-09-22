@@ -23,7 +23,7 @@ import { QuotePdfService } from "../comercial/quote-pdf.service";
 export class CustomersController {
   constructor(
     private service: CustomersService,
-    private quotePdf: QuotePdfService,
+    private readonly quotesPdf: QuotePdfService,
   ) {}
 
   @Get("customers")
@@ -92,12 +92,12 @@ export class CustomersController {
 
   @Get("quotes/:id/pdf")
   @Header("Content-Type", "application/pdf")
-  async quotePdf(
+  async downloadQuotePdf(
     @Req() req: { user: { organizationId: string } },
     @Param("id") id: string,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const { buffer, pdfRef } = await this.quotePdf.generateSimpleQuotePdf(
+    const { buffer, pdfRef } = await this.quotesPdf.generateSimpleQuotePdf(
       req.user.organizationId,
       id,
     );

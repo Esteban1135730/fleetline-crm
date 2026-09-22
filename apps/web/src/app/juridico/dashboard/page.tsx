@@ -377,7 +377,19 @@ export default function JuridicoDashboardPage() {
         </BentoPanel>
       </div>
 
-      <BentoPanel id="sarlaft" title="Riesgo SARLAFT" subtitle="Consulta listas restrictivas">
+      <BentoPanel
+        id="sarlaft"
+        title="Riesgo SARLAFT"
+        subtitle="Consulta listas restrictivas"
+        action={
+          <a
+            href="/sarlaft/bloqueos"
+            className="font-data text-[11px] font-semibold uppercase tracking-wide text-[var(--brand-primary)] hover:underline"
+          >
+            Bloqueos · liberar
+          </a>
+        }
+      >
         <div className="mb-4 flex flex-wrap gap-2">
           <input
             value={sarlaftDoc}

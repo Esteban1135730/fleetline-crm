@@ -1600,10 +1600,16 @@ export const LIDER_COMPRAS_NAV: RoleNavItem[] = [
 /** Sidebar forzado — Director Operativo (Héctor) */
 export const DIRECTOR_OPERATIVO_NAV: RoleNavItem[] = [
   {
-    href: "/operaciones/director/dashboard",
-    label: "Torre de control",
+    href: "/operaciones/tablero",
+    label: "Tablero y mapa",
     view: "logistica",
-    tip: "Gantt táctico · radar novedades · SLA",
+    tip: "Kanban de viajes · flota GPS",
+  },
+  {
+    href: "/operaciones/director/dashboard",
+    label: "Torre táctica",
+    view: "logistica",
+    tip: "Gantt · radar novedades · SLA",
   },
   {
     href: "/taller",
@@ -1621,6 +1627,12 @@ export const DIRECTOR_OPERATIVO_NAV: RoleNavItem[] = [
 
 /** Sidebar forzado — Gestor Operativo / Micro-Dispatch (Luis) */
 export const GESTOR_OPERATIVO_NAV: RoleNavItem[] = [
+  {
+    href: "/operaciones/tablero",
+    label: "Tablero y mapa",
+    view: "logistica",
+    tip: "Kanban de viajes · flota GPS",
+  },
   {
     href: "/operaciones/despacho/dashboard",
     label: "Microdespacho",
@@ -1644,6 +1656,12 @@ export const GESTOR_OPERATIVO_NAV: RoleNavItem[] = [
 /** Sidebar forzado — Coordinador de Campo (Carlos) */
 export const COORDINADOR_CAMPO_NAV: RoleNavItem[] = [
   {
+    href: "/operaciones/tablero",
+    label: "Tablero y mapa",
+    view: "logistica",
+    tip: "Kanban de viajes · flota GPS",
+  },
+  {
     href: "/operaciones/campo/dashboard",
     label: "Comando de campo",
     view: "logistica",
@@ -1660,8 +1678,14 @@ export const COORDINADOR_CAMPO_NAV: RoleNavItem[] = [
 /** Sidebar forzado — Operador Centro de Control / Watchtower (Valeria) */
 export const OPERADOR_CENTRO_CONTROL_NAV: RoleNavItem[] = [
   {
+    href: "/operaciones/tablero",
+    label: "Tablero y mapa",
+    view: "logistica",
+    tip: "Kanban de viajes · flota GPS",
+  },
+  {
     href: "/centro-control/dashboard",
-    label: "Torre de control",
+    label: "Watchtower",
     view: "logistica",
     tip: "Monitoreo · excepciones · SOS · sala de crisis",
   },
@@ -1798,28 +1822,46 @@ export const GESTOR_VINCULACIONES_NAV: RoleNavItem[] = [
 /** Sidebar forzado — Director Comercial (Felipe) */
 export const DIRECTOR_COMERCIAL_NAV: RoleNavItem[] = [
   {
-    href: "/comercial/director/dashboard",
-    label: "Dirección comercial",
+    href: "/comercial/tablero",
+    label: "Tablero",
     view: "comercial",
-    tip: "Embudo · cotizador · renovaciones",
+    tip: "Embudo · ficha · cotizador · PDF",
+  },
+  {
+    href: "/comercial/director/dashboard",
+    label: "Dirección",
+    view: "comercial",
+    tip: "Renovaciones · DocuSign · cuota",
   },
 ];
 
 /** Sidebar forzado — Gestor Comercial (Valentina) */
 export const GESTOR_COMERCIAL_NAV: RoleNavItem[] = [
   {
-    href: "/comercial/gestor/dashboard",
-    label: "Gestión comercial",
+    href: "/comercial/tablero",
+    label: "Tablero",
     view: "comercial",
-    tip: "Tareas · embudo personal · marcador",
+    tip: "Embudo · ficha · cotizador · PDF",
+  },
+  {
+    href: "/comercial/gestor/dashboard",
+    label: "Gestión",
+    view: "comercial",
+    tip: "Tareas · marcador · cobro anticipado",
   },
 ];
 
 /** Sidebar forzado — Coordinador Comercial (Sergio) */
 export const COORDINADOR_COMERCIAL_NAV: RoleNavItem[] = [
   {
+    href: "/comercial/tablero",
+    label: "Tablero",
+    view: "comercial",
+    tip: "Embudo · ficha · cotizador · PDF",
+  },
+  {
     href: "/comercial/coordinador/dashboard",
-    label: "Coordinación comercial",
+    label: "Coordinación",
     view: "comercial",
     tip: "Tabla de posiciones · SECOP · tiempos",
   },
@@ -1844,10 +1886,16 @@ export const DIRECTOR_JURIDICO_NAV: RoleNavItem[] = [
     tip: "Contratos, calendario y expedientes",
   },
   {
-    href: "/sarlaft",
-    label: "SARLAFT",
+    href: "/sarlaft/bloqueos",
+    label: "Bloqueos SARLAFT",
     view: "sarlaft",
-    tip: "Listas restrictivas y semáforos de riesgo",
+    tip: "Cuarentena · liberación con justificación",
+  },
+  {
+    href: "/sarlaft",
+    label: "Matriz SARLAFT",
+    view: "sarlaft",
+    tip: "Consultas · evidencias · riesgo",
   },
 ];
 
@@ -1860,10 +1908,16 @@ export const JURIDICO_NAV: RoleNavItem[] = [
     tip: "Contratos, calendario y expedientes",
   },
   {
-    href: "/sarlaft",
-    label: "SARLAFT",
+    href: "/sarlaft/bloqueos",
+    label: "Bloqueos SARLAFT",
     view: "sarlaft",
-    tip: "Listas restrictivas y riesgo",
+    tip: "Cuarentena · liberación con justificación",
+  },
+  {
+    href: "/sarlaft",
+    label: "Matriz SARLAFT",
+    view: "sarlaft",
+    tip: "Consultas · evidencias · riesgo",
   },
 ];
 

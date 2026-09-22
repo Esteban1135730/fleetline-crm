@@ -29,6 +29,7 @@ import type {
   CotizarDto,
   CreateDealDto,
   FirmarDocusignDto,
+  UpdateDealDto,
 } from "./dto/director-comercial.dto";
 
 const PIPELINE_STAGES: SalesPipelineStage[] = [
@@ -57,7 +58,17 @@ export class DirectorComercialService {
     const deals = await this.prisma.commercialDeal.findMany({
       where: { organizationId },
       include: {
-        customer: { select: { id: true, name: true, nit: true } },
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            nit: true,
+            email: true,
+            phone: true,
+            sarlaftBlocked: true,
+            sarlaftRiskScore: true,
+          },
+        },
         contract: {
           select: {
             id: true,
@@ -68,16 +79,58 @@ export class DirectorComercialService {
           },
         },
         costCenter: { select: { id: true, code: true, plate: true } },
+        quotes: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          select: { id: true, pdfRef: true, status: true, createdAt: true },
+        },
       },
       orderBy: { updatedAt: "desc" },
     });
 
-    const kanban = Object.fromEntries(
-      PIPELINE_STAGES.map((s) => [s, [] as typeof deals]),
-    ) as Record<SalesPipelineStage, typeof deals>;
+    const mapDeal = (d: (typeof deals)[number]) => {
+      const latestQuote = d.quotes[0] ?? null;
+      return {
+        id: d.id,
+        code: d.code,
+        accountName: d.accountName,
+        stage: d.stage,
+        estimatedMonthlyValue: Number(d.estimatedMonthlyValue),
+        zone: d.zone,
+        vehicleType: d.vehicleType,
+        distanceKm: d.distanceKm,
+        customerId: d.customerId,
+        customer: d.customer
+          ? {
+              id: d.customer.id,
+              name: d.customer.name,
+              nit: d.customer.nit,
+              email: d.customer.email,
+              phone: d.customer.phone,
+              sarlaftBlocked: d.customer.sarlaftBlocked,
+              sarlaftRiskScore: d.customer.sarlaftRiskScore,
+            }
+          : null,
+        latestQuoteId: latestQuote?.id ?? null,
+        pdfRef: latestQuote?.pdfRef ?? null,
+        npsScore: d.npsScore,
+        portfolioCompliancePct: d.portfolioCompliancePct,
+        contract: d.contract,
+        costCenter: d.costCenter,
+        updatedAt: d.updatedAt.toISOString(),
+      };
+    };
 
-    for (const d of deals) {
-      if (kanban[d.stage]) kanban[d.stage].push(d);
+    const mapped = deals.map(mapDeal);
+
+    const kanban = Object.fromEntries(
+      PIPELINE_STAGES.map((s) => [s, [] as typeof mapped]),
+    ) as Record<SalesPipelineStage, typeof mapped>;
+
+    for (const d of mapped) {
+      if (kanban[d.stage as SalesPipelineStage]) {
+        kanban[d.stage as SalesPipelineStage].push(d);
+      }
     }
 
     const wonMonthly = deals
@@ -89,7 +142,7 @@ export class DirectorComercialService {
 
     const radar = await this.renovacionesRadar(organizationId);
 
-    const keyAccounts = deals
+    const keyAccounts = mapped
       .filter(
         (d) =>
           d.stage === SalesPipelineStage.EN_NEGOCIACION ||
@@ -101,7 +154,7 @@ export class DirectorComercialService {
         code: d.code,
         accountName: d.accountName,
         stage: d.stage,
-        estimatedMonthlyValue: Number(d.estimatedMonthlyValue),
+        estimatedMonthlyValue: d.estimatedMonthlyValue,
         npsScore: d.npsScore,
         portfolioCompliancePct: d.portfolioCompliancePct,
         endsAt: d.contract?.endsAt ?? null,
@@ -109,6 +162,7 @@ export class DirectorComercialService {
 
     return {
       kanban,
+      stages: PIPELINE_STAGES,
       metrics: {
         quotaCop: quota,
         wonMonthlyCop: wonMonthly,
@@ -125,6 +179,147 @@ export class DirectorComercialService {
       },
       keyAccounts,
       renewals: radar.items,
+    };
+  }
+
+  async updateDeal(
+    organizationId: string,
+    dealId: string,
+    dto: UpdateDealDto,
+  ) {
+    const deal = await this.prisma.commercialDeal.findFirst({
+      where: { id: dealId, organizationId },
+      include: {
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            nit: true,
+            email: true,
+            phone: true,
+            sarlaftBlocked: true,
+            sarlaftRiskScore: true,
+          },
+        },
+        quotes: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          select: { id: true, pdfRef: true },
+        },
+      },
+    });
+    if (!deal) throw new NotFoundException("Oportunidad no encontrada");
+
+    if (deal.customerId) {
+      const customerPatch: {
+        name?: string;
+        nit?: string;
+        email?: string | null;
+        phone?: string | null;
+      } = {};
+      if (dto.customerName !== undefined) customerPatch.name = dto.customerName;
+      if (dto.nit !== undefined) customerPatch.nit = dto.nit.trim();
+      if (dto.email !== undefined) {
+        customerPatch.email = dto.email.trim() || null;
+      }
+      if (dto.phone !== undefined) {
+        customerPatch.phone = dto.phone.trim() || null;
+      }
+      if (Object.keys(customerPatch).length) {
+        await this.prisma.customer.update({
+          where: { id: deal.customerId },
+          data: customerPatch,
+        });
+      }
+    } else if (
+      dto.customerName ||
+      dto.nit ||
+      dto.email ||
+      dto.phone
+    ) {
+      const nit =
+        (dto.nit?.trim() ||
+          `TMP-${deal.code.replace(/\W/g, "").slice(-10)}`) ??
+        `TMP-${Date.now()}`;
+      const customer = await this.prisma.customer.upsert({
+        where: {
+          organizationId_nit: { organizationId, nit },
+        },
+        create: {
+          organizationId,
+          name: dto.customerName || deal.accountName,
+          nit,
+          email: dto.email?.trim() || null,
+          phone: dto.phone?.trim() || null,
+        },
+        update: {
+          name: dto.customerName || undefined,
+          email:
+            dto.email !== undefined ? dto.email.trim() || null : undefined,
+          phone:
+            dto.phone !== undefined ? dto.phone.trim() || null : undefined,
+        },
+      });
+      await this.prisma.commercialDeal.update({
+        where: { id: deal.id },
+        data: { customerId: customer.id },
+      });
+    }
+
+    const updated = await this.prisma.commercialDeal.update({
+      where: { id: deal.id },
+      data: {
+        ...(dto.stage ? { stage: dto.stage as SalesPipelineStage } : {}),
+        ...(dto.accountName ? { accountName: dto.accountName } : {}),
+        ...(dto.zone ? { zone: dto.zone.toUpperCase() } : {}),
+        ...(dto.vehicleType !== undefined
+          ? { vehicleType: dto.vehicleType || null }
+          : {}),
+        ...(dto.distanceKm !== undefined
+          ? { distanceKm: dto.distanceKm }
+          : {}),
+        ...(dto.estimatedMonthlyValue !== undefined
+          ? { estimatedMonthlyValue: dto.estimatedMonthlyValue }
+          : {}),
+        ...(dto.stage === "CERRADO_GANADO" && !deal.wonAt
+          ? { wonAt: new Date() }
+          : {}),
+      },
+      include: {
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            nit: true,
+            email: true,
+            phone: true,
+            sarlaftBlocked: true,
+            sarlaftRiskScore: true,
+          },
+        },
+        quotes: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          select: { id: true, pdfRef: true },
+        },
+      },
+    });
+
+    const latestQuote = updated.quotes[0] ?? null;
+    return {
+      id: updated.id,
+      code: updated.code,
+      accountName: updated.accountName,
+      stage: updated.stage,
+      estimatedMonthlyValue: Number(updated.estimatedMonthlyValue),
+      zone: updated.zone,
+      vehicleType: updated.vehicleType,
+      distanceKm: updated.distanceKm,
+      customerId: updated.customerId,
+      customer: updated.customer,
+      latestQuoteId: latestQuote?.id ?? null,
+      pdfRef: latestQuote?.pdfRef ?? null,
+      message: "Oportunidad actualizada",
     };
   }
 
