@@ -82,7 +82,8 @@ export function FleetMap({
 
     const tile = L.tileLayer(colors.mapTileUrl, {
       maxZoom: 19,
-      attribution: '&copy; <a href="https://carto.com/">CARTO</a> · OSM',
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     }).addTo(map);
     tileRef.current = tile;
 
@@ -112,7 +113,8 @@ export function FleetMap({
     map.removeLayer(prev);
     const tile = L.tileLayer(colors.mapTileUrl, {
       maxZoom: 19,
-      attribution: '&copy; <a href="https://carto.com/">CARTO</a> · OSM',
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     }).addTo(map);
     tileRef.current = tile;
   }, [themeMode, colors.mapTileUrl]);

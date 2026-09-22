@@ -82,7 +82,8 @@ export function ServicioMapPlanner({
     );
     const tile = L.tileLayer(colors.mapTileUrl, {
       maxZoom: 19,
-      attribution: '&copy; <a href="https://carto.com/">CARTO</a> · OSM',
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     }).addTo(map);
     tileRef.current = tile;
     const layers = L.layerGroup().addTo(map);
@@ -137,7 +138,8 @@ export function ServicioMapPlanner({
     map.removeLayer(prev);
     const tile = L.tileLayer(colors.mapTileUrl, {
       maxZoom: 19,
-      attribution: '&copy; <a href="https://carto.com/">CARTO</a> · OSM',
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     }).addTo(map);
     tileRef.current = tile;
   }, [themeMode, colors.mapTileUrl]);

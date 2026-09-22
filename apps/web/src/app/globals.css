@@ -42,7 +42,7 @@ html.light {
   --brand-crisis-bg: rgba(220, 38, 38, 0.1);
   --brand-live-gradient-from: #0891b2;
   --brand-live-gradient-to: #059669;
-  --brand-map-tile-url: "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
+  --brand-map-tile-url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
   --brand-shadow-panel: 0 12px 36px rgba(11, 26, 42, 0.08);
   --brand-shadow-inset: 0 0 0 1px rgba(255, 255, 255, 0.65);
   --brand-glow-success: 0 0 8px color-mix(in srgb, var(--brand-success) 40%, transparent);
@@ -150,7 +150,7 @@ html.dark,
   --brand-crisis-bg: rgba(255, 42, 85, 0.1);
   --brand-live-gradient-from: #00b4d8;
   --brand-live-gradient-to: #10b981;
-  --brand-map-tile-url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
+  --brand-map-tile-url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
   --brand-shadow-panel: 0 10px 30px rgba(0, 0, 0, 0.28);
   --brand-shadow-inset: 0 0 0 1px rgba(255, 255, 255, 0.04);
   --brand-glow-success: 0 0 8px color-mix(in srgb, var(--brand-success) 45%, transparent);

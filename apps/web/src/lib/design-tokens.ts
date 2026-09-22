@@ -77,8 +77,7 @@ export const lightTokens: DesignTokens = {
   chartMuted: "#64748B",
   chartNeutral: "#94A3B8",
   mapRoute: "#059669",
-  mapTileUrl:
-    "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+  mapTileUrl: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
   crisisBg: "rgba(220, 38, 38, 0.10)",
   liveGradientFrom: "#0891B2",
   liveGradientTo: "#059669",
@@ -120,8 +119,7 @@ export const darkTokens: DesignTokens = {
   chartMuted: "#64748B",
   chartNeutral: "#8B9BB4",
   mapRoute: "#10B981",
-  mapTileUrl:
-    "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+  mapTileUrl: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
   crisisBg: "rgba(255, 42, 85, 0.10)",
   liveGradientFrom: "#00B4D8",
   liveGradientTo: "#10B981",
