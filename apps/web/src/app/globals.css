@@ -38,6 +38,10 @@ html.light {
   --brand-scrim: rgba(11, 26, 42, 0.28);
   --brand-chart-muted: #64748b;
   --brand-chart-neutral: #94a3b8;
+  /* Familias tipográficas (cargadas en layout vía Google Fonts runtime) */
+  --font-display: Inter, "SF Pro Display", system-ui, sans-serif;
+  --font-body: Inter, "SF Pro Display", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
   --brand-map-route: #059669;
   --brand-crisis-bg: rgba(220, 38, 38, 0.1);
   --brand-live-gradient-from: #0891b2;
@@ -242,9 +246,9 @@ html.dark,
   --color-brand-text-primary: var(--brand-text-primary);
   --color-brand-text-secondary: var(--brand-text-secondary);
   --color-brand-field: var(--brand-field);
-  --font-sans: var(--font-body), Inter, "SF Pro Display", Roboto, sans-serif;
-  --font-display: var(--font-display), Inter, "SF Pro Display", Roboto, sans-serif;
-  --font-mono: var(--font-mono), "JetBrains Mono", "Space Grotesk", monospace;
+  --font-sans: Inter, "SF Pro Display", system-ui, sans-serif;
+  --font-display: Inter, "SF Pro Display", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
   --radius-panel: var(--panel-radius);
   --shadow-brand-glow: var(--brand-glow-active);
   --shadow-brand-panel: var(--brand-shadow-panel);
