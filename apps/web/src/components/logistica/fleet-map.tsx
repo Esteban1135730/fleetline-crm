@@ -161,13 +161,9 @@ export function FleetMap({
 
   // Cambio de tema: reemplazar URL sin vaciar el mapa
   useEffect(() => {
-    const map = mapRef.current;
     const prev = tileRef.current;
-    if (!map || !prev) return;
-    if (prev.getAttribution() && (prev as L.TileLayer).getContainer()) {
-      // setUrl mantiene cobertura mientras cargan las nuevas teselas
-      prev.setUrl(colors.mapTileUrl);
-    }
+    if (!prev) return;
+    prev.setUrl(colors.mapTileUrl);
   }, [themeMode, colors.mapTileUrl]);
 
   // Dibujo de ruta + encuadre solo cuando cambia la ruta/modo (no en cada zoom)
