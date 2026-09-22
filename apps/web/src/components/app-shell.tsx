@@ -63,6 +63,8 @@ import { FormGuard } from "@/components/forms/form-guard";
 import { ConfirmMutationHost } from "@/components/confirm-mutation-dialog";
 import { NotificationsProvider } from "@/lib/notifications-context";
 import { TourProvider, useTourOptional } from "@/lib/tour-context";
+import { isQaViewerClient } from "@/lib/qa-trace";
+import { useQaTraceBeacon } from "@/hooks/use-qa-trace-beacon";
 
 const NAV_OPEN_KEY = "flt-nav-depts-open";
 
@@ -643,6 +645,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { setSystemStatus, crisisActive, crisisCode, setCrisisActive } =
     useShell();
+  useQaTraceBeacon();
 
   useEffect(() => {
     if (!loading && !user && pathname !== "/login") {
@@ -654,6 +657,12 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     if (!user || pathname === "/login") return;
     const seg = pathname.split("/").filter(Boolean)[0] || "dashboard";
     if (seg === "cuenta") return;
+    if (seg === "qa-trace") {
+      if (!isQaViewerClient(user.email)) {
+        router.replace(homePath);
+      }
+      return;
+    }
     const resolved = resolveModuleId(seg) || seg;
     if (!canAccess(resolved)) {
       router.replace(homePath);

@@ -71,6 +71,9 @@ services:
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:ops@inretrans.co}
+      # QA Trace (staging) — captura rutas/acciones; panel solo allowlist
+      QA_TRACE_ENABLED: ${QA_TRACE_ENABLED:-false}
+      QA_TRACE_ALLOWLIST: ${QA_TRACE_ALLOWLIST:-esteban@inretrans.com,esteban}
     volumes:
       - fleetline_uploads:/app/uploads
     ports:
@@ -86,6 +89,8 @@ services:
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
         NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-${NEXT_PUBLIC_API_URL}}
+        NEXT_PUBLIC_QA_TRACE: ${NEXT_PUBLIC_QA_TRACE:-0}
+        NEXT_PUBLIC_QA_TRACE_ALLOWLIST: ${NEXT_PUBLIC_QA_TRACE_ALLOWLIST:-esteban@inretrans.com,esteban}
     container_name: fleetline-web
     restart: unless-stopped
     depends_on:

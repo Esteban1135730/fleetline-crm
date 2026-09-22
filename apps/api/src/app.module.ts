@@ -45,6 +45,7 @@ import { UsersModule } from "./users/users.module";
 import { PlatformModule } from "./platform/platform.module";
 import { RecepcionModule } from "./recepcion/recepcion.module";
 import { ModulesModule } from "./modules/modules.module";
+import { QaTraceModule } from "./qa-trace/qa-trace.module";
 import { HealthController } from "./health.controller";
 import { PrismaModule } from "./prisma/prisma.module";
 import { SecurityModule } from "./security/security.module";
@@ -99,6 +100,7 @@ import { SecurityModule } from "./security/security.module";
     PlatformModule,
     RecepcionModule,
     ModulesModule,
+    QaTraceModule,
   ],
   controllers: [HealthController],
 })

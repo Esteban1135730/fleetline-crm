@@ -4872,3 +4872,44 @@ model B2bServiceRequest {
   @@index([contractId, status])
   @@index([tripId])
 }
+
+/// Trazabilidad QA (staging) — sesiones de prueba
+model QaSession {
+  id             String    @id @default(cuid())
+  organizationId String?
+  userId         String?
+  userEmail      String?
+  userName       String?
+  ipAddress      String?
+  userAgent      String?
+  startedAt      DateTime  @default(now())
+  lastSeenAt     DateTime  @default(now())
+  endedAt        DateTime?
+  routeCount     Int       @default(0)
+  actionCount    Int       @default(0)
+  modulesTouched String[]  @default([])
+  events         QaEvent[]
+
+  @@index([userEmail, startedAt])
+  @@index([organizationId, startedAt])
+  @@index([lastSeenAt])
+}
+
+/// Eventos de sesión QA (ruta / acción API)
+model QaEvent {
+  id        String    @id @default(cuid())
+  sessionId String
+  session   QaSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  kind      String
+  path      String?
+  method    String?
+  moduleKey String?
+  meta      Json?
+  ipAddress String?
+  createdAt DateTime  @default(now())
+
+  @@index([sessionId, createdAt])
+  @@index([kind, createdAt])
+  @@index([moduleKey, createdAt])
+  @@index([path, createdAt])
+}
