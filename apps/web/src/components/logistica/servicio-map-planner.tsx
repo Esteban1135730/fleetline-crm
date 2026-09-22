@@ -76,14 +76,18 @@ export function ServicioMapPlanner({
 
   useEffect(() => {
     if (!mapEl.current || mapRef.current) return;
-    const map = L.map(mapEl.current, { zoomControl: true }).setView(
-      [4.65, -74.1],
-      12,
-    );
+    const map = L.map(mapEl.current, {
+      zoomControl: true,
+      minZoom: 4,
+      maxZoom: 19,
+    }).setView([4.65, -74.1], 12);
     const tile = L.tileLayer(colors.mapTileUrl, {
       maxZoom: 19,
+      minZoom: 4,
       attribution:
         '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      updateWhenIdle: true,
+      keepBuffer: 2,
     }).addTo(map);
     tileRef.current = tile;
     const layers = L.layerGroup().addTo(map);
@@ -129,29 +133,23 @@ export function ServicioMapPlanner({
       layersRef.current = null;
       tileRef.current = null;
     };
-  }, [colors.mapTileUrl]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- montaje único
+  }, []);
 
   useEffect(() => {
-    const map = mapRef.current;
     const prev = tileRef.current;
-    if (!map || !prev) return;
-    map.removeLayer(prev);
-    const tile = L.tileLayer(colors.mapTileUrl, {
-      maxZoom: 19,
-      attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    }).addTo(map);
-    tileRef.current = tile;
+    if (!prev) return;
+    prev.setUrl(colors.mapTileUrl);
   }, [themeMode, colors.mapTileUrl]);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !fillHeight) return;
     const ro = new ResizeObserver(() => {
-      map.invalidateSize();
+      map.invalidateSize({ animate: false });
     });
     if (mapEl.current) ro.observe(mapEl.current);
-    requestAnimationFrame(() => map.invalidateSize());
+    requestAnimationFrame(() => map.invalidateSize({ animate: false }));
     return () => ro.disconnect();
   }, [fillHeight]);
 
@@ -188,13 +186,29 @@ export function ServicioMapPlanner({
       for (const p of line) bounds.push(p);
     }
 
+    // Encuadre solo al cambiar pins/ruta, con animate:false (evita flash mundo)
     if (bounds.length >= 2) {
-      map.fitBounds(L.latLngBounds(bounds), { padding: [40, 40], maxZoom: 15 });
+      const b = L.latLngBounds(bounds);
+      if (b.isValid()) {
+        map.fitBounds(b, {
+          padding: [40, 40],
+          maxZoom: 15,
+          animate: false,
+        });
+      }
     } else if (bounds.length === 1) {
-      map.setView(bounds[0], 14);
+      map.setView(bounds[0], 14, { animate: false });
     }
-    requestAnimationFrame(() => map.invalidateSize());
-  }, [origin, dest, preview, colors]);
+  }, [
+    origin,
+    dest,
+    preview,
+    colors.mapRoute,
+    colors.warning,
+    colors.danger,
+    colors.contrastFg,
+    colors.onPrimary,
+  ]);
 
   useEffect(() => {
     if (!origin || !dest) {
