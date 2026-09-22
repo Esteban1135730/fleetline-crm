@@ -534,7 +534,7 @@ function HelpSheet() {
         aria-hidden={!helpOpen}
         aria-label="Centro de ayuda"
       >
-        <div className="flex h-[60px] items-center justify-between border-b border-[var(--brand-border)] px-4">
+        <div className="flex h-[var(--flt-topbar-h)] items-center justify-between border-b border-[var(--brand-border)] px-4">
           <div className="min-w-0">
             <p className="font-data text-[9px] uppercase tracking-[0.16em] text-[var(--brand-text-secondary)]">
               Asistencia contextual
@@ -612,7 +612,7 @@ function InspectorDrawer() {
         className={`flt-inspector ${inspectorOpen ? "is-open" : ""}`}
         aria-hidden={!inspectorOpen}
       >
-        <div className="flex h-[60px] items-center justify-between border-b border-[var(--brand-border)] px-4">
+        <div className="flex h-[var(--flt-topbar-h)] items-center justify-between border-b border-[var(--brand-border)] px-4">
           <div className="min-w-0">
             <p className="font-data text-[9px] uppercase tracking-[0.16em] text-[var(--brand-text-secondary)]">
               Inspector
@@ -1199,7 +1199,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
         />
       ) : null}
       {crisisActive ? (
-        <div className="relative z-[2] border-b border-brand-danger/40 bg-brand-danger/20 px-4 py-1.5 text-center font-data text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-danger">
+        <div className="flt-crisis-banner relative z-[2] border-b border-brand-danger/40 bg-brand-danger/20 px-4 py-1.5 text-center font-data text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-danger">
           Protocolo de crisis activo
           {crisisCode ? ` · ${crisisCode}` : ""} — modo sala de guerra
         </div>

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
@@ -175,7 +175,7 @@ export default function AsignacionesUnidadPage() {
   const linkCount = matrix?.links.length ?? 0;
 
   return (
-    <div className="fade-in mx-auto max-w-[1600px] space-y-6 p-4 md:p-6">
+    <div className="fade-in mx-auto max-w-[1600px] space-y-6">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="font-sans text-xl font-semibold tracking-tight text-brand-text-primary">

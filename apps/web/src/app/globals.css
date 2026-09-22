@@ -261,7 +261,6 @@ html.dark,
 html,
 body {
   height: 100%;
-  overflow-x: hidden;
   max-width: 100%;
 }
 
@@ -357,6 +356,13 @@ html.light body {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--brand-primary);
+}
+
+/* Firefox / Edge estándar — misma estética thin */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--brand-text-secondary) 40%, transparent)
+    transparent;
 }
 
 /* -- Cards & containers (NEXA glass panels) -- */
@@ -1604,15 +1610,25 @@ html.dark .app-header {
    NEXA OS — APP SHELL (TopBar + Sidebar + Workbench + Inspector)
    ======== */
 
+:root {
+  --flt-topbar-h: 56px;
+  --flt-crisis-h: 0px;
+}
+
 .flt-shell {
   position: relative;
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh;
   width: 100%;
   background: var(--brand-canvas);
   color: var(--brand-text-primary);
   overflow: hidden;
+}
+
+.flt-shell:has(.flt-crisis-banner) {
+  --flt-crisis-h: 32px;
 }
 
 /* Atmósfera login → toda la app (glow cian suave) */
@@ -1666,7 +1682,7 @@ html.light .flt-shell::before {
 
 .flt-topbar {
   position: relative;
-  height: 56px;
+  height: var(--flt-topbar-h);
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -1679,6 +1695,32 @@ html.light .flt-shell::before {
   -webkit-backdrop-filter: blur(16px) saturate(1.2);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
   z-index: 50;
+}
+
+@media (max-width: 639px) {
+  .flt-topbar {
+    gap: 0.4rem;
+    padding: 0 0.5rem;
+  }
+  .flt-topbar-left,
+  .flt-topbar-right {
+    gap: 0.25rem;
+  }
+  .flt-module-badge {
+    display: none;
+  }
+  .flt-search-trigger {
+    flex: 0 0 auto;
+    max-width: 2.5rem;
+    padding-inline: 0.55rem;
+  }
+  .flt-search-trigger > span:not(:first-child),
+  .flt-search-trigger .flt-kbd {
+    display: none;
+  }
+  .flt-status-dot {
+    display: none;
+  }
 }
 
 html.light .flt-topbar {
@@ -1944,17 +1986,26 @@ html.dark .flt-sidebar {
   flex: 1;
   min-width: 0;
   max-width: 100%;
-  overflow-x: hidden;
+  overflow-x: auto;
   overflow-y: auto;
   overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   background: transparent;
-  padding: 1.25rem 1.25rem 2rem;
+  padding: 1rem 1rem 1.75rem;
 }
 
 @media (min-width: 768px) {
   .flt-workbench {
-    padding: 1.5rem 1.75rem 2.25rem;
+    padding: 1.25rem 1.5rem 2rem;
   }
+}
+
+/* Página estándar — el workbench ya aporta padding */
+.flt-page {
+  margin-inline: auto;
+  max-width: 1600px;
+  width: 100%;
+  min-width: 0;
 }
 
 .flt-inspector {
@@ -2232,7 +2283,8 @@ html.light .flt-command-panel {
   display: flex;
   align-items: center;
   gap: 0.65rem;
-  min-width: min(100%, 320px);
+  min-width: 0;
+  width: 100%;
   flex: 1;
   max-width: 420px;
   height: 44px;
@@ -2382,7 +2434,7 @@ html.light .flt-command-panel {
 
 .flt-help-scrim {
   position: fixed;
-  inset: 60px 0 0 0;
+  inset: var(--flt-topbar-h) 0 0 0;
   z-index: 35;
   background: rgba(10, 13, 20, 0.35);
   opacity: 0;
@@ -2397,12 +2449,13 @@ html.light .flt-command-panel {
 
 .flt-help-sheet {
   position: fixed;
-  top: 60px;
+  top: var(--flt-topbar-h);
   right: 0;
   z-index: 36;
   display: flex;
   width: min(380px, 100vw);
-  height: calc(100vh - 60px);
+  height: calc(100vh - var(--flt-topbar-h) - var(--flt-crisis-h));
+  height: calc(100dvh - var(--flt-topbar-h) - var(--flt-crisis-h));
   flex-direction: column;
   border-left: 1px solid var(--brand-border);
   background: var(--brand-surface);
@@ -2527,14 +2580,35 @@ html.dark .data-shell table tbody tr:hover {
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2) !important;
 }
 
+.data-shell {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.data-shell table {
+  min-width: 640px;
+  width: 100%;
+}
+
 .data-shell table thead {
   box-shadow: 0 4px 12px -4px rgba(0, 0, 0, 0.35);
-  position: relative;
-  z-index: 1;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.data-shell table thead th {
+  background: color-mix(in srgb, var(--brand-surface-elevated) 92%, transparent);
+  backdrop-filter: blur(8px);
+  white-space: nowrap;
 }
 
 html.light .data-shell table thead {
   box-shadow: 0 4px 12px -4px rgba(0, 0, 0, 0.08);
+}
+
+html.light .data-shell table thead th {
+  background: color-mix(in srgb, var(--brand-surface) 95%, white);
 }
 
 

@@ -42,7 +42,7 @@ export function BentoPanel({
       className={`nexa-panel frosted-glass relative flex flex-col p-4 md:p-5 ${interactive ? "nexa-panel-interactive frosted-glass-interactive" : ""} ${accent ? "bento-panel-accent" : ""} ${className}`}
     >
       {title || icon || action ? (
-        <header className="panel-divider mb-3 flex items-start justify-between gap-2 pb-3">
+        <header className="panel-divider mb-3 flex flex-col gap-2 pb-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 items-center gap-2">
             {icon ? (
               <span className="shrink-0 text-brand-primary [&_svg]:h-4 [&_svg]:w-4">
@@ -62,7 +62,11 @@ export function BentoPanel({
               ) : null}
             </div>
           </div>
-          {action ? <div className="shrink-0">{action}</div> : null}
+          {action ? (
+            <div className="flex w-full flex-wrap items-center justify-stretch gap-2 sm:w-auto sm:justify-end sm:shrink-0">
+              {action}
+            </div>
+          ) : null}
         </header>
       ) : null}
       <div className="min-h-0 flex-1">{children}</div>

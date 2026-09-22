@@ -44,7 +44,7 @@ export function EmptyState({
         <p className="mt-2 max-w-md text-sm text-[var(--brand-text-secondary)]">{description}</p>
       ) : null}
       {actionLabel && onAction ? (
-        <div className="mt-5 flex w-full justify-end sm:w-auto sm:justify-center">
+        <div className="mt-5 flex w-full justify-center">
           <Button variant="primary" className="w-auto px-4 py-2" onClick={onAction}>
             {actionLabel}
           </Button>

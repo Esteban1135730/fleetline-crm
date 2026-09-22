@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
@@ -316,7 +316,7 @@ export default function PresidenciaDashboardPage() {
 
   return (
     <div
-      className={`fade-in relative mx-auto min-h-[100dvh] max-w-[1400px] space-y-5 p-4 md:p-6 ${
+      className={`fade-in relative mx-auto min-h-[100dvh] max-w-[1400px] space-y-5 ${
         defconActive
           ? "bg-brand-canvas text-brand-text-primary"
           : "bg-brand-canvas text-brand-text-primary dark:bg-brand-canvas dark:text-brand-text-primary"

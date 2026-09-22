@@ -152,7 +152,7 @@ export default function QaTracePage() {
   }
 
   return (
-    <div className="space-y-4 p-4 md:p-6">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-xs uppercase tracking-wider text-[var(--text-secondary,#8B9BB4)]">
