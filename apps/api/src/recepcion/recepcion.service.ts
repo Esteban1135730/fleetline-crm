@@ -25,6 +25,8 @@ import { NotificationsService } from "../notifications/notifications.service";
 import { buildVisitorPass } from "../pqrs/pqrs.calc";
 import type {
   ConvertLeadDto,
+  ForwardOmnicanalDto,
+  ForwardTargetArea,
   QuickPqrsDto,
   RadarQuery,
   RecepcionCheckInDto,
@@ -36,6 +38,93 @@ const OMNICANAL_TAGS = [
   "SOPORTE_RUTA",
   "PROVEEDORES",
 ] as const;
+
+type AreaRoute = {
+  label: string;
+  href: string;
+  roles: Role[];
+  notifyKind: NotificationKind;
+};
+
+const AREA_ROUTES: Record<ForwardTargetArea, AreaRoute> = {
+  COMERCIAL: {
+    label: "Comercial",
+    href: "/comercial",
+    roles: [
+      Role.GESTOR_COMERCIAL,
+      Role.COORDINADOR_COMERCIAL,
+      Role.DIRECTOR_COMERCIAL,
+      Role.COMERCIAL,
+    ],
+    notifyKind: NotificationKind.SUPPORT,
+  },
+  LOGISTICA: {
+    label: "Logística",
+    href: "/logistica",
+    roles: [
+      Role.GESTOR_OPERATIVO,
+      Role.DIRECTOR_OPERATIVO,
+      Role.SUPERVISOR_LOGISTICA,
+      Role.CENTRO_CONTROL,
+      Role.DESPACHO,
+      Role.SUPERVISOR,
+    ],
+    notifyKind: NotificationKind.SUPPORT,
+  },
+  QHSE: {
+    label: "QHSE",
+    href: "/qhse/dashboard",
+    roles: [Role.QHSE, Role.LIDER_QHSE, Role.SUPERVISOR],
+    notifyKind: NotificationKind.INCIDENT,
+  },
+  COMPRAS: {
+    label: "Compras",
+    href: "/compras",
+    roles: [Role.COMPRAS, Role.LIDER_COMPRAS],
+    notifyKind: NotificationKind.SUPPORT,
+  },
+  RRHH: {
+    label: "RRHH",
+    href: "/rrhh",
+    roles: [Role.RRHH, Role.VINCULACIONES, Role.GESTOR_VINCULACIONES],
+    notifyKind: NotificationKind.SUPPORT,
+  },
+  TALLER: {
+    label: "Taller",
+    href: "/taller",
+    roles: [Role.COORDINADOR_TALLER, Role.TALLER, Role.MECANICO],
+    notifyKind: NotificationKind.SUPPORT,
+  },
+  TESORERIA: {
+    label: "Tesorería",
+    href: "/tesoreria",
+    roles: [Role.TESORERIA, Role.DIRECTOR_FINANCIERO, Role.FINANZAS],
+    notifyKind: NotificationKind.SUPPORT,
+  },
+  TECNOLOGIA: {
+    label: "Tecnología",
+    href: "/tecnologia",
+    roles: [Role.TECNOLOGIA, Role.LIDER_TI, Role.SISTEMAS],
+    notifyKind: NotificationKind.SYSTEM,
+  },
+  ARCHIVO: {
+    label: "Archivo",
+    href: "/archivo/dashboard",
+    roles: [Role.ARCHIVO, Role.GESTOR_DOCUMENTAL],
+    notifyKind: NotificationKind.SUPPORT,
+  },
+  SARLAFT: {
+    label: "SARLAFT",
+    href: "/sarlaft",
+    roles: [
+      Role.CONTROL_INTERNO,
+      Role.AUDITOR_CONTROL_INTERNO,
+      Role.JURIDICO,
+      Role.DIRECTOR_JURIDICO,
+    ],
+    notifyKind: NotificationKind.INCIDENT,
+  },
+};
 
 @Injectable()
 export class RecepcionService {
@@ -556,6 +645,82 @@ export class RecepcionService {
     };
   }
 
+  async forwardToArea(
+    organizationId: string,
+    actorUserId: string,
+    dto: ForwardOmnicanalDto,
+  ) {
+    const ticket = await this.prisma.ticket.findFirst({
+      where: { id: dto.ticketId, organizationId },
+    });
+    if (!ticket) throw new NotFoundException("Chat/ticket no encontrado");
+
+    const route = AREA_ROUTES[dto.targetArea];
+    const prevMeta = (ticket.meta || {}) as Record<string, unknown>;
+
+    await this.prisma.ticket.update({
+      where: { id: ticket.id },
+      data: {
+        status: TicketStatus.IN_PROGRESS,
+        meta: {
+          ...prevMeta,
+          receptionInbox: false,
+          assignedAwayFromReception: true,
+          forwardedToArea: dto.targetArea,
+          forwardedAt: new Date().toISOString(),
+          forwardedBy: actorUserId,
+          forwardNotes: dto.notes?.trim() || null,
+        },
+      },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        organizationId,
+        action: "RECEPCION_OMNICANAL_FORWARD",
+        entity: "Ticket",
+        entityId: ticket.id,
+        userId: actorUserId,
+        meta: {
+          ticketCode: ticket.code,
+          targetArea: dto.targetArea,
+          notes: dto.notes?.trim() || null,
+        },
+      },
+    });
+
+    await this.kafka.emit("recepcion.omnicanal.forwarded", {
+      organizationId,
+      ticketId: ticket.id,
+      code: ticket.code,
+      targetArea: dto.targetArea,
+      actorUserId,
+    });
+
+    await this.notifications.notify({
+      organizationId,
+      roles: route.roles,
+      kind: route.notifyKind,
+      title: `Recepción → ${route.label}`,
+      body: `${ticket.code}: ${ticket.subject}${dto.notes ? ` · ${dto.notes}` : ""}`,
+      href: route.href,
+      payload: { ticketId: ticket.id, targetArea: dto.targetArea },
+    });
+
+    return {
+      ticketId: ticket.id,
+      code: ticket.code,
+      targetArea: dto.targetArea,
+      assignedAwayFromReception: true,
+      destination: {
+        area: route.label,
+        href: route.href,
+        label: ticket.code,
+      },
+      message: `Mensaje reenviado a ${route.label}`,
+    };
+  }
+
   async quickPqrs(
     organizationId: string,
     actorUserId: string,
@@ -569,12 +734,15 @@ export class RecepcionService {
       },
     });
     const code = `PQRS-${year}-${String(count + 1).padStart(4, "0")}`;
+    const route = AREA_ROUTES[dto.area];
+    const priority = dto.priority as TicketPriority;
 
     const message = [
       dto.message,
       dto.routeLabel ? `Ruta: ${dto.routeLabel}` : "",
       dto.schoolName ? `Colegio: ${dto.schoolName}` : "",
       dto.vehiclePlate ? `Placa: ${dto.vehiclePlate}` : "",
+      `Área destino: ${route.label}`,
     ]
       .filter(Boolean)
       .join("\n");
@@ -588,7 +756,7 @@ export class RecepcionService {
         message,
         channel: (dto.channel as TicketChannel) || TicketChannel.PHONE,
         status: TicketStatus.OPEN,
-        priority: TicketPriority.HIGH,
+        priority,
         pqrsType: PqrsType.COMPLAINT,
         meta: {
           source: "recepcion_quick_ticket",
@@ -596,9 +764,24 @@ export class RecepcionService {
           routeLabel: dto.routeLabel,
           schoolName: dto.schoolName,
           createdBy: actorUserId,
-          notifyTorre: true,
-          notifyQhse: true,
+          targetArea: dto.area,
+          notifyArea: dto.area,
           receptionInbox: false,
+        },
+      },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        organizationId,
+        action: "RECEPCION_PQRS_QUICK",
+        entity: "Ticket",
+        entityId: ticket.id,
+        userId: actorUserId,
+        meta: {
+          code: ticket.code,
+          priority,
+          targetArea: dto.area,
         },
       },
     });
@@ -608,6 +791,8 @@ export class RecepcionService {
       ticketId: ticket.id,
       code: ticket.code,
       subject: ticket.subject,
+      targetArea: dto.area,
+      priority,
     });
 
     this.gateway.server
@@ -615,30 +800,27 @@ export class RecepcionService {
       .emit("recepcion.pqrs.quick_ticket", {
         ticketId: ticket.id,
         code: ticket.code,
+        targetArea: dto.area,
       });
 
     await this.notifications.notify({
       organizationId,
-      roles: [
-        Role.CENTRO_CONTROL,
-        Role.GESTOR_OPERATIVO,
-        Role.DIRECTOR_OPERATIVO,
-        Role.QHSE,
-        Role.SUPERVISOR,
-        Role.DESPACHO,
-      ],
-      kind: NotificationKind.INCIDENT,
-      title: "PQRS rápido — Retraso en ruta",
+      roles: route.roles,
+      kind:
+        priority === TicketPriority.HIGH
+          ? NotificationKind.INCIDENT
+          : route.notifyKind,
+      title: `PQRS rápido — ${route.label}`,
       body: `${ticket.code}: ${ticket.subject}`,
-      href: "/qhse",
-      payload: { ticketId: ticket.id },
+      href: route.href,
+      payload: { ticketId: ticket.id, targetArea: dto.area },
     });
 
     return {
       ...ticket,
       destination: {
-        area: "QHSE / Torre de Control",
-        href: "/qhse/dashboard",
+        area: route.label,
+        href: route.href,
         label: ticket.code,
       },
     };

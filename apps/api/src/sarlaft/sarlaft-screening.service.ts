@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from "@nestjs/common";
 import {
   FleetModule,
@@ -9,7 +10,12 @@ import {
   SarlaftEntityType,
   SarlaftRisk,
 } from "@fsg/db";
+import { createHash } from "crypto";
+import { compareSync } from "bcryptjs";
+import PDFDocument from "pdfkit";
+import { normalizeRole } from "@fsg/shared";
 import { PrismaService } from "../prisma/prisma.service";
+import { assertExecutivePinValid } from "../gerencia/dto/gerencia.dto";
 import {
   RestrictiveListsClient,
   normalizeSarlaftDoc,
@@ -19,6 +25,7 @@ import type {
   SarlaftScreenEntityType,
   ScreenEntityDto,
 } from "./dto/sarlaft.dto";
+import { SARLAFT_OFFICER_ROLES } from "./dto/sarlaft.dto";
 
 export const SARLAFT_BLOCK_SCORE = 80;
 
@@ -175,7 +182,27 @@ export class SarlaftScreeningService {
     alertId: string,
     userId: string,
     dto: ResolveAlertDto,
+    actorRole?: string,
   ) {
+    const role = normalizeRole(String(actorRole || ""));
+    if (!SARLAFT_OFFICER_ROLES.has(role)) {
+      throw new ForbiddenException({
+        statusCode: 403,
+        error: "SARLAFT_OFFICER_REQUIRED",
+        message:
+          "Solo el Oficial de Cumplimiento (Control Interno / Jurídico) puede resolver alertas SARLAFT",
+      });
+    }
+
+    const officer = await this.prisma.user.findFirst({
+      where: { id: userId, organizationId },
+      select: { id: true, executivePinHash: true, email: true },
+    });
+    if (!officer) throw new NotFoundException("Usuario no encontrado");
+    assertExecutivePinValid(dto.pin, officer.executivePinHash, (p, h) =>
+      compareSync(p, h),
+    );
+
     const alert = await this.prisma.sarlaftCheck.findFirst({
       where: { id: alertId, organizationId },
     });
@@ -185,6 +212,23 @@ export class SarlaftScreeningService {
       alert.status === SarlaftAlertStatus.DISMISSED
     ) {
       throw new BadRequestException("La alerta ya fue cerrada");
+    }
+
+    const evidenceWhere: Array<{ id?: string; fileRef?: string }> = [];
+    if (dto.evidenceId) evidenceWhere.push({ id: dto.evidenceId });
+    if (dto.evidenceFileRef) evidenceWhere.push({ fileRef: dto.evidenceFileRef });
+
+    const evidence = await this.prisma.sarlaftEvidence.findFirst({
+      where: {
+        organizationId,
+        checkId: alert.id,
+        OR: evidenceWhere,
+      },
+    });
+    if (!evidence) {
+      throw new BadRequestException(
+        "Evidencia obligatoria: adjunte y referencie un archivo indexado en el expediente",
+      );
     }
 
     const status =
@@ -199,6 +243,13 @@ export class SarlaftScreeningService {
         resolvedAt: new Date(),
         resolvedById: userId,
         resolutionNotes: dto.notes,
+        graphPayload: {
+          ...((alert.graphPayload as Record<string, unknown>) || {}),
+          resolutionEvidenceId: evidence.id,
+          resolutionEvidenceRef: evidence.fileRef,
+          resolvedByRole: role,
+          pinVerified: true,
+        },
       },
     });
 
@@ -227,11 +278,104 @@ export class SarlaftScreeningService {
           document: alert.document,
           entityType: alert.entityType,
           entityId: alert.entityId,
+          evidenceId: evidence.id,
+          pinVerified: true,
+          actorRole: role,
         },
       },
     });
 
     return updated;
+  }
+
+  /** Certificado PDF foliado de una consulta SARLAFT (SCRUM-83). */
+  async buildCertificatePdf(
+    organizationId: string,
+    checkId: string,
+  ): Promise<{ buffer: Buffer; filename: string; sha256: string }> {
+    const check = await this.prisma.sarlaftCheck.findFirst({
+      where: { id: checkId, organizationId },
+      include: {
+        resolvedBy: { select: { name: true, email: true } },
+        evidences: {
+          select: { id: true, source: true, title: true, contentHash: true },
+          take: 20,
+        },
+      },
+    });
+    if (!check) throw new NotFoundException("Consulta SARLAFT no encontrada");
+
+    const issuedAt = new Date().toISOString();
+    const imprint = createHash("sha256")
+      .update(
+        [
+          check.id,
+          check.document,
+          check.risk,
+          String(check.riskScore),
+          check.status,
+          issuedAt,
+        ].join("|"),
+      )
+      .digest("hex");
+
+    const buffer = await new Promise<Buffer>((resolve, reject) => {
+      const doc = new PDFDocument({ margin: 48, size: "LETTER" });
+      const chunks: Buffer[] = [];
+      doc.on("data", (c: Buffer) => chunks.push(c));
+      doc.on("end", () => resolve(Buffer.concat(chunks)));
+      doc.on("error", reject);
+
+      doc
+        .fontSize(16)
+        .text("NEXA · Certificado SARLAFT / Debida Diligence", {
+          align: "center",
+        });
+      doc.moveDown(0.5);
+      doc
+        .fontSize(10)
+        .fillColor("#334155")
+        .text("Superintendencia de Transporte · trazabilidad auditada", {
+          align: "center",
+        });
+      doc.moveDown(1.2);
+      doc.fillColor("#000000").fontSize(11);
+      doc.text(`Folio: ${check.id}`);
+      doc.text(`Emitido: ${issuedAt}`);
+      doc.text(`Sujeto: ${check.subjectName}`);
+      doc.text(`Documento: ${check.document}`);
+      doc.text(`Riesgo: ${check.risk} · Score: ${check.riskScore}`);
+      doc.text(`Estado: ${check.status}`);
+      if (check.listsMatched?.length) {
+        doc.text(`Listas: ${check.listsMatched.join(", ")}`);
+      }
+      if (check.resolvedAt) {
+        doc.text(
+          `Resuelto: ${check.resolvedAt.toISOString()} · ${check.resolvedBy?.name || "—"}`,
+        );
+      }
+      if (check.evidences.length) {
+        doc.moveDown(0.5);
+        doc.text("Evidencias indexadas:");
+        for (const ev of check.evidences) {
+          doc.text(
+            `  · [${ev.source}] ${ev.title}${ev.contentHash ? ` · ${ev.contentHash.slice(0, 12)}…` : ""}`,
+          );
+        }
+      }
+      doc.moveDown(1);
+      doc
+        .fontSize(9)
+        .fillColor("#475569")
+        .text(`SHA-256 imprint: ${imprint}`, { width: 500 });
+      doc.end();
+    });
+
+    return {
+      buffer,
+      filename: `sarlaft-cert-${check.document}-${check.id.slice(0, 8)}.pdf`,
+      sha256: imprint,
+    };
   }
 
   private async resolveEntity(
@@ -298,7 +442,6 @@ export class SarlaftScreeningService {
       };
     }
 
-    // THIRD_PARTY — beneficiario tesorería / tercero sin ficha maestra
     return {
       entityId: entityId || null,
       document: taxIdOrDocument,

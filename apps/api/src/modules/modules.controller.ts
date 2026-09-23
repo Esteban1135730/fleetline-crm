@@ -330,14 +330,20 @@ export class ModulesController {
 
   @Get("compras/budget")
   @RequireModule("compras")
-  comprasBudget(@Req() req: { user: { organizationId: string } }) {
-    return this.svc.getComprasBudget(req.user.organizationId);
+  comprasBudget(
+    @Req() req: { user: { organizationId: string } },
+    @Query("category") category?: string,
+  ) {
+    return this.svc.getComprasBudget(req.user.organizationId, category);
   }
 
   @Post("compras/orders")
   @RequireModule("compras")
   createPurchase(
-    @Req() req: { user: { organizationId: string } },
+    @Req()
+    req: {
+      user: { organizationId: string; userId: string; name?: string };
+    },
     @Body()
     body: {
       description: string;
@@ -345,11 +351,13 @@ export class ModulesController {
       supplierId?: string;
       amount: number;
       category?: string;
-      requestedBy?: string;
       quantity?: number;
     },
   ) {
-    return this.svc.createPurchase(req.user.organizationId, body);
+    return this.svc.createPurchase(req.user.organizationId, body, {
+      userId: req.user.userId,
+      name: req.user.name,
+    });
   }
 
   @Patch("compras/orders/:id/status")

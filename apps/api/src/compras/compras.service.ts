@@ -15,6 +15,7 @@ import { HARD_RULES } from "@fsg/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { ThreeWayMatchingService } from "./three-way-matching.service";
 import { SarlaftComplianceGuard } from "../sarlaft/sarlaft-compliance.guard";
+import { SarlaftScreeningService } from "../sarlaft/sarlaft-screening.service";
 import type {
   CreateGoodsReceiptDto,
   CreatePurchaseOrderDto,
@@ -28,18 +29,35 @@ export class ComprasService {
     private prisma: PrismaService,
     private threeWay: ThreeWayMatchingService,
     private sarlaft: SarlaftComplianceGuard,
+    private screening: SarlaftScreeningService,
   ) {}
 
   /**
-   * Cupo mensual Compras (SCRUM-26): env → HARD_RULES.
-   * Spent = OC del mes no CANCELLED.
+   * Cupo mensual Compras por área/categoría (SCRUM-76).
    */
-  async getMonthlyBudget(organizationId: string) {
-    const envRaw = process.env.COMPRAS_MONTHLY_BUDGET_COP;
-    const monthlyLimit =
-      envRaw && Number.isFinite(Number(envRaw)) && Number(envRaw) > 0
-        ? Number(envRaw)
+  async getMonthlyBudget(organizationId: string, category?: string) {
+    const areaKey = (category || "GENERAL").trim().toUpperCase() || "GENERAL";
+    let areaBudgets: Record<string, number> = {
+      ...HARD_RULES.COMPRAS_AREA_BUDGETS_COP,
+    };
+    const areaJson = process.env.COMPRAS_AREA_BUDGETS_JSON;
+    if (areaJson) {
+      try {
+        const parsed = JSON.parse(areaJson) as Record<string, number>;
+        areaBudgets = { ...areaBudgets, ...parsed };
+      } catch {
+        /* ignore */
+      }
+    }
+
+    const envGlobal = process.env.COMPRAS_MONTHLY_BUDGET_COP;
+    const globalLimit =
+      envGlobal && Number.isFinite(Number(envGlobal)) && Number(envGlobal) > 0
+        ? Number(envGlobal)
         : HARD_RULES.COMPRAS_MONTHLY_BUDGET_COP;
+
+    const monthlyLimit =
+      areaBudgets[areaKey] ?? areaBudgets.GENERAL ?? globalLimit;
 
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -51,12 +69,17 @@ export class ComprasService {
         createdAt: { gte: monthStart, lt: monthEnd },
         status: { not: PurchaseStatus.CANCELLED },
       },
-      select: { totalEstimated: true },
+      select: { totalEstimated: true, meta: true, description: true },
     });
-    const spentThisMonth = orders.reduce(
-      (s, o) => s + Number(o.totalEstimated),
-      0,
-    );
+    const spentThisMonth = orders.reduce((s, o) => {
+      const meta =
+        o.meta && typeof o.meta === "object" && !Array.isArray(o.meta)
+          ? (o.meta as { category?: string })
+          : {};
+      const cat = String(meta.category || "GENERAL").toUpperCase();
+      if (cat !== areaKey) return s;
+      return s + Number(o.totalEstimated);
+    }, 0);
     const available = Math.max(0, monthlyLimit - spentThisMonth);
 
     return {
@@ -64,7 +87,8 @@ export class ComprasService {
       spentThisMonth,
       available,
       currency: "COP",
-      source: envRaw ? "ENV" : "HARD_RULES",
+      category: areaKey,
+      source: areaBudgets[areaKey] ? "HARD_RULES_AREA" : "HARD_RULES",
       period: {
         from: monthStart.toISOString(),
         to: monthEnd.toISOString(),
@@ -75,12 +99,13 @@ export class ComprasService {
   private async assertWithinBudget(
     organizationId: string,
     amount: number,
+    category?: string,
   ) {
-    const budget = await this.getMonthlyBudget(organizationId);
+    const budget = await this.getMonthlyBudget(organizationId, category);
     if (amount > budget.available) {
       throw new UnprocessableEntityException({
         error: "COMPRAS_BUDGET_EXCEEDED",
-        message: `Cupo mensual insuficiente — disponible ${budget.available} COP de ${budget.monthlyLimit}`,
+        message: `Cupo área ${budget.category} insuficiente — disponible ${budget.available} COP de ${budget.monthlyLimit}`,
         budget,
         requested: amount,
       });
@@ -246,7 +271,7 @@ export class ComprasService {
     const bankName = dto.bankName?.trim() || null;
     const bankAccountNumber = dto.bankAccountNumber?.trim() || null;
 
-    return this.prisma.supplier.create({
+    const created = await this.prisma.supplier.create({
       data: {
         organizationId,
         name: dto.name.trim(),
@@ -275,6 +300,26 @@ export class ComprasService {
         createdAt: true,
       },
     });
+
+    // SCRUM-77: screening al alta — setea sarlaftBlocked si riesgo alto
+    try {
+      await this.screening.screenEntity(
+        organizationId,
+        "SUPPLIER",
+        created.id,
+        nit,
+        { subjectName: dto.name.trim() },
+      );
+      const refreshed = await this.prisma.supplier.findFirst({
+        where: { id: created.id },
+        select: { sarlaftBlocked: true },
+      });
+      if (refreshed) created.sarlaftBlocked = refreshed.sarlaftBlocked;
+    } catch {
+      // Screening fallido no tumba el alta; queda para reintento
+    }
+
+    return created;
   }
 
   listOrders(organizationId: string) {

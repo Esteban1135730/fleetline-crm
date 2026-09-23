@@ -283,8 +283,28 @@ export default function TiDashboardPage() {
     }
   }
 
-  function onRotateSecrets() {
-    setInfo("Secrets rotados en staging · tokens de sesión invalidados");
+  async function onRotateSecrets() {
+    setInfo("");
+    setError("");
+    try {
+      const res = await api<{
+        rotated: boolean;
+        previousUntil: string;
+        overlapHours: number;
+        message: string;
+      }>("/api/v1/ti/secrets/rotate-graceful", {
+        method: "POST",
+        body: JSON.stringify({ overlapHours: 24 }),
+      });
+      setInfo(
+        res.message ||
+          `Secrets rotados · overlap hasta ${formatSession(res.previousUntil)} · sesiones preservadas`,
+      );
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "No se pudo rotar secrets",
+      );
+    }
   }
 
   async function openTicketDetail(id: string) {
@@ -717,7 +737,7 @@ export default function TiDashboardPage() {
               description="Genere un enlace de alta desde Acciones rápidas."
             />
           ) : (
-            <NexaTable columns={["Usuario", "Rol", "Estado", "Última sesión", "IP"]}>
+            <NexaTable columns={["Usuario", "Rol", "Estado", "Última sesión", "IP", ""]}>
               {users.map((u) => (
                 <NexaRow key={u.id}>
                   <NexaCell>
@@ -741,6 +761,35 @@ export default function TiDashboardPage() {
                   </NexaCell>
                   <NexaCell mono className="text-xs">{formatSession(u.lastSessionAt)}</NexaCell>
                   <NexaCell mono className="text-xs">{u.lastIp || "N/A"}</NexaCell>
+                  <NexaCell>
+                    <Can on="usuarios_roles" perform="UPDATE">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="w-auto px-2 py-1 text-xs"
+                        onClick={() =>
+                          void api(
+                            `/api/v1/ti/usuarios/${u.id}/revoke-sessions`,
+                            { method: "POST", body: "{}" },
+                          )
+                            .then(() =>
+                              setInfo(
+                                `Sesiones revocadas · ${u.email} — próximo request 401`,
+                              ),
+                            )
+                            .catch((err) =>
+                              setError(
+                                err instanceof Error
+                                  ? err.message
+                                  : "No se pudieron revocar sesiones",
+                              ),
+                            )
+                        }
+                      >
+                        Revocar sesiones
+                      </Button>
+                    </Can>
+                  </NexaCell>
                 </NexaRow>
               ))}
             </NexaTable>

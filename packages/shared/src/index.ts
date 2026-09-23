@@ -1013,6 +1013,19 @@ export const HARD_RULES = {
   PILOT_SPEED_LOCK_KPH: 15,
   /** Cupo mensual Compras (COP) — override con COMPRAS_MONTHLY_BUDGET_COP */
   COMPRAS_MONTHLY_BUDGET_COP: 15_000_000,
+  /** Cupos por área/categoría (COP). Override JSON: COMPRAS_AREA_BUDGETS_JSON */
+  COMPRAS_AREA_BUDGETS_COP: {
+    TALLER: 5_000_000,
+    REPUESTOS: 5_000_000,
+    COMBUSTIBLE: 4_000_000,
+    IT: 2_000_000,
+    TECNOLOGIA: 2_000_000,
+    PAPELERIA: 1_000_000,
+    SERVICIOS: 2_000_000,
+    OPERACIONES: 3_000_000,
+    ADMINISTRATIVO: 2_000_000,
+    GENERAL: 3_000_000,
+  } as Record<string, number>,
 } as const;
 
 /** Zona horaria operativa Colombia — vigencias documentales (SOAT, RTM, TO). */

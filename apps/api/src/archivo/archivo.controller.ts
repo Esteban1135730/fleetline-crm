@@ -6,6 +6,7 @@ import {
   Post,
   Query,
   Req,
+  Res,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -13,7 +14,8 @@ import {
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { join, resolve } from "path";
-import { existsSync, mkdirSync } from "fs";
+import { existsSync, mkdirSync, createReadStream } from "fs";
+import type { Response } from "express";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { ModulesGuard, RequireModule } from "../auth/modules.guard";
 import { Roles, RolesGuard } from "../auth/roles.guard";
@@ -96,10 +98,25 @@ export class ArchivoController {
     );
   }
 
+  /** POST /api/v1/archivo/prestamos/:id/return */
+  @Post("prestamos/:id/return")
+  @Permissions("custodia_fisica", "UPDATE")
+  returnPrestamo(@Req() req: AuthReq, @Param("id") id: string) {
+    return this.ops.returnPrestamo(
+      req.user.organizationId,
+      req.user.userId,
+      id,
+    );
+  }
+
   @Get("search")
   @Permissions("archivo_digital", "READ")
   search(@Req() req: AuthReq, @Query("q") q?: string) {
-    return this.ops.searchUniversal(req.user.organizationId, q || "");
+    return this.ops.searchUniversal(
+      req.user.organizationId,
+      q || "",
+      req.user.role,
+    );
   }
 
   @Get("dashboard")
@@ -141,7 +158,50 @@ export class ArchivoController {
   @Permissions("archivo_digital", "READ")
   list(@Req() req: AuthReq, @Query() query: Record<string, string>) {
     const parsed = ListDocumentsSchema.parse(query ?? {});
-    return this.dataRoom.listDocuments(req.user.organizationId, parsed);
+    return this.dataRoom.listDocuments(
+      req.user.organizationId,
+      parsed,
+      req.user.role,
+    );
+  }
+
+  @Get("documents/:id/history")
+  @Permissions("archivo_digital", "READ")
+  history(@Req() req: AuthReq, @Param("id") id: string) {
+    return this.dataRoom.documentHistory(
+      req.user.organizationId,
+      id,
+      req.user.role,
+    );
+  }
+
+  @Get("documents/:id/download")
+  @Permissions("archivo_digital", "READ")
+  async download(
+    @Req() req: AuthReq,
+    @Param("id") id: string,
+    @Res() res: Response,
+  ) {
+    const doc = await this.dataRoom.getDocumentForDownload(
+      req.user.organizationId,
+      id,
+      req.user.role,
+      req.user.userId,
+    );
+    const stored = String(doc.fileRef || "").replace(/^\/uploads\//, "");
+    const abs = join(UPLOADS_DIR, stored);
+    if (!existsSync(abs)) {
+      throw new BadRequestException("Archivo físico no disponible");
+    }
+    res.setHeader(
+      "Content-Type",
+      doc.mimeType || "application/octet-stream",
+    );
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${encodeURIComponent(doc.originalName || doc.title)}"`,
+    );
+    createReadStream(abs).pipe(res);
   }
 
   @Post("ocr/process")
@@ -166,6 +226,7 @@ export class ArchivoController {
       req.user.organizationId,
       entityType,
       entityId,
+      req.user.role,
     );
   }
 }

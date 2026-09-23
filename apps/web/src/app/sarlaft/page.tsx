@@ -51,7 +51,6 @@ type Alert = {
 const EMPTY_FORM = {
   subjectName: "",
   subjectDoc: "",
-  risk: "LOW",
   notes: "",
 };
 
@@ -139,18 +138,14 @@ export default function SarlaftPage() {
     setFormError("");
     setBusy(true);
     try {
-      await api("/sarlaft/checks", {
-        method: "POST",
-        body: JSON.stringify(form),
-      });
       await api("/sarlaft/screen", {
         method: "POST",
         body: JSON.stringify({
+          type: "THIRD_PARTY",
+          taxIdOrDocument: form.subjectDoc,
           subjectName: form.subjectName,
-          subjectDoc: form.subjectDoc,
-          entityType: "SUPPLIER",
         }),
-      }).catch(() => undefined);
+      });
       setForm(EMPTY_FORM);
       setFormOpen(false);
       await load();
@@ -208,6 +203,25 @@ export default function SarlaftPage() {
     }
   }
 
+  async function downloadCertificate(checkId: string) {
+    const token =
+      typeof window !== "undefined" ? localStorage.getItem("fsg_token") : null;
+    const res = await fetch(`${API_URL}/sarlaft/checks/${checkId}/certificate`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      credentials: "include",
+    });
+    if (!res.ok) {
+      throw new Error("No se pudo generar el certificado");
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `sarlaft-cert-${checkId.slice(0, 8)}.pdf`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="fade-in mx-auto max-w-[1600px] space-y-6">
       <header className="flex flex-wrap items-start justify-between gap-3 border-b border-brand-border pb-4">
@@ -231,9 +245,9 @@ export default function SarlaftPage() {
             summary="Prevención de lavado de activos y financiamiento del terrorismo aplicada a clientes, proveedores y operaciones."
             steps={[
               "Finalidad: conocer al sujeto (KYC), cruzar listas restrictivas y dejar trazabilidad auditada de la debida diligencia.",
-              "En esta pantalla: crear consultas, ajustar el nivel de riesgo, abrir el expediente y adjuntar evidencias (Policía, Procuraduría, Registraduría, antecedentes, OFAC/ONU/PEPS).",
-              "Impacto: alertas abiertas y sujetos bloqueados pueden frenar alta de cliente (Comercial) y desembolsos/CxP (Tesorería/Compras). Logística y otras áreas también respetan el bloqueo cuando aplica.",
-              "Override: solo roles privilegiados pueden forzar operaciones pese a SARLAFT; queda registro de auditoría.",
+              "En esta pantalla: crear consultas vía screening automático, abrir el expediente y adjuntar evidencias (Policía, Procuraduría, Registraduría, antecedentes, OFAC/ONU/PEPS).",
+              "El nivel de riesgo lo calcula el motor de screening (POST /sarlaft/screen); no se selecciona manualmente.",
+              "Impacto: alertas abiertas y sujetos bloqueados pueden frenar alta de cliente (Comercial), desembolsos (Tesorería/Compras) y asignación/despacho en Logística.",
             ]}
           />
           <Button
@@ -293,7 +307,7 @@ export default function SarlaftPage() {
         <EmptyState
           icon={<ShieldAlert className="h-7 w-7" />}
           title="Sin consultas SARLAFT"
-          description="Registre la primera debida diligencia: nombre, documento y riesgo. El resultado puede bloquear altas comerciales o pagos si el sujeto queda en alto riesgo o bloqueado."
+          description="Registre la primera debida diligencia: nombre y documento. El screening asigna el riesgo automáticamente."
           actionLabel="+ Nueva consulta"
           onAction={() => setFormOpen(true)}
         />
@@ -347,22 +361,19 @@ export default function SarlaftPage() {
                     {formatCheckedAt(r.checkedAt || r.createdAt)}
                   </NexaCell>
                   <NexaCell>
-                    <select
-                      className="field py-1 text-xs"
-                      value={r.risk}
-                      onChange={async (e) => {
-                        await api(`/sarlaft/checks/${r.id}`, {
-                          method: "PATCH",
-                          body: JSON.stringify({ risk: e.target.value }),
-                        });
-                        await load();
-                      }}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="w-auto px-3 py-1"
+                      onClick={() =>
+                        void downloadCertificate(r.id).catch((err) =>
+                          console.error(err),
+                        )
+                      }
                     >
-                      <option value="LOW">Bajo</option>
-                      <option value="MEDIUM">Medio</option>
-                      <option value="HIGH">Alto</option>
-                      <option value="BLOCKED">Bloqueado</option>
-                    </select>
+                      <FileText className="mr-1 inline h-3.5 w-3.5" />
+                      Certificado
+                    </Button>
                   </NexaCell>
                 </NexaRow>
               );
@@ -375,7 +386,7 @@ export default function SarlaftPage() {
         open={formOpen}
         onClose={() => setFormOpen(false)}
         title="Nueva consulta SARLAFT"
-        description="Debida diligencia y clasificación de riesgo."
+        description="Debida diligencia automática vía screening de listas."
         footer={
           <>
             <Button
@@ -435,21 +446,10 @@ export default function SarlaftPage() {
               required
             />
           </label>
-          <label className="block space-y-1.5">
-            <span className="text-xs font-semibold uppercase tracking-wider text-brand-text-secondary">
-              Nivel de riesgo
-            </span>
-            <select
-              className="field w-full"
-              value={form.risk}
-              onChange={(e) => setForm({ ...form, risk: e.target.value })}
-            >
-              <option value="LOW">Bajo</option>
-              <option value="MEDIUM">Medio</option>
-              <option value="HIGH">Alto</option>
-              <option value="BLOCKED">Bloqueado</option>
-            </select>
-          </label>
+          <p className="text-xs text-brand-text-secondary">
+            El nivel de riesgo lo asigna el motor de screening (listas
+            restrictivas). No hay selección manual.
+          </p>
           <label className="block space-y-1.5">
             <span className="text-xs font-semibold uppercase tracking-wider text-brand-text-secondary">
               Notas

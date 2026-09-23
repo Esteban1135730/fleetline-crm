@@ -8,6 +8,8 @@ import { Role, UserAccountStatus } from "@fsg/db";
 import { normalizeRole } from "@fsg/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { NocMonitoringService } from "./noc-monitoring.service";
+import { UsersService } from "../users/users.service";
+import { rotateJwtSecretGraceful } from "../security/jwt-secret";
 import type { MdmPairQrDto, OnboardingLinkDto } from "./dto/ti.dto";
 
 const ROLE_TO_PRISMA: Record<string, Role> = {
@@ -22,7 +24,67 @@ const ROLE_TO_PRISMA: Record<string, Role> = {
   tesoreria: Role.TESORERIA,
   vinculaciones: Role.VINCULACIONES,
   monitora: Role.MONITORA,
+  gestor_documental: Role.GESTOR_DOCUMENTAL,
+  auxiliar_contable: Role.AUXILIAR_CONTABLE,
+  gestor_contable: Role.GESTOR_CONTABLE,
+  director_financiero: Role.DIRECTOR_FINANCIERO,
+  qhse: Role.QHSE,
+  lider_qhse: Role.LIDER_QHSE,
+  compras: Role.COMPRAS,
+  lider_compras: Role.LIDER_COMPRAS,
+  director_operativo: Role.DIRECTOR_OPERATIVO,
+  coordinador_operativo: Role.COORDINADOR_OPERATIVO,
+  coordinador_campo: Role.COORDINADOR_CAMPO,
+  operador_centro_control: Role.OPERADOR_CENTRO_CONTROL,
+  control_interno: Role.CONTROL_INTERNO,
+  auditor_control_interno: Role.AUDITOR_CONTROL_INTERNO,
+  presidencia: Role.PRESIDENCIA,
+  presidente: Role.PRESIDENTE,
+  gestor_vinculaciones: Role.GESTOR_VINCULACIONES,
+  coordinador_comercial: Role.COORDINADOR_COMERCIAL,
+  gestor_comercial: Role.GESTOR_COMERCIAL,
+  director_comercial: Role.DIRECTOR_COMERCIAL,
+  gerente_general: Role.GERENTE_GENERAL,
+  juridico: Role.JURIDICO,
+  director_juridico: Role.DIRECTOR_JURIDICO,
+  coordinador_taller: Role.COORDINADOR_TALLER,
+  auxiliar_almacen_taller: Role.AUXILIAR_ALMACEN_TALLER,
+  mecanico: Role.MECANICO,
+  coordinador_patio: Role.COORDINADOR_PATIO,
+  auxiliar_patio: Role.AUXILIAR_PATIO,
+  sub_gerente: Role.SUB_GERENTE,
 };
+
+/** Whitelist estricta RoleCode para onboarding TI (SCRUM-90). */
+const TI_ASSIGNABLE_ROLE_VALUES = new Set(Object.values(ROLE_TO_PRISMA));
+
+function resolveTiTargetRole(raw?: string): Role {
+  if (!raw?.trim()) {
+    throw new BadRequestException({
+      statusCode: 400,
+      error: "INVALID_ROLE_CODE",
+      message: "targetRole es obligatorio y debe ser un RoleCode válido",
+    });
+  }
+  let prismaRole: Role;
+  try {
+    prismaRole = UsersService.resolveRole(raw);
+  } catch {
+    throw new BadRequestException({
+      statusCode: 400,
+      error: "INVALID_ROLE_CODE",
+      message: `Rol inválido: ${raw}`,
+    });
+  }
+  if (!TI_ASSIGNABLE_ROLE_VALUES.has(prismaRole)) {
+    throw new BadRequestException({
+      statusCode: 400,
+      error: "INVALID_ROLE_CODE",
+      message: `Rol no permitido en onboarding TI: ${raw}`,
+    });
+  }
+  return prismaRole;
+}
 
 function hashToken(raw: string) {
   return createHash("sha256").update(raw).digest("hex");
@@ -51,11 +113,7 @@ export class TiOpsService {
     dto: OnboardingLinkDto,
   ) {
     const email = dto.email.toLowerCase().trim();
-    const roleKey = normalizeRole(dto.targetRole || "conductor");
-    const targetRole =
-      ROLE_TO_PRISMA[roleKey] ||
-      ROLE_TO_PRISMA[String(dto.targetRole || "").toLowerCase()] ||
-      Role.CONDUCTOR;
+    const targetRole = resolveTiTargetRole(dto.targetRole);
 
     const rawToken = randomBytes(32).toString("base64url");
     const expiresAt = new Date(
@@ -87,6 +145,52 @@ export class TiOpsService {
       expiresAt: row.expiresAt.toISOString(),
       onboardingUrl,
       singleUse: true as const,
+    };
+  }
+
+  /** SCRUM-91 — invalida JWTs del usuario bumpando sessionVersion */
+  async revokeUserSessions(organizationId: string, userId: string) {
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, organizationId },
+      select: { id: true, email: true, sessionVersion: true },
+    });
+    if (!user) throw new NotFoundException("Usuario no encontrado");
+
+    const updated = await this.prisma.user.update({
+      where: { id: user.id },
+      data: { sessionVersion: { increment: 1 } },
+      select: { id: true, email: true, sessionVersion: true },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        organizationId,
+        action: "TI_REVOKE_SESSIONS",
+        entity: "User",
+        entityId: user.id,
+        meta: {
+          previousVersion: user.sessionVersion,
+          sessionVersion: updated.sessionVersion,
+          email: user.email,
+        },
+      },
+    });
+
+    return {
+      ok: true as const,
+      userId: updated.id,
+      sessionVersion: updated.sessionVersion,
+      message: "Sesiones invalidadas — el próximo request devolverá 401",
+    };
+  }
+
+  /** SCRUM-93 — rotación JWT con overlap; no wipea sesiones */
+  rotateSecretsGraceful(overlapHours?: number) {
+    const result = rotateJwtSecretGraceful({ overlapHours });
+    return {
+      ...result,
+      message:
+        "JWT_SECRET rotado · JWT_SECRET_PREVIOUS vigente durante overlap · sesiones preservadas",
     };
   }
 

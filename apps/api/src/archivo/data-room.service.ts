@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
@@ -8,7 +9,9 @@ import {
   ArchiveDocType,
   ArchiveEntityType,
   ArchiveValidationStatus,
+  ArchiveVisibility,
   FleetModule,
+  Role,
 } from "@fsg/db";
 import { PrismaService } from "../prisma/prisma.service";
 import { OcrIngestionService } from "./ocr-ingestion.service";
@@ -28,12 +31,70 @@ function parseTags(
     .filter(Boolean);
 }
 
+const CONFIDENTIAL_ROLES = new Set<string>([
+  Role.GESTOR_DOCUMENTAL,
+  Role.ARCHIVO,
+  Role.ORG_ADMIN,
+  Role.PLATFORM_MASTER,
+  Role.SUPERADMIN,
+  Role.GERENTE_GENERAL,
+  Role.PRESIDENCIA,
+  Role.PRESIDENTE,
+  Role.JURIDICO,
+  Role.DIRECTOR_JURIDICO,
+  Role.REVISOR_FISCAL,
+  Role.REVISORIA,
+  Role.CONTROL_INTERNO,
+  Role.AUDITOR_CONTROL_INTERNO,
+]);
+
+const RESTRICTED_ROLES = new Set<string>([
+  ...CONFIDENTIAL_ROLES,
+  Role.SUB_GERENTE,
+  Role.DIRECTOR_FINANCIERO,
+  Role.DIRECTOR_OPERATIVO,
+  Role.DIRECTOR_COMERCIAL,
+  Role.LIDER_QHSE,
+  Role.LIDER_COMPRAS,
+  Role.LIDER_TI,
+  Role.GESTOR_CONTABLE,
+  Role.TESORERIA,
+  Role.QHSE,
+  Role.COMPRAS,
+  Role.RRHH,
+  Role.VINCULACIONES,
+]);
+
 @Injectable()
 export class DataRoomService {
   constructor(
     private prisma: PrismaService,
     private ocr: OcrIngestionService,
   ) {}
+
+  visibilityFilter(role: string): ArchiveVisibility[] {
+    const normalized = String(role || "").toUpperCase();
+    if (CONFIDENTIAL_ROLES.has(normalized as Role)) {
+      return [
+        ArchiveVisibility.PUBLIC,
+        ArchiveVisibility.RESTRICTED,
+        ArchiveVisibility.CONFIDENTIAL,
+      ];
+    }
+    if (RESTRICTED_ROLES.has(normalized as Role)) {
+      return [ArchiveVisibility.PUBLIC, ArchiveVisibility.RESTRICTED];
+    }
+    return [ArchiveVisibility.PUBLIC];
+  }
+
+  assertCanAccessVisibility(role: string, visibility: ArchiveVisibility) {
+    const allowed = this.visibilityFilter(role);
+    if (!allowed.includes(visibility)) {
+      throw new ForbiddenException(
+        `Visibilidad ${visibility} no autorizada para el rol`,
+      );
+    }
+  }
 
   async upload(
     organizationId: string,
@@ -56,6 +117,8 @@ export class DataRoomService {
         : docType === ArchiveDocType.OTHER
           ? ArchiveCategory.OTHER
           : ArchiveCategory.COMPLIANCE);
+    const visibility =
+      (meta.visibility as ArchiveVisibility) || ArchiveVisibility.RESTRICTED;
 
     const entityType = meta.entityType as ArchiveEntityType | undefined;
     const links = await this.resolveEntityLinks(organizationId, {
@@ -73,6 +136,7 @@ export class DataRoomService {
         title: meta.title || meta.originalName,
         category,
         docType,
+        visibility,
         tags,
         fileRef: `/uploads/${meta.storedName}`,
         originalName: meta.originalName,
@@ -101,6 +165,7 @@ export class DataRoomService {
         meta: {
           title: doc.title,
           docType: doc.docType,
+          visibility: doc.visibility,
           entityType: doc.entityType,
           entityId: doc.entityId,
           contentHash,
@@ -124,13 +189,30 @@ export class DataRoomService {
     return { document: doc, extracted: null, event: null };
   }
 
-  listDocuments(organizationId: string, query: ListDocumentsDto) {
-    const tags = query.tag ? [query.tag] : undefined;
+  listDocuments(
+    organizationId: string,
+    query: ListDocumentsDto,
+    role: string,
+  ) {
+    const allowed = this.visibilityFilter(role);
+    const tagList = [
+      ...(query.tag ? [query.tag] : []),
+      ...parseTags(query.tags),
+    ];
     return this.prisma.archiveDocument.findMany({
       where: {
         organizationId,
         deletedAt: null,
-        ...(query.entityType ? { entityType: query.entityType as ArchiveEntityType } : {}),
+        visibility: {
+          in: query.visibility
+            ? allowed.includes(query.visibility as ArchiveVisibility)
+              ? [query.visibility as ArchiveVisibility]
+              : []
+            : allowed,
+        },
+        ...(query.entityType
+          ? { entityType: query.entityType as ArchiveEntityType }
+          : {}),
         ...(query.entityId ? { entityId: query.entityId } : {}),
         ...(query.vehicleId ? { vehicleId: query.vehicleId } : {}),
         ...(query.driverId ? { driverId: query.driverId } : {}),
@@ -148,7 +230,7 @@ export class DataRoomService {
                 query.validationStatus as ArchiveValidationStatus,
             }
           : {}),
-        ...(tags ? { tags: { hasSome: tags } } : {}),
+        ...(tagList.length ? { tags: { hasSome: tagList } } : {}),
         ...(query.q
           ? {
               OR: [
@@ -172,10 +254,110 @@ export class DataRoomService {
     });
   }
 
+  async getDocumentForDownload(
+    organizationId: string,
+    documentId: string,
+    role: string,
+    actorUserId?: string,
+  ) {
+    const doc = await this.prisma.archiveDocument.findFirst({
+      where: { id: documentId, organizationId, deletedAt: null },
+      include: {
+        uploadedBy: { select: { id: true, name: true, email: true } },
+      },
+    });
+    if (!doc) throw new NotFoundException("Documento no encontrado");
+    this.assertCanAccessVisibility(role, doc.visibility);
+    if (!doc.fileRef) {
+      throw new BadRequestException("Documento sin archivo digital");
+    }
+
+    await this.prisma.auditLog.create({
+      data: {
+        organizationId,
+        action: "ARCHIVE_DOWNLOAD",
+        entity: "ArchiveDocument",
+        entityId: doc.id,
+        module: FleetModule.ARCHIVO,
+        userId: actorUserId,
+        meta: {
+          title: doc.title,
+          visibility: doc.visibility,
+          contentHash: doc.contentHash,
+          fileRef: doc.fileRef,
+        },
+      },
+    });
+
+    return doc;
+  }
+
+  async documentHistory(
+    organizationId: string,
+    documentId: string,
+    role: string,
+  ) {
+    const doc = await this.prisma.archiveDocument.findFirst({
+      where: { id: documentId, organizationId, deletedAt: null },
+      include: {
+        uploadedBy: { select: { id: true, name: true, email: true } },
+      },
+    });
+    if (!doc) throw new NotFoundException("Documento no encontrado");
+    this.assertCanAccessVisibility(role, doc.visibility);
+
+    const [events, loans] = await Promise.all([
+      this.prisma.auditLog.findMany({
+        where: {
+          organizationId,
+          entity: "ArchiveDocument",
+          entityId: documentId,
+        },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+        include: { user: { select: { id: true, name: true, email: true } } },
+      }),
+      this.prisma.documentLoan.findMany({
+        where: { organizationId, documentId },
+        orderBy: { checkedOutAt: "desc" },
+        take: 50,
+      }),
+    ]);
+
+    return {
+      document: {
+        id: doc.id,
+        title: doc.title,
+        visibility: doc.visibility,
+        uploadedBy: doc.uploadedBy,
+        createdAt: doc.createdAt.toISOString(),
+      },
+      events: events.map((e) => ({
+        id: e.id,
+        action: e.action,
+        userName: e.user?.name ?? "sistema",
+        userId: e.userId,
+        createdAt: e.createdAt.toISOString(),
+        meta: e.meta,
+      })),
+      loans: loans.map((l) => ({
+        loanId: l.id,
+        status: l.status,
+        borrowerName: l.borrowerName,
+        borrowerUserId: l.borrowerUserId,
+        checkedOutById: l.checkedOutById,
+        checkedOutAt: l.checkedOutAt.toISOString(),
+        returnedAt: l.returnedAt?.toISOString() ?? null,
+        dueAt: l.dueAt?.toISOString() ?? null,
+      })),
+    };
+  }
+
   async dataRoom(
     organizationId: string,
     entityTypeRaw: string,
     entityId: string,
+    role: string,
   ) {
     const entityType = String(entityTypeRaw).toUpperCase() as ArchiveEntityType;
     if (!Object.values(ArchiveEntityType).includes(entityType)) {
@@ -192,6 +374,7 @@ export class DataRoomService {
       where: {
         organizationId,
         deletedAt: null,
+        visibility: { in: this.visibilityFilter(role) },
         OR: [
           { entityType, entityId },
           ...(entityType === ArchiveEntityType.VEHICLE

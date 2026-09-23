@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { Prisma } from "@fsg/db";
+import { ArchiveVisibility, Prisma } from "@fsg/db";
 import { PrismaService } from "../prisma/prisma.service";
 import { KafkaEventsService } from "../logistics/kafka-events.service";
 import type {
@@ -13,6 +13,40 @@ import type {
 } from "./dto/archivo.dto";
 
 export const INVENTORY_REORDER_EVENT = "inventory.reorder_level_reached";
+
+const CONFIDENTIAL_ROLES = new Set([
+  "GESTOR_DOCUMENTAL",
+  "ARCHIVO",
+  "ORG_ADMIN",
+  "PLATFORM_MASTER",
+  "SUPERADMIN",
+  "GERENTE_GENERAL",
+  "PRESIDENCIA",
+  "PRESIDENTE",
+  "JURIDICO",
+  "DIRECTOR_JURIDICO",
+  "REVISOR_FISCAL",
+  "REVISORIA",
+  "CONTROL_INTERNO",
+  "AUDITOR_CONTROL_INTERNO",
+]);
+
+const RESTRICTED_ROLES = new Set([
+  ...CONFIDENTIAL_ROLES,
+  "SUB_GERENTE",
+  "DIRECTOR_FINANCIERO",
+  "DIRECTOR_OPERATIVO",
+  "DIRECTOR_COMERCIAL",
+  "LIDER_QHSE",
+  "LIDER_COMPRAS",
+  "LIDER_TI",
+  "GESTOR_CONTABLE",
+  "TESORERIA",
+  "QHSE",
+  "COMPRAS",
+  "RRHH",
+  "VINCULACIONES",
+]);
 
 @Injectable()
 export class ArchivoOpsService {
@@ -214,6 +248,23 @@ export class ArchivoOpsService {
       }),
     ]);
 
+    await this.prisma.auditLog.create({
+      data: {
+        organizationId,
+        action: "DOCUMENT_LOAN_CHECKED_OUT",
+        entity: "ArchiveDocument",
+        entityId: doc.id,
+        userId: checkedOutById,
+        meta: {
+          title: doc.title,
+          loanId: loan.id,
+          borrowerUserId: borrower.id,
+          borrowerName: borrower.name,
+          dueAt: dueAt.toISOString(),
+        } as Prisma.InputJsonValue,
+      },
+    }).catch(() => undefined);
+
     return {
       loanId: loan.id,
       documentId: doc.id,
@@ -226,19 +277,94 @@ export class ArchivoOpsService {
     };
   }
 
-  async searchUniversal(organizationId: string, q: string) {
+  /** Check-in / devolución de carpeta física → RETURNED */
+  async returnPrestamo(
+    organizationId: string,
+    returnedById: string,
+    loanId: string,
+  ) {
+    const loan = await this.prisma.documentLoan.findFirst({
+      where: { id: loanId, organizationId },
+      include: {
+        document: {
+          select: {
+            id: true,
+            title: true,
+            aisle: true,
+            shelf: true,
+            box: true,
+            custodyStatus: true,
+          },
+        },
+      },
+    });
+    if (!loan) throw new NotFoundException("Préstamo no encontrado");
+    if (loan.status === "RETURNED") {
+      throw new BadRequestException("Préstamo ya marcado como devuelto");
+    }
+
+    const returnedAt = new Date();
+    await this.prisma.$transaction([
+      this.prisma.documentLoan.update({
+        where: { id: loan.id },
+        data: {
+          status: "RETURNED",
+          returnedAt,
+        },
+      }),
+      this.prisma.archiveDocument.update({
+        where: { id: loan.documentId },
+        data: { custodyStatus: "AVAILABLE" },
+      }),
+    ]);
+
+    await this.prisma.auditLog.create({
+      data: {
+        organizationId,
+        action: "DOCUMENT_LOAN_RETURNED",
+        entity: "ArchiveDocument",
+        entityId: loan.documentId,
+        userId: returnedById,
+        meta: {
+          title: loan.document.title,
+          loanId: loan.id,
+          borrowerUserId: loan.borrowerUserId,
+          borrowerName: loan.borrowerName,
+          returnedAt: returnedAt.toISOString(),
+        } as Prisma.InputJsonValue,
+      },
+    }).catch(() => undefined);
+
+    return {
+      loanId: loan.id,
+      documentId: loan.documentId,
+      title: loan.document.title,
+      status: "RETURNED",
+      returnedAt: returnedAt.toISOString(),
+      returnedById,
+      locationLabel: this.formatLocation(
+        loan.document.aisle,
+        loan.document.shelf,
+        loan.document.box,
+      ),
+    };
+  }
+
+  async searchUniversal(organizationId: string, q: string, role?: string) {
     const term = q.trim();
     if (term.length < 2) return [];
 
     const digits = term.replace(/\D+/g, "");
     const plateKey = term.replace(/[\s-]/g, "").toUpperCase();
     const nameTerm = term;
+    const visibilityIn = this.visibilityLevelsForRole(role);
 
     const [docs, vehicles, drivers, employees, customers] = await Promise.all([
       this.prisma.archiveDocument.findMany({
         where: {
           organizationId,
           deletedAt: null,
+          visibility: { in: visibilityIn },
           OR: [
             { plate: { contains: term, mode: "insensitive" } },
             { taxIdOrDocument: { contains: term, mode: "insensitive" } },
@@ -273,6 +399,7 @@ export class ArchivoOpsService {
           pendingDigitization: true,
           docType: true,
           category: true,
+          visibility: true,
           vehicleId: true,
           driverId: true,
           entityType: true,
@@ -500,6 +627,8 @@ export class ArchivoOpsService {
       ingestionDocs,
       accessRows,
       inactiveDrivers,
+      quickRut,
+      quickCamara,
     ] = await Promise.all([
       this.prisma.archiveDocument.findMany({
         where: {
@@ -532,6 +661,7 @@ export class ArchivoOpsService {
               aisle: true,
               shelf: true,
               box: true,
+              uploadedBy: { select: { id: true, name: true } },
             },
           },
         },
@@ -587,6 +717,7 @@ export class ArchivoOpsService {
           updatedAt: true,
           vehicleId: true,
           driverId: true,
+          uploadedBy: { select: { id: true, name: true } },
         },
       }),
       this.prisma.auditLog.findMany({
@@ -595,17 +726,54 @@ export class ArchivoOpsService {
           OR: [
             { entity: "ArchiveDocument" },
             { action: { startsWith: "ARCHIVE_" } },
+            { action: { startsWith: "DOCUMENT_LOAN_" } },
             { action: "CUSTODIA_FISICA_ASSIGNED" },
           ],
         },
         orderBy: { createdAt: "desc" },
-        take: 20,
+        take: 30,
         include: { user: { select: { name: true, email: true } } },
       }),
       this.prisma.driver.findMany({
         where: { organizationId, active: false },
         select: { id: true, name: true, document: true },
         take: 20,
+      }),
+      this.prisma.archiveDocument.findMany({
+        where: {
+          organizationId,
+          deletedAt: null,
+          tags: { hasSome: ["RUT"] },
+        },
+        orderBy: { updatedAt: "desc" },
+        take: 12,
+        select: {
+          id: true,
+          title: true,
+          tags: true,
+          fileRef: true,
+          visibility: true,
+          updatedAt: true,
+          uploadedBy: { select: { id: true, name: true } },
+        },
+      }),
+      this.prisma.archiveDocument.findMany({
+        where: {
+          organizationId,
+          deletedAt: null,
+          tags: { hasSome: ["CAMARA_COMERCIO"] },
+        },
+        orderBy: { updatedAt: "desc" },
+        take: 12,
+        select: {
+          id: true,
+          title: true,
+          tags: true,
+          fileRef: true,
+          visibility: true,
+          updatedAt: true,
+          uploadedBy: { select: { id: true, name: true } },
+        },
       }),
     ]);
 
@@ -717,6 +885,8 @@ export class ArchivoOpsService {
           title: l.document.title,
           borrowerName: l.borrowerName,
           borrowerUserId: l.borrowerUserId,
+          checkedOutById: l.checkedOutById,
+          uploadedByName: l.document.uploadedBy?.name ?? null,
           checkedOutAt: l.checkedOutAt.toISOString(),
           dueAt: l.dueAt?.toISOString() ?? null,
           daysOut,
@@ -738,6 +908,26 @@ export class ArchivoOpsService {
         critical: i.quantity <= i.minStock,
       })),
       overdueLoanCount: overdueBorrowers.length,
+      quickAccess: {
+        rut: quickRut.map((d) => ({
+          id: d.id,
+          title: d.title,
+          tags: d.tags,
+          fileRef: d.fileRef,
+          visibility: d.visibility,
+          uploadedByName: d.uploadedBy?.name ?? null,
+          updatedAt: d.updatedAt.toISOString(),
+        })),
+        camaraComercio: quickCamara.map((d) => ({
+          id: d.id,
+          title: d.title,
+          tags: d.tags,
+          fileRef: d.fileRef,
+          visibility: d.visibility,
+          uploadedByName: d.uploadedBy?.name ?? null,
+          updatedAt: d.updatedAt.toISOString(),
+        })),
+      },
     };
   }
 
@@ -784,6 +974,21 @@ export class ArchivoOpsService {
       reminded += 1;
     }
     return { reminded, scanned: overdue.length };
+  }
+
+  private visibilityLevelsForRole(role?: string): ArchiveVisibility[] {
+    const normalized = String(role || "").toUpperCase();
+    if (CONFIDENTIAL_ROLES.has(normalized)) {
+      return [
+        ArchiveVisibility.PUBLIC,
+        ArchiveVisibility.RESTRICTED,
+        ArchiveVisibility.CONFIDENTIAL,
+      ];
+    }
+    if (RESTRICTED_ROLES.has(normalized)) {
+      return [ArchiveVisibility.PUBLIC, ArchiveVisibility.RESTRICTED];
+    }
+    return [ArchiveVisibility.PUBLIC, ArchiveVisibility.RESTRICTED];
   }
 
   private formatLocation(

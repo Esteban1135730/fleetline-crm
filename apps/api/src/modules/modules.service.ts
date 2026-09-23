@@ -10,6 +10,7 @@ import {
   InvoiceType,
   PaymentScheduleStatus,
   PurchaseStatus,
+  SarlaftAlertStatus,
   SarlaftRisk,
   TicketChannel,
   TicketPriority,
@@ -465,13 +466,15 @@ export class ModulesService {
     if (!data.subjectName?.trim() || !data.subjectDoc?.trim()) {
       throw new BadRequestException("SARLAFT requiere subjectName y subjectDoc");
     }
+    // SCRUM-79: riesgo del cliente se ignora — usar POST /sarlaft/screen
+    void data.risk;
     return this.prisma.sarlaftCheck
       .create({
         data: {
           organizationId,
           subjectName: data.subjectName,
           document: data.subjectDoc,
-          risk: (data.risk as SarlaftRisk) || SarlaftRisk.LOW,
+          risk: SarlaftRisk.LOW,
           notes: data.notes,
           customerId: data.customerId,
         },
@@ -495,10 +498,11 @@ export class ModulesService {
       where: { id, organizationId },
     });
     if (!s) throw new NotFoundException();
+    // SCRUM-79: riesgo manual del cliente se ignora
+    void data.risk;
     return this.prisma.sarlaftCheck.update({
       where: { id },
       data: {
-        risk: data.risk ? (data.risk as SarlaftRisk) : undefined,
         notes: data.notes,
         customerId: data.customerId,
       },
@@ -1161,12 +1165,31 @@ export class ModulesService {
     return rows.map((po) => this.mapPurchaseRow(po));
   }
 
-  async getComprasBudget(organizationId: string) {
-    const envRaw = process.env.COMPRAS_MONTHLY_BUDGET_COP;
-    const monthlyLimit =
-      envRaw && Number.isFinite(Number(envRaw)) && Number(envRaw) > 0
-        ? Number(envRaw)
+  async getComprasBudget(organizationId: string, category?: string) {
+    const areaKey = (category || "GENERAL").trim().toUpperCase() || "GENERAL";
+    let areaBudgets: Record<string, number> = {
+      ...HARD_RULES.COMPRAS_AREA_BUDGETS_COP,
+    };
+    const areaJson = process.env.COMPRAS_AREA_BUDGETS_JSON;
+    if (areaJson) {
+      try {
+        const parsed = JSON.parse(areaJson) as Record<string, number>;
+        areaBudgets = { ...areaBudgets, ...parsed };
+      } catch {
+        /* ignore malformed env */
+      }
+    }
+
+    const envGlobal = process.env.COMPRAS_MONTHLY_BUDGET_COP;
+    const globalLimit =
+      envGlobal && Number.isFinite(Number(envGlobal)) && Number(envGlobal) > 0
+        ? Number(envGlobal)
         : HARD_RULES.COMPRAS_MONTHLY_BUDGET_COP;
+
+    const monthlyLimit =
+      areaBudgets[areaKey] ??
+      areaBudgets.GENERAL ??
+      globalLimit;
 
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -1178,19 +1201,29 @@ export class ModulesService {
         createdAt: { gte: monthStart, lt: monthEnd },
         status: { not: PurchaseStatus.CANCELLED },
       },
-      select: { totalEstimated: true },
+      select: { totalEstimated: true, meta: true },
     });
-    const spentThisMonth = orders.reduce(
-      (s, o) => s + Number(o.totalEstimated),
-      0,
-    );
+
+    const spentThisMonth = orders.reduce((s, o) => {
+      const meta = this.purchaseUiMeta(o.meta);
+      const cat = String(meta.category || "GENERAL").toUpperCase();
+      if (cat !== areaKey) return s;
+      return s + Number(o.totalEstimated);
+    }, 0);
 
     return {
       monthlyLimit,
       spentThisMonth,
       available: Math.max(0, monthlyLimit - spentThisMonth),
       currency: "COP",
-      source: envRaw ? "ENV" : "HARD_RULES",
+      category: areaKey,
+      source: areaJson
+        ? "ENV_AREA"
+        : areaBudgets[areaKey]
+          ? "HARD_RULES_AREA"
+          : envGlobal
+            ? "ENV"
+            : "HARD_RULES",
       period: {
         from: monthStart.toISOString(),
         to: monthEnd.toISOString(),
@@ -1206,9 +1239,9 @@ export class ModulesService {
       supplierId?: string;
       amount: number;
       category?: string;
-      requestedBy?: string;
       quantity?: number;
     },
+    actor: { userId: string; name?: string },
   ) {
     let supplierId = data.supplierId?.trim() || undefined;
     let supplierName = (data.supplier || "").trim();
@@ -1223,6 +1256,24 @@ export class ModulesService {
       if (supplier.sarlaftBlocked) {
         throw new BadRequestException(
           "Hard lock SARLAFT: proveedor bloqueado — no puede emitir OC",
+        );
+      }
+      const pending = await this.prisma.sarlaftCheck.findFirst({
+        where: {
+          organizationId,
+          document: supplier.nit.replace(/\D/g, ""),
+          status: {
+            in: [SarlaftAlertStatus.PENDING, SarlaftAlertStatus.UNDER_REVIEW],
+          },
+          risk: {
+            in: [SarlaftRisk.MEDIUM, SarlaftRisk.HIGH, SarlaftRisk.BLOCKED],
+          },
+        },
+        select: { id: true, risk: true },
+      });
+      if (pending) {
+        throw new BadRequestException(
+          "Hard lock SARLAFT: consulta pendiente o riesgo elevado — no puede emitir OC",
         );
       }
       supplierName = supplier.name;
@@ -1249,16 +1300,33 @@ export class ModulesService {
       throw new BadRequestException("Seleccione un proveedor del directorio");
     }
 
+    if (!actor?.userId) {
+      throw new BadRequestException(
+        "Solicitante requerido — sesión JWT inválida",
+      );
+    }
+
     const amount = Number(data.amount) || 0;
-    const budget = await this.getComprasBudget(organizationId);
+    const category = (data.category || "GENERAL").toUpperCase();
+    const budget = await this.getComprasBudget(organizationId, category);
     if (amount > budget.available) {
       throw new UnprocessableEntityException({
         error: "COMPRAS_BUDGET_EXCEEDED",
-        message: `Cupo mensual insuficiente — disponible ${budget.available} COP de ${budget.monthlyLimit}`,
+        message: `Cupo área ${category} insuficiente — disponible ${budget.available} COP de ${budget.monthlyLimit}`,
         budget,
         requested: amount,
       });
     }
+
+    const requester = await this.prisma.user.findFirst({
+      where: { id: actor.userId, organizationId },
+      select: { id: true, name: true, email: true },
+    });
+    const requestedBy =
+      requester?.name ||
+      actor.name ||
+      requester?.email ||
+      actor.userId;
 
     const count = await this.prisma.purchaseOrder.count({
       where: { organizationId },
@@ -1284,8 +1352,9 @@ export class ModulesService {
         supplierId: supplierId ?? null,
         meta: {
           supplierName,
-          category: data.category || "GENERAL",
-          requestedBy: data.requestedBy ?? null,
+          category,
+          requestedBy,
+          requestedByUserId: actor.userId,
         },
         lines: {
           create: [
@@ -1314,6 +1383,21 @@ export class ModulesService {
     });
     if (!po) throw new NotFoundException();
     const next = status.toUpperCase() as PurchaseStatus;
+
+    if (next === PurchaseStatus.RECEIVED) {
+      const receipts = await this.prisma.goodsReceipt.count({
+        where: { purchaseOrderId: po.id },
+      });
+      if (receipts < 1) {
+        throw new UnprocessableEntityException({
+          error: "COMPRAS_RECEIPT_REQUIRED",
+          message:
+            "Confirme recepción (remisión) antes de marcar RECEIVED / liberar CxP",
+          purchaseOrderId: po.id,
+        });
+      }
+    }
+
     const updated = await this.prisma.purchaseOrder.update({
       where: { id },
       data: { status: next },

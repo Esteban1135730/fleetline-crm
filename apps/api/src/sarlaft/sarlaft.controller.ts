@@ -6,11 +6,14 @@ import {
   Post,
   Query,
   Req,
+  Res,
   UseGuards,
 } from "@nestjs/common";
 import { SarlaftAlertStatus } from "@fsg/db";
+import type { Response } from "express";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { ModulesGuard, RequireModule } from "../auth/modules.guard";
+import { Roles, RolesGuard } from "../auth/roles.guard";
 import { SarlaftScreeningService } from "./sarlaft-screening.service";
 import {
   ResolveAlertSchema,
@@ -18,7 +21,7 @@ import {
 } from "./dto/sarlaft.dto";
 
 type AuthReq = {
-  user: { organizationId: string; userId: string };
+  user: { organizationId: string; userId: string; role: string };
 };
 
 @Controller("sarlaft")
@@ -49,6 +52,14 @@ export class SarlaftController {
   }
 
   @Post("alerts/:id/resolve")
+  @UseGuards(RolesGuard)
+  @Roles(
+    "control_interno",
+    "auditor_control_interno",
+    "director_juridico",
+    "juridico",
+    "org_admin",
+  )
   resolve(
     @Req() req: AuthReq,
     @Param("id") id: string,
@@ -60,6 +71,27 @@ export class SarlaftController {
       id,
       req.user.userId,
       dto,
+      req.user.role,
     );
+  }
+
+  /** SCRUM-83 — certificado PDF de consulta SARLAFT */
+  @Get("checks/:id/certificate")
+  async certificate(
+    @Req() req: AuthReq,
+    @Param("id") id: string,
+    @Res() res: Response,
+  ) {
+    const cert = await this.screening.buildCertificatePdf(
+      req.user.organizationId,
+      id,
+    );
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${cert.filename}"`,
+    );
+    res.setHeader("X-Sarlaft-Sha256", cert.sha256);
+    res.send(cert.buffer);
   }
 }

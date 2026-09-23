@@ -692,6 +692,12 @@ enum ArchiveEntityType {
   GENERAL
 }
 
+enum ArchiveVisibility {
+  PUBLIC
+  RESTRICTED
+  CONFIDENTIAL
+}
+
 enum InventoryItemStatus {
   AVAILABLE
   RESERVED
@@ -1004,6 +1010,8 @@ model User {
   approvalsGiven User[]       @relation("UserApprovals")
   approvedAt     DateTime?
   active         Boolean      @default(true)
+  /// Incrementar invalida JWTs emitidos con versión anterior (revoke-sessions)
+  sessionVersion Int          @default(0)
   lastLoginAt    DateTime?
   lastIp         String?
   organizationId String
@@ -3954,6 +3962,7 @@ model ArchiveDocument {
   category         ArchiveCategory         @default(OTHER)
   docType          ArchiveDocType          @default(OTHER)
   validationStatus ArchiveValidationStatus @default(PENDING)
+  visibility       ArchiveVisibility       @default(RESTRICTED)
   tags             String[]
   contentHash      String?
   fileRef          String?
@@ -4000,6 +4009,7 @@ model ArchiveDocument {
   @@index([organizationId, category])
   @@index([organizationId, docType])
   @@index([organizationId, validationStatus])
+  @@index([organizationId, visibility])
   @@index([organizationId, entityType, entityId])
   @@index([organizationId, pendingDigitization])
   @@index([organizationId, custodyStatus])

@@ -52,6 +52,29 @@ export const ConvertLeadSchema = z.object({
 });
 export type ConvertLeadDto = z.infer<typeof ConvertLeadSchema>;
 
+export const ForwardTargetAreaSchema = z.enum([
+  "COMERCIAL",
+  "LOGISTICA",
+  "QHSE",
+  "COMPRAS",
+  "RRHH",
+  "TALLER",
+  "TESORERIA",
+  "TECNOLOGIA",
+  "ARCHIVO",
+  "SARLAFT",
+]);
+export type ForwardTargetArea = z.infer<typeof ForwardTargetAreaSchema>;
+
+export const ForwardOmnicanalSchema = z.object({
+  ticketId: z.string().min(1),
+  targetArea: ForwardTargetAreaSchema,
+  notes: FieldOptional.notes,
+});
+export type ForwardOmnicanalDto = z.infer<typeof ForwardOmnicanalSchema>;
+
+export const TicketPrioritySchema = z.enum(["LOW", "MEDIUM", "HIGH"]);
+
 export const QuickPqrsSchema = z.object({
   subject: z.string().min(3).optional().default("Retraso en ruta"),
   requester: Field.personName,
@@ -63,6 +86,8 @@ export const QuickPqrsSchema = z.object({
   channel: z
     .enum(["WHATSAPP", "EMAIL", "PHONE", "WEB", "PRESENCIAL", "VOICE_AI"])
     .optional(),
+  priority: TicketPrioritySchema,
+  area: ForwardTargetAreaSchema,
 });
 export type QuickPqrsDto = z.infer<typeof QuickPqrsSchema>;
 

@@ -46,6 +46,21 @@ const PQRS_FIELDS = [
   "message",
   "schoolName",
   "routeLabel",
+  "priority",
+  "area",
+] as const;
+
+const FORWARD_AREAS = [
+  { value: "COMERCIAL", label: "Comercial" },
+  { value: "LOGISTICA", label: "Logística" },
+  { value: "QHSE", label: "QHSE" },
+  { value: "COMPRAS", label: "Compras" },
+  { value: "RRHH", label: "RRHH" },
+  { value: "TALLER", label: "Taller" },
+  { value: "TESORERIA", label: "Tesorería" },
+  { value: "TECNOLOGIA", label: "Tecnología" },
+  { value: "ARCHIVO", label: "Archivo" },
+  { value: "SARLAFT", label: "SARLAFT" },
 ] as const;
 
 function FormAlert({ message }: { message: string }) {
@@ -214,7 +229,11 @@ export default function RecepcionDashboardPage() {
     message: "Cliente reporta retraso en ruta",
     schoolName: "",
     routeLabel: "",
+    priority: "MEDIUM",
+    area: "QHSE",
   });
+  const [forwardArea, setForwardArea] = useState<string>("LOGISTICA");
+  const [forwardBusy, setForwardBusy] = useState(false);
 
   const load = useCallback(async () => {
     setError("");
@@ -247,6 +266,15 @@ export default function RecepcionDashboardPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      void api<Metrics>("/api/v1/recepcion/metrics/daily")
+        .then((met) => setMetrics(met))
+        .catch(() => undefined);
+    }, 20_000);
+    return () => window.clearInterval(id);
+  }, []);
 
   async function updateVisitorStatus(id: string, boardStatus: string) {
     setVisitBusyId(id);
@@ -387,10 +415,12 @@ export default function RecepcionDashboardPage() {
           message: pqrsForm.message,
           schoolName: pqrsForm.schoolName || undefined,
           routeLabel: pqrsForm.routeLabel || undefined,
+          priority: pqrsForm.priority,
+          area: pqrsForm.area,
         }),
       });
       setInfo(
-        `PQRS ${t.code} enviada a ${t.destination?.area || "QHSE / Torre de Control"}.`,
+        `PQRS ${t.code} enviada a ${t.destination?.area || pqrsForm.area}.`,
       );
       setInfoHref(t.destination?.href || "/qhse/dashboard");
       setPqrsForm({
@@ -398,6 +428,8 @@ export default function RecepcionDashboardPage() {
         message: "Cliente reporta retraso en ruta",
         schoolName: "",
         routeLabel: "",
+        priority: "MEDIUM",
+        area: "QHSE",
       });
       setPanel("none");
       await load();
@@ -405,6 +437,32 @@ export default function RecepcionDashboardPage() {
       const split = splitFormApiError(err, [...PQRS_FIELDS]);
       setPqrsFormError(split.formError);
       setPqrsFieldErrors(split.fieldErrors);
+    }
+  }
+
+  async function forwardSelectedChat() {
+    if (!selectedChat) return;
+    setForwardBusy(true);
+    setError("");
+    try {
+      const res = await api<{
+        message: string;
+        destination?: { href: string; area: string };
+      }>("/api/v1/recepcion/omnicanal/forward", {
+        method: "POST",
+        body: JSON.stringify({
+          ticketId: selectedChat.id,
+          targetArea: forwardArea,
+        }),
+      });
+      setInfo(res.message);
+      setInfoHref(res.destination?.href || "#omnicanal");
+      setSelectedChat(null);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo reenviar");
+    } finally {
+      setForwardBusy(false);
     }
   }
 
@@ -446,10 +504,6 @@ export default function RecepcionDashboardPage() {
           <h1 className="font-sans text-2xl font-semibold tracking-tight text-brand-text-primary md:text-3xl">
             Recepción · visitantes y mensajes
           </h1>
-          <p className="mt-1 max-w-xl text-sm text-brand-text-secondary">
-            Registro de visitas, mensajes entrantes (WhatsApp, correo, llamadas)
-            y pase a Comercial o QHSE.
-          </p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
           <Button
@@ -563,10 +617,6 @@ export default function RecepcionDashboardPage() {
               <MessageSquare className="h-4 w-4 text-brand-text-secondary" aria-hidden />
               Bandeja de mensajes
             </div>
-            <p className="mt-1 text-xs leading-relaxed text-brand-text-secondary">
-              Aquí llegan WhatsApp, correo y llamadas. Seleccione un mensaje
-              para leerlo y enviarlo a Comercial cuando pida cotización.
-            </p>
           </div>
           {inbox.length === 0 ? (
             <div className="p-4">
@@ -631,35 +681,53 @@ export default function RecepcionDashboardPage() {
               <p className="line-clamp-4 text-xs text-[var(--brand-text-secondary)]">
                 {selectedChat.message}
               </p>
-              <p className="text-[11px] text-brand-text-secondary">
-                Acciones en recepción: enviar a Comercial (asigna al gestor y
-                saca el caso de esta bandeja). La respuesta detallada del chat
-                se hace en Atención al cliente.
-              </p>
-              <div className="flex flex-wrap justify-end gap-2">
-                <Button
-                  variant="ghost"
-                  className="w-auto border border-brand-border px-3 py-1.5 text-xs"
-                  onClick={() => setSelectedChat(null)}
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="sr-only" htmlFor="forward-area">
+                  Área destino
+                </label>
+                <select
+                  id="forward-area"
+                  className="field h-9 min-h-[36px] w-auto min-w-[140px] text-xs"
+                  value={forwardArea}
+                  onChange={(e) => setForwardArea(e.target.value)}
                 >
-                  Cerrar vista
+                  {FORWARD_AREAS.map((a) => (
+                    <option key={a.value} value={a.value}>
+                      {a.label}
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  variant="primary"
+                  className="w-auto px-3 py-1.5 text-xs"
+                  disabled={forwardBusy}
+                  onClick={() => void forwardSelectedChat()}
+                >
+                  Reenviar a área
                 </Button>
                 <Button
                   variant="ghost"
-                  className="w-auto border border-brand-warning/50 px-4 py-2 text-brand-warning hover:bg-brand-warning/10"
+                  className="w-auto border border-brand-warning/50 px-3 py-1.5 text-xs text-brand-warning hover:bg-brand-warning/10"
                   onClick={() => {
                     setLeadFormError("");
                     setLeadFieldErrors({});
                     setPanel("lead");
                   }}
                 >
-                  Enviar a Comercial
+                  Convertir a lead
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="w-auto border border-brand-border px-3 py-1.5 text-xs"
+                  onClick={() => setSelectedChat(null)}
+                >
+                  Cerrar
                 </Button>
               </div>
             </div>
           ) : inbox.length > 0 ? (
             <div className="border-t border-[var(--brand-border)] px-3 py-2 text-xs text-brand-text-secondary">
-              Seleccione un mensaje para leerlo y enviarlo a Comercial si aplica.
+              Seleccione un mensaje para reenviar a un área o convertirlo a lead.
             </div>
           ) : null}
         </section>
@@ -1115,8 +1183,8 @@ export default function RecepcionDashboardPage() {
         title="Nueva PQRS"
         description={
           pqrsDefcon
-            ? "Urgencia — se detectó lenguaje crítico. Escala de inmediato a QHSE."
-            : "Radicación rápida hacia Torre de Control / QHSE."
+            ? "Urgencia — se detectó lenguaje crítico."
+            : "Radicación rápida con prioridad y área destino."
         }
         footer={
           <>
@@ -1173,6 +1241,48 @@ export default function RecepcionDashboardPage() {
               setPqrsForm((f) => ({ ...f, routeLabel: e.target.value }))
             }
           />
+          <div className="grid grid-cols-2 gap-2">
+            <label className="flex flex-col gap-1 text-xs uppercase text-brand-text-secondary">
+              Prioridad
+              <select
+                className={`field h-11 min-h-[44px] ${pqrsFieldErrors.priority ? "border-[var(--brand-danger)]" : ""}`}
+                value={pqrsForm.priority}
+                onChange={(e) => {
+                  setPqrsFieldErrors((prev) =>
+                    clearFieldError(prev, "priority"),
+                  );
+                  setPqrsForm((f) => ({ ...f, priority: e.target.value }));
+                }}
+                required
+                aria-invalid={Boolean(pqrsFieldErrors.priority) || undefined}
+              >
+                <option value="LOW">Baja</option>
+                <option value="MEDIUM">Media</option>
+                <option value="HIGH">Alta</option>
+              </select>
+              <FieldHint message={pqrsFieldErrors.priority} />
+            </label>
+            <label className="flex flex-col gap-1 text-xs uppercase text-brand-text-secondary">
+              Área
+              <select
+                className={`field h-11 min-h-[44px] ${pqrsFieldErrors.area ? "border-[var(--brand-danger)]" : ""}`}
+                value={pqrsForm.area}
+                onChange={(e) => {
+                  setPqrsFieldErrors((prev) => clearFieldError(prev, "area"));
+                  setPqrsForm((f) => ({ ...f, area: e.target.value }));
+                }}
+                required
+                aria-invalid={Boolean(pqrsFieldErrors.area) || undefined}
+              >
+                {FORWARD_AREAS.map((a) => (
+                  <option key={a.value} value={a.value}>
+                    {a.label}
+                  </option>
+                ))}
+              </select>
+              <FieldHint message={pqrsFieldErrors.area} />
+            </label>
+          </div>
           <div>
             <textarea
               className={`field min-h-[80px] ${pqrsFieldErrors.message ? "border-[var(--brand-danger)]" : ""}`}

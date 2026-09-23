@@ -1,0 +1,2 @@
+-- SCRUM-91: bump sessionVersion invalida JWTs previos por usuario
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "sessionVersion" INTEGER NOT NULL DEFAULT 0;

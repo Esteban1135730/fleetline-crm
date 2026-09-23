@@ -12,6 +12,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
 import {
   EmptyState,
   KpiCard,
@@ -78,7 +79,6 @@ const emptyForm = {
   amount: "",
   quantity: "1",
   category: "GENERAL",
-  requestedBy: "",
 };
 
 const emptySupplierForm = {
@@ -97,6 +97,7 @@ function formatCop(n: number) {
 }
 
 export default function ComprasPage() {
+  const { user } = useAuth();
   const [rows, setRows] = useState<Purchase[]>([]);
   const [suppliers, setSuppliers] = useState<SupplierOpt[]>([]);
   const [budget, setBudget] = useState<ComprasBudget | null>(null);
@@ -109,7 +110,8 @@ export default function ComprasPage() {
   const [busy, setBusy] = useState(false);
   const [supplierBusy, setSupplierBusy] = useState(false);
 
-  async function load() {
+  async function load(category?: string) {
+    const cat = category || form.category || "GENERAL";
     const [orders, supplierList, budgetRes] = await Promise.all([
       api<Purchase[]>("/compras/orders"),
       api<SupplierOpt[]>("/compras/proveedores").catch(async () => {
@@ -118,7 +120,9 @@ export default function ComprasPage() {
         ).catch(() => ({ savings: { suppliers: [] as SupplierOpt[] } }));
         return dash.savings?.suppliers ?? [];
       }),
-      api<ComprasBudget>("/compras/budget").catch(() => null),
+      api<ComprasBudget>(
+        `/compras/budget?category=${encodeURIComponent(cat)}`,
+      ).catch(() => null),
     ]);
     setRows(orders);
     setSuppliers(Array.isArray(supplierList) ? supplierList : []);
@@ -128,6 +132,15 @@ export default function ComprasPage() {
   useEffect(() => {
     void load().catch(console.error);
   }, []);
+
+  useEffect(() => {
+    if (!slideOpen) return;
+    void api<ComprasBudget>(
+      `/compras/budget?category=${encodeURIComponent(form.category)}`,
+    )
+      .then(setBudget)
+      .catch(() => null);
+  }, [form.category, slideOpen]);
 
   const monthlyLimit = budget?.monthlyLimit ?? 0;
   const kpis = useMemo(() => {
@@ -197,7 +210,6 @@ export default function ComprasPage() {
           supplier: selectedSupplier?.name ?? "",
           amount,
           category: form.category,
-          requestedBy: form.requestedBy.trim() || undefined,
           quantity: qty,
         }),
       });
@@ -695,15 +707,13 @@ export default function ComprasPage() {
             </select>
           </label>
           <label className="text-xs text-brand-text-secondary">
-            Solicitante (opcional)
+            Solicitante (sesión)
             <input
               className="field mt-1 w-full"
               data-field="text"
-              placeholder="Área o nombre"
-              value={form.requestedBy}
-              onChange={(e) =>
-                setForm({ ...form, requestedBy: e.target.value })
-              }
+              value={user?.name || user?.email || "—"}
+              disabled
+              readOnly
             />
           </label>
         </form>
