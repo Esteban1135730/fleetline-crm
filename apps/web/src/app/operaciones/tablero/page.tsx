@@ -32,6 +32,9 @@ type TowerBoard = {
     driverId: string;
     name: string;
     checkInAt: string;
+    dutyStatus?: string;
+    lastLat?: number | null;
+    lastLng?: number | null;
   }>;
   kpis?: {
     tripsToday: number;
@@ -40,6 +43,12 @@ type TowerBoard = {
     fleetOnline: number;
     driversOnDuty: number;
   };
+};
+
+const DUTY_ES: Record<string, string> = {
+  ON_DUTY: "En ruta",
+  BREAK: "Descanso",
+  OFF_DUTY: "Libre",
 };
 
 const VEHICLE_STATUS_ES: Record<string, string> = {
@@ -243,6 +252,25 @@ export default function OperacionesTableroPage() {
           <p className="font-data text-2xl tabular-nums text-[var(--brand-text-primary)]">
             {board?.kpis?.driversOnDuty ?? "—"}
           </p>
+          {board?.driversOnDuty?.length ? (
+            <ul className="mt-2 space-y-1 border-t border-[var(--brand-border)] pt-2">
+              {board.driversOnDuty.slice(0, 4).map((d) => (
+                <li
+                  key={d.driverId}
+                  className="flex items-center justify-between gap-2 text-xs text-[var(--brand-text-secondary)]"
+                >
+                  <span className="truncate text-[var(--brand-text-primary)]">
+                    {d.name}
+                  </span>
+                  <span className="shrink-0 font-data">
+                    {DUTY_ES[String(d.dutyStatus || "ON_DUTY")] ||
+                      d.dutyStatus ||
+                      "En ruta"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </BentoPanel>
       </div>
 

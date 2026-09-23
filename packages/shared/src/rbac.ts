@@ -1735,7 +1735,7 @@ export const CONDUCTOR_PILOT_NAV: RoleNavItem[] = [
     href: "/pilot",
     label: "App del conductor",
     view: "logistica",
-    tip: "Preoperacional · emergencia · viático",
+    tip: "Estado · ubicación GPS · preoperacional",
   },
 ];
 
