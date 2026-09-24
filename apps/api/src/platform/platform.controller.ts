@@ -264,7 +264,6 @@ export class PlatformController {
         },
       },
       orderBy: [{ organizationId: "asc" }, { name: "asc" }],
-      take: 1000,
     });
     return users.map((u) => ({
       id: u.id,

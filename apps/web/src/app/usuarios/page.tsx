@@ -123,6 +123,7 @@ export default function UsuariosPage() {
       (u) =>
         u.name.toLowerCase().includes(q) ||
         u.email.toLowerCase().includes(q) ||
+        (u.organization?.name ?? "").toLowerCase().includes(q) ||
         (ROLE_LABELS[u.role] ?? u.role).toLowerCase().includes(q),
     );
   }, [users, search]);
@@ -334,7 +335,7 @@ export default function UsuariosPage() {
         <BentoPanel
           title="Directorio de usuarios"
           subtitle={
-            isMaster ? "Empresa activa · cross-tenant" : "Tenant actual"
+            isMaster ? "Todas las empresas" : "Tenant actual"
           }
         >
           <NexaTable

@@ -120,9 +120,8 @@ export default function PlataformaPage() {
 
   const filteredUsers = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const base = users.slice(0, 80);
-    if (!q) return base;
-    return base.filter(
+    if (!q) return users;
+    return users.filter(
       (u) =>
         u.name.toLowerCase().includes(q) ||
         u.email.toLowerCase().includes(q) ||
@@ -382,7 +381,7 @@ export default function PlataformaPage() {
       ) : (
         <BentoPanel
           title="Usuarios de todas las empresas"
-          subtitle="Vista Usuario Maestro · primeros 80"
+          subtitle={`${users.length} cuentas · sin filtro de empresa`}
         >
           <NexaTable
             columns={["Usuario", "Rol", "Empresa", "Estado", "Acción"]}
