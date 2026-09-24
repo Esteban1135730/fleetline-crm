@@ -15,7 +15,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { api } from "@/lib/api";
-import { KpiCard } from "@/components/audit";
+import { EmptyState, KpiCard } from "@/components/audit";
 import { BentoPanel } from "@/components/nexa/bento-panel";
 import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
 import { StatusPulseBadge } from "@/components/audit/KpiCard";
@@ -28,6 +28,18 @@ type Approval = {
   title: string;
   amountCop: number;
   cashflowImpactCop: number;
+  originModule?: string;
+  originType?: "PURCHASE_ORDER" | "INVOICE" | "EXECUTIVE_APPROVAL";
+  originId?: string;
+};
+
+type CashImpact = {
+  title: string;
+  bankBalance: number;
+  amount: number;
+  balanceAfter: number;
+  impactPct: number | null;
+  payrollSafe: boolean;
 };
 
 type Override = {
@@ -45,8 +57,12 @@ type Scorecard = {
   bottlenecks: Array<{
     area: string;
     severity: string;
+    title?: string;
     message: string;
-    warRoomHint: string;
+    entityCode?: string;
+    entityId?: string;
+    href?: string;
+    warRoomHint?: string;
   }>;
   riskRadar: {
     vipNps: number;
@@ -118,6 +134,8 @@ export default function GerenciaDashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [pin, setPin] = useState("");
   const [selectedApproval, setSelectedApproval] = useState("");
+  const [impact, setImpact] = useState<CashImpact | null>(null);
+  const [notifyNote, setNotifyNote] = useState("");
 
   const chartTipStyle = useMemo(
     () => ({
@@ -140,9 +158,10 @@ export default function GerenciaDashboardPage() {
         `/api/v1/gerencia/dashboard?period=${period}`,
       );
       setDash(data);
-      if (data.approvalsInbox[0]) {
-        setSelectedApproval(data.approvalsInbox[0].id);
-      }
+      setSelectedApproval((prev) => {
+        if (prev && data.approvalsInbox.some((row) => row.id === prev)) return prev;
+        return data.approvalsInbox[0]?.id ?? "";
+      });
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Conexión fallida");
@@ -151,7 +170,28 @@ export default function GerenciaDashboardPage() {
 
   useEffect(() => {
     void load();
+    const timer = window.setInterval(() => void load(), 60_000);
+    return () => window.clearInterval(timer);
   }, [load]);
+
+  useEffect(() => {
+    if (!selectedApproval) {
+      setImpact(null);
+      return;
+    }
+    let cancelled = false;
+    void api
+      .get<CashImpact>(`/api/v1/gerencia/approvals/${selectedApproval}/impact`)
+      .then((row) => {
+        if (!cancelled) setImpact(row);
+      })
+      .catch(() => {
+        if (!cancelled) setImpact(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedApproval]);
 
   async function firmar(approve = true) {
     if (!selectedApproval) {
@@ -162,10 +202,13 @@ export default function GerenciaDashboardPage() {
     setMsg(null);
     setError(null);
     try {
+      const selected = dash?.approvalsInbox.find((row) => row.id === selectedApproval);
       const res = await api.post<{ status: string; message: string }>(
         "/api/v1/gerencia/aprobaciones/firmar-pin",
         {
-          approvalId: selectedApproval,
+          approvalId: selected?.originType === "EXECUTIVE_APPROVAL" ? selectedApproval : undefined,
+          originType: selected?.originType,
+          originId: selected?.originId ?? selectedApproval,
           pin: pin || undefined,
           approve,
         },
@@ -397,21 +440,14 @@ export default function GerenciaDashboardPage() {
 
             <BentoPanel
               title="Cuellos de botella"
-              action={
-                <Link href="/logistica/servicios">
-                  <Button variant="primary" className="w-auto px-3 py-1.5 text-xs">
-                    Resolver
-                  </Button>
-                </Link>
-              }
               className="lg:col-span-6"
             >
               {(dash.scorecard.bottlenecks ?? []).length > 0 ? (
                 <ul className="space-y-2">
                   {dash.scorecard.bottlenecks.map((b) => (
                     <li
-                      key={b.area + b.message}
-                      className="rounded-lg border border-brand-border px-3 py-2 transition-colors hover:border-brand-border-active hover:bg-brand-surface-hover"
+                      key={`${b.area}-${b.entityId ?? b.message}`}
+                      className="rounded-lg border border-brand-border px-3 py-2"
                     >
                       <StatusPulseBadge
                         tone={b.severity === "RED" ? "danger" : "fatiga"}
@@ -419,19 +455,52 @@ export default function GerenciaDashboardPage() {
                         {b.area}
                       </StatusPulseBadge>
                       <p className="mt-1 font-sans text-sm text-brand-text-primary">
-                        {b.message}
+                        {b.title || b.message}
                       </p>
-                      <p className="mt-1 font-data text-[11px] text-brand-text-secondary">
-                        {b.warRoomHint}
-                      </p>
+                      <div className="mt-2 flex flex-wrap justify-end gap-2">
+                        {b.href ? (
+                          <Link href={b.href}>
+                            <Button variant="secondary" className="w-auto px-3 py-1.5 text-xs">
+                              Ir al módulo
+                            </Button>
+                          </Link>
+                        ) : null}
+                        <Button
+                          variant="ghost"
+                          className="w-auto px-3 py-1.5 text-xs"
+                          onClick={() =>
+                            void api
+                              .post("/api/v1/gerencia/bottlenecks/notify", {
+                                area: b.area,
+                                entityId: b.entityId,
+                                title: b.title || b.message,
+                                href: b.href || "/gerencia/dashboard",
+                              })
+                              .then(() => setNotifyNote("Aviso registrado"))
+                              .catch((e) =>
+                                setError(
+                                  e instanceof Error ? e.message : "No se pudo notificar",
+                                ),
+                              )
+                          }
+                        >
+                          Notificar
+                        </Button>
+                      </div>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="font-sans text-sm text-brand-text-secondary">
-                  Sin cuellos de botella — operación fluida.
-                </p>
+                <EmptyState
+                  title="Sin cuellos de botella"
+                  description="Ninguna regla de 24 h, 2 h o 48 h está activa."
+                />
               )}
+              {notifyNote ? (
+                <p className="mt-2 font-data text-xs text-brand-text-secondary">
+                  {notifyNote}
+                </p>
+              ) : null}
             </BentoPanel>
           </div>
         </>
@@ -444,7 +513,7 @@ export default function GerenciaDashboardPage() {
           subtitle="Firma ejecutiva con PIN"
           className="lg:col-span-5"
         >
-          <NexaTable columns={["Concepto", "Código", "Monto", "Impacto CF"]}>
+          <NexaTable columns={["Concepto", "Código", "Monto", "Origen"]}>
             {(dash?.approvalsInbox ?? []).map((a) => (
               <NexaRow
                 key={a.id}
@@ -458,10 +527,22 @@ export default function GerenciaDashboardPage() {
                 <NexaCell mono className="text-brand-warning">
                   {money(a.amountCop)}
                 </NexaCell>
-                <NexaCell mono>{money(a.cashflowImpactCop)}</NexaCell>
+                <NexaCell mono>{a.originModule || "GERENCIA"}</NexaCell>
               </NexaRow>
             ))}
           </NexaTable>
+          {impact && selectedApproval ? (
+            <p className="mt-3 font-data text-sm tabular-nums text-brand-text-primary">
+              Saldo actual {money(impact.bankBalance)} → tras aprobación{" "}
+              <span
+                style={{ color: impact.balanceAfter < 0 ? "#FF2A55" : "#10B981" }}
+              >
+                {money(impact.balanceAfter)}
+              </span>
+              {impact.balanceAfter < 0 ? " · LIQUIDEZ NEGATIVA" : ""}
+              {impact.impactPct != null ? ` · ${impact.impactPct}%` : ""}
+            </p>
+          ) : null}
           {(dash?.approvalsInbox ?? []).length === 0 ? (
             <p className="mt-3 font-data text-xs text-brand-text-secondary">
               Inbox vacío

@@ -1,5 +1,7 @@
+import { createHash } from "crypto";
 import { Injectable, Logger } from "@nestjs/common";
 import {
+  ComplianceDocType,
   ContractStatus,
   ManagerialOverrideStatus,
   PaymentScheduleStatus,
@@ -9,6 +11,7 @@ import {
   VehicleStatus,
 } from "@fsg/db";
 import { PrismaService } from "../prisma/prisma.service";
+import { liquiditySnapshot } from "../finance/liquidity";
 import { ExecutiveKpiService } from "./executive-kpi.service";
 import { TextToSqlAssistantService } from "./text-to-sql-assistant.service";
 import { KafkaEventsService } from "../logistics/kafka-events.service";
@@ -267,10 +270,68 @@ export class PresidenciaService {
     return months;
   }
 
-  /** Export forense — mutaciones sensibles + hallazgos de control (últimos 30 días). */
-  async forensicExport(organizationId: string) {
-    const since = new Date();
-    since.setDate(since.getDate() - 30);
+  /** Viajes del mes con margen bajo el umbral fijo (20% por defecto). */
+  async marginExceptions(organizationId: string, threshold = 0.2) {
+    const start = new Date();
+    start.setDate(1);
+    start.setHours(0, 0, 0, 0);
+    const trips = await this.prisma.trip.findMany({
+      where: {
+        organizationId,
+        status: TripStatus.COMPLETED,
+        completedAt: { gte: start },
+      },
+      include: {
+        customer: { select: { name: true } },
+        driver: { select: { name: true } },
+        routeExpenses: { select: { amount: true } },
+      },
+      orderBy: { completedAt: "desc" },
+      take: 200,
+    });
+
+    const rows = trips.flatMap((trip) => {
+      const fare = Number(trip.fareAmount);
+      const extras = trip.routeExpenses.reduce(
+        (sum, expense) => sum + Number(expense.amount),
+        0,
+      );
+      const costUnknown = trip.routeExpenses.length === 0;
+      const marginRatio =
+        !costUnknown && fare > 0 ? (fare - extras) / fare : null;
+      if (!costUnknown && (marginRatio == null || marginRatio >= threshold)) {
+        return [];
+      }
+      return [
+        {
+          tripId: trip.id,
+          code: trip.code,
+          customer: trip.customer?.name ?? trip.officerName ?? "Sin cliente",
+          driver: trip.driver?.name ?? "Sin conductor",
+          fare,
+          cost: costUnknown ? null : extras,
+          costUnknown,
+          marginPct:
+            marginRatio == null
+              ? null
+              : Math.round(marginRatio * 1000) / 10,
+          unbilledExtras: extras,
+        },
+      ];
+    });
+
+    return {
+      threshold,
+      window: "month",
+      count: rows.length,
+      rows,
+    };
+  }
+
+  /** Export forense — mutaciones sensibles de las últimas `hours` (default 24). */
+  async forensicExport(organizationId: string, hours = 24) {
+    const windowHours = Number.isFinite(hours) && hours > 0 ? Math.min(hours, 24 * 30) : 24;
+    const since = new Date(Date.now() - windowHours * 60 * 60 * 1000);
 
     const [auditRows, findings, voids, softCloses] = await Promise.all([
       this.prisma.auditLog.findMany({
@@ -295,6 +356,11 @@ export class PresidenciaService {
             { action: { contains: "DELETE" } },
             { action: { contains: "VOID" } },
             { action: { contains: "REJECT" } },
+            { action: { contains: "TARIFF" } },
+            { action: { contains: "OVERRIDE" } },
+            { action: { contains: "EXPENSE" } },
+            { action: { contains: "FUEC" } },
+            { action: { contains: "SOAT" } },
           ],
         },
         orderBy: { createdAt: "desc" },
@@ -328,29 +394,39 @@ export class PresidenciaService {
       }),
     ]);
 
-    const rows = auditRows.map((r) => ({
-      at: r.createdAt,
+    const events = auditRows.map((r) => ({
+      createdAt: r.createdAt.toISOString(),
+      user: r.user?.name ?? r.userId,
       action: r.action,
       entity: r.entity,
       entityId: r.entityId,
       module: r.module,
-      user: r.user?.name ?? r.userId,
-      email: r.user?.email ?? null,
       meta: r.meta,
     }));
 
+    const generatedAt = new Date().toISOString();
+    const unsigned = {
+      generatedAt,
+      windowHours,
+      count: events.length,
+      events,
+    };
+    const sha256 = createHash("sha256")
+      .update(JSON.stringify(unsigned))
+      .digest("hex");
+
     return {
-      exportedAt: new Date().toISOString(),
+      ...unsigned,
+      sha256,
+      exportedAt: generatedAt,
       organizationId,
-      windowDays: 30,
+      rows: events,
       summary: {
-        auditEvents: rows.length,
+        auditEvents: events.length,
         journalVoids: voids,
         closedPeriods: softCloses,
         forensicFindings: findings.length,
       },
-      count: rows.length,
-      rows,
       findings: findings.map((f) => ({
         id: f.id,
         title: f.title,
@@ -359,8 +435,8 @@ export class PresidenciaService {
         at: f.createdAt,
       })),
       note:
-        rows.length === 0 && findings.length === 0
-          ? "Sin eventos sensibles ni hallazgos en la ventana de 30 días."
+        events.length === 0
+          ? "Sin mutaciones en 24h"
           : null,
     };
   }
@@ -370,17 +446,8 @@ export class PresidenciaService {
     organizationId: string,
     canvas?: Awaited<ReturnType<ExecutiveKpiService["buildCanvasKpis"]>>,
   ) {
-    const [queued, blocked, tripsOnTime, npsAgg, contractsThisMonth, contractsLastMonth] =
+    const [blocked, tripsOnTime, npsAgg, contractsThisMonth, contractsLastMonth] =
       await Promise.all([
-      this.prisma.paymentSchedule.aggregate({
-        where: {
-          organizationId,
-          status: {
-            in: [PaymentScheduleStatus.QUEUED, PaymentScheduleStatus.PENDING],
-          },
-        },
-        _sum: { amount: true },
-      }),
       this.prisma.vehicle.count({
         where: {
           organizationId,
@@ -424,71 +491,86 @@ export class PresidenciaService {
       }),
     ]);
 
-    const freeCash = Math.max(
-      0,
-      500_000_000 - Number(queued._sum.amount || 0),
-    );
     const slaPct =
       tripsOnTime > 0 ? Number(Math.min(99.5, 94 + Math.min(5, tripsOnTime / 10)).toFixed(1)) : 0;
     const legalRisk =
       blocked > 5 ? "HIGH" : blocked > 0 ? "MEDIUM" : "LOW";
+    const samples = npsAgg._count._all;
     const nps =
-      npsAgg._avg.npsScore != null
+      samples > 0 && npsAgg._avg.npsScore != null
         ? Number(npsAgg._avg.npsScore.toFixed(1))
-        : 72;
+        : null;
 
-    const growthPct =
-      contractsLastMonth > 0
-        ? Math.round(
-            ((contractsThisMonth - contractsLastMonth) / contractsLastMonth) *
-              100,
-          )
-        : contractsThisMonth > 0
-          ? 100
-          : 0;
-    const grossFare = canvas?.profitability.grossFare ?? 0;
+    const growthComparable = contractsLastMonth > 0;
+    const growthPct = growthComparable
+      ? Math.round(
+          ((contractsThisMonth - contractsLastMonth) / contractsLastMonth) *
+            100,
+        )
+      : null;
+
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+    const [monthFare, monthCosts, liquidity, compliance] = await Promise.all([
+      this.prisma.trip.aggregate({
+        where: {
+          organizationId,
+          status: TripStatus.COMPLETED,
+          completedAt: { gte: monthStart },
+        },
+        _sum: { fareAmount: true },
+      }),
+      this.prisma.purchaseOrder.aggregate({
+        where: { organizationId, createdAt: { gte: monthStart } },
+        _sum: { totalEstimated: true },
+      }),
+      liquiditySnapshot(this.prisma, organizationId),
+      this.complianceCoverage(organizationId),
+    ]);
+    const ingresos = Number(monthFare._sum.fareAmount ?? 0);
+    const costos = Number(monthCosts._sum.totalEstimated ?? 0);
     const marginPct =
-      grossFare > 0
-        ? Number(
-            (
-              ((canvas?.profitability.estimatedMargin ?? 0) / grossFare) *
-              100
-            ).toFixed(1),
-          )
-        : 0;
-    const totalUnits = canvas?.killSwitch.totalUnits ?? 1;
-    const activeUnits = canvas?.killSwitch.activeUnits ?? 0;
-    const compliancePct = Math.round((activeUnits / Math.max(totalUnits, 1)) * 100);
+      ingresos > 0
+        ? Number((((ingresos - costos) / ingresos) * 100).toFixed(1))
+        : null;
 
     return {
       growth: {
         label: "Crecimiento comercial",
         valuePct: growthPct,
         contractsThisMonth,
-        hint:
-          growthPct >= 0
-            ? `+${growthPct}% contratos vs mes anterior`
-            : `${growthPct}% contratos vs mes anterior`,
+        hint: growthComparable
+          ? `${growthPct! >= 0 ? "+" : ""}${growthPct}% contratos vs mes anterior`
+          : "Sin base del mes anterior",
       },
       fleetAlerts: {
         label: "Alertas de flota",
         immobilized: blocked,
+        href: "/logistica",
         hint: `${blocked} vehículo(s) inmovilizado(s)`,
       },
       margin: {
         label: "Margen operativo",
         valuePct: marginPct,
-        hint: "Margen bruto estimado sobre ingresos",
+        hint:
+          marginPct == null
+            ? "Sin ingresos del mes"
+            : "(ingresos de viajes − órdenes de compra) / ingresos",
       },
       compliance: {
         label: "Cumplimiento normativo",
-        valuePct: compliancePct,
-        hint: "Unidades operativas sin bloqueo documental",
+        valuePct: compliance.valuePct,
+        href: "/tramites",
+        hint: compliance.hint,
       },
       liquidity: {
         label: "Caja Libre",
-        valueCop: freeCash,
-        hint: "Liquidez estimada neta de cola de pagos",
+        valueCop: liquidity.netLiquidity,
+        href: "/tesoreria",
+        hint: liquidity.hasBankAccount
+          ? "Bancos + CxC − CxP"
+          : "Sin saldo bancario",
       },
       sla: {
         label: "Cumplimiento SLA",
@@ -504,9 +586,59 @@ export class PresidenciaService {
       nps: {
         label: "NPS",
         value: nps,
-        samples: npsAgg._count._all,
-        hint: "Calidad percibida",
+        samples,
+        display: nps == null ? "N/A" : String(nps),
+        hint: samples === 0 ? "Sin encuestas" : "Calidad percibida",
       },
+    };
+  }
+
+  /** % de flota con SOAT, tecnomecánica y FUEC vigentes. */
+  private async complianceCoverage(organizationId: string) {
+    const vehicles = await this.prisma.vehicle.findMany({
+      where: { organizationId },
+      select: { id: true },
+    });
+    if (vehicles.length === 0) {
+      return { valuePct: null as number | null, hint: "Sin flota registrada" };
+    }
+    const now = new Date();
+    const docs = await this.prisma.complianceDocument.findMany({
+      where: {
+        organizationId,
+        vehicleId: { not: null },
+        type: {
+          in: [
+            ComplianceDocType.SOAT,
+            ComplianceDocType.TECNOMECANICA,
+            ComplianceDocType.FUEC,
+          ],
+        },
+        expiresAt: { gt: now },
+      },
+      select: { vehicleId: true, type: true },
+    });
+    const byVehicle = new Map<string, Set<string>>();
+    for (const doc of docs) {
+      if (!doc.vehicleId) continue;
+      const set = byVehicle.get(doc.vehicleId) ?? new Set<string>();
+      set.add(doc.type);
+      byVehicle.set(doc.vehicleId, set);
+    }
+    let compliant = 0;
+    for (const vehicle of vehicles) {
+      const set = byVehicle.get(vehicle.id);
+      if (
+        set?.has(ComplianceDocType.SOAT) &&
+        set.has(ComplianceDocType.TECNOMECANICA) &&
+        set.has(ComplianceDocType.FUEC)
+      ) {
+        compliant += 1;
+      }
+    }
+    return {
+      valuePct: Math.round((compliant / vehicles.length) * 100),
+      hint: `${compliant}/${vehicles.length} con SOAT, TM y FUEC vigentes`,
     };
   }
 

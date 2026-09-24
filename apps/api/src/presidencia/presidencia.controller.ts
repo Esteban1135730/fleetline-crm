@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Post,
+  Query,
   Req,
   UseGuards,
   UseInterceptors,
@@ -88,8 +89,26 @@ export class PresidenciaController {
 
   @Get("forensic-export")
   @Permissions("founders_canvas", "READ")
-  forensicExport(@Req() req: AuthReq) {
-    return this.presidencia.forensicExport(req.user.organizationId);
+  forensicExport(@Req() req: AuthReq, @Query("hours") hours?: string) {
+    const parsed = Number(hours);
+    return this.presidencia.forensicExport(
+      req.user.organizationId,
+      Number.isFinite(parsed) && parsed > 0 ? parsed : 24,
+    );
+  }
+
+  /** GET /presidencia/margin-exceptions?threshold=0.20 */
+  @Get("margin-exceptions")
+  @Permissions("founders_canvas", "READ")
+  marginExceptions(
+    @Req() req: AuthReq,
+    @Query("threshold") threshold?: string,
+  ) {
+    const parsed = Number(threshold);
+    return this.presidencia.marginExceptions(
+      req.user.organizationId,
+      Number.isFinite(parsed) && parsed > 0 && parsed < 1 ? parsed : 0.2,
+    );
   }
 
   @Post("ask-ai")

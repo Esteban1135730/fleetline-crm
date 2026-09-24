@@ -132,7 +132,29 @@ describe("PresidenciaService — canvas KPIs + ExecutiveQueryLog", () => {
           { id: "v4", complianceBlocked: true },
         ]),
         count: jest.fn().mockResolvedValue(2),
+        groupBy: jest.fn().mockResolvedValue([]),
       },
+      complianceDocument: { findMany: jest.fn().mockResolvedValue([]) },
+      transportContract: {
+        count: jest.fn().mockResolvedValue(2),
+        aggregate: jest.fn().mockResolvedValue({
+          _sum: { monthlyValue: 0 },
+          _count: { _all: 0 },
+        }),
+      },
+      commercialIntelligentQuote: {
+        aggregate: jest.fn().mockResolvedValue({
+          _sum: { proposedRatePerKm: 0 },
+          _count: { _all: 0 },
+        }),
+      },
+      purchaseOrder: {
+        aggregate: jest.fn().mockResolvedValue({
+          _sum: { totalEstimated: 1_200_000 },
+        }),
+      },
+      account: { findFirst: jest.fn().mockResolvedValue(null) },
+      managerialOverride: { count: jest.fn().mockResolvedValue(0) },
       paymentSchedule: {
         findMany: jest.fn().mockResolvedValue([
           { amount: 1_000_000, dueDate: new Date("2020-01-01") },
@@ -147,6 +169,7 @@ describe("PresidenciaService — canvas KPIs + ExecutiveQueryLog", () => {
           _sum: { amount: 750_000 },
           _count: 2,
         }),
+        findMany: jest.fn().mockResolvedValue([]),
       },
       threeWayMatch: {
         groupBy: jest.fn().mockResolvedValue([

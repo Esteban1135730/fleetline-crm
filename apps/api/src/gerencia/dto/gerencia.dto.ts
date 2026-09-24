@@ -89,13 +89,29 @@ export const ResolverOverrideSchema = z.object({
 });
 export type ResolverOverrideDto = z.infer<typeof ResolverOverrideSchema>;
 
-export const FirmarPinSchema = z.object({
-  approvalId: z.string().min(1),
-  /** PIN de 6 dígitos — obligatorio */
-  pin: z.string().optional(),
-  approve: z.boolean().default(true),
-  rejectReason: z.string().optional(),
+export const FirmarPinSchema = z
+  .object({
+    approvalId: z.string().min(1).optional(),
+    originType: z
+      .enum(["PURCHASE_ORDER", "INVOICE", "EXECUTIVE_APPROVAL"])
+      .optional(),
+    originId: z.string().min(1).optional(),
+    /** PIN de 6 dígitos — obligatorio */
+    pin: z.string().optional(),
+    approve: z.boolean().default(true),
+    rejectReason: z.string().optional(),
+  })
+  .refine((d) => Boolean(d.approvalId) || Boolean(d.originId), {
+    message: "approvalId u originId requerido",
+  });
+
+export const NotifyBottleneckSchema = z.object({
+  area: z.enum(["COMERCIAL", "LOGISTICA", "TALLER"]),
+  entityId: z.string().min(1),
+  title: z.string().min(3),
+  href: z.string().min(1),
 });
+export type NotifyBottleneckDto = z.infer<typeof NotifyBottleneckSchema>;
 export type FirmarPinDto = z.infer<typeof FirmarPinSchema>;
 
 export const CreateApprovalSchema = z.object({

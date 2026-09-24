@@ -106,6 +106,8 @@ describe("GerenciaService.firmarAprobacionPin", () => {
         findFirst: jest.fn(),
         update: jest.fn(),
       },
+      purchaseOrder: { findFirst: jest.fn(), update: jest.fn() },
+      auditLog: { create: jest.fn().mockResolvedValue({ id: "aud-1" }) },
     };
     const svc = new GerenciaService(
       prisma as never,
@@ -139,6 +141,7 @@ describe("GerenciaService.firmarAprobacionPin", () => {
           amountCop: 45_000_000,
           cashflowImpactCop: -45_000_000,
           kind: "NOMINA",
+          payload: null,
         }),
         update: jest.fn().mockResolvedValue({
           id: "ap-1",
@@ -149,6 +152,7 @@ describe("GerenciaService.firmarAprobacionPin", () => {
           kind: "NOMINA",
         }),
       },
+      auditLog: { create: jest.fn().mockResolvedValue({ id: "aud-1" }) },
     };
     const kafka = { emit: jest.fn().mockResolvedValue(undefined) };
 
@@ -187,6 +191,93 @@ describe("GerenciaService.firmarAprobacionPin", () => {
     expect(kafka.emit).toHaveBeenCalledWith(
       "gerencia.approval.signed",
       expect.objectContaining({ approvalId: "ap-1" }),
+    );
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          meta: expect.objectContaining({ pinVerified: true }),
+        }),
+      }),
+    );
+  });
+
+  it("PIN inválido no cambia la orden de compra", async () => {
+    const bcrypt = await import("bcryptjs");
+    const hash = bcrypt.hashSync("258014", 4);
+    const prisma = {
+      user: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: "u1",
+          executivePinHash: hash,
+        }),
+      },
+      purchaseOrder: {
+        findFirst: jest.fn(),
+        update: jest.fn(),
+      },
+      auditLog: { create: jest.fn() },
+    };
+    const svc = new GerenciaService(
+      prisma as never,
+      {} as never,
+      { emit: jest.fn() } as never,
+    );
+    await expect(
+      svc.firmarAprobacionPin("org-1", "u1", {
+        originType: "PURCHASE_ORDER",
+        originId: "po-1",
+        pin: "000000",
+        approve: true,
+      }),
+    ).rejects.toThrow(UnauthorizedException);
+    expect(prisma.purchaseOrder.update).not.toHaveBeenCalled();
+  });
+
+  it("PIN válido aprueba la orden de compra de origen", async () => {
+    const bcrypt = await import("bcryptjs");
+    const hash = bcrypt.hashSync("258014", 4);
+    const prisma = {
+      user: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: "u1",
+          executivePinHash: hash,
+        }),
+      },
+      purchaseOrder: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: "po-1",
+          status: "REQUESTED",
+          totalEstimated: 4_500_000,
+        }),
+        update: jest.fn().mockResolvedValue({
+          id: "po-1",
+          status: "APPROVED",
+          totalEstimated: 4_500_000,
+        }),
+      },
+      auditLog: { create: jest.fn().mockResolvedValue({ id: "aud-2" }) },
+    };
+    const svc = new GerenciaService(
+      prisma as never,
+      {} as never,
+      { emit: jest.fn() } as never,
+    );
+    const result = await svc.firmarAprobacionPin(
+      "org-1",
+      "u1",
+      {
+        originType: "PURCHASE_ORDER",
+        originId: "po-1",
+        pin: "258014",
+        approve: true,
+      },
+      "gerente_general",
+    );
+    expect(result.status).toBe("ORIGIN_APPROVED");
+    expect(prisma.purchaseOrder.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: "APPROVED", approvedById: "u1" }),
+      }),
     );
   });
 });
