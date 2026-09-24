@@ -639,6 +639,12 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!user || pathname === "/login") return;
+    if (
+      (pathname === "/qa-trace" || pathname.startsWith("/qa-trace/")) &&
+      isQaViewerClient(user.email)
+    ) {
+      return;
+    }
     const seg = pathname.split("/").filter(Boolean)[0] || "dashboard";
     if (seg === "cuenta") return;
     const resolved = resolveModuleId(seg) || seg;
