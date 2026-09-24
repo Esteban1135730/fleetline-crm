@@ -1883,7 +1883,9 @@ html.light .flt-search-trigger {
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
+  min-width: 0;
   height: 100%;
+  overflow-x: hidden;
   background: color-mix(in srgb, var(--brand-surface) 48%, transparent);
   border-right: 1px solid color-mix(in srgb, var(--brand-border) 70%, transparent);
   backdrop-filter: blur(16px) saturate(1.15);
@@ -2098,9 +2100,21 @@ html.light .flt-command-panel {
   margin-bottom: 0.15rem;
 }
 
+.flt-sidebar nav {
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.flt-sidebar nav::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
 .flt-dept-trigger {
   display: flex;
-  width: 100%;
+  width: auto;
+  max-width: calc(100% - 0.8rem);
   min-width: 0;
   align-items: center;
   justify-content: space-between;
