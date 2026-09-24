@@ -166,4 +166,30 @@ export class FinanceController {
   ) {
     return this.service.cancelInvoice(req.user.organizationId, id);
   }
+
+  /** SCRUM-37 — Cartera en mora agrupada por cliente */
+  @Get("cartera/mora")
+  carteraMora(@Req() req: { user: { organizationId: string } }) {
+    return this.service.listCarteraMora(req.user.organizationId);
+  }
+
+  /** SCRUM-37 — Notificar cobro (bandeja + traza) */
+  @Post("cartera/notificar-cobro")
+  notificarCobro(
+    @Req() req: { user: { organizationId: string; userId: string } },
+    @Body()
+    body: { customerId: string; invoiceIds?: string[]; note?: string },
+  ) {
+    return this.service.notifyCobro(
+      req.user.organizationId,
+      req.user.userId,
+      body ?? { customerId: "" },
+    );
+  }
+
+  /** Cuentas caja/bancos con saldo del mayor (sin hardcode) */
+  @Get("accounts")
+  accounts(@Req() req: { user: { organizationId: string } }) {
+    return this.service.listTreasuryAccounts(req.user.organizationId);
+  }
 }

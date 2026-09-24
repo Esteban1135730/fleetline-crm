@@ -3,11 +3,22 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { InvoiceStatus, InvoiceType, JournalEntryStatus } from "@fsg/db";
+import {
+  FleetModule,
+  InvoiceStatus,
+  InvoiceType,
+  JournalEntryStatus,
+  NotificationChannel,
+  NotificationKind,
+  RoleCode,
+} from "@fsg/db";
+import { COMMERCIAL_ARREARS_DAYS_HARD_STOP } from "@fsg/shared";
 import * as bcrypt from "bcryptjs";
 import { PrismaService } from "../prisma/prisma.service";
 import { SarlaftGuardService } from "../sarlaft/sarlaft-guard.service";
 import { assertExecutivePinValid } from "../gerencia/dto/gerencia.dto";
+import { NotificationsService } from "../notifications/notifications.service";
+import { getCustomerArrearsDays } from "../comercial/commercial-hard-stops";
 
 /** Estados CxP que cuentan como "pendiente por pagar" (SSoT Tesorería ↔ Gerencia). */
 const CXP_OPEN_STATUSES: InvoiceStatus[] = [
@@ -22,6 +33,7 @@ export class FinanceService {
   constructor(
     private prisma: PrismaService,
     private sarlaft: SarlaftGuardService,
+    private notifications: NotificationsService,
   ) {}
 
   async summary(organizationId: string) {
@@ -593,4 +605,304 @@ export class FinanceService {
     if (!inv) throw new NotFoundException("Factura no encontrada");
     return inv;
   }
+
+  /**
+   * SCRUM-37 — Clientes con CxC vencida (mora) + flag hard-stop ventas (SCRUM-25).
+   */
+  async listCarteraMora(organizationId: string) {
+    await this.markOverdue(organizationId);
+    const now = new Date();
+    const invoices = await this.prisma.invoice.findMany({
+      where: {
+        organizationId,
+        type: InvoiceType.RECEIVABLE,
+        status: {
+          in: [
+            InvoiceStatus.ISSUED,
+            InvoiceStatus.OVERDUE,
+            InvoiceStatus.CAUSED,
+          ],
+        },
+        dueDate: { lt: now },
+      },
+      include: {
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            nit: true,
+            email: true,
+            phone: true,
+            sarlaftBlocked: true,
+          },
+        },
+      },
+      orderBy: { dueDate: "asc" },
+    });
+
+    type Bucket = {
+      customerId: string | null;
+      customerName: string;
+      nit: string | null;
+      email: string | null;
+      phone: string | null;
+      sarlaftBlocked: boolean;
+      totalDue: number;
+      maxDaysOverdue: number;
+      invoiceCount: number;
+      invoices: Array<{
+        id: string;
+        number: string;
+        amount: number;
+        dueDate: string | null;
+        status: string;
+        daysOverdue: number;
+      }>;
+    };
+
+    const byCustomer = new Map<string, Bucket>();
+
+    for (const inv of invoices) {
+      if (!inv.dueDate) continue;
+      const days = Math.floor(
+        (now.getTime() - inv.dueDate.getTime()) / (24 * 60 * 60 * 1000),
+      );
+      if (days <= 0) continue;
+      const key = inv.customerId || `orphan:${inv.id}`;
+      let bucket = byCustomer.get(key);
+      if (!bucket) {
+        bucket = {
+          customerId: inv.customerId,
+          customerName: inv.customer?.name || inv.counterparty || "Sin cliente",
+          nit: inv.customer?.nit ?? null,
+          email: inv.customer?.email ?? null,
+          phone: inv.customer?.phone ?? null,
+          sarlaftBlocked: Boolean(inv.customer?.sarlaftBlocked),
+          totalDue: 0,
+          maxDaysOverdue: 0,
+          invoiceCount: 0,
+          invoices: [],
+        };
+        byCustomer.set(key, bucket);
+      }
+      bucket.totalDue += Number(inv.amount);
+      bucket.invoiceCount += 1;
+      if (days > bucket.maxDaysOverdue) bucket.maxDaysOverdue = days;
+      bucket.invoices.push({
+        id: inv.id,
+        number: inv.number,
+        amount: Number(inv.amount),
+        dueDate: inv.dueDate.toISOString(),
+        status: inv.status,
+        daysOverdue: days,
+      });
+    }
+
+    const customers = [...byCustomer.values()]
+      .map((c) => ({
+        ...c,
+        salesBlocked:
+          c.maxDaysOverdue >= COMMERCIAL_ARREARS_DAYS_HARD_STOP ||
+          c.sarlaftBlocked,
+        salesBlockReason: c.sarlaftBlocked
+          ? "SARLAFT"
+          : c.maxDaysOverdue >= COMMERCIAL_ARREARS_DAYS_HARD_STOP
+            ? "MORA_60"
+            : null,
+        hardStopDays: COMMERCIAL_ARREARS_DAYS_HARD_STOP,
+      }))
+      .sort((a, b) => b.maxDaysOverdue - a.maxDaysOverdue || b.totalDue - a.totalDue);
+
+    return {
+      asOf: now.toISOString(),
+      hardStopDays: COMMERCIAL_ARREARS_DAYS_HARD_STOP,
+      customerCount: customers.length,
+      totalDue: customers.reduce((s, c) => s + c.totalDue, 0),
+      salesBlockedCount: customers.filter((c) => c.salesBlocked).length,
+      customers,
+    };
+  }
+
+  /**
+   * SCRUM-37 — Aviso de cobro (in-app a Comercial/Tesorería + traza; canal correo si hay email).
+   */
+  async notifyCobro(
+    organizationId: string,
+    actorUserId: string,
+    input: { customerId: string; invoiceIds?: string[]; note?: string },
+  ) {
+    if (!input.customerId?.trim()) {
+      throw new BadRequestException("customerId requerido");
+    }
+    const customer = await this.prisma.customer.findFirst({
+      where: { id: input.customerId, organizationId },
+      select: {
+        id: true,
+        name: true,
+        nit: true,
+        email: true,
+        phone: true,
+      },
+    });
+    if (!customer) throw new NotFoundException("Cliente no encontrado");
+
+    const arrears = await getCustomerArrearsDays(
+      this.prisma,
+      organizationId,
+      customer.id,
+    );
+    if (!arrears.overdueInvoiceIds.length) {
+      throw new BadRequestException("El cliente no tiene facturas en mora");
+    }
+
+    const invoiceIds =
+      input.invoiceIds?.length
+        ? input.invoiceIds.filter((id) =>
+            arrears.overdueInvoiceIds.includes(id),
+          )
+        : arrears.overdueInvoiceIds;
+
+    const invoices = await this.prisma.invoice.findMany({
+      where: { organizationId, id: { in: invoiceIds } },
+      select: { id: true, number: true, amount: true, dueDate: true },
+    });
+    const totalDue = invoices.reduce((s, i) => s + Number(i.amount), 0);
+    const numbers = invoices.map((i) => i.number).join(", ");
+
+    const channels: NotificationChannel[] = [
+      NotificationChannel.IN_APP,
+      NotificationChannel.WEB_PUSH,
+    ];
+
+    const title = `Aviso de cobro · ${customer.name}`;
+    const body = `Mora ${arrears.maxDaysOverdue}d · ${formatCopInternal(totalDue)} · facturas ${numbers}${
+      input.note ? ` · ${input.note}` : ""
+    }`;
+
+    const notified = await this.notifications.notify({
+      organizationId,
+      roles: [
+        RoleCode.TESORERIA,
+        RoleCode.GESTOR_COMERCIAL,
+        RoleCode.DIRECTOR_COMERCIAL,
+        RoleCode.DIRECTOR_FINANCIERO,
+      ],
+      kind: NotificationKind.REMINDER,
+      title,
+      body,
+      href: "/tesoreria",
+      channels,
+      payload: {
+        kind: "COLLECTION_NOTICE",
+        customerId: customer.id,
+        customerEmail: customer.email,
+        customerPhone: customer.phone,
+        invoiceIds,
+        maxDaysOverdue: arrears.maxDaysOverdue,
+        totalDue,
+        emailQueued: Boolean(customer.email),
+        actorUserId,
+      },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        organizationId,
+        action: "CARTERA_NOTIFICAR_COBRO",
+        entity: "Customer",
+        entityId: customer.id,
+        module: FleetModule.TESORERIA,
+        userId: actorUserId,
+        meta: {
+          invoiceIds,
+          totalDue,
+          maxDaysOverdue: arrears.maxDaysOverdue,
+          email: customer.email,
+          phone: customer.phone,
+          channels,
+          note: input.note ?? null,
+        },
+      },
+    });
+
+    return {
+      ok: true,
+      customerId: customer.id,
+      customerName: customer.name,
+      invoiceIds,
+      totalDue,
+      maxDaysOverdue: arrears.maxDaysOverdue,
+      channels,
+      emailQueued: Boolean(customer.email),
+      phone: customer.phone,
+      notifiedCount: notified.created,
+      message: customer.email
+        ? `Aviso de cobro enviado · destinatario ${customer.email} registrado en la traza`
+        : customer.phone
+          ? `Aviso de cobro enviado · contacto ${customer.phone}`
+          : "Aviso de cobro enviado a Comercial / Tesorería",
+    };
+  }
+
+  /** Cuentas de caja/bancos (PUC 11xx) con saldo real del mayor. */
+  async listTreasuryAccounts(organizationId: string) {
+    const accounts = await this.prisma.account.findMany({
+      where: {
+        organizationId,
+        OR: [
+          { code: { startsWith: "11" } },
+          { name: { contains: "Banco", mode: "insensitive" } },
+          { name: { contains: "Caja", mode: "insensitive" } },
+        ],
+      },
+      orderBy: { code: "asc" },
+    });
+
+    const withBalance = await Promise.all(
+      accounts.map(async (a) => ({
+        id: a.id,
+        code: a.code,
+        name: a.name,
+        type: a.type,
+        balance: await this.accountBalanceCop(organizationId, a.id),
+      })),
+    );
+
+    return {
+      accounts: withBalance,
+      asOf: new Date().toISOString(),
+    };
+  }
+
+  private async accountBalanceCop(
+    organizationId: string,
+    accountId: string,
+  ): Promise<number> {
+    const lines = await this.prisma.journalLine.findMany({
+      where: {
+        entry: { organizationId, status: JournalEntryStatus.POSTED },
+        OR: [{ debitAccountId: accountId }, { creditAccountId: accountId }],
+      },
+      select: {
+        amount: true,
+        debitAccountId: true,
+        creditAccountId: true,
+      },
+    });
+    const balance = lines.reduce((sum, l) => {
+      const amt = Number(l.amount);
+      if (l.debitAccountId === accountId) return sum + amt;
+      if (l.creditAccountId === accountId) return sum - amt;
+      return sum;
+    }, 0);
+    return balance;
+  }
+}
+
+function formatCopInternal(n: number) {
+  return new Intl.NumberFormat("es-CO", {
+    style: "currency",
+    currency: "COP",
+    maximumFractionDigits: 0,
+  }).format(Math.round(n));
 }

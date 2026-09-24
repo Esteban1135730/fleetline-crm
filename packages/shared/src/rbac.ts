@@ -1549,7 +1549,7 @@ export const DIRECTOR_FINANCIERO_NAV: RoleNavItem[] = [
     href: "/tesoreria",
     label: "Tesorería",
     view: "tesoreria",
-    tip: "Cola de dispersión y cartera",
+    tip: "Cola de dispersión y cartera en mora",
   },
   {
     href: "/contabilidad/gestor/dashboard",
@@ -1609,7 +1609,7 @@ export const DIRECTOR_OPERATIVO_NAV: RoleNavItem[] = [
     href: "/operaciones/director/dashboard",
     label: "Torre táctica",
     view: "logistica",
-    tip: "Gantt · radar novedades · SLA",
+    tip: "Torre de Control · Gantt de flota · SLA",
   },
   {
     href: "/taller",
@@ -1706,6 +1706,12 @@ export const OPERADOR_CENTRO_CONTROL_NAV: RoleNavItem[] = [
 /** Sidebar forzado — Coordinador Patio (Roberto) */
 export const COORDINADOR_PATIO_NAV: RoleNavItem[] = [
   {
+    href: "/patio/porteria",
+    label: "Portería",
+    view: "parqueadero",
+    tip: "ENTRA / NO ENTRA · placa o cédula",
+  },
+  {
     href: "/patio/dashboard",
     label: "Patio",
     view: "parqueadero",
@@ -1715,6 +1721,12 @@ export const COORDINADOR_PATIO_NAV: RoleNavItem[] = [
 
 /** Sidebar forzado — Auxiliar Patio (Juan) */
 export const AUXILIAR_PATIO_NAV: RoleNavItem[] = [
+  {
+    href: "/patio/porteria",
+    label: "Portería",
+    view: "parqueadero",
+    tip: "ENTRA / NO ENTRA · placa o cédula",
+  },
   {
     href: "/patio/dashboard",
     label: "Patio",
@@ -1927,7 +1939,7 @@ export const TESORERIA_NAV: RoleNavItem[] = [
     href: "/tesoreria",
     label: "Tesorería",
     view: "tesoreria",
-    tip: "CxC / CxP y dispersión de caja",
+    tip: "Cartera en mora · notificar cobro · CxC/CxP",
   },
 ];
 

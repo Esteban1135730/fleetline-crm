@@ -715,6 +715,11 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     );
   }
 
+  /** Kiosk portería — sin menús laterales (tablet / PC de vigilancia). */
+  if (pathname.startsWith("/patio/porteria")) {
+    return <>{children}</>;
+  }
+
   if (
     user.mustChangePassword &&
     (pathname === "/cuenta" || pathname.startsWith("/cuenta"))

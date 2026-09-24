@@ -2,7 +2,15 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
-import { Landmark, Plus, Receipt, TrendingUp, Wallet } from "lucide-react";
+import {
+  AlertTriangle,
+  Bell,
+  Landmark,
+  Plus,
+  Receipt,
+  TrendingUp,
+  Wallet,
+} from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -58,7 +66,7 @@ type Invoice = {
   supplierName?: string | null;
   paymentApprovedAt?: string | null;
   paymentApprovedBy?: { name: string } | null;
-  customer?: { name: string } | null;
+  customer?: { id?: string; name: string } | null;
   trip?: { code: string } | null;
   supportFileRef?: string | null;
   supportOriginalName?: string | null;
@@ -67,11 +75,44 @@ type Invoice = {
 
 type Customer = { id: string; name: string };
 
-const BANK_ACCOUNTS = [
-  { id: "1110-bancolombia", label: "Bancolombia · Cta corriente 1110" },
-  { id: "1110-davivienda", label: "Davivienda · Operaciones 1110" },
-  { id: "1110-caja", label: "Caja menor · efectivo" },
-];
+type TreasuryAccount = {
+  id: string;
+  code: string;
+  name: string;
+  type: string;
+  balance: number;
+};
+
+type MoraCustomer = {
+  customerId: string | null;
+  customerName: string;
+  nit: string | null;
+  email: string | null;
+  phone: string | null;
+  totalDue: number;
+  maxDaysOverdue: number;
+  invoiceCount: number;
+  salesBlocked: boolean;
+  salesBlockReason: string | null;
+  hardStopDays: number;
+  invoices: Array<{
+    id: string;
+    number: string;
+    amount: number;
+    dueDate: string | null;
+    status: string;
+    daysOverdue: number;
+  }>;
+};
+
+type MoraBoard = {
+  asOf: string;
+  hardStopDays: number;
+  customerCount: number;
+  totalDue: number;
+  salesBlockedCount: number;
+  customers: MoraCustomer[];
+};
 
 function sparkFrom(values: number[], fallback: number): number[] {
   if (values.length >= 2) return values.slice(-8);
@@ -120,11 +161,13 @@ export default function FinanzasPage() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [accounts, setAccounts] = useState<TreasuryAccount[]>([]);
+  const [mora, setMora] = useState<MoraBoard | null>(null);
   const [invoiceTab, setInvoiceTab] = useState<InvoiceTab>("PAYABLE");
   const [registrarOpen, setRegistrarOpen] = useState(false);
   const [payOpen, setPayOpen] = useState(false);
   const [payTarget, setPayTarget] = useState<Invoice | null>(null);
-  const [payBank, setPayBank] = useState(BANK_ACCOUNTS[0].id);
+  const [payBank, setPayBank] = useState("");
   const [payBusy, setPayBusy] = useState(false);
   const [payError, setPayError] = useState("");
   const [payPin, setPayPin] = useState("");
@@ -134,6 +177,9 @@ export default function FinanzasPage() {
   const [payEvidence, setPayEvidence] = useState<File[]>([]);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailInvoice, setDetailInvoice] = useState<Invoice | null>(null);
+  const [notifyBusyId, setNotifyBusyId] = useState<string | null>(null);
+  const [info, setInfo] = useState("");
+  const [error, setError] = useState("");
   const [form, setForm] = useState({
     type: "RECEIVABLE" as "RECEIVABLE" | "PAYABLE",
     amount: "",
@@ -144,14 +190,19 @@ export default function FinanzasPage() {
   });
 
   async function load() {
-    const [s, i, c] = await Promise.all([
-      api<Summary>("/finance/summary"),
-      api<Invoice[]>("/finance/invoices"),
-      api<Customer[]>("/comercial/customers"),
+    const [s, i, c, a, m] = await Promise.all([
+      api.get<Summary>("/finance/summary"),
+      api.get<Invoice[]>("/finance/invoices"),
+      api.get<Customer[]>("/comercial/customers"),
+      api.get<{ accounts: TreasuryAccount[] }>("/finance/accounts"),
+      api.get<MoraBoard>("/finance/cartera/mora"),
     ]);
     setSummary(s);
     setInvoices(i);
     setCustomers(c);
+    setAccounts(a.accounts ?? []);
+    setMora(m);
+    setPayBank((prev) => prev || a.accounts?.[0]?.code || "");
   }
 
   useEffect(() => {
@@ -275,7 +326,7 @@ export default function FinanzasPage() {
 
   function openPayPanel(inv: Invoice) {
     setPayTarget(inv);
-    setPayBank(BANK_ACCOUNTS[0].id);
+    setPayBank(accounts[0]?.code || payBank || "");
     setPayPin("");
     setPayReceivedBy("");
     setPayConfirmCollection(false);
@@ -287,6 +338,31 @@ export default function FinanzasPage() {
   function openDetail(inv: Invoice) {
     setDetailInvoice(inv);
     setDetailOpen(true);
+  }
+
+  async function notifyCobro(row: MoraCustomer) {
+    if (!row.customerId) {
+      setError("Cliente sin ID — no se puede notificar");
+      return;
+    }
+    setNotifyBusyId(row.customerId);
+    setError("");
+    setInfo("");
+    try {
+      const res = await api.post<{ message: string }>(
+        "/finance/cartera/notificar-cobro",
+        {
+          customerId: row.customerId,
+          invoiceIds: row.invoices.map((i) => i.id),
+        },
+        { confirm: { skip: true } },
+      );
+      setInfo(res.message);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo notificar el cobro");
+    } finally {
+      setNotifyBusyId(null);
+    }
   }
 
   async function confirmPay() {
@@ -371,7 +447,7 @@ export default function FinanzasPage() {
             Centro de liquidez
           </h1>
           <p className="mt-1 font-sans text-sm text-brand-text-secondary">
-            CxC · CxP · flujo de caja · bancos 1110
+            Cartera en mora · CxC / CxP · cuentas reales del PUC
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -438,6 +514,148 @@ export default function FinanzasPage() {
           />
         </div>
       ) : null}
+
+      {error ? (
+        <p
+          role="alert"
+          className="rounded-lg border border-[var(--brand-danger)]/30 bg-[var(--brand-danger)]/10 px-3 py-2 text-sm text-[var(--brand-danger)]"
+        >
+          {error}
+        </p>
+      ) : null}
+      {info ? (
+        <p className="rounded-lg border border-[var(--brand-success)]/30 bg-[var(--brand-success)]/10 px-3 py-2 text-sm text-[var(--brand-success)]">
+          {info}
+        </p>
+      ) : null}
+
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <BentoPanel
+          className="xl:col-span-2"
+          title="Cartera en mora"
+          subtitle={
+            mora
+              ? `${mora.customerCount} cliente(s) · ${formatCop(mora.totalDue)} · hard-stop venta ≥${mora.hardStopDays}d`
+              : "CxC vencida por cliente"
+          }
+          icon={<AlertTriangle className="h-4 w-4" aria-hidden />}
+        >
+          {!mora?.customers?.length ? (
+            <EmptyState
+              title="Sin clientes en mora"
+              description="No hay CxC vencidas. Al vencer facturas aparecerán aquí con badge de mora."
+            />
+          ) : (
+            <NexaTable
+              columns={[
+                "Cliente",
+                "Deuda",
+                "Mora",
+                "Estado",
+                "Acciones",
+              ]}
+            >
+              {mora.customers.map((row) => (
+                <NexaRow key={row.customerId || row.customerName}>
+                  <NexaCell>
+                    <div className="font-medium text-brand-text-primary">
+                      {row.customerName}
+                    </div>
+                    <div className="font-data text-[10px] text-brand-text-secondary">
+                      {[row.nit, row.email, row.phone]
+                        .filter(Boolean)
+                        .join(" · ") || "Sin contacto"}
+                    </div>
+                    <div className="mt-1 font-data text-[10px] text-brand-text-secondary">
+                      {row.invoiceCount} factura(s):{" "}
+                      {row.invoices.map((i) => i.number).join(", ")}
+                    </div>
+                  </NexaCell>
+                  <NexaCell mono>{formatCop(row.totalDue)}</NexaCell>
+                  <NexaCell>
+                    <StatusPulseBadge
+                      tone={
+                        row.maxDaysOverdue >= (mora.hardStopDays || 60)
+                          ? "danger"
+                          : "fatiga"
+                      }
+                      pulse
+                    >
+                      {row.maxDaysOverdue}d
+                    </StatusPulseBadge>
+                  </NexaCell>
+                  <NexaCell>
+                    <div className="flex flex-wrap gap-1">
+                      <Badge tone="danger">En mora</Badge>
+                      {row.salesBlocked ? (
+                        <Badge tone="warning">
+                          {row.salesBlockReason === "SARLAFT"
+                            ? "Bloqueo SARLAFT"
+                            : "Bloqueo ventas"}
+                        </Badge>
+                      ) : (
+                        <Badge tone="info">Venta habilitada</Badge>
+                      )}
+                    </div>
+                  </NexaCell>
+                  <NexaCell>
+                    <Button
+                      type="button"
+                      variant="primary"
+                      className="w-auto"
+                      disabled={!row.customerId || notifyBusyId === row.customerId}
+                      onClick={() => void notifyCobro(row)}
+                    >
+                      <Bell className="mr-1 inline h-3.5 w-3.5" aria-hidden />
+                      {notifyBusyId === row.customerId
+                        ? "Enviando…"
+                        : "Notificar cobro"}
+                    </Button>
+                  </NexaCell>
+                </NexaRow>
+              ))}
+            </NexaTable>
+          )}
+        </BentoPanel>
+
+        <BentoPanel
+          title="Cuentas y bancos"
+          subtitle="Saldo del mayor · PUC 11xx"
+          icon={<Landmark className="h-4 w-4" aria-hidden />}
+        >
+          {!accounts.length ? (
+            <p className="text-sm text-brand-text-secondary">
+              Sin cuentas de caja/bancos en el PUC. Se crean al inicializar
+              contabilidad.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {accounts.map((a) => (
+                <li
+                  key={a.id}
+                  className="flex items-center justify-between gap-2 rounded-lg border border-brand-border px-3 py-2"
+                >
+                  <div>
+                    <p className="font-data text-xs text-brand-primary">
+                      {a.code}
+                    </p>
+                    <p className="text-sm text-brand-text-primary">{a.name}</p>
+                  </div>
+                  <p
+                    className={`font-data text-sm tabular-nums ${
+                      a.balance < 0
+                        ? "text-[var(--brand-danger)]"
+                        : "text-brand-text-primary"
+                    }`}
+                  >
+                    {formatCop(a.balance)}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </BentoPanel>
+      </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <BentoPanel
@@ -797,17 +1015,21 @@ export default function FinanzasPage() {
               </p>
             </div>
             <label className="flex flex-col gap-1 font-data text-[10px] uppercase tracking-wider text-brand-text-secondary">
-              Cuenta bancaria origen
+              Cuenta bancaria / caja
               <select
                 className="field"
                 value={payBank}
                 onChange={(e) => setPayBank(e.target.value)}
               >
-                {BANK_ACCOUNTS.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.label}
-                  </option>
-                ))}
+                {accounts.length === 0 ? (
+                  <option value="">Sin cuentas en PUC</option>
+                ) : (
+                  accounts.map((b) => (
+                    <option key={b.id} value={b.code}>
+                      {b.code} · {b.name} · {formatCop(b.balance)}
+                    </option>
+                  ))
+                )}
               </select>
             </label>
             {payTarget.type === "PAYABLE" ? (
