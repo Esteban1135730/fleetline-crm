@@ -139,6 +139,14 @@ export class CampoService {
       const snap = v.gpsSnapshots[0];
       const vLat = snap?.lat ?? v.lat;
       const vLng = snap?.lng ?? v.lng;
+      if (
+        !Number.isFinite(vLat) ||
+        !Number.isFinite(vLng) ||
+        !Number.isFinite(lat) ||
+        !Number.isFinite(lng)
+      ) {
+        continue;
+      }
       const distanceKm = haversineKm(lat, lng, vLat, vLng);
       if (distanceKm > radiusKm) continue;
       const speedKph = snap?.speedKph ?? null;

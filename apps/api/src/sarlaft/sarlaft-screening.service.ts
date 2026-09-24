@@ -21,6 +21,7 @@ import {
   normalizeSarlaftDoc,
 } from "./restrictive-lists.client";
 import type {
+  LiberarBloqueoDto,
   ResolveAlertDto,
   SarlaftScreenEntityType,
   ScreenEntityDto,
@@ -376,6 +377,312 @@ export class SarlaftScreeningService {
       filename: `sarlaft-cert-${check.document}-${check.id.slice(0, 8)}.pdf`,
       sha256: imprint,
     };
+  }
+
+  /**
+   * Cuarentena Oficial: maestros con sarlaftBlocked + alertas abiertas
+   * HIGH/BLOCKED (aunque aún no tengan ficha maestra / entityId).
+   * Así coinciden con lo que la matriz muestra como «BLOQUEADO» pendiente.
+   */
+  async listBlocked(organizationId: string) {
+    const [customers, suppliers, employees, openAlerts] = await Promise.all([
+      this.prisma.customer.findMany({
+        where: { organizationId, sarlaftBlocked: true },
+        select: {
+          id: true,
+          name: true,
+          nit: true,
+          email: true,
+          phone: true,
+          sarlaftRiskScore: true,
+          updatedAt: true,
+        },
+        orderBy: { updatedAt: "desc" },
+        take: 200,
+      }),
+      this.prisma.supplier.findMany({
+        where: { organizationId, sarlaftBlocked: true },
+        select: {
+          id: true,
+          name: true,
+          nit: true,
+          email: true,
+          phone: true,
+          sarlaftRiskScore: true,
+          updatedAt: true,
+        },
+        orderBy: { updatedAt: "desc" },
+        take: 200,
+      }),
+      this.prisma.employee.findMany({
+        where: { organizationId, sarlaftBlocked: true },
+        select: {
+          id: true,
+          name: true,
+          document: true,
+          email: true,
+          phone: true,
+          sarlaftRiskScore: true,
+          updatedAt: true,
+        },
+        orderBy: { updatedAt: "desc" },
+        take: 200,
+      }),
+      this.prisma.sarlaftCheck.findMany({
+        where: {
+          organizationId,
+          status: {
+            in: [SarlaftAlertStatus.PENDING, SarlaftAlertStatus.UNDER_REVIEW],
+          },
+        },
+        orderBy: [{ riskScore: "desc" }, { createdAt: "desc" }],
+        take: 400,
+      }),
+    ]);
+
+    type Row = {
+      entityType: SarlaftEntityType;
+      entityId: string | null;
+      subjectName: string;
+      document: string;
+      email?: string | null;
+      phone?: string | null;
+      riskScore: number;
+      updatedAt: string;
+      openAlertId: string | null;
+      alertRisk: string | null;
+      alertStatus: string | null;
+      listsMatched: string[];
+      notes: string | null;
+      /** MASTER = hard-lock en ficha; ALERT = cuarentena por hallazgo pendiente */
+      source: "MASTER" | "ALERT";
+      hardLocked: boolean;
+    };
+
+    const rows: Row[] = [];
+    const seenEntity = new Set<string>();
+    const seenAlert = new Set<string>();
+
+    const alertByEntity = new Map<string, (typeof openAlerts)[number]>();
+    for (const a of openAlerts) {
+      if (!a.entityType || !a.entityId) continue;
+      const key = `${a.entityType}:${a.entityId}`;
+      if (!alertByEntity.has(key)) alertByEntity.set(key, a);
+    }
+
+    for (const c of customers) {
+      const key = `${SarlaftEntityType.CUSTOMER}:${c.id}`;
+      seenEntity.add(key);
+      const alert = alertByEntity.get(key);
+      if (alert) seenAlert.add(alert.id);
+      rows.push({
+        entityType: SarlaftEntityType.CUSTOMER,
+        entityId: c.id,
+        subjectName: c.name,
+        document: c.nit,
+        email: c.email,
+        phone: c.phone,
+        riskScore: c.sarlaftRiskScore ?? alert?.riskScore ?? 0,
+        updatedAt: c.updatedAt.toISOString(),
+        openAlertId: alert?.id ?? null,
+        alertRisk: alert?.risk ?? SarlaftRisk.BLOCKED,
+        alertStatus: alert?.status ?? null,
+        listsMatched: alert?.listsMatched ?? [],
+        notes: alert?.notes ?? null,
+        source: "MASTER",
+        hardLocked: true,
+      });
+    }
+    for (const s of suppliers) {
+      const key = `${SarlaftEntityType.SUPPLIER}:${s.id}`;
+      seenEntity.add(key);
+      const alert = alertByEntity.get(key);
+      if (alert) seenAlert.add(alert.id);
+      rows.push({
+        entityType: SarlaftEntityType.SUPPLIER,
+        entityId: s.id,
+        subjectName: s.name,
+        document: s.nit,
+        email: s.email,
+        phone: s.phone,
+        riskScore: s.sarlaftRiskScore ?? alert?.riskScore ?? 0,
+        updatedAt: s.updatedAt.toISOString(),
+        openAlertId: alert?.id ?? null,
+        alertRisk: alert?.risk ?? SarlaftRisk.BLOCKED,
+        alertStatus: alert?.status ?? null,
+        listsMatched: alert?.listsMatched ?? [],
+        notes: alert?.notes ?? null,
+        source: "MASTER",
+        hardLocked: true,
+      });
+    }
+    for (const e of employees) {
+      const key = `${SarlaftEntityType.EMPLOYEE}:${e.id}`;
+      seenEntity.add(key);
+      const alert = alertByEntity.get(key);
+      if (alert) seenAlert.add(alert.id);
+      rows.push({
+        entityType: SarlaftEntityType.EMPLOYEE,
+        entityId: e.id,
+        subjectName: e.name,
+        document: e.document,
+        email: e.email,
+        phone: e.phone,
+        riskScore: e.sarlaftRiskScore ?? alert?.riskScore ?? 0,
+        updatedAt: e.updatedAt.toISOString(),
+        openAlertId: alert?.id ?? null,
+        alertRisk: alert?.risk ?? SarlaftRisk.BLOCKED,
+        alertStatus: alert?.status ?? null,
+        listsMatched: alert?.listsMatched ?? [],
+        notes: alert?.notes ?? null,
+        source: "MASTER",
+        hardLocked: true,
+      });
+    }
+
+    // Alertas abiertas de la matriz (BLOQUEADO/ALTO) aún sin hard-lock o sin ficha
+    for (const a of openAlerts) {
+      if (seenAlert.has(a.id)) continue;
+      const isQuarantine =
+        a.risk === SarlaftRisk.BLOCKED ||
+        a.risk === SarlaftRisk.HIGH ||
+        (a.riskScore ?? 0) >= SARLAFT_BLOCK_SCORE;
+      if (!isQuarantine) continue;
+
+      if (a.entityType && a.entityId) {
+        const key = `${a.entityType}:${a.entityId}`;
+        if (seenEntity.has(key)) continue;
+        seenEntity.add(key);
+      }
+      seenAlert.add(a.id);
+
+      rows.push({
+        entityType: (a.entityType as SarlaftEntityType) || SarlaftEntityType.THIRD_PARTY,
+        entityId: a.entityId,
+        subjectName: a.subjectName,
+        document: a.document,
+        riskScore: a.riskScore ?? 0,
+        updatedAt: (a.updatedAt ?? a.createdAt).toISOString(),
+        openAlertId: a.id,
+        alertRisk: a.risk,
+        alertStatus: a.status,
+        listsMatched: a.listsMatched ?? [],
+        notes: a.notes,
+        source: "ALERT",
+        hardLocked: false,
+      });
+    }
+
+    rows.sort((a, b) => b.riskScore - a.riskScore);
+
+    return {
+      items: rows,
+      totals: {
+        all: rows.length,
+        customers: rows.filter((r) => r.entityType === SarlaftEntityType.CUSTOMER)
+          .length,
+        suppliers: rows.filter((r) => r.entityType === SarlaftEntityType.SUPPLIER)
+          .length,
+        employees: rows.filter((r) => r.entityType === SarlaftEntityType.EMPLOYEE)
+          .length,
+        alertsOnly: rows.filter((r) => r.source === "ALERT").length,
+        hardLocked: rows.filter((r) => r.hardLocked).length,
+      },
+    };
+  }
+
+  /**
+   * Libera bloqueo SARLAFT con justificación obligatoria (Oficial de Cumplimiento).
+   * Cierra alerta abierta y limpia flags en el maestro cuando aplica.
+   */
+  async liberarBloqueo(
+    organizationId: string,
+    userId: string,
+    dto: LiberarBloqueoDto,
+  ) {
+    // 1) Liberación directa por alerta (matriz → cuarentena)
+    if (dto.alertId) {
+      return this.resolveAlert(organizationId, dto.alertId, userId, {
+        resolution: "RESOLVED",
+        notes: dto.notes,
+        clearBlock: true,
+      });
+    }
+
+    const entityType = dto.entityType as SarlaftEntityType;
+    const entityId = dto.entityId!;
+    if (entityType === SarlaftEntityType.THIRD_PARTY) {
+      throw new BadRequestException(
+        "Terceros sin ficha: indique alertId de la consulta pendiente",
+      );
+    }
+
+    const open = await this.prisma.sarlaftCheck.findFirst({
+      where: {
+        organizationId,
+        entityType,
+        entityId,
+        status: {
+          in: [SarlaftAlertStatus.PENDING, SarlaftAlertStatus.UNDER_REVIEW],
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (open) {
+      return this.resolveAlert(organizationId, open.id, userId, {
+        resolution: "RESOLVED",
+        notes: dto.notes,
+        clearBlock: true,
+      });
+    }
+
+    // Bloqueo huérfano (flag sin alerta abierta): limpia maestro + auditoría
+    const resolved = await this.resolveEntity(
+      organizationId,
+      entityType,
+      entityId,
+      entityId,
+    );
+    await this.applyEntityBlock(entityType, entityId, false, 0);
+
+    const check = await this.prisma.sarlaftCheck.create({
+      data: {
+        organizationId,
+        subjectName: resolved.subjectName,
+        document: normalizeSarlaftDoc(resolved.document),
+        risk: SarlaftRisk.LOW,
+        riskScore: 0,
+        entityType,
+        entityId,
+        status: SarlaftAlertStatus.RESOLVED,
+        notes: "Liberación de bloqueo sin alerta abierta",
+        resolutionNotes: dto.notes,
+        resolvedAt: new Date(),
+        resolvedById: userId,
+        customerId:
+          entityType === SarlaftEntityType.CUSTOMER ? entityId : undefined,
+        graphPayload: { liberatedWithoutOpenAlert: true },
+      },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        organizationId,
+        action: "SARLAFT_BLOCK_CLEAR",
+        entity: entityType,
+        entityId,
+        module: FleetModule.SARLAFT,
+        userId,
+        meta: {
+          notes: dto.notes,
+          checkId: check.id,
+          orphanBlock: true,
+        },
+      },
+    });
+
+    return check;
   }
 
   private async resolveEntity(

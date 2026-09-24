@@ -57,3 +57,27 @@ export const CreateDealSchema = z.object({
   distanceKm: z.number().positive().optional(),
 });
 export type CreateDealDto = z.infer<typeof CreateDealSchema>;
+
+/** PATCH ficha / etapa del embudo (tablero Kanban). */
+export const UpdateDealSchema = z.object({
+  stage: z
+    .enum([
+      "NUEVO_LEAD",
+      "REUNION_AGENDADA",
+      "COTIZACION_ENVIADA",
+      "EN_NEGOCIACION",
+      "CERRADO_GANADO",
+      "CERRADO_PERDIDO",
+    ])
+    .optional(),
+  accountName: z.string().min(2).optional(),
+  zone: z.string().min(2).optional(),
+  vehicleType: z.string().optional(),
+  distanceKm: z.number().positive().optional().nullable(),
+  estimatedMonthlyValue: z.number().nonnegative().optional(),
+  customerName: z.string().min(2).optional(),
+  nit: z.string().min(5).max(20).optional(),
+  email: z.string().email().optional().or(z.literal("")),
+  phone: z.string().min(5).max(40).optional().or(z.literal("")),
+});
+export type UpdateDealDto = z.infer<typeof UpdateDealSchema>;

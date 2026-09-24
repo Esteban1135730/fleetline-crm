@@ -168,6 +168,12 @@ export default function CuentaPage() {
     setForce(q || Boolean(user?.mustChangePassword));
   }, [user?.mustChangePassword]);
 
+  function backToLogin() {
+    void api("/auth/logout", { method: "POST" }).catch(() => undefined);
+    logout();
+    router.replace("/login");
+  }
+
   if (force) {
     return (
       <AuthLayout
@@ -189,9 +195,23 @@ export default function CuentaPage() {
         <PasswordForm
           force
           onDone={() => {
-            window.location.href = "/";
+            window.location.href = homePath || "/";
           }}
         />
+        <div className="mt-6 flex flex-col items-center gap-2 border-t border-brand-border pt-4">
+          <p className="text-center font-sans text-xs text-brand-text-secondary">
+            Si no puedes cambiar la clave ahora, cierra sesión y vuelve al
+            inicio.
+          </p>
+          <Button
+            type="button"
+            variant="ghost"
+            className="w-auto px-4 py-2 text-sm"
+            onClick={backToLogin}
+          >
+            Volver al inicio de sesión
+          </Button>
+        </div>
       </AuthLayout>
     );
   }

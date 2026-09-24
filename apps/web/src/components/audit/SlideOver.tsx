@@ -1,6 +1,14 @@
 "use client";
 
-import { useEffect, useId, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from "react";
 import { createPortal } from "react-dom";
 import { Button } from "@fsg/ui";
 import { useScrollLock } from "@/lib/use-scroll-lock";
@@ -15,7 +23,11 @@ type SlideOverProps = {
   widthClass?: string;
 };
 
-/** Panel lateral derecho — formularios de alta/edición (auditoría UI/UX). */
+/**
+ * Panel lateral derecho — formularios de alta/edición.
+ * El scrim no cierra con el clic de apertura ni con clics “fantasma”
+ * de un <select> nativo (pointerdown debe haber empezado en el scrim).
+ */
 export function SlideOver({
   open,
   onClose,
@@ -27,6 +39,10 @@ export function SlideOver({
 }: SlideOverProps) {
   const titleId = useId();
   const [mounted, setMounted] = useState(false);
+  const [scrimArmed, setScrimArmed] = useState(false);
+  const onCloseRef = useRef(onClose);
+  const pointerDownOnScrim = useRef(false);
+  onCloseRef.current = onClose;
   useScrollLock(open);
 
   useEffect(() => {
@@ -34,29 +50,61 @@ export function SlideOver({
   }, []);
 
   useEffect(() => {
+    if (!open) {
+      setScrimArmed(false);
+      pointerDownOnScrim.current = false;
+      return;
+    }
+    const t = window.setTimeout(() => setScrimArmed(true), 200);
+    return () => window.clearTimeout(t);
+  }, [open]);
+
+  useEffect(() => {
     if (!open) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") onCloseRef.current();
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  }, [open]);
+
+  const onScrimPointerDown = useCallback(
+    (e: ReactPointerEvent<HTMLDivElement>) => {
+      pointerDownOnScrim.current = e.target === e.currentTarget;
+    },
+    [],
+  );
+
+  const closeFromScrim = useCallback(() => {
+    const startedHere = pointerDownOnScrim.current;
+    pointerDownOnScrim.current = false;
+    if (!scrimArmed || !startedHere) return;
+    onCloseRef.current();
+  }, [scrimArmed]);
 
   if (!open || !mounted) return null;
 
   const panel = (
     <div className="fixed inset-0 z-[85]" role="presentation">
-      <button
-        type="button"
-        className="absolute inset-0 bg-[var(--brand-scrim)] backdrop-blur-sm"
-        aria-label="Cerrar panel"
-        onClick={onClose}
+      <div
+        role="presentation"
+        className={`absolute inset-0 z-0 bg-[var(--brand-scrim)] backdrop-blur-sm ${
+          scrimArmed ? "pointer-events-auto" : "pointer-events-none"
+        }`}
+        aria-hidden={!scrimArmed}
+        onPointerDown={onScrimPointerDown}
+        onClick={closeFromScrim}
       />
       <aside
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className={`absolute top-0 right-0 bottom-0 flex w-full ${widthClass} flex-col border-l border-brand-border/70 bg-[color-mix(in_srgb,var(--brand-surface)_82%,transparent)] shadow-[var(--shadow-3d-panel)] backdrop-blur-xl`}
+        className={`absolute top-0 right-0 bottom-0 z-10 flex w-full ${widthClass} flex-col border-l border-brand-border/70 bg-[color-mix(in_srgb,var(--brand-surface)_82%,transparent)] shadow-[var(--shadow-3d-panel)] backdrop-blur-xl`}
+        onPointerDown={() => {
+          pointerDownOnScrim.current = false;
+        }}
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
       >
         <header className="flex shrink-0 items-start justify-between gap-3 border-b border-brand-border/50 px-5 py-4">
           <div className="min-w-0 pr-2">
@@ -76,7 +124,7 @@ export function SlideOver({
             type="button"
             variant="ghost"
             className="w-auto shrink-0 px-2 py-1 font-data text-[10px] uppercase tracking-wide"
-            onClick={onClose}
+            onClick={() => onCloseRef.current()}
           >
             Esc
           </Button>

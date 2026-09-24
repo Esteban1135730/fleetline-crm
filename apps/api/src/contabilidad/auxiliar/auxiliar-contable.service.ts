@@ -277,12 +277,100 @@ export class AuxiliarContableService {
     userId: string,
     dto: ConciliacionAutoMatchDto,
   ) {
-    let statementId = dto.statementId;
+    const lineKey = (r: {
+      externalRef?: string | null;
+      description: string;
+      amount: unknown;
+    }) =>
+      `${String(r.externalRef || "").trim().toUpperCase()}|${String(r.description || "")
+        .trim()
+        .toUpperCase()}|${num(r.amount).toFixed(2)}`;
 
-    if (!statementId) {
-      if (!dto.rows?.length) {
-        throw new BadRequestException("statementId o rows requerido");
+    const existingLines = await this.prisma.bankStatementLine.findMany({
+      where: { statement: { organizationId } },
+      select: {
+        id: true,
+        externalRef: true,
+        description: true,
+        amount: true,
+        matched: true,
+        statementId: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: "asc" },
+      take: 2000,
+    });
+
+    /** Limpia duplicados ya cargados (misma ref+desc+monto) dejando el más antiguo. */
+    const seenUnmatched = new Set<string>();
+    const duplicateIds: string[] = [];
+    for (const line of existingLines) {
+      if (line.matched) continue;
+      const key = lineKey(line);
+      if (seenUnmatched.has(key)) duplicateIds.push(line.id);
+      else seenUnmatched.add(key);
+    }
+    if (duplicateIds.length) {
+      await this.prisma.bankStatementLine.deleteMany({
+        where: { id: { in: duplicateIds } },
+      });
+    }
+
+    const liveLines = existingLines.filter((l) => !duplicateIds.includes(l.id));
+    const existingKeys = new Set(liveLines.map((l) => lineKey(l)));
+
+    let statementId = dto.statementId;
+    let skippedDuplicates = duplicateIds.length;
+    let seededCount = 0;
+
+    const DEMO_ROWS = [
+      {
+        description: "PAGO PROVEEDOR",
+        amount: -150000,
+        externalRef: "FAC-001",
+      },
+    ];
+    /** Si no mandan filas, usa el extracto demo una sola vez (el dedupe evita repetición). */
+    const incoming = dto.rows?.length ? dto.rows : DEMO_ROWS;
+    const novelRows = incoming.filter((r) => {
+      const key = lineKey(r);
+      if (existingKeys.has(key)) {
+        skippedDuplicates += 1;
+        return false;
       }
+      existingKeys.add(key);
+      return true;
+    });
+
+    if (!statementId && novelRows.length === 0) {
+      const unmatched = liveLines.filter((l) => !l.matched);
+      if (unmatched.length > 0) {
+        statementId = unmatched[0]!.statementId;
+      } else {
+        /** Ya está el extracto y no hay pendientes: match OK, sin reinsertar. */
+        return {
+          statementId: liveLines[0]?.statementId ?? null,
+          reconciliationId: null,
+          matchedCount: 0,
+          unmatchedCount: 0,
+          skippedDuplicates,
+          seededCount: 0,
+          status: BankReconciliationStatus.CLOSED,
+          matches: [] as Array<{
+            lineId: string;
+            invoiceId: string;
+            score: number;
+          }>,
+          dailyCashClosed: false,
+          message:
+            skippedDuplicates > 0
+              ? `Auto-Match · sin pendientes · ${skippedDuplicates} movimiento(s) ya existían (no se duplicaron)`
+              : "Auto-Match · sin movimientos pendientes por emparejar",
+        };
+      }
+    }
+
+    if (!statementId && novelRows.length > 0) {
       const statement = await this.prisma.bankStatement.create({
         data: {
           organizationId,
@@ -290,9 +378,9 @@ export class AuxiliarContableService {
           periodDate: dto.periodDate ? new Date(dto.periodDate) : new Date(),
           fileName: "upload.csv",
           uploadedById: userId,
-          rawRows: dto.rows,
+          rawRows: novelRows,
           lines: {
-            create: dto.rows.map((r) => ({
+            create: novelRows.map((r) => ({
               externalRef: r.externalRef || null,
               description: r.description,
               amount: r.amount,
@@ -302,6 +390,24 @@ export class AuxiliarContableService {
         },
       });
       statementId = statement.id;
+      seededCount = novelRows.length;
+    } else if (statementId && novelRows.length > 0) {
+      await this.prisma.bankStatementLine.createMany({
+        data: novelRows.map((r) => ({
+          statementId: statementId!,
+          externalRef: r.externalRef || null,
+          description: r.description,
+          amount: r.amount,
+          bookedAt: r.bookedAt ? new Date(r.bookedAt) : null,
+        })),
+      });
+      seededCount = novelRows.length;
+    }
+
+    if (!statementId) {
+      throw new BadRequestException(
+        "No hay extracto ni movimientos nuevos para conciliar",
+      );
     }
 
     const statement = await this.prisma.bankStatement.findFirst({
@@ -309,6 +415,14 @@ export class AuxiliarContableService {
       include: { lines: true },
     });
     if (!statement) throw new NotFoundException("Extracto no encontrado");
+
+    /** Empareja todas las líneas pendientes de la org (no solo el extracto recién creado). */
+    const pendingLines = await this.prisma.bankStatementLine.findMany({
+      where: {
+        matched: false,
+        statement: { organizationId },
+      },
+    });
 
     const invoices = await this.prisma.invoice.findMany({
       where: {
@@ -340,7 +454,7 @@ export class AuxiliarContableService {
       score: number;
     }> = [];
 
-    for (const line of statement.lines.filter((l) => !l.matched)) {
+    for (const line of pendingLines) {
       const amt = Math.abs(num(line.amount));
       const desc = line.description.toLowerCase();
       let best: { invoiceId: string; score: number } | null = null;
@@ -385,7 +499,17 @@ export class AuxiliarContableService {
       }
     }
 
-    const unmatchedCount = statement.lines.length - matchedCount;
+    const stillUnmatched = await this.prisma.bankStatementLine.count({
+      where: {
+        matched: false,
+        statement: { organizationId },
+      },
+    });
+    const statementUnmatched = statement.lines.filter((l) => {
+      if (matches.some((m) => m.lineId === l.id)) return false;
+      return !l.matched;
+    }).length;
+    const unmatchedCount = Math.max(stillUnmatched, statementUnmatched);
     const status =
       unmatchedCount === 0
         ? BankReconciliationStatus.CLOSED
@@ -398,9 +522,10 @@ export class AuxiliarContableService {
       create: {
         organizationId,
         statementId: statement.id,
-        status: dto.closeDaily && unmatchedCount === 0
-          ? BankReconciliationStatus.CLOSED
-          : status,
+        status:
+          dto.closeDaily && unmatchedCount === 0
+            ? BankReconciliationStatus.CLOSED
+            : status,
         matchedCount,
         unmatchedCount,
         closedAt:
@@ -411,9 +536,10 @@ export class AuxiliarContableService {
       update: {
         matchedCount,
         unmatchedCount,
-        status: dto.closeDaily && unmatchedCount === 0
-          ? BankReconciliationStatus.CLOSED
-          : status,
+        status:
+          dto.closeDaily && unmatchedCount === 0
+            ? BankReconciliationStatus.CLOSED
+            : status,
         closedAt:
           dto.closeDaily && unmatchedCount === 0 ? new Date() : undefined,
         closedById:
@@ -428,9 +554,15 @@ export class AuxiliarContableService {
       reconciliationId: recon.id,
       matchedCount,
       unmatchedCount,
+      skippedDuplicates,
+      seededCount,
       status: recon.status,
       matches,
       dailyCashClosed: recon.status === BankReconciliationStatus.CLOSED,
+      message:
+        skippedDuplicates > 0
+          ? `Auto-Match · ${matchedCount} emparejadas · ${skippedDuplicates} duplicado(s) omitido(s)`
+          : undefined,
     };
   }
 

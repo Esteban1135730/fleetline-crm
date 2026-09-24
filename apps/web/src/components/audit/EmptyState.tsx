@@ -8,6 +8,7 @@ type EmptyStateProps = {
   title: string;
   description?: string;
   actionLabel?: string;
+  actionDisabled?: boolean;
   onAction?: () => void;
 };
 
@@ -17,6 +18,7 @@ export function EmptyState({
   title,
   description,
   actionLabel,
+  actionDisabled,
   onAction,
 }: EmptyStateProps) {
   return (
@@ -44,8 +46,13 @@ export function EmptyState({
         <p className="mt-2 max-w-md text-sm text-[var(--brand-text-secondary)]">{description}</p>
       ) : null}
       {actionLabel && onAction ? (
-        <div className="mt-5 flex w-full justify-center">
-          <Button variant="primary" className="w-auto px-4 py-2" onClick={onAction}>
+        <div className="mt-5 flex w-full justify-end sm:w-auto sm:justify-center">
+          <Button
+            variant="primary"
+            className="w-auto px-4 py-2"
+            disabled={actionDisabled}
+            onClick={onAction}
+          >
             {actionLabel}
           </Button>
         </div>

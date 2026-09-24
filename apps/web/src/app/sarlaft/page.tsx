@@ -105,7 +105,7 @@ export default function SarlaftPage() {
   async function load() {
     const [checks, alertRows] = await Promise.all([
       api<Check[]>("/sarlaft/checks"),
-      api<Alert[]>("/sarlaft/alerts?status=OPEN").catch(() => []),
+      api<Alert[]>("/sarlaft/alerts").catch(() => []),
     ]);
     setRows(checks);
     setAlerts(Array.isArray(alertRows) ? alertRows : []);
@@ -266,16 +266,24 @@ export default function SarlaftPage() {
       </header>
 
       {alerts.length > 0 ? (
-        <div className="flex items-start gap-3 rounded-lg border border-brand-danger/40 bg-brand-danger/10 px-4 py-3">
-          <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-brand-danger" aria-hidden />
-          <div>
-            <p className="text-sm font-semibold text-brand-text-primary">
-              {alerts.length} alerta{alerts.length !== 1 ? "s" : ""} de listas restrictivas · cuarentena activa
-            </p>
-            <p className="mt-0.5 text-xs text-brand-text-secondary">
-              Pagos y operaciones bloqueados en Compras, Logística y Tesorería hasta resolución del Oficial de Cumplimiento.
-            </p>
+        <div className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-brand-danger/40 bg-brand-danger/10 px-4 py-3">
+          <div className="flex items-start gap-3">
+            <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-brand-danger" aria-hidden />
+            <div>
+              <p className="text-sm font-semibold text-brand-text-primary">
+                {alerts.length} alerta{alerts.length !== 1 ? "s" : ""} de listas restrictivas · cuarentena activa
+              </p>
+              <p className="mt-0.5 text-xs text-brand-text-secondary">
+                Pagos y operaciones bloqueados en Compras, Logística y Tesorería hasta resolución del Oficial de Cumplimiento.
+              </p>
+            </div>
           </div>
+          <a
+            href="/sarlaft/bloqueos"
+            className="shrink-0 rounded-lg border border-brand-danger/40 bg-brand-surface px-3 py-1.5 font-data text-[11px] font-semibold uppercase tracking-wide text-brand-danger hover:bg-brand-danger/10"
+          >
+            Gestionar bloqueos
+          </a>
         </div>
       ) : null}
 
@@ -361,19 +369,31 @@ export default function SarlaftPage() {
                     {formatCheckedAt(r.checkedAt || r.createdAt)}
                   </NexaCell>
                   <NexaCell>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      className="w-auto px-3 py-1"
-                      onClick={() =>
-                        void downloadCertificate(r.id).catch((err) =>
-                          console.error(err),
-                        )
-                      }
-                    >
-                      <FileText className="mr-1 inline h-3.5 w-3.5" />
-                      Certificado
-                    </Button>
+                    <div className="flex flex-col gap-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="w-auto px-3 py-1"
+                        onClick={() =>
+                          void downloadCertificate(r.id).catch((err) =>
+                            console.error(err),
+                          )
+                        }
+                      >
+                        <FileText className="mr-1 inline h-3.5 w-3.5" />
+                        Certificado
+                      </Button>
+                      {(r.risk === "BLOCKED" || r.risk === "HIGH") &&
+                      (r as Check & { status?: string }).status !== "RESOLVED" &&
+                      (r as Check & { status?: string }).status !== "DISMISSED" ? (
+                        <a
+                          href="/sarlaft/bloqueos"
+                          className="font-data text-[10px] font-semibold uppercase tracking-wide text-brand-danger hover:underline"
+                        >
+                          Gestionar en Bloqueos →
+                        </a>
+                      ) : null}
+                    </div>
                   </NexaCell>
                 </NexaRow>
               );

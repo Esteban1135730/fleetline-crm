@@ -50,6 +50,12 @@ type Dash = {
   period: {
     status: string;
     hardLockedAt: string | null;
+    hardLockedById?: string | null;
+    confirmation?: {
+      confirmedById?: string;
+      confirmedAt?: string;
+      confirmPhrase?: string;
+    } | null;
     dictamen: {
       pdfRef: string;
       signatureHash: string;
@@ -123,9 +129,13 @@ const HELP_STEPS = [
   "Panel DIAN consolida ventas/compras y resalta retenciones omitidas o mal calculadas.",
   "Detalle forense: saldo PUC → factura → presupuesto → OC → almacén → egreso.",
   `Muestreo automático del ${HARD_RULES.REVISORIA_SAMPLE_PCT}% de transacciones del mes.`,
-  "Cierre de periodo: dictamen en PDF y bloqueo absoluto del periodo contable.",
+  "Cierre de periodo: exige casilla de riesgo + escribir CERRAR YYYY-MM; sella contabilidad de toda la organización.",
   "Navegación rápida: Ctrl/Cmd + K · Ayuda: tecla ?",
 ];
+
+function hardLockConfirmPhrase(yearMonth: string) {
+  return `CERRAR ${yearMonth}`;
+}
 
 export default function RevisoriaFiscalDashboardPage() {
   const [dash, setDash] = useState<Dash | null>(null);
@@ -139,12 +149,18 @@ export default function RevisoriaFiscalDashboardPage() {
   const [tab, setTab] = useState<TabId>("alertas");
   const [lockOpen, setLockOpen] = useState(false);
   const [pdfRef, setPdfRef] = useState("uploads/dictamen/dictamen-mes.pdf");
+  const [riskAck, setRiskAck] = useState(false);
+  const [confirmPhrase, setConfirmPhrase] = useState("");
 
   const ym =
     dash?.yearMonth ||
     `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
 
   const locked = dash?.period.status === "HARD_LOCKED";
+  const expectedPhrase = hardLockConfirmPhrase(ym);
+  const phraseOk =
+    confirmPhrase.trim().toUpperCase() === expectedPhrase;
+  const canSubmitHardLock = riskAck && phraseOk && !busy && !locked;
 
   const load = useCallback(async () => {
     try {
@@ -179,21 +195,39 @@ export default function RevisoriaFiscalDashboardPage() {
   }
 
   async function applyHardLock() {
+    if (!riskAck || !phraseOk) {
+      setError(
+        `Confirmación incompleta: marque el riesgo y escriba exactamente ${expectedPhrase}`,
+      );
+      return;
+    }
     setBusy(true);
     setMsg(null);
     setError(null);
     try {
-      const res = await api.post<{ status: string; message: string }>(
-        "/api/v1/revisoria-fiscal/cierre/hard-lock",
-        {
-          yearMonth: ym,
-          pdfRef,
-          opinion: "SIN_SALVEDADES",
-          notes: "Dictamen de revisoría — cierre absoluto del periodo",
-        },
+      const res = await api.post<{
+        status: string;
+        message: string;
+        hardLockedById?: string;
+        confirmation?: { confirmedAt?: string };
+      }>("/api/v1/revisoria-fiscal/cierre/hard-lock", {
+        yearMonth: ym,
+        pdfRef,
+        opinion: "SIN_SALVEDADES",
+        notes: "Dictamen de revisoría — cierre absoluto del periodo",
+        riskAcknowledged: true,
+        confirmPhrase: confirmPhrase.trim(),
+      });
+      setMsg(
+        `${res.status}: ${res.message}${
+          res.hardLockedById
+            ? ` · confirmado por ${res.hardLockedById.slice(0, 8)}…`
+            : ""
+        }`,
       );
-      setMsg(`${res.status}: ${res.message}`);
       setLockOpen(false);
+      setRiskAck(false);
+      setConfirmPhrase("");
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Cierre de periodo fallido");
@@ -333,7 +367,11 @@ export default function RevisoriaFiscalDashboardPage() {
             variant="primary"
             className="w-auto px-4 py-2"
             disabled={busy || locked}
-            onClick={() => setLockOpen(true)}
+            onClick={() => {
+              setRiskAck(false);
+              setConfirmPhrase("");
+              setLockOpen(true);
+            }}
           >
             Cierre de periodo
           </Button>
@@ -621,48 +659,146 @@ export default function RevisoriaFiscalDashboardPage() {
         ) : null}
       </Modal>
 
-      {/* Hard Lock form en Modal */}
+      {/* Hard Lock — confirmación fuerte (casilla + frase) */}
       <Modal
         open={lockOpen}
-        onClose={() => setLockOpen(false)}
-        title="Dictamen y cierre de periodo"
-        description={`Sella el periodo ${ym}. Acción irreversible en la red.`}
+        onClose={() => {
+          setLockOpen(false);
+          setRiskAck(false);
+          setConfirmPhrase("");
+        }}
+        title="¿Está seguro de cerrar el periodo?"
+        description={`Esta acción sella ${ym} para TODA la organización. No es un clic reversible.`}
+        size="lg"
         footer={
           <>
             <Button
               className="w-auto px-4 py-2"
               variant="ghost"
-              onClick={() => setLockOpen(false)}
+              onClick={() => {
+                setLockOpen(false);
+                setRiskAck(false);
+                setConfirmPhrase("");
+              }}
             >
               Cancelar
             </Button>
             <Button
               className="w-auto px-4 py-2"
               variant="primary"
-              disabled={busy || locked}
+              disabled={!canSubmitHardLock}
+              title={
+                canSubmitHardLock
+                  ? "Ejecutar cierre organizacional"
+                  : `Marque el riesgo y escriba ${expectedPhrase}`
+              }
               onClick={() => void applyHardLock()}
             >
-              {locked ? "Periodo sellado" : "Aplicar cierre de periodo"}
+              {locked
+                ? "Periodo sellado"
+                : busy
+                  ? "Cerrando…"
+                  : "Confirmar cierre organizacional"}
             </Button>
           </>
         }
       >
-        <label className="block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-secondary)]">
-          PDF dictamen
-        </label>
-        <input
-          value={pdfRef}
-          onChange={(e) => setPdfRef(e.target.value)}
-          className="mt-2 w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface-elevated)] px-3 py-2 font-mono text-sm text-[var(--brand-text-primary)]"
-          placeholder="uploads/dictamen/…"
-        />
-        {dash?.period.dictamen ? (
-          <p className="mt-3 font-mono text-xs text-[var(--brand-text-secondary)]">
-            Dictamen {dash.period.dictamen.opinion} · hash{" "}
-            {dash.period.dictamen.signatureHash.slice(0, 16)}… ·{" "}
-            {dash.period.dictamen.pdfRef}
-          </p>
-        ) : null}
+        <div className="space-y-4">
+          <div
+            role="alert"
+            className="rounded-lg border border-[var(--brand-danger)]/40 bg-[var(--brand-danger)]/10 px-3 py-3 text-sm text-[var(--brand-text-primary)]"
+          >
+            <p className="font-semibold text-[var(--brand-danger)]">
+              Riesgo organizacional
+            </p>
+            <ul className="mt-2 list-disc space-y-1 pl-4 text-[var(--brand-text-secondary)]">
+              <li>
+                Bloquea altas, ediciones y borrados contables/fiscales del
+                periodo {ym} en <strong>toda la empresa</strong>.
+              </li>
+              <li>
+                Queda registro de quién confirmó (usuario, frase y marca de
+                tiempo).
+              </li>
+              <li>Sin casilla y sin la frase exacta, el cierre no se ejecuta.</li>
+            </ul>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-secondary)]">
+              PDF dictamen
+            </label>
+            <input
+              value={pdfRef}
+              onChange={(e) => setPdfRef(e.target.value)}
+              className="mt-2 w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface-elevated)] px-3 py-2 font-mono text-sm text-[var(--brand-text-primary)]"
+              placeholder="uploads/dictamen/…"
+            />
+          </div>
+
+          <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface-elevated)]/40 px-3 py-3 text-sm">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={riskAck}
+              onChange={(e) => setRiskAck(e.target.checked)}
+              disabled={locked || busy}
+            />
+            <span>
+              Entiendo el riesgo: este cierre afecta a{" "}
+              <strong>toda la organización</strong> y no se puede deshacer con
+              un clic.
+            </span>
+          </label>
+
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-secondary)]">
+              Escriba la frase de confirmación
+            </label>
+            <p className="mt-1 text-xs text-[var(--brand-text-secondary)]">
+              Exactamente:{" "}
+              <code className="font-mono text-[var(--brand-primary)]">
+                {expectedPhrase}
+              </code>
+            </p>
+            <input
+              value={confirmPhrase}
+              onChange={(e) => setConfirmPhrase(e.target.value)}
+              autoComplete="off"
+              spellCheck={false}
+              disabled={locked || busy}
+              className="mt-2 w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface-elevated)] px-3 py-2 font-mono text-sm text-[var(--brand-text-primary)]"
+              placeholder={expectedPhrase}
+              aria-invalid={confirmPhrase.length > 0 && !phraseOk}
+            />
+            {confirmPhrase.length > 0 && !phraseOk ? (
+              <p className="mt-1 text-xs text-[var(--brand-danger)]">
+                La frase no coincide — el cierre permanece bloqueado.
+              </p>
+            ) : null}
+          </div>
+
+          {dash?.period.dictamen ? (
+            <p className="font-mono text-xs text-[var(--brand-text-secondary)]">
+              Dictamen {dash.period.dictamen.opinion} · hash{" "}
+              {dash.period.dictamen.signatureHash.slice(0, 16)}… ·{" "}
+              {dash.period.dictamen.pdfRef}
+            </p>
+          ) : null}
+          {dash?.period.confirmation ? (
+            <p className="font-mono text-xs text-[var(--brand-text-secondary)]">
+              Última confirmación:{" "}
+              {dash.period.confirmation.confirmedAt
+                ? new Date(
+                    dash.period.confirmation.confirmedAt,
+                  ).toLocaleString("es-CO")
+                : "—"}
+              {dash.period.hardLockedById
+                ? ` · usuario ${dash.period.hardLockedById.slice(0, 8)}…`
+                : ""}
+            </p>
+          ) : null}
+        </div>
       </Modal>
     </div>
   );

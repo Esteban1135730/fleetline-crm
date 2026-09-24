@@ -2,12 +2,11 @@ import {
   Body,
   Controller,
   Get,
-  Header,
   Param,
+  Patch,
   Post,
   Req,
   Res,
-  StreamableFile,
   UseGuards,
 } from "@nestjs/common";
 import type { Response } from "express";
@@ -21,6 +20,7 @@ import {
   CotizarSchema,
   CreateDealSchema,
   FirmarDocusignSchema,
+  UpdateDealSchema,
 } from "./dto/director-comercial.dto";
 
 type AuthReq = {
@@ -49,7 +49,7 @@ const DIR_COM_ROLES = [
 export class DirectorComercialController {
   constructor(
     private director: DirectorComercialService,
-    private quotePdf: QuotePdfService,
+    private readonly quotesPdf: QuotePdfService,
   ) {}
 
   @Get("dashboard")
@@ -67,6 +67,18 @@ export class DirectorComercialController {
       req.user.userId,
       dto,
     );
+  }
+
+  /** PATCH /api/v1/comercial/director/deals/:id — etapa / ficha */
+  @Patch("deals/:id")
+  @Permissions("crm_comercial", "UPDATE")
+  updateDeal(
+    @Req() req: AuthReq,
+    @Param("id") id: string,
+    @Body() body: unknown,
+  ) {
+    const dto = UpdateDealSchema.parse(body ?? {});
+    return this.director.updateDeal(req.user.organizationId, id, dto);
   }
 
   /** POST /api/v1/comercial/director/cotizar */
@@ -96,22 +108,22 @@ export class DirectorComercialController {
   /** GET /api/v1/comercial/director/quotes/:id/pdf */
   @Get("quotes/:id/pdf")
   @Permissions("crm_comercial", "READ")
-  @Header("Content-Type", "application/pdf")
-  async quotePdf(
+  async downloadQuotePdf(
     @Req() req: AuthReq,
     @Param("id") id: string,
-    @Res({ passthrough: true }) res: Response,
+    @Res() res: Response,
   ) {
-    const { buffer, pdfRef } = await this.quotePdf.generateIntelligentQuotePdf(
+    const { buffer, pdfRef } = await this.quotesPdf.generateIntelligentQuotePdf(
       req.user.organizationId,
       id,
     );
     const filename = pdfRef.split("/").pop() ?? "oferta.pdf";
+    res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
       "Content-Disposition",
-      `inline; filename="${filename}"`,
+      `attachment; filename="${filename}"`,
     );
-    return new StreamableFile(buffer);
+    res.send(buffer);
   }
 
   /** GET /api/v1/comercial/director/renovaciones-radar */

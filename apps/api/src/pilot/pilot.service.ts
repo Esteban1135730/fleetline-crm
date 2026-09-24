@@ -351,10 +351,28 @@ export class PilotService {
       orderBy: { departAt: "asc" },
       take: 10,
       include: {
-        vehicle: { select: { plate: true } },
+        vehicle: { select: { id: true, plate: true } },
         preoperational: true,
       },
     });
+
+    const openShift = driver
+      ? await this.prisma.driverShift.findFirst({
+          where: {
+            organizationId,
+            driverId: driver.id,
+            status: "OPEN",
+          },
+          orderBy: { checkInAt: "desc" },
+        })
+      : null;
+
+    const shiftMeta = (openShift?.meta ?? null) as {
+      dutyStatus?: string;
+      lastLat?: number;
+      lastLng?: number;
+      lastLocationAt?: string;
+    } | null;
 
     const sos = await this.prisma.pilotSosAlert.findMany({
       where: { organizationId, status: "ACTIVE" },
@@ -372,10 +390,30 @@ export class PilotService {
       hub: "FSG Pilot",
       role: "CONDUCTOR",
       speedLockKph: HARD_RULES.PILOT_SPEED_LOCK_KPH,
+      driver: driver
+        ? {
+            id: driver.id,
+            name: driver.name,
+            document: driver.document,
+          }
+        : null,
+      duty: {
+        status: (shiftMeta?.dutyStatus as
+          | "ON_DUTY"
+          | "OFF_DUTY"
+          | "BREAK"
+          | undefined) ?? (openShift ? "ON_DUTY" : "OFF_DUTY"),
+        shiftId: openShift?.id ?? null,
+        checkInAt: openShift?.checkInAt?.toISOString() ?? null,
+        lastLat: shiftMeta?.lastLat ?? null,
+        lastLng: shiftMeta?.lastLng ?? null,
+        lastLocationAt: shiftMeta?.lastLocationAt ?? null,
+      },
       trips: trips.map((t) => ({
         id: t.id,
         code: t.code,
         status: t.status,
+        vehicleId: t.vehicle?.id ?? t.vehicleId ?? null,
         plate: t.vehicle?.plate,
         departAt: t.departAt,
         preopDone: Boolean(t.preoperational?.approved),

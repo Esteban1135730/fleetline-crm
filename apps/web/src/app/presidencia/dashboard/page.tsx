@@ -287,6 +287,24 @@ export default function PresidenciaDashboardPage() {
     }
   }
 
+  async function desactivarDefcon() {
+    setBusy(true);
+    setDefconOut(null);
+    setZoneError("");
+    try {
+      const res = await api<{ message: string; closed: number }>(
+        "/api/v1/presidencia/defcon/desactivar",
+        { method: "POST", body: "{}" },
+      );
+      setCrisisActive(false);
+      setDefconOut(res.message || "Protocolo de crisis desactivado");
+    } catch (e) {
+      setError((e as Error).message || "No se pudo apagar el protocolo");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function toggleZone(zone: string) {
     setZoneError("");
     setZones((prev) =>
@@ -843,15 +861,28 @@ export default function PresidenciaDashboardPage() {
         title="Protocolo de crisis"
         description="Protocolo de alerta máxima — sirena + aviso masivo + sala de crisis"
         footer={
-          <Button
-            type="button"
-            variant="primary"
-            className="w-auto px-4 py-2 !bg-brand-danger !text-white"
-            disabled={busy}
-            onClick={() => void activarDefcon()}
-          >
-            Activar alerta máxima
-          </Button>
+          <div className="flex w-full flex-wrap justify-end gap-2">
+            {defconActive ? (
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-auto px-4 py-2"
+                disabled={busy}
+                onClick={() => void desactivarDefcon()}
+              >
+                Apagar protocolo
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              variant="primary"
+              className="w-auto px-4 py-2 !bg-brand-danger !text-white"
+              disabled={busy}
+              onClick={() => void activarDefcon()}
+            >
+              Activar alerta máxima
+            </Button>
+          </div>
         }
       >
         <div className="space-y-3">

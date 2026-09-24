@@ -96,6 +96,7 @@ export class AuthController {
   }
 
   @Public()
+  @SkipThrottle()
   @Post("logout")
   logout(@Res({ passthrough: true }) res: Response) {
     res.clearCookie(ACCESS_COOKIE, clearCookieOptions());

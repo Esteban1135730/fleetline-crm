@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { EmptyState, KpiCard, SlideOver, StatusPulseBadge } from "@/components/audit";
+import { SarlaftBlockBadge } from "@/components/sarlaft/sarlaft-block-badge";
 import { BentoPanel } from "@/components/nexa/bento-panel";
 import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
 import { PlaceSuggestInput } from "@/components/comercial/place-suggest-input";
@@ -1503,17 +1504,27 @@ export default function ComercialPage() {
                       ) : null}
                     </NexaCell>
                     <NexaCell>
-                      <StatusPulseBadge
-                        tone={trust.tone}
-                        pulse={trust.tone === "danger"}
-                      >
-                        {trust.label}
-                      </StatusPulseBadge>
-                      {c.sarlaftRiskScore != null ? (
-                        <div className="mt-1 font-data text-[10px] tabular-nums text-brand-text-secondary">
-                          Score {c.sarlaftRiskScore}/100
-                        </div>
-                      ) : null}
+                      {c.sarlaftBlocked ? (
+                        <SarlaftBlockBadge
+                          blocked
+                          riskScore={c.sarlaftRiskScore}
+                          variant="full"
+                        />
+                      ) : (
+                        <>
+                          <StatusPulseBadge
+                            tone={trust.tone}
+                            pulse={trust.tone === "danger"}
+                          >
+                            {trust.label}
+                          </StatusPulseBadge>
+                          {c.sarlaftRiskScore != null ? (
+                            <div className="mt-1 font-data text-[10px] tabular-nums text-brand-text-secondary">
+                              Score {c.sarlaftRiskScore}/100
+                            </div>
+                          ) : null}
+                        </>
+                      )}
                     </NexaCell>
                     <NexaCell>
                       <Badge tone={origin.tone} title={origin.detail}>

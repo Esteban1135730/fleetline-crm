@@ -12,6 +12,7 @@ import {
   Plus,
   Radio,
   ShieldAlert,
+  Trash2,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { statusEs } from "@fsg/shared";
@@ -304,10 +305,21 @@ export default function LogisticaServiciosPage() {
   }, []);
 
   useEffect(() => {
-    void Promise.all([loadServicios(), loadPool(), loadClock()]).catch((e) =>
-      setError(e instanceof Error ? e.message : "Conexión fallida"),
-    );
-    const t = setInterval(() => void loadClock(), 1000);
+    void Promise.all([
+      loadServicios().catch((e) => {
+        setError(
+          e instanceof Error
+            ? e.message
+            : "No se pudieron cargar los servicios",
+        );
+        setListLoaded(true);
+      }),
+      loadPool().catch(() => {
+        /* pool opcional — no tumba la lista */
+      }),
+      loadClock().catch(() => undefined),
+    ]);
+    const t = setInterval(() => void loadClock().catch(() => undefined), 1000);
     return () => clearInterval(t);
   }, [loadServicios, loadPool, loadClock]);
 
@@ -472,6 +484,27 @@ export default function LogisticaServiciosPage() {
       await loadServicios();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo cerrar");
+    }
+  }
+
+  async function borrarRuta(id: string, code: string) {
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm(
+        `¿Borrar la ruta ${code}?\n\nSe cancelará y saldrá de despachos activos. Esta acción no se puede deshacer desde aquí.`,
+      )
+    ) {
+      return;
+    }
+    try {
+      const res = await api<{ message?: string }>(`/logistica/servicios/${id}`, {
+        method: "DELETE",
+      });
+      setStatusMsg(res.message || `Ruta ${code} eliminada`);
+      if (selectedId === id) setSelectedId(null);
+      await loadServicios();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo borrar la ruta");
     }
   }
 
@@ -652,7 +685,7 @@ export default function LogisticaServiciosPage() {
                 />
               ) : (
                 <NexaTable
-                  columns={["Código", "Ruta", "Tripulación", "Estado"]}
+                  columns={["Código", "Ruta", "Tripulación", "Estado", ""]}
                 >
                   {filteredServicios.map((s) => (
                     <NexaRow
@@ -684,6 +717,29 @@ export default function LogisticaServiciosPage() {
                         >
                           {statusEs(s.status)}
                         </StatusPulseBadge>
+                      </NexaCell>
+                      <NexaCell>
+                        {s.status !== "IN_TRANSIT" ? (
+                          <button
+                            type="button"
+                            className="inline-flex h-7 w-7 items-center justify-center rounded border border-transparent text-[var(--brand-danger)] hover:border-[var(--brand-danger)]/40 hover:bg-[var(--brand-danger)]/10"
+                            title={`Borrar ruta ${s.code}`}
+                            aria-label={`Borrar ruta ${s.code}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void borrarRuta(s.id, s.code);
+                            }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                          </button>
+                        ) : (
+                          <span
+                            className="inline-flex h-7 w-7 items-center justify-center text-[var(--brand-text-secondary)] opacity-40"
+                            title="Cierre el viaje en tránsito antes de borrar"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                          </span>
+                        )}
                       </NexaCell>
                     </NexaRow>
                   ))}
@@ -717,6 +773,16 @@ export default function LogisticaServiciosPage() {
                     onClick={() => void cerrar(selected.id)}
                   >
                     Cerrar
+                  </Button>
+                ) : null}
+                {selected.status !== "IN_TRANSIT" ? (
+                  <Button
+                    variant="ghost"
+                    className="w-auto px-2 py-1 text-xs text-[var(--brand-danger)]"
+                    onClick={() => void borrarRuta(selected.id, selected.code)}
+                  >
+                    <Trash2 className="mr-1 h-3 w-3" />
+                    Borrar ruta
                   </Button>
                 ) : null}
               </div>
@@ -1212,6 +1278,19 @@ export default function LogisticaServiciosPage() {
                       : "neutral"
                 }
               />
+            ) : null}
+            {selected && !createOpen && selected.status !== "IN_TRANSIT" ? (
+              <Button
+                type="button"
+                variant="ghost"
+                className="absolute left-3 top-3 z-20 w-auto border border-[var(--brand-danger)]/40 bg-[var(--brand-surface)]/90 px-2 py-1.5 text-xs text-[var(--brand-danger)] shadow-sm backdrop-blur-sm hover:bg-[var(--brand-danger)]/10"
+                title={`Borrar ruta ${selected.code}`}
+                aria-label={`Borrar ruta ${selected.code}`}
+                onClick={() => void borrarRuta(selected.id, selected.code)}
+              >
+                <Trash2 className="mr-1 h-3.5 w-3.5" aria-hidden />
+                Borrar ruta
+              </Button>
             ) : null}
           </div>
         </BentoPanel>

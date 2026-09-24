@@ -69,6 +69,8 @@ function money(n: number) {
   }).format(n);
 }
 
+const AUTO_MATCH_COOLDOWN_MS = 20_000;
+
 export default function AuxiliarContableDashboardPage() {
   const [dash, setDash] = useState<Dash | null>(null);
   const [error, setError] = useState("");
@@ -80,6 +82,21 @@ export default function AuxiliarContableDashboardPage() {
   const [poId, setPoId] = useState("");
   const [receiptId, setReceiptId] = useState("");
   const [matchOut, setMatchOut] = useState<MatchResult | null>(null);
+  const [autoMatchBusy, setAutoMatchBusy] = useState(false);
+  const [autoMatchCooldownUntil, setAutoMatchCooldownUntil] = useState(0);
+  const [cooldownTick, setCooldownTick] = useState(0);
+
+  const autoMatchCooldownLeftMs = Math.max(
+    0,
+    autoMatchCooldownUntil - Date.now() - cooldownTick * 0,
+  );
+  const autoMatchLocked = autoMatchBusy || autoMatchCooldownLeftMs > 0;
+
+  useEffect(() => {
+    if (autoMatchCooldownUntil <= Date.now()) return;
+    const id = window.setInterval(() => setCooldownTick((t) => t + 1), 1000);
+    return () => window.clearInterval(id);
+  }, [autoMatchCooldownUntil]);
 
   const load = useCallback(async () => {
     setError("");
@@ -134,33 +151,64 @@ export default function AuxiliarContableDashboardPage() {
     }
   }
 
-  async function onAutoMatch(e: FormEvent) {
-    e.preventDefault();
-    setError("");
-    try {
-      const out = await api<{ matchedCount: number; unmatchedCount: number }>(
-        "/api/v1/contabilidad/conciliacion/auto-match",
-        {
-          method: "POST",
-          body: JSON.stringify({
-            bankName: "Bancolombia",
-            closeDaily: false,
-            rows: [
-              {
-                description: "PAGO PROVEEDOR",
-                amount: -150000,
-                externalRef: "FAC-001",
-              },
-            ],
-          }),
-        },
-      );
+  async function onAutoMatch(e?: FormEvent) {
+    e?.preventDefault();
+    if (autoMatchBusy) {
+      setInfo("Auto-Match en proceso — espere a que termine.");
+      return;
+    }
+    if (Date.now() < autoMatchCooldownUntil) {
+      const secs = Math.ceil((autoMatchCooldownUntil - Date.now()) / 1000);
       setInfo(
-        `Auto-Match · ${out.matchedCount} emparejadas · ${out.unmatchedCount} pendientes`,
+        `Auto-Match ya se ejecutó hace poco — reintente en ${secs}s.`,
       );
+      return;
+    }
+    setError("");
+    setInfo("Auto-Match en proceso — emparejando extracto bancario…");
+    setAutoMatchBusy(true);
+    try {
+      const out = await api<{
+        matchedCount: number;
+        unmatchedCount: number;
+        skippedDuplicates?: number;
+        seededCount?: number;
+        message?: string;
+      }>("/api/v1/contabilidad/conciliacion/auto-match", {
+        method: "POST",
+        body: JSON.stringify({
+          bankName: "Bancolombia",
+          closeDaily: false,
+          rows: [
+            {
+              description: "PAGO PROVEEDOR",
+              amount: -150000,
+              externalRef: "FAC-001",
+            },
+          ],
+        }),
+      });
+      setAutoMatchCooldownUntil(Date.now() + AUTO_MATCH_COOLDOWN_MS);
+      if (out.message) {
+        setInfo(out.message);
+      } else if ((out.seededCount ?? 0) > 0) {
+        setInfo(
+          `Auto-Match · cargó ${out.seededCount} movimiento(s) · ${out.matchedCount} emparejadas · ${out.unmatchedCount} pendientes`,
+        );
+      } else if ((out.skippedDuplicates ?? 0) > 0) {
+        setInfo(
+          `Auto-Match · ${out.matchedCount} emparejadas · ${out.unmatchedCount} pendientes · sin duplicar (${out.skippedDuplicates} ya existían)`,
+        );
+      } else {
+        setInfo(
+          `Auto-Match listo · ${out.matchedCount} emparejadas · ${out.unmatchedCount} pendientes`,
+        );
+      }
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error de conciliación");
+    } finally {
+      setAutoMatchBusy(false);
     }
   }
 
@@ -220,7 +268,7 @@ export default function AuxiliarContableDashboardPage() {
         <BentoPanel
           id="facturas"
           title="Facturas por radicar"
-          subtitle="Bandeja de entrada"
+          subtitle="Cruzar = factura vs OC vs remisión (antes de causar)"
           icon={<FileText aria-hidden />}
         >
           {!dash?.kanban.facturasPorRadicar?.length ? (
@@ -246,18 +294,27 @@ export default function AuxiliarContableDashboardPage() {
                       type="button"
                       variant="ghost"
                       className="w-auto px-2 py-1 text-[10px]"
+                      title="Compara esta factura con la orden de compra y la remisión de entrada (cruce triple)"
+                      aria-label={`Cruzar factura ${f.number} con OC y remisión`}
                       onClick={(e) => {
                         e.stopPropagation();
                         openMatch(f);
                       }}
                     >
-                      Cruzar
+                      Cruzar factura
                     </Button>
                   </NexaCell>
                 </NexaRow>
               ))}
             </NexaTable>
           )}
+          <p className="mt-2 text-[11px] leading-snug text-brand-text-secondary">
+            <strong className="font-medium text-brand-text-primary">
+              Cruzar factura
+            </strong>
+            : no es el pago bancario. Empareja la factura del proveedor con la
+            OC y la remisión; si cuadra, habilita causar el gasto.
+          </p>
         </BentoPanel>
 
         <BentoPanel
@@ -290,19 +347,23 @@ export default function AuxiliarContableDashboardPage() {
         <BentoPanel
           id="conciliacion"
           title="Transacciones por conciliar"
-          subtitle="Extracto bancario"
+          subtitle="Extracto bancario · Auto-Match = movimiento vs pago"
           icon={<Landmark aria-hidden />}
         >
           {!dash?.kanban.transaccionesPorConciliar?.length ? (
             <EmptyState
               title="Sin líneas pendientes"
               description="Ejecute Auto-Match o importe extracto."
-              actionLabel="Ejecutar Auto-Match"
+              actionLabel={
+                autoMatchBusy
+                  ? "Auto-Match en proceso…"
+                  : autoMatchCooldownLeftMs > 0
+                    ? `Espere ${Math.ceil(autoMatchCooldownLeftMs / 1000)}s`
+                    : "Ejecutar Auto-Match"
+              }
+              actionDisabled={autoMatchLocked}
               onAction={() => {
-                const form = document.getElementById(
-                  "aux-auto-match",
-                ) as HTMLFormElement | null;
-                form?.requestSubmit();
+                void onAutoMatch();
               }}
             />
           ) : (
@@ -320,12 +381,26 @@ export default function AuxiliarContableDashboardPage() {
           )}
           <form
             id="aux-auto-match"
-            onSubmit={onAutoMatch}
-            className="mt-3 flex justify-end"
+            onSubmit={(e) => void onAutoMatch(e)}
+            className="mt-3 flex flex-col items-end gap-1"
           >
-            <Button type="submit" variant="ghost" className="w-auto text-xs">
-              Ejecutar Auto-Match
+            <Button
+              type="submit"
+              variant="ghost"
+              className="w-auto text-xs"
+              disabled={autoMatchLocked}
+              aria-busy={autoMatchBusy}
+            >
+              {autoMatchBusy
+                ? "Auto-Match en proceso…"
+                : autoMatchCooldownLeftMs > 0
+                  ? `Ya ejecutado · ${Math.ceil(autoMatchCooldownLeftMs / 1000)}s`
+                  : "Ejecutar Auto-Match"}
             </Button>
+            <p className="max-w-xs text-right text-[11px] leading-snug text-brand-text-secondary">
+              Ejecuta el emparejamiento extracto ↔ factura. Si el movimiento ya
+              está cargado, no lo vuelve a crear.
+            </p>
           </form>
         </BentoPanel>
       </div>
@@ -362,10 +437,10 @@ export default function AuxiliarContableDashboardPage() {
         }}
         title={
           selectedFactura
-            ? `Cruce triple · ${selectedFactura.number}`
-            : "Validación de cruce triple"
+            ? `Cruzar factura · ${selectedFactura.number}`
+            : "Cruzar factura con OC y remisión"
         }
-        description="OC + remisión + factura · discrepancia bloquea causación"
+        description="Compara factura del proveedor vs orden de compra vs remisión de entrada. Si hay diferencia de valor, bloquea causar el gasto (no es el pago bancario)."
         widthClass="max-w-2xl"
         footer={
           selectedFactura ? (

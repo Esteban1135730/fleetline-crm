@@ -92,6 +92,14 @@ export class RevisoriaFiscalService {
             id: period.id,
             status: period.status,
             hardLockedAt: period.hardLockedAt?.toISOString() ?? null,
+            hardLockedById: period.hardLockedById,
+            confirmation:
+              period.meta &&
+              typeof period.meta === "object" &&
+              !Array.isArray(period.meta) &&
+              "confirmation" in (period.meta as Record<string, unknown>)
+                ? (period.meta as { confirmation: unknown }).confirmation
+                : null,
             dictamen: period.dictamen
               ? {
                   id: period.dictamen.id,
@@ -102,7 +110,14 @@ export class RevisoriaFiscalService {
                 }
               : null,
           }
-        : { id: null, status: "OPEN", hardLockedAt: null, dictamen: null },
+        : {
+            id: null,
+            status: "OPEN",
+            hardLockedAt: null,
+            hardLockedById: null,
+            confirmation: null,
+            dictamen: null,
+          },
       balanceTree,
       sampling: sample,
       impuestosSummary: {
@@ -391,19 +406,45 @@ export class RevisoriaFiscalService {
   /**
    * POST cierre/hard-lock — dictamen PDF + bloqueo absoluto del mes.
    * Único CREATE permitido al Revisor Fiscal sobre el ledger.
+   * Exige confirmación explícita (casilla + frase) — sin ella no se ejecuta.
    */
   async hardLock(
     organizationId: string,
     actorId: string,
     dto: HardLockDto,
   ) {
+    if (dto.riskAcknowledged !== true) {
+      throw new ForbiddenException({
+        statusCode: 403,
+        error: "HARD_LOCK_CONFIRMATION_REQUIRED",
+        message:
+          "Confirmación de riesgo requerida: el cierre afecta a toda la organización",
+      });
+    }
+
+    const confirmedAt = new Date();
+    const confirmation = {
+      riskAcknowledged: true as const,
+      confirmPhrase: dto.confirmPhrase.trim().toUpperCase(),
+      confirmedById: actorId,
+      confirmedAt: confirmedAt.toISOString(),
+      scope: "ORGANIZATION_WIDE" as const,
+      effect:
+        "Sella el periodo contable: bloquea altas/ediciones/borrados fiscales y contables de toda la organización",
+    };
+
     const signatureHash =
       dto.signatureHash ||
       createHash("sha256")
         .update(
-          `${organizationId}|${dto.yearMonth}|${dto.pdfRef}|${dto.opinion}|${actorId}|${Date.now()}`,
+          `${organizationId}|${dto.yearMonth}|${dto.pdfRef}|${dto.opinion}|${actorId}|${confirmation.confirmPhrase}|${confirmedAt.toISOString()}`,
         )
         .digest("hex");
+
+    const dictamenMeta = {
+      dictamenBody: dto.dictamenBody?.slice(0, 4000),
+      confirmation,
+    };
 
     const dictamen = await this.prisma.fiscalDictamen.upsert({
       where: {
@@ -420,18 +461,23 @@ export class RevisoriaFiscalService {
         signedById: actorId,
         opinion: dto.opinion,
         notes: dto.notes,
-        meta: { dictamenBody: dto.dictamenBody?.slice(0, 4000) },
+        meta: dictamenMeta,
       },
       update: {
         pdfRef: dto.pdfRef,
         signatureHash,
         signedById: actorId,
-        signedAt: new Date(),
+        signedAt: confirmedAt,
         opinion: dto.opinion,
         notes: dto.notes,
-        meta: { dictamenBody: dto.dictamenBody?.slice(0, 4000) },
+        meta: dictamenMeta,
       },
     });
+
+    const periodMeta = {
+      immutable: true,
+      confirmation,
+    };
 
     const period = await this.prisma.accountingPeriod.upsert({
       where: {
@@ -444,22 +490,40 @@ export class RevisoriaFiscalService {
         organizationId,
         yearMonth: dto.yearMonth,
         status: AccountingPeriodStatus.HARD_LOCKED,
-        hardLockedAt: new Date(),
+        hardLockedAt: confirmedAt,
         hardLockedById: actorId,
         dictamenId: dictamen.id,
-        meta: { immutable: true },
+        meta: periodMeta,
       },
       update: {
         status: AccountingPeriodStatus.HARD_LOCKED,
-        hardLockedAt: new Date(),
+        hardLockedAt: confirmedAt,
         hardLockedById: actorId,
         dictamenId: dictamen.id,
-        meta: { immutable: true },
+        meta: periodMeta,
+      },
+    });
+
+    await this.prisma.fiscalAuditNote.create({
+      data: {
+        organizationId,
+        yearMonth: dto.yearMonth,
+        taggedModule: "CONTABILIDAD",
+        title: `Confirmación de cierre de periodo ${dto.yearMonth}`,
+        body: [
+          `Usuario ${actorId} confirmó el Hard Lock organizacional.`,
+          `Frase: ${confirmation.confirmPhrase}.`,
+          `Riesgo reconocido: sí.`,
+          `Efecto: ${confirmation.effect}.`,
+          `Dictamen: ${dto.pdfRef} · opinión ${dto.opinion}.`,
+        ].join(" "),
+        severity: "CRITICAL",
+        createdById: actorId,
       },
     });
 
     this.logger.warn(
-      `HARD LOCK ${dto.yearMonth} org=${organizationId} by=${actorId}`,
+      `HARD LOCK ${dto.yearMonth} org=${organizationId} by=${actorId} phrase=${confirmation.confirmPhrase}`,
     );
 
     return {
@@ -467,6 +531,8 @@ export class RevisoriaFiscalService {
       yearMonth: period.yearMonth,
       status: period.status,
       hardLockedAt: period.hardLockedAt?.toISOString(),
+      hardLockedById: period.hardLockedById,
+      confirmation,
       dictamen: {
         id: dictamen.id,
         pdfRef: dictamen.pdfRef,

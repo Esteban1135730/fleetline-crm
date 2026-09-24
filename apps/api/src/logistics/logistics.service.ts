@@ -344,7 +344,21 @@ export class LogisticsService {
       this.prisma.trip.findMany({
         where: {
           organizationId,
-          departAt: { gte: dayStart, lt: dayEnd },
+          OR: [
+            { departAt: { gte: dayStart, lt: dayEnd } },
+            {
+              status: {
+                in: [
+                  TripStatus.IN_TRANSIT,
+                  TripStatus.INCIDENT,
+                  TripStatus.ASSIGNED,
+                  TripStatus.AWAITING_PREOP,
+                  TripStatus.AWAITING_FUEC,
+                  TripStatus.PENDING_SUPERVISOR_APPROVAL,
+                ],
+              },
+            },
+          ],
         },
         include: {
           vehicle: {

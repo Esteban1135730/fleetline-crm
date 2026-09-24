@@ -19,6 +19,7 @@ import {
   SlideOver,
   StatusPulseBadge,
 } from "@/components/audit";
+import { SarlaftBlockBadge } from "@/components/sarlaft/sarlaft-block-badge";
 import { BentoPanel } from "@/components/nexa/bento-panel";
 import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
 
@@ -31,6 +32,7 @@ type SupplierOpt = {
   rating: number;
   productTags?: string[];
   sarlaftBlocked?: boolean;
+  sarlaftRiskScore?: number;
   active?: boolean;
 };
 
@@ -386,12 +388,13 @@ export default function ComprasPage() {
                   <p className="text-sm font-medium text-[var(--brand-text-primary)]">
                     {s.name}
                   </p>
-                  <StatusPulseBadge
-                    tone={s.sarlaftBlocked ? "danger" : "active"}
-                    pulse={false}
-                  >
-                    {s.sarlaftBlocked ? "BLOQUEO" : "OK"}
-                  </StatusPulseBadge>
+                  {s.sarlaftBlocked ? (
+                    <SarlaftBlockBadge blocked riskScore={s.sarlaftRiskScore} />
+                  ) : (
+                    <StatusPulseBadge tone="active" pulse={false}>
+                      OK
+                    </StatusPulseBadge>
+                  )}
                 </div>
                 <p className="mt-1 font-mono text-xs text-[var(--brand-text-secondary)]">
                   NIT {s.nit}

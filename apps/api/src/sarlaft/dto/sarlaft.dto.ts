@@ -41,3 +41,17 @@ export const SARLAFT_OFFICER_ROLES = new Set([
   "org_admin",
   "platform_master",
 ]);
+
+/** Liberación de bloqueo por Oficial de Cumplimiento (SCRUM-33). */
+export const LiberarBloqueoSchema = z
+  .object({
+    entityType: SarlaftEntityTypeSchema.optional(),
+    entityId: z.string().min(1).optional(),
+    notes: z.string().min(5).max(2000),
+    /** Alerta abierta a cerrar (matriz / cuarentena) */
+    alertId: z.string().min(1).optional(),
+  })
+  .refine((d) => Boolean(d.alertId) || (d.entityType && d.entityId), {
+    message: "Indique alertId o entityType+entityId",
+  });
+export type LiberarBloqueoDto = z.infer<typeof LiberarBloqueoSchema>;

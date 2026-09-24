@@ -546,21 +546,46 @@ export class DirectorOperativoService {
 
   async tacticalDashboard(organizationId: string) {
     const now = new Date();
-    const dayEnd = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    const dayStart = new Date(now);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(dayStart);
+    dayEnd.setDate(dayEnd.getDate() + 1);
 
-    const [trips, stops, incidents, vehicles, preopsPending] =
+    const openStatuses: TripStatus[] = [
+      TripStatus.IN_TRANSIT,
+      TripStatus.INCIDENT,
+      TripStatus.ASSIGNED,
+      TripStatus.AWAITING_PREOP,
+      TripStatus.AWAITING_FUEC,
+      TripStatus.PENDING_SUPERVISOR_APPROVAL,
+      TripStatus.PENDING,
+    ];
+
+    const [trips, stops, incidents, vehicles, preopsPending, driversOnDuty] =
       await Promise.all([
         this.prisma.trip.findMany({
           where: {
             organizationId,
-            departAt: { gte: new Date(now.getTime() - 4 * 60 * 60 * 1000), lte: dayEnd },
+            OR: [
+              { departAt: { gte: dayStart, lt: dayEnd } },
+              { status: { in: openStatuses } },
+            ],
           },
           include: {
-            vehicle: { select: { id: true, plate: true, status: true } },
+            vehicle: {
+              select: {
+                id: true,
+                plate: true,
+                status: true,
+                lat: true,
+                lng: true,
+              },
+            },
             driver: { select: { id: true, name: true } },
+            customer: { select: { id: true, name: true } },
           },
           orderBy: { departAt: "asc" },
-          take: 80,
+          take: 120,
         }),
         this.prisma.fleetStop.findMany({
           where: {
@@ -592,6 +617,9 @@ export class DirectorOperativoService {
         this.prisma.preoperational.count({
           where: { approved: false, driver: { organizationId } },
         }),
+        this.prisma.driverShift.count({
+          where: { organizationId, status: "OPEN" },
+        }),
       ]);
 
     const gantt = trips.map((t) => {
@@ -611,13 +639,18 @@ export class DirectorOperativoService {
         id: t.id,
         code: t.code,
         vehicleId: t.vehicleId,
-        plate: t.vehicle?.plate,
-        driverName: t.driver?.name,
+        plate: t.vehicle?.plate ?? null,
+        driverName: t.driver?.name ?? null,
+        customerName: t.customer?.name ?? null,
+        origin: t.origin,
+        destination: t.destination,
         departAt: t.departAt,
         arriveAt: t.arriveAt,
         status: t.status,
         ganttBlocked: stopBlock.blocked,
         blockReason: stopBlock.reason,
+        lat: t.vehicle?.lat ?? null,
+        lng: t.vehicle?.lng ?? null,
       };
     });
 
@@ -625,6 +658,12 @@ export class DirectorOperativoService {
       (v) =>
         v.status === VehicleStatus.AVAILABLE ||
         v.status === VehicleStatus.IN_SERVICE,
+    ).length;
+    const fleetOnline = vehicles.filter(
+      (v) =>
+        v.lat != null &&
+        v.lng != null &&
+        !(v.lat === 0 && v.lng === 0),
     ).length;
     const onTime = trips.filter((t) =>
       ["ASSIGNED", "IN_TRANSIT", "COMPLETED"].includes(t.status),
@@ -635,6 +674,11 @@ export class DirectorOperativoService {
       vehicles.length > 0
         ? Math.round((available / vehicles.length) * 100)
         : 100;
+
+    const inTransit = trips.filter((t) => t.status === TripStatus.IN_TRANSIT)
+      .length;
+    const withIncident = trips.filter((t) => t.status === TripStatus.INCIDENT)
+      .length;
 
     const novedades = [
       ...stops
@@ -669,12 +713,37 @@ export class DirectorOperativoService {
             },
           ]
         : []),
+      ...(withIncident > 0
+        ? [
+            {
+              id: "trips-incident",
+              kind: "INCIDENT",
+              title: `${withIncident} viaje(s) en incidente`,
+              severity: "ALERT",
+              at: now,
+            },
+          ]
+        : []),
     ].slice(0, 25);
 
     return {
+      asOf: now.toISOString(),
+      window: {
+        start: dayStart.toISOString(),
+        end: dayEnd.toISOString(),
+      },
       gantt,
       fleetStops: stops,
       novedades,
+      tower: {
+        tripsOpen: trips.length,
+        inTransit,
+        incidents: withIncident,
+        fleetTotal: vehicles.length,
+        fleetAvailable: available,
+        fleetOnline,
+        driversOnDuty,
+      },
       sla: {
         punctualityPct,
         availabilityPct,

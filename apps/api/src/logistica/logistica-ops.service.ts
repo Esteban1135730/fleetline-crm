@@ -367,8 +367,11 @@ export class LogisticaOpsService {
   }
 
   async listServicios(organizationId: string) {
-    return this.prisma.trip.findMany({
-      where: { organizationId },
+    const rows = await this.prisma.trip.findMany({
+      where: {
+        organizationId,
+        status: { not: TripStatus.CANCELLED },
+      },
       include: {
         driver: {
           select: {
@@ -387,6 +390,11 @@ export class LogisticaOpsService {
       orderBy: { createdAt: "desc" },
       take: 100,
     });
+    // Decimal → number para serialización JSON estable (evita 500 / payload roto).
+    return rows.map((t) => ({
+      ...t,
+      fareAmount: Number(t.fareAmount),
+    }));
   }
 
   async tracking(organizationId: string, tripId: string) {
@@ -543,6 +551,41 @@ export class LogisticaOpsService {
     });
     this.gateway.emitUpdate(organizationId);
     return updated;
+  }
+
+  /** Baja lógica de ruta/servicio (no hard-delete por FKs de auditoría/GPS). */
+  async borrarServicio(
+    organizationId: string,
+    tripId: string,
+    actorUserId?: string,
+  ) {
+    const trip = await this.prisma.trip.findFirst({
+      where: { id: tripId, organizationId },
+    });
+    if (!trip) throw new NotFoundException("Servicio no encontrado");
+    if (trip.status === TripStatus.IN_TRANSIT) {
+      throw new BadRequestException(
+        "No se puede borrar una ruta en tránsito — ciérrela primero",
+      );
+    }
+    if (trip.status === TripStatus.CANCELLED) {
+      return { id: trip.id, code: trip.code, status: trip.status, message: "La ruta ya estaba eliminada" };
+    }
+    const updated = await this.prisma.trip.update({
+      where: { id: tripId },
+      data: { status: TripStatus.CANCELLED },
+    });
+    await this.appendAudit(organizationId, tripId, TripAuditAction.STATUS_CHANGED, {
+      message: "Ruta eliminada (cancelada) por operaciones",
+      actorUserId,
+    });
+    this.gateway.emitUpdate(organizationId);
+    return {
+      id: updated.id,
+      code: updated.code,
+      status: updated.status,
+      message: `Ruta ${updated.code} eliminada`,
+    };
   }
 
   async markCompleted(
