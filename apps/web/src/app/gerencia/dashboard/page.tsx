@@ -14,12 +14,127 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import { api } from "@/lib/api";
-import { KpiCard } from "@/components/audit";
+import { api, apiDownload } from "@/lib/api";
+import { EmptyState, KpiCard, Modal, SlideOver } from "@/components/audit";
 import { BentoPanel } from "@/components/nexa/bento-panel";
 import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
 import { StatusPulseBadge } from "@/components/audit/KpiCard";
 import { useThemeColors } from "@/lib/use-theme-colors";
+
+type AgingBucketId = "0-15" | "16-30" | "31-60" | "gt60";
+
+type CxcAging = {
+  asOf: string;
+  totalCop: number;
+  totalCount: number;
+  buckets: Array<{
+    id: AgingBucketId;
+    label: string;
+    amountCop: number;
+    count: number;
+  }>;
+  note?: string;
+};
+
+type CxpDetail = {
+  count: number;
+  total: number;
+  invoices: Array<{
+    id: string;
+    number: string;
+    supplier: string;
+    amount: number;
+    dueDate: string | null;
+    status: string;
+    daysOverdue: number;
+  }>;
+};
+
+type BlocksDetail = {
+  count: number;
+  vehicles: Array<{
+    id: string;
+    plate: string;
+    label: string;
+    status: string;
+    reason: string;
+  }>;
+};
+
+type WoDetail = {
+  count: number;
+  workOrders: Array<{
+    id: string;
+    code: string;
+    status: string;
+    ageDays: number;
+    vehiclePlate: string;
+    vehicleLabel: string;
+  }>;
+};
+
+type CxcAgingDetail = {
+  bucket: string;
+  count: number;
+  total: number;
+  invoices: Array<{
+    id: string;
+    number: string;
+    customer: string;
+    amount: number;
+    dueDate: string | null;
+    status: string;
+    daysOverdue: number;
+    bucket: AgingBucketId;
+  }>;
+};
+
+type DetailPanel =
+  | { kind: "cxp" }
+  | { kind: "blocks" }
+  | { kind: "ot" }
+  | { kind: "aging"; bucket: AgingBucketId; label: string };
+
+type ShiftReport = {
+  header: {
+    organization: string;
+    organizationNit: string;
+    shiftDate: string;
+    timezone: string;
+    exportedBy: { name: string; email: string };
+    exportedAt: string;
+  };
+  financial: {
+    dayIncomeCop: number;
+    dayIncomeCount: number;
+    dayIncomeSource: string;
+    approvalsSignedCount: number;
+    approvalsSignedSumCop: number;
+    bankBalanceCop: number;
+    bankBalanceLabel: string;
+  };
+  operational: {
+    tripsCount: number;
+    slaLabel: string;
+    qhseIncidentsCount: number;
+    vehiclesToMaintenanceCount: number;
+    vehiclesToMaintenance: Array<{ id: string; plate: string }>;
+  };
+  bottlenecks: {
+    count: number;
+    items: Array<{ area: string; severity: string; message: string }>;
+    source: string;
+  };
+};
+
+function bogotaDateYmd(d = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Bogota",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
+}
 
 type Approval = {
   id: string;
@@ -62,13 +177,24 @@ type Scorecard = {
 };
 
 type TacticalPanel = {
+  period?: string;
+  from?: string;
+  to?: string;
   kpis: {
     tripsInFlight: number;
+    tripsInFlightLive?: boolean;
     openWorkOrders: number;
     delayedWorkOrders: number;
+    cxcOpen?: number;
+    cxpOpen?: number;
     cxcOpenMillions: number;
     cxpOpenMillions: number;
     dispatchBlocks: number;
+    dispatchBlocksBreakdown?: {
+      vehicles: number;
+      drivers: number;
+      customers: number;
+    };
   };
   hourlyActivity: Array<{ hora: string; viajes: number }>;
   fleetByType: Array<{
@@ -79,9 +205,11 @@ type TacticalPanel = {
   }>;
   cashAging: Array<{ rango: string; cxc: number; cxp: number }>;
   cashAgingSource?: "invoices" | "trip_fares";
+  cxcAging?: CxcAging;
 };
 
 type Dash = {
+  period?: string;
   scorecard: Scorecard;
   approvalsInbox: Approval[];
   pendingOverrides: Override[];
@@ -110,9 +238,28 @@ function lightTone(light: string): "success" | "warning" | "danger" | "info" {
   return "info";
 }
 
+function periodRangeIso(period: "day" | "week" | "month" | "year"): {
+  from: string;
+  to: string;
+} {
+  const to = new Date();
+  const from = new Date(to);
+  if (period === "day") {
+    from.setHours(0, 0, 0, 0);
+  } else if (period === "week") {
+    from.setDate(from.getDate() - 7);
+  } else if (period === "month") {
+    from.setMonth(from.getMonth() - 1);
+  } else {
+    from.setFullYear(from.getFullYear() - 1);
+  }
+  return { from: from.toISOString(), to: to.toISOString() };
+}
+
 export default function GerenciaDashboardPage() {
   const colors = useThemeColors();
   const [dash, setDash] = useState<Dash | null>(null);
+  const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -131,21 +278,159 @@ export default function GerenciaDashboardPage() {
   );
 
   const [period, setPeriod] = useState<"day" | "week" | "month" | "year">(
-    "week",
+    "month",
   );
 
-  const load = useCallback(async () => {
+  const [detailPanel, setDetailPanel] = useState<DetailPanel | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const [cxpDetail, setCxpDetail] = useState<CxpDetail | null>(null);
+  const [blocksDetail, setBlocksDetail] = useState<BlocksDetail | null>(null);
+  const [woDetail, setWoDetail] = useState<WoDetail | null>(null);
+  const [agingDetail, setAgingDetail] = useState<CxcAgingDetail | null>(null);
+
+  const [shiftOpen, setShiftOpen] = useState(false);
+  const [shiftLoading, setShiftLoading] = useState(false);
+  const [shiftError, setShiftError] = useState<string | null>(null);
+  const [shiftReport, setShiftReport] = useState<ShiftReport | null>(null);
+  const [shiftPdfBusy, setShiftPdfBusy] = useState(false);
+  const shiftDate = useMemo(() => bogotaDateYmd(), []);
+
+  const closeDetail = useCallback(() => {
+    setDetailPanel(null);
+    setDetailError(null);
+  }, []);
+
+  const openCxp = useCallback(async () => {
+    setDetailPanel({ kind: "cxp" });
+    setDetailLoading(true);
+    setDetailError(null);
+    setCxpDetail(null);
     try {
+      const { from, to } = periodRangeIso(period);
+      const data = await api.get<CxpDetail>(
+        `/api/v1/gerencia/cxp-open?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+      );
+      setCxpDetail(data);
+    } catch (e) {
+      setDetailError(e instanceof Error ? e.message : "No se pudo cargar CxP");
+    } finally {
+      setDetailLoading(false);
+    }
+  }, [period]);
+
+  const openBlocks = useCallback(async () => {
+    setDetailPanel({ kind: "blocks" });
+    setDetailLoading(true);
+    setDetailError(null);
+    setBlocksDetail(null);
+    try {
+      const data = await api.get<BlocksDetail>(
+        "/api/v1/gerencia/dispatch-blocks",
+      );
+      setBlocksDetail(data);
+    } catch (e) {
+      setDetailError(
+        e instanceof Error ? e.message : "No se pudieron cargar bloqueos",
+      );
+    } finally {
+      setDetailLoading(false);
+    }
+  }, []);
+
+  const openOt = useCallback(async () => {
+    setDetailPanel({ kind: "ot" });
+    setDetailLoading(true);
+    setDetailError(null);
+    setWoDetail(null);
+    try {
+      const { from, to } = periodRangeIso(period);
+      const data = await api.get<WoDetail>(
+        `/api/v1/gerencia/work-orders-open?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+      );
+      setWoDetail(data);
+    } catch (e) {
+      setDetailError(e instanceof Error ? e.message : "No se pudieron cargar OT");
+    } finally {
+      setDetailLoading(false);
+    }
+  }, [period]);
+
+  const openAging = useCallback(
+    async (bucket: AgingBucketId, label: string) => {
+      setDetailPanel({ kind: "aging", bucket, label });
+      setDetailLoading(true);
+      setDetailError(null);
+      setAgingDetail(null);
+      try {
+        const data = await api.get<CxcAgingDetail>(
+          `/api/v1/gerencia/cxc-aging?bucket=${encodeURIComponent(bucket)}`,
+        );
+        setAgingDetail(data);
+      } catch (e) {
+        setDetailError(
+          e instanceof Error ? e.message : "No se pudo cargar aging CxC",
+        );
+      } finally {
+        setDetailLoading(false);
+      }
+    },
+    [],
+  );
+
+  const openShiftReport = useCallback(async () => {
+    setShiftOpen(true);
+    setShiftLoading(true);
+    setShiftError(null);
+    setShiftReport(null);
+    try {
+      const data = await api.get<ShiftReport>(
+        `/api/v1/gerencia/shift-report?date=${encodeURIComponent(shiftDate)}`,
+      );
+      setShiftReport(data);
+    } catch (e) {
+      setShiftError(
+        e instanceof Error ? e.message : "No se pudo cargar el reporte de turno",
+      );
+    } finally {
+      setShiftLoading(false);
+    }
+  }, [shiftDate]);
+
+  const downloadShiftPdf = useCallback(async () => {
+    setShiftPdfBusy(true);
+    setShiftError(null);
+    try {
+      await apiDownload(
+        `/api/v1/gerencia/shift-report.pdf?date=${encodeURIComponent(shiftDate)}`,
+        `reporte-turno-${shiftDate}.pdf`,
+      );
+    } catch (e) {
+      setShiftError(
+        e instanceof Error ? e.message : "No se pudo descargar el PDF",
+      );
+    } finally {
+      setShiftPdfBusy(false);
+    }
+  }, [shiftDate]);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { from, to } = periodRangeIso(period);
       const data = await api.get<Dash>(
-        `/api/v1/gerencia/dashboard?period=${period}`,
+        `/api/v1/gerencia/dashboard?period=${period}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
       );
       setDash(data);
       if (data.approvalsInbox[0]) {
         setSelectedApproval(data.approvalsInbox[0].id);
       }
-      setError(null);
     } catch (e) {
+      setDash(null);
       setError(e instanceof Error ? e.message : "Conexión fallida");
+    } finally {
+      setLoading(false);
     }
   }, [period]);
 
@@ -254,13 +539,19 @@ export default function GerenciaDashboardPage() {
             <button
               key={id}
               type="button"
+              disabled={loading}
               className={`flt-nav-item !inline-flex !w-auto px-3 py-1.5 text-xs ${period === id ? "is-active" : ""}`}
               onClick={() => setPeriod(id)}
             >
               {label}
             </button>
           ))}
-          <Button variant="ghost" className="w-auto px-4 py-2">
+          <Button
+            type="button"
+            variant="ghost"
+            className="w-auto px-4 py-2"
+            onClick={() => void openShiftReport()}
+          >
             <Clock className="mr-1.5 inline h-4 w-4" aria-hidden />
             Reporte de turno
           </Button>
@@ -270,6 +561,14 @@ export default function GerenciaDashboardPage() {
       {error ? (
         <p className="rounded-lg border border-brand-danger/40 bg-brand-danger/10 px-4 py-3 font-data text-sm text-brand-danger">
           {error}
+          <Button
+            type="button"
+            variant="secondary"
+            className="ml-3 w-auto px-3 py-1 text-xs"
+            onClick={() => void load()}
+          >
+            Reintentar
+          </Button>
         </p>
       ) : null}
       {msg ? (
@@ -278,44 +577,100 @@ export default function GerenciaDashboardPage() {
         </p>
       ) : null}
 
+      {loading && !dash?.tacticalPanel ? (
+        <p className="font-data text-sm text-brand-text-secondary">
+          Cargando tablero táctico…
+        </p>
+      ) : null}
+
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCard
+          label="Viajes en curso"
+          value={
+            !dash?.tacticalPanel
+              ? "—"
+              : dash.tacticalPanel.kpis.tripsInFlight
+          }
+          delta="En vivo · IN_TRANSIT"
+          tip="Viajes actualmente en ruta (dato en vivo, no filtrado por período)"
+          tone="ok"
+          icon={<Map />}
+        />
+        <KpiCard
+          label="OT abiertas (Taller)"
+          value={
+            !dash?.tacticalPanel
+              ? "—"
+              : dash.tacticalPanel.kpis.openWorkOrders
+          }
+          delta={
+            !dash?.tacticalPanel
+              ? undefined
+              : dash.tacticalPanel.kpis.delayedWorkOrders > 0
+                ? `${dash.tacticalPanel.kpis.delayedWorkOrders} con retraso · clic para detalle`
+                : "Sin retrasos críticos · clic para detalle"
+          }
+          tip="Órdenes de trabajo abiertas en el período seleccionado"
+          tone={
+            (dash?.tacticalPanel?.kpis.delayedWorkOrders ?? 0) > 0
+              ? "warn"
+              : "neutral"
+          }
+          icon={<Wrench />}
+          onClick={() => void openOt()}
+        />
+        <KpiCard
+          label="CxP"
+          value={
+            !dash?.tacticalPanel
+              ? "—"
+              : money(
+                  dash.tacticalPanel.kpis.cxpOpen ??
+                    dash.tacticalPanel.kpis.cxpOpenMillions * 1_000_000,
+                )
+          }
+          delta={
+            !dash?.tacticalPanel
+              ? undefined
+              : `CxC ${money(
+                  dash.tacticalPanel.kpis.cxcOpen ??
+                    dash.tacticalPanel.kpis.cxcOpenMillions * 1_000_000,
+                )} · clic: facturas por pagar`
+          }
+          tip="Facturas PAYABLE abiertas (ISSUED/OVERDUE) en el período — clic para detalle"
+          tone="neutral"
+          icon={<Wallet />}
+          onClick={() => void openCxp()}
+        />
+        <KpiCard
+          label="Bloqueos despacho"
+          value={
+            !dash?.tacticalPanel
+              ? "—"
+              : dash.tacticalPanel.kpis.dispatchBlocks
+          }
+          delta={
+            dash?.tacticalPanel?.kpis.dispatchBlocksBreakdown
+              ? `Flota ${dash.tacticalPanel.kpis.dispatchBlocksBreakdown.vehicles} · Cond. ${dash.tacticalPanel.kpis.dispatchBlocksBreakdown.drivers} · Cli. ${dash.tacticalPanel.kpis.dispatchBlocksBreakdown.customers}`
+              : "Compliance · SARLAFT"
+          }
+          tip="Vehículos complianceBlocked + conductores/clientes SARLAFT — clic: placas y motivos"
+          tone={
+            (dash?.tacticalPanel?.kpis.dispatchBlocks ?? 0) > 0 ? "danger" : "ok"
+          }
+          icon={<ShieldAlert />}
+          onClick={() => void openBlocks()}
+        />
+      </section>
+
+      {!loading && !error && !dash?.tacticalPanel ? (
+        <p className="rounded-lg border border-brand-border bg-brand-surface px-4 py-3 font-data text-sm text-brand-text-secondary">
+          Sin datos tácticos para el período seleccionado.
+        </p>
+      ) : null}
+
       {dash?.tacticalPanel ? (
         <>
-          <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <KpiCard
-              label="Viajes en curso"
-              value={dash.tacticalPanel.kpis.tripsInFlight}
-              delta="Telemetría en vivo"
-              tone="ok"
-              icon={<Map />}
-            />
-            <KpiCard
-              label="OT abiertas (Taller)"
-              value={dash.tacticalPanel.kpis.openWorkOrders}
-              delta={
-                dash.tacticalPanel.kpis.delayedWorkOrders > 0
-                  ? `${dash.tacticalPanel.kpis.delayedWorkOrders} con retraso`
-                  : "Sin retrasos críticos"
-              }
-              tone={
-                dash.tacticalPanel.kpis.delayedWorkOrders > 0 ? "warn" : "neutral"
-              }
-              icon={<Wrench />}
-            />
-            <KpiCard
-              label="CxC / CxP"
-              value={`$${dash.tacticalPanel.kpis.cxcOpenMillions}M / $${dash.tacticalPanel.kpis.cxpOpenMillions}M`}
-              delta="Liquidez inmediata abierta"
-              tone="neutral"
-              icon={<Wallet />}
-            />
-            <KpiCard
-              label="Bloqueos despacho"
-              value={dash.tacticalPanel.kpis.dispatchBlocks}
-              delta="Trámites · SARLAFT · FUEC"
-              tone={dash.tacticalPanel.kpis.dispatchBlocks > 0 ? "danger" : "ok"}
-              icon={<ShieldAlert />}
-            />
-          </section>
 
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-12 lg:gap-4">
             <BentoPanel
@@ -369,30 +724,48 @@ export default function GerenciaDashboardPage() {
             </BentoPanel>
 
             <BentoPanel
-              title="Flujo de caja a corto plazo"
+              title="Aging CxC"
               subtitle={
-                dash.tacticalPanel.cashAgingSource === "trip_fares"
-                  ? "Estimación por tarifas de viaje"
-                  : "Aging por facturas abiertas"
+                dash.tacticalPanel.cxcAging
+                  ? `${money(dash.tacticalPanel.cxcAging.totalCop)} · ${dash.tacticalPanel.cxcAging.totalCount} factura(s) abiertas`
+                  : "RECEIVABLE no PAID · por vencimiento"
               }
               className="lg:col-span-6"
             >
-              <div className="h-52">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={dash.tacticalPanel.cashAging}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={colors.chartGrid} />
-                    <XAxis
-                      dataKey="rango"
-                      tick={{ fill: colors.textSecondary, fontSize: 10 }}
-                    />
-                    <YAxis tick={{ fill: colors.textSecondary, fontSize: 11 }} width={32} />
-                    <Tooltip contentStyle={chartTipStyle} />
-                    <Legend />
-                    <Bar dataKey="cxc" name="Por cobrar (M)" fill={colors.success} radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="cxp" name="Por pagar (M)" fill={colors.chartMuted} radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+              {dash.tacticalPanel.cxcAging?.buckets?.length ? (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {dash.tacticalPanel.cxcAging.buckets.map((b) => (
+                      <button
+                        key={b.id}
+                        type="button"
+                        onClick={() => void openAging(b.id, b.label)}
+                        className="rounded-lg border border-brand-border bg-brand-canvas px-3 py-3 text-left transition-colors hover:border-brand-border-active hover:bg-brand-surface-hover"
+                      >
+                        <p className="font-data text-[10px] uppercase tracking-wider text-brand-text-secondary">
+                          {b.label}
+                        </p>
+                        <p className="mt-1 font-data text-sm font-semibold tabular-nums text-brand-text-primary">
+                          {money(b.amountCop)}
+                        </p>
+                        <p className="mt-0.5 font-data text-[10px] text-brand-text-secondary">
+                          {b.count} factura{b.count === 1 ? "" : "s"}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                  {dash.tacticalPanel.cxcAging.note ? (
+                    <p className="font-data text-[10px] text-brand-text-secondary">
+                      {dash.tacticalPanel.cxcAging.note}
+                    </p>
+                  ) : null}
+                </div>
+              ) : (
+                <EmptyState
+                  title="Sin aging CxC"
+                  description="No hay facturas por cobrar abiertas para agrupar por vencimiento."
+                />
+              )}
             </BentoPanel>
 
             <BentoPanel
@@ -646,6 +1019,376 @@ export default function GerenciaDashboardPage() {
           ))}
         </div>
       </BentoPanel>
+
+      <Modal
+        open={shiftOpen}
+        onClose={() => setShiftOpen(false)}
+        title="Reporte de turno"
+        description={`Día ${shiftDate} · America/Bogota · sin IA`}
+        size="lg"
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-auto px-4 py-2"
+              onClick={() => setShiftOpen(false)}
+            >
+              Cerrar
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              className="w-auto px-4 py-2"
+              disabled={shiftPdfBusy || shiftLoading || !shiftReport}
+              onClick={() => void downloadShiftPdf()}
+            >
+              {shiftPdfBusy ? "Descargando…" : "Descargar PDF"}
+            </Button>
+          </>
+        }
+      >
+        {shiftLoading ? (
+          <p className="text-sm text-brand-text-secondary">Cargando reporte…</p>
+        ) : shiftError && !shiftReport ? (
+          <p className="text-sm text-brand-danger">{shiftError}</p>
+        ) : shiftReport ? (
+          <div className="space-y-5 text-sm">
+            {shiftError ? (
+              <p className="text-sm text-brand-danger">{shiftError}</p>
+            ) : null}
+
+            <section className="space-y-1">
+              <h3 className="font-data text-[10px] font-semibold uppercase tracking-[0.14em] text-brand-text-secondary">
+                Encabezado
+              </h3>
+              <p className="text-brand-text-primary">
+                {shiftReport.header.organization}
+                {shiftReport.header.organizationNit
+                  ? ` · NIT ${shiftReport.header.organizationNit}`
+                  : ""}
+              </p>
+              <p className="font-data text-xs text-brand-text-secondary">
+                Turno {shiftReport.header.shiftDate} · Exportó{" "}
+                {shiftReport.header.exportedBy.name} ·{" "}
+                {new Date(shiftReport.header.exportedAt).toLocaleString("es-CO")}
+              </p>
+            </section>
+
+            <section className="space-y-2">
+              <h3 className="font-data text-[10px] font-semibold uppercase tracking-[0.14em] text-brand-text-secondary">
+                Financiero
+              </h3>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <div className="rounded-lg border border-brand-border bg-brand-canvas p-3">
+                  <p className="font-data text-[10px] uppercase text-brand-text-secondary">
+                    Ingresos del día
+                  </p>
+                  <p className="font-data text-lg tabular-nums text-brand-text-primary">
+                    {money(shiftReport.financial.dayIncomeCop)}
+                  </p>
+                  <p className="mt-1 font-data text-[10px] text-brand-text-secondary">
+                    {shiftReport.financial.dayIncomeCount} viaje(s) ·{" "}
+                    {shiftReport.financial.dayIncomeSource}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-brand-border bg-brand-canvas p-3">
+                  <p className="font-data text-[10px] uppercase text-brand-text-secondary">
+                    Aprobaciones firmadas
+                  </p>
+                  <p className="font-data text-lg tabular-nums text-brand-text-primary">
+                    {shiftReport.financial.approvalsSignedCount}
+                  </p>
+                  <p className="mt-1 font-data text-[10px] text-brand-text-secondary">
+                    {money(shiftReport.financial.approvalsSignedSumCop)}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-brand-border bg-brand-canvas p-3">
+                  <p className="font-data text-[10px] uppercase text-brand-text-secondary">
+                    Saldo bancario
+                  </p>
+                  <p className="font-data text-lg tabular-nums text-brand-text-primary">
+                    {money(shiftReport.financial.bankBalanceCop)}
+                  </p>
+                  <p className="mt-1 font-data text-[10px] text-brand-text-secondary">
+                    {shiftReport.financial.bankBalanceLabel}
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            <section className="space-y-2">
+              <h3 className="font-data text-[10px] font-semibold uppercase tracking-[0.14em] text-brand-text-secondary">
+                Operativo
+              </h3>
+              <ul className="space-y-1 font-data text-xs text-brand-text-primary">
+                <li>Viajes del día: {shiftReport.operational.tripsCount}</li>
+                <li>SLA / llegada: {shiftReport.operational.slaLabel}</li>
+                <li>
+                  Incidentes QHSE: {shiftReport.operational.qhseIncidentsCount}
+                </li>
+                <li>
+                  Vehículos a MAINTENANCE:{" "}
+                  {shiftReport.operational.vehiclesToMaintenanceCount}
+                  {shiftReport.operational.vehiclesToMaintenance.length > 0
+                    ? ` (${shiftReport.operational.vehiclesToMaintenance
+                        .map((v) => v.plate)
+                        .join(", ")})`
+                    : ""}
+                </li>
+              </ul>
+            </section>
+
+            <section className="space-y-2">
+              <h3 className="font-data text-[10px] font-semibold uppercase tracking-[0.14em] text-brand-text-secondary">
+                Cuellos abiertos
+              </h3>
+              {shiftReport.bottlenecks.count === 0 ? (
+                <EmptyState
+                  title="Sin cuellos abiertos"
+                  description="0 ítems según el scanner de balance-scorecard."
+                />
+              ) : (
+                <ul className="space-y-2">
+                  {shiftReport.bottlenecks.items.map((b) => (
+                    <li
+                      key={b.area + b.message}
+                      className="rounded-lg border border-brand-border px-3 py-2"
+                    >
+                      <StatusPulseBadge
+                        tone={b.severity === "RED" ? "danger" : "fatiga"}
+                      >
+                        {b.area}
+                      </StatusPulseBadge>
+                      <p className="mt-1 text-sm text-brand-text-primary">
+                        {b.message}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          </div>
+        ) : (
+          <EmptyState
+            title="Sin reporte"
+            description="No hay datos para mostrar."
+          />
+        )}
+      </Modal>
+
+      <SlideOver
+        open={detailPanel?.kind === "cxp"}
+        onClose={closeDetail}
+        title="CxP abiertas"
+        description="Facturas por pagar (PAYABLE · ISSUED/OVERDUE) del período"
+        widthClass="max-w-2xl"
+        footer={
+          <div className="flex w-full flex-wrap justify-end gap-2">
+            <Link href="/tesoreria">
+              <Button type="button" variant="secondary" className="w-auto px-4 py-2">
+                Ir a Tesorería
+              </Button>
+            </Link>
+          </div>
+        }
+      >
+        {detailLoading ? (
+          <p className="text-sm text-brand-text-secondary">Cargando…</p>
+        ) : detailError ? (
+          <p className="text-sm text-brand-danger">{detailError}</p>
+        ) : cxpDetail && cxpDetail.invoices.length > 0 ? (
+          <div className="space-y-3">
+            <p className="font-data text-xs text-brand-text-secondary">
+              {cxpDetail.count} factura(s) · {money(cxpDetail.total)}
+            </p>
+            <NexaTable columns={["Número", "Proveedor", "Monto", "Vencimiento", "Estado"]}>
+              {cxpDetail.invoices.map((inv) => (
+                <NexaRow key={inv.id}>
+                  <NexaCell mono>{inv.number}</NexaCell>
+                  <NexaCell>{inv.supplier}</NexaCell>
+                  <NexaCell mono>{money(inv.amount)}</NexaCell>
+                  <NexaCell mono>
+                    {inv.dueDate
+                      ? new Date(inv.dueDate).toLocaleDateString("es-CO")
+                      : "—"}
+                  </NexaCell>
+                  <NexaCell>
+                    <Badge tone={inv.status === "OVERDUE" ? "danger" : "info"}>
+                      {inv.status}
+                    </Badge>
+                  </NexaCell>
+                </NexaRow>
+              ))}
+            </NexaTable>
+          </div>
+        ) : (
+          <EmptyState
+            title="Sin CxP abiertas"
+            description="No hay facturas por pagar ISSUED/OVERDUE en el período."
+          />
+        )}
+      </SlideOver>
+
+      <SlideOver
+        open={detailPanel?.kind === "blocks"}
+        onClose={closeDetail}
+        title="Bloqueos de despacho"
+        description="Vehículos con complianceBlocked — placa y motivo"
+        widthClass="max-w-xl"
+        footer={
+          <div className="flex w-full flex-wrap justify-end gap-2">
+            <Link href="/tramites">
+              <Button type="button" variant="secondary" className="w-auto px-4 py-2">
+                Ir a Trámites
+              </Button>
+            </Link>
+          </div>
+        }
+      >
+        {detailLoading ? (
+          <p className="text-sm text-brand-text-secondary">Cargando…</p>
+        ) : detailError ? (
+          <p className="text-sm text-brand-danger">{detailError}</p>
+        ) : blocksDetail && blocksDetail.vehicles.length > 0 ? (
+          <div className="space-y-3">
+            <p className="font-data text-xs text-brand-text-secondary">
+              {blocksDetail.count} vehículo(s) bloqueado(s)
+            </p>
+            <NexaTable columns={["Placa", "Unidad", "Motivo"]}>
+              {blocksDetail.vehicles.map((v) => (
+                <NexaRow key={v.id}>
+                  <NexaCell mono className="font-semibold">
+                    {v.plate}
+                  </NexaCell>
+                  <NexaCell>{v.label || "—"}</NexaCell>
+                  <NexaCell>{v.reason}</NexaCell>
+                </NexaRow>
+              ))}
+            </NexaTable>
+          </div>
+        ) : (
+          <EmptyState
+            title="Sin bloqueos de flota"
+            description="No hay vehículos con complianceBlocked ni estado COMPLIANCE_BLOCKED."
+          />
+        )}
+      </SlideOver>
+
+      <SlideOver
+        open={detailPanel?.kind === "ot"}
+        onClose={closeDetail}
+        title="OT abiertas"
+        description="Órdenes de trabajo abiertas en el período"
+        widthClass="max-w-2xl"
+        footer={
+          <div className="flex w-full flex-wrap justify-end gap-2">
+            <Link href="/taller">
+              <Button type="button" variant="secondary" className="w-auto px-4 py-2">
+                Ir a Taller
+              </Button>
+            </Link>
+          </div>
+        }
+      >
+        {detailLoading ? (
+          <p className="text-sm text-brand-text-secondary">Cargando…</p>
+        ) : detailError ? (
+          <p className="text-sm text-brand-danger">{detailError}</p>
+        ) : woDetail && woDetail.workOrders.length > 0 ? (
+          <div className="space-y-3">
+            <p className="font-data text-xs text-brand-text-secondary">
+              {woDetail.count} orden(es)
+            </p>
+            <NexaTable columns={["Código", "Vehículo", "Estado", "Antigüedad"]}>
+              {woDetail.workOrders.map((wo) => (
+                <NexaRow key={wo.id}>
+                  <NexaCell mono>{wo.code}</NexaCell>
+                  <NexaCell>
+                    <span className="font-data text-xs">{wo.vehiclePlate}</span>
+                    <span className="ml-1 text-brand-text-secondary">
+                      {wo.vehicleLabel}
+                    </span>
+                  </NexaCell>
+                  <NexaCell>
+                    <Badge tone="info">{wo.status}</Badge>
+                  </NexaCell>
+                  <NexaCell mono>
+                    {wo.ageDays} día{wo.ageDays === 1 ? "" : "s"}
+                  </NexaCell>
+                </NexaRow>
+              ))}
+            </NexaTable>
+          </div>
+        ) : (
+          <EmptyState
+            title="Sin OT abiertas"
+            description="No hay órdenes de trabajo abiertas en el período seleccionado."
+          />
+        )}
+      </SlideOver>
+
+      <SlideOver
+        open={detailPanel?.kind === "aging"}
+        onClose={closeDetail}
+        title={
+          detailPanel?.kind === "aging"
+            ? `Aging CxC · ${detailPanel.label}`
+            : "Aging CxC"
+        }
+        description="Facturas RECEIVABLE no PAID/CANCELLED/DRAFT del bucket"
+        widthClass="max-w-2xl"
+        footer={
+          <div className="flex w-full flex-wrap justify-end gap-2">
+            <Link href="/tesoreria">
+              <Button type="button" variant="secondary" className="w-auto px-4 py-2">
+                Ir a Tesorería
+              </Button>
+            </Link>
+          </div>
+        }
+      >
+        {detailLoading ? (
+          <p className="text-sm text-brand-text-secondary">Cargando…</p>
+        ) : detailError ? (
+          <p className="text-sm text-brand-danger">{detailError}</p>
+        ) : agingDetail && agingDetail.invoices.length > 0 ? (
+          <div className="space-y-3">
+            <p className="font-data text-xs text-brand-text-secondary">
+              {agingDetail.count} factura(s) · {money(agingDetail.total)}
+            </p>
+            <NexaTable columns={["Número", "Cliente", "Monto", "Vencimiento", "Mora", "Estado"]}>
+              {agingDetail.invoices.map((inv) => (
+                <NexaRow key={inv.id}>
+                  <NexaCell mono>{inv.number}</NexaCell>
+                  <NexaCell>{inv.customer}</NexaCell>
+                  <NexaCell mono>{money(inv.amount)}</NexaCell>
+                  <NexaCell mono>
+                    {inv.dueDate
+                      ? new Date(inv.dueDate).toLocaleDateString("es-CO")
+                      : "—"}
+                  </NexaCell>
+                  <NexaCell mono>{inv.daysOverdue}d</NexaCell>
+                  <NexaCell>
+                    <Badge tone={inv.status === "OVERDUE" ? "danger" : "info"}>
+                      {inv.status}
+                    </Badge>
+                  </NexaCell>
+                </NexaRow>
+              ))}
+            </NexaTable>
+          </div>
+        ) : (
+          <EmptyState
+            title="Sin facturas en este bucket"
+            description={
+              detailPanel?.kind === "aging"
+                ? `No hay CxC abierta en el rango ${detailPanel.label}.`
+                : "No hay facturas en este rango de aging."
+            }
+          />
+        )}
+      </SlideOver>
     </div>
   );
 }
