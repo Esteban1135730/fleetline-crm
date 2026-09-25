@@ -187,7 +187,13 @@ describe("PresidenciaService — canvas KPIs + ExecutiveQueryLog", () => {
           _sum: { totalEstimated: 1_200_000 },
         }),
       },
-      account: { findFirst: jest.fn().mockResolvedValue(null) },
+      account: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        findMany: jest.fn().mockResolvedValue([
+          { id: "acc-1", code: "1105", name: "Caja general" },
+          { id: "acc-2", code: "1110", name: "Banco Colombia" },
+        ]),
+      },
       managerialOverride: { count: jest.fn().mockResolvedValue(0) },
       paymentSchedule: {
         findMany: jest.fn().mockImplementation(async (args: {
@@ -245,12 +251,6 @@ describe("PresidenciaService — canvas KPIs + ExecutiveQueryLog", () => {
           _avg: { npsScore: 74 },
           _count: { _all: 10 },
         }),
-      },
-      account: {
-        findMany: jest.fn().mockResolvedValue([
-          { id: "acc-1", code: "1105", name: "Caja general" },
-          { id: "acc-2", code: "1110", name: "Banco Colombia" },
-        ]),
       },
       commercialDeal: {
         findMany: jest.fn().mockResolvedValue([]),

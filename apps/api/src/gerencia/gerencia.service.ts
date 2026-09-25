@@ -1668,7 +1668,6 @@ export class GerenciaService {
         area: b.area,
         severity: b.severity,
         message: b.message,
-        warRoomHint: b.warRoomHint,
       }));
     } catch (err) {
       this.logger.warn(

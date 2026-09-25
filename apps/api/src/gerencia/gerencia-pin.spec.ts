@@ -222,6 +222,7 @@ describe("GerenciaService.firmarAprobacionPin", () => {
     const svc = new GerenciaService(
       prisma as never,
       {} as never,
+      {} as never,
       { emit: jest.fn() } as never,
     );
     await expect(
@@ -261,6 +262,7 @@ describe("GerenciaService.firmarAprobacionPin", () => {
     };
     const svc = new GerenciaService(
       prisma as never,
+      {} as never,
       {} as never,
       { emit: jest.fn() } as never,
     );
