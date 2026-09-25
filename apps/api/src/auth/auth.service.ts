@@ -10,6 +10,7 @@ import { AccountType, Role, UserAccountStatus } from "@fsg/db";
 import { normalizeRole } from "@fsg/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { hashPassword, isKnownGenericPassword, assertPasswordPolicy, verifyPassword } from "../security/password-hash";
+import { resolveJwtSecret } from "../security/jwt-secret";
 import type { PageParams } from "../security/pagination";
 
 @Injectable()
@@ -22,6 +23,10 @@ export class AuthService {
   /** Compat: el bloqueo por IP en login quedó desactivado. */
   clearLoginLock(_ip?: string) {
     return { cleared: "all" as const, disabled: true as const };
+  }
+
+  private async signAccessToken(payload: Record<string, unknown>) {
+    return this.jwt.signAsync(payload, { secret: resolveJwtSecret() });
   }
 
   private toPublicUser(user: {
@@ -99,9 +104,10 @@ export class AuthService {
       organizationId: user.organizationId,
       tenantId: user.organizationId,
       directiveReadOnly: user.directiveReadOnly,
+      sv: user.sessionVersion ?? 0,
     };
     return {
-      accessToken: await this.jwt.signAsync(payload),
+      accessToken: await this.signAccessToken(payload),
       user: this.toPublicUser({ ...user, mustChangePassword }),
     };
   }
@@ -143,8 +149,9 @@ export class AuthService {
       organizationId: user.organizationId,
       tenantId: user.organizationId,
       directiveReadOnly: user.directiveReadOnly,
+      sv: user.sessionVersion ?? 0,
     };
-    const accessToken = await this.jwt.signAsync(payload);
+    const accessToken = await this.signAccessToken(payload);
     return {
       accessToken,
       refreshToken: accessToken,
@@ -257,10 +264,11 @@ export class AuthService {
       email: result.admin.email,
       role: result.admin.role,
       organizationId: result.org.id,
+      sv: 0,
     };
 
     return {
-      accessToken: await this.jwt.signAsync(payload),
+      accessToken: await this.signAccessToken(payload),
       user: this.toPublicUser({
         ...result.admin,
         organization: result.org,

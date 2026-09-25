@@ -163,7 +163,7 @@ export class KafkaEventsService {
   emitCommercialRevenueGenerated(payload: {
     organizationId: string;
     tripId: string;
-    contractId: string;
+    contractId?: string;
     invoiceId: string;
     amount: number;
     distanceKm: number;

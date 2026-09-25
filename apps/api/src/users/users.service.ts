@@ -191,16 +191,27 @@ export class UsersService {
     return normalizeRole(role) === "org_admin";
   }
 
+  /** El maestro ve cualquier empresa. El resto queda en su tenant. */
+  private actorUserWhere(
+    actor: { organizationId: string; role: string },
+    id: string,
+  ) {
+    if (this.isPlatformMaster(actor.role)) return { id };
+    return { id, organizationId: actor.organizationId };
+  }
+
   async list(
     actor: { userId: string; organizationId: string; role: string },
     opts?: { organizationId?: string; status?: string },
   ) {
+    const scopedOrg = this.isPlatformMaster(actor.role)
+      ? opts?.organizationId?.trim() || undefined
+      : actor.organizationId;
     const where: {
       organizationId?: string;
       status?: UserAccountStatus;
-    } = {
-      organizationId: actor.organizationId,
-    };
+    } = {};
+    if (scopedOrg) where.organizationId = scopedOrg;
 
     if (opts?.status) {
       where.status = opts.status.toUpperCase() as UserAccountStatus;
@@ -313,7 +324,7 @@ export class UsersService {
     id: string,
   ) {
     const existing = await this.prisma.user.findFirst({
-      where: { id, organizationId: actor.organizationId },
+      where: this.actorUserWhere(actor, id),
     });
     if (!existing) throw new NotFoundException("Usuario no encontrado");
     if (
@@ -358,7 +369,7 @@ export class UsersService {
     },
   ) {
     const existing = await this.prisma.user.findFirst({
-      where: { id, organizationId: actor.organizationId },
+      where: this.actorUserWhere(actor, id),
     });
     if (!existing) throw new NotFoundException("Usuario no encontrado");
 
@@ -434,7 +445,7 @@ export class UsersService {
       throw new BadRequestException("No puedes desactivar tu propio usuario");
     }
     const existing = await this.prisma.user.findFirst({
-      where: { id, organizationId: actor.organizationId },
+      where: this.actorUserWhere(actor, id),
     });
     if (!existing) throw new NotFoundException("Usuario no encontrado");
     if (existing.role === Role.PLATFORM_MASTER) {
@@ -477,7 +488,7 @@ export class UsersService {
     }
 
     const existing = await this.prisma.user.findFirst({
-      where: { id, organizationId: actor.organizationId },
+      where: this.actorUserWhere(actor, id),
     });
     if (!existing) throw new NotFoundException("Usuario no encontrado");
     if (existing.status !== UserAccountStatus.PENDING) {

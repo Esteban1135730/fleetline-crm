@@ -20,10 +20,17 @@ export const ArchiveDocTypeSchema = z.enum([
   "OTHER",
 ]);
 
+export const ArchiveVisibilitySchema = z.enum([
+  "PUBLIC",
+  "RESTRICTED",
+  "CONFIDENTIAL",
+]);
+
 export const UploadArchiveSchema = z.object({
   title: z.string().min(1).optional(),
   category: z.string().optional(),
   docType: ArchiveDocTypeSchema.optional(),
+  visibility: ArchiveVisibilitySchema.optional(),
   tags: z.union([z.string(), z.array(z.string())]).optional(),
   entityType: ArchiveEntityTypeSchema.optional(),
   entityId: z.string().min(1).optional(),
@@ -50,7 +57,9 @@ export const ListDocumentsSchema = z.object({
   docType: ArchiveDocTypeSchema.optional(),
   category: z.string().optional(),
   validationStatus: z.string().optional(),
+  visibility: ArchiveVisibilitySchema.optional(),
   tag: z.string().optional(),
+  tags: z.string().optional(),
   q: z.string().optional(),
 });
 export type ListDocumentsDto = z.infer<typeof ListDocumentsSchema>;

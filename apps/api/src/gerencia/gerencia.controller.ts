@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Param,
   Post,
   Query,
   Req,
@@ -17,6 +18,7 @@ import { GerenciaService } from "./gerencia.service";
 import {
   CreateApprovalSchema,
   FirmarPinSchema,
+  NotifyBottleneckSchema,
   ResolverOverrideSchema,
 } from "./dto/gerencia.dto";
 
@@ -91,12 +93,33 @@ export class GerenciaController {
     );
   }
 
+  /** GET /api/v1/gerencia/approvals/:id/impact — saldo antes de firmar */
+  @Get("approvals/:id/impact")
+  @Permissions("gerencia_approvals", "READ")
+  approvalImpact(@Req() req: AuthReq, @Param("id") id: string) {
+    return this.gerencia.approvalImpact(req.user.organizationId, id);
+  }
+
   /** POST /api/v1/gerencia/aprobaciones/firmar-pin */
   @Post("aprobaciones/firmar-pin")
+  @Roles("gerente_general", "org_admin")
   @Permissions("gerencia_approvals", "UPDATE")
   firmarPin(@Req() req: AuthReq, @Body() body: unknown) {
     const dto = FirmarPinSchema.parse(body ?? {});
     return this.gerencia.firmarAprobacionPin(
+      req.user.organizationId,
+      req.user.userId,
+      dto,
+      req.user.role,
+    );
+  }
+
+  /** POST /api/v1/gerencia/bottlenecks/notify — aviso in-app, sin WhatsApp */
+  @Post("bottlenecks/notify")
+  @Permissions("gerencia_approvals", "UPDATE")
+  notifyBottleneck(@Req() req: AuthReq, @Body() body: unknown) {
+    const dto = NotifyBottleneckSchema.parse(body ?? {});
+    return this.gerencia.notifyBottleneck(
       req.user.organizationId,
       req.user.userId,
       dto,

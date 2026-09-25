@@ -3,8 +3,12 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
+  COMMERCIAL_PIPELINE,
   QUOTE_DEFAULT_MARGIN_PCT,
+  QUOTE_MIN_MARGIN_PCT,
   QUOTE_VEHICLE_COSTS,
+  URBAN_TRAFFIC_FACTORS,
+  commercialLeadScore,
   estimateTollsForRoute,
   statusEs,
   type QuoteCostBreakdown,
@@ -23,7 +27,7 @@ import {
   Target,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { EmptyState, KpiCard, SlideOver, StatusPulseBadge } from "@/components/audit";
+import { EmptyState, KpiCard, Modal, SlideOver, StatusPulseBadge } from "@/components/audit";
 import { SarlaftBlockBadge } from "@/components/sarlaft/sarlaft-block-badge";
 import { BentoPanel } from "@/components/nexa/bento-panel";
 import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
@@ -42,16 +46,50 @@ type Customer = {
   segment: string;
   email?: string | null;
   phone?: string | null;
+  contactName?: string | null;
+  creditKind?: string | null;
+  serviceFrequency?: string | null;
+  servicesPerMonth?: string | null;
+  preferredVehicle?: string | null;
+  logisticsOwner?: string | null;
+  commercialNote?: string | null;
+  branch?: string | null;
   sarlaftBlocked?: boolean;
   sarlaftRiskScore?: number;
   _count?: { quotes: number; trips: number; contracts: number };
 };
 
-const PIPELINE_COLUMNS = [
-  { key: "DRAFT", label: "Borrador" },
-  { key: "SENT", label: "Enviada" },
-  { key: "APPROVED", label: "Negociación" },
-] as const;
+function stageOf(q: { pipelineStage?: string | null; status: string }) {
+  if (
+    q.pipelineStage &&
+    COMMERCIAL_PIPELINE.some((col) => col.key === q.pipelineStage)
+  ) {
+    return q.pipelineStage;
+  }
+  if (q.status === "SENT") return "COTIZADA";
+  if (q.status === "APPROVED") return "NEGOCIACION";
+  if (q.status === "WON") return "GANADO";
+  if (q.status === "REJECTED" || q.status === "EXPIRED") return "PERDIDO";
+  return "BANT";
+}
+
+function blankCustomer() {
+  return {
+    name: "",
+    nit: "",
+    email: "",
+    phone: "",
+    segment: "B2B" as "B2B" | "ESCOLAR" | "TURISMO",
+    contactName: "",
+    creditKind: "CONTADO",
+    serviceFrequency: "",
+    servicesPerMonth: "",
+    preferredVehicle: "",
+    logisticsOwner: "",
+    commercialNote: "",
+    branch: "BOGOTA",
+  };
+}
 
 function sarlaftTrust(c: Customer): {
   label: string;
@@ -79,8 +117,18 @@ type Quote = {
   status: string;
   notes?: string | null;
   calcJson?: QuoteCostBreakdown | null;
-  customer: { name: string };
+  customer: { name: string; sarlaftBlocked?: boolean };
   draftTrip?: { id: string; code: string; status: string } | null;
+  pipelineStage?: string | null;
+  nextAction?: string | null;
+  followUpAt?: string | null;
+  lossReason?: string | null;
+  fitScore?: number | null;
+  urgencyScore?: number | null;
+  budgetScore?: number | null;
+  docStatus?: string | null;
+  wonAt?: string | null;
+  createdAt?: string;
 };
 
 type Contract = {
@@ -170,13 +218,7 @@ export default function ComercialPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [contracts, setContracts] = useState<Contract[]>([]);
-  const [customerForm, setCustomerForm] = useState({
-    name: "",
-    nit: "",
-    email: "",
-    phone: "",
-    segment: "B2B" as "B2B" | "ESCOLAR" | "TURISMO",
-  });
+  const [customerForm, setCustomerForm] = useState(blankCustomer);
   const [contractError, setContractError] = useState("");
   const [contractBusy, setContractBusy] = useState(false);
   const [editingContractId, setEditingContractId] = useState<string | null>(
@@ -206,6 +248,30 @@ export default function ComercialPage() {
     distanciaKm: "420",
     cantidadPeajes: "8",
     margenDeseado: String(QUOTE_DEFAULT_MARGIN_PCT),
+    modo: "NACIONAL" as "NACIONAL" | "URBANO",
+    cantidadVehiculos: "1",
+    dias: "1",
+    idaYRegreso: false,
+    paradas: "",
+    factorTrafico: "1",
+    tarifaMinima: "",
+    salida: "",
+    regreso: "",
+    formaPago: "Contado",
+    comentario: "",
+  });
+  const [stageFilter, setStageFilter] = useState<string | null>(null);
+  const [stageError, setStageError] = useState("");
+  const [followQuote, setFollowQuote] = useState<Quote | null>(null);
+  const [followForm, setFollowForm] = useState({
+    stage: "BANT",
+    nextAction: "",
+    followUpAt: "",
+    lossReason: "",
+    fitScore: "",
+    urgencyScore: "",
+    budgetScore: "",
+    docStatus: "",
   });
   const [breakdown, setBreakdown] = useState<QuoteCostBreakdown | null>(null);
   const [calcBusy, setCalcBusy] = useState(false);
@@ -259,6 +325,20 @@ export default function ComercialPage() {
       distanciaKm: Number(calcForm.distanciaKm) || 0,
       cantidadPeajes: Number(calcForm.cantidadPeajes) || 0,
       margenDeseado: Number(calcForm.margenDeseado) || QUOTE_DEFAULT_MARGIN_PCT,
+      modo: calcForm.modo,
+      cantidadVehiculos: Number(calcForm.cantidadVehiculos) || 1,
+      dias: Number(calcForm.dias) || 1,
+      idaYRegreso: calcForm.idaYRegreso,
+      paradas: calcForm.paradas
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
+      factorTrafico: Number(calcForm.factorTrafico) || 1,
+      tarifaMinima: Number(calcForm.tarifaMinima) || 0,
+      salida: calcForm.salida || undefined,
+      regreso: calcForm.regreso || undefined,
+      formaPago: calcForm.formaPago || undefined,
+      comentario: calcForm.comentario || undefined,
     }),
     [calcForm],
   );
@@ -268,39 +348,60 @@ export default function ComercialPage() {
     [calcForm.margenDeseado],
   );
 
-  const pipelineQuotes = useMemo(
-    () =>
-      quotes.filter((q) =>
-        PIPELINE_COLUMNS.some((col) => col.key === q.status),
-      ),
-    [quotes],
-  );
-
   const historyQuotes = useMemo(
     () =>
-      quotes.filter(
-        (q) => !PIPELINE_COLUMNS.some((col) => col.key === q.status),
-      ),
+      quotes.filter((q) => {
+        const stage = stageOf(q);
+        return stage === "GANADO" || stage === "PERDIDO";
+      }),
     [quotes],
   );
 
   const pipelineStats = useMemo(() => {
-    const negociacion = quotes.filter((q) => q.status === "APPROVED").length;
-    const ganado = quotes.filter((q) => q.status === "WON").length;
-    const pipelineValue = pipelineQuotes.reduce(
-      (sum, q) => sum + Number(q.amount),
-      0,
+    const open = quotes.filter((q) =>
+      COMMERCIAL_PIPELINE.some((col) => col.open && col.key === stageOf(q)),
     );
-    const mrr = contractsSummary.mrr;
+    const weighted = open.reduce((sum, q) => {
+      const prob =
+        COMMERCIAL_PIPELINE.find((col) => col.key === stageOf(q))?.probability ??
+        0;
+      return sum + Number(q.amount) * prob;
+    }, 0);
+    const ganado = quotes.filter((q) => stageOf(q) === "GANADO");
+    const perdido = quotes.filter((q) => stageOf(q) === "PERDIDO");
+    const closed = ganado.length + perdido.length;
+    const winRate = closed ? Math.round((ganado.length / closed) * 100) : 0;
+    const closeDays = ganado
+      .map((q) => {
+        if (!q.createdAt || !q.wonAt) return null;
+        return Math.max(
+          0,
+          Math.round(
+            (new Date(q.wonAt).getTime() - new Date(q.createdAt).getTime()) /
+              86_400_000,
+          ),
+        );
+      })
+      .filter((n): n is number => n != null);
+    const avgDays = closeDays.length
+      ? Math.round(closeDays.reduce((sum, n) => sum + n, 0) / closeDays.length)
+      : 0;
+    const overdue = open.filter(
+      (q) => q.followUpAt && new Date(q.followUpAt).getTime() < Date.now(),
+    ).length;
     return {
-      negociacion,
-      ganado,
-      pipelineValue,
-      mrr,
-      activas: pipelineQuotes.length,
+      negociacion: quotes.filter((q) => stageOf(q) === "NEGOCIACION").length,
+      ganado: ganado.length,
+      pipelineValue: open.reduce((sum, q) => sum + Number(q.amount), 0),
+      weighted,
+      winRate,
+      avgDays,
+      overdue,
+      mrr: contractsSummary.mrr,
+      activas: open.length,
       contratosActivos: contractsSummary.activeCount,
     };
-  }, [quotes, pipelineQuotes, contractsSummary]);
+  }, [quotes, contractsSummary]);
 
   async function runCalculate() {
     setCalcBusy(true);
@@ -342,25 +443,13 @@ export default function ComercialPage() {
     setCustomerSlideOpen(false);
     setEditingCustomerId(null);
     setCustomerError("");
-    setCustomerForm({
-      name: "",
-      nit: "",
-      email: "",
-      phone: "",
-      segment: "B2B",
-    });
+    setCustomerForm(blankCustomer());
   }
 
   function openNewCustomer() {
     setEditingCustomerId(null);
     setCustomerError("");
-    setCustomerForm({
-      name: "",
-      nit: "",
-      email: "",
-      phone: "",
-      segment: "B2B",
-    });
+    setCustomerForm(blankCustomer());
     setCustomerSlideOpen(true);
   }
 
@@ -376,6 +465,14 @@ export default function ComercialPage() {
         c.segment === "ESCOLAR" || c.segment === "TURISMO"
           ? c.segment
           : "B2B",
+      contactName: c.contactName || "",
+      creditKind: c.creditKind === "CREDITO" ? "CREDITO" : "CONTADO",
+      serviceFrequency: c.serviceFrequency || "",
+      servicesPerMonth: c.servicesPerMonth || "",
+      preferredVehicle: c.preferredVehicle || "",
+      logisticsOwner: c.logisticsOwner || "",
+      commercialNote: c.commercialNote || "",
+      branch: c.branch === "BARRANQUILLA" ? "BARRANQUILLA" : "BOGOTA",
     });
     setCustomerSlideOpen(true);
   }
@@ -393,6 +490,14 @@ export default function ComercialPage() {
             email: customerForm.email.trim() || undefined,
             phone: customerForm.phone.trim() || undefined,
             segment: customerForm.segment,
+            contactName: customerForm.contactName,
+            creditKind: customerForm.creditKind,
+            serviceFrequency: customerForm.serviceFrequency,
+            servicesPerMonth: customerForm.servicesPerMonth,
+            preferredVehicle: customerForm.preferredVehicle,
+            logisticsOwner: customerForm.logisticsOwner,
+            commercialNote: customerForm.commercialNote,
+            branch: customerForm.branch,
           }),
         });
       } else {
@@ -404,6 +509,14 @@ export default function ComercialPage() {
             email: customerForm.email.trim() || undefined,
             phone: customerForm.phone.trim() || undefined,
             segment: customerForm.segment,
+            contactName: customerForm.contactName,
+            creditKind: customerForm.creditKind,
+            serviceFrequency: customerForm.serviceFrequency,
+            servicesPerMonth: customerForm.servicesPerMonth,
+            preferredVehicle: customerForm.preferredVehicle,
+            logisticsOwner: customerForm.logisticsOwner,
+            commercialNote: customerForm.commercialNote,
+            branch: customerForm.branch,
           }),
         });
       }
@@ -532,6 +645,11 @@ export default function ComercialPage() {
 
   async function saveQuoteFromCalc(e: FormEvent) {
     e.preventDefault();
+    const selected = customers.find((c) => c.id === calcForm.customerId);
+    if (selected?.sarlaftBlocked) {
+      setCalcError("Cliente bloqueado por SARLAFT. No se puede cotizar.");
+      return;
+    }
     if (!breakdown) {
       setCalcError("Calcule la tarifa antes de guardar la cotización");
       return;
@@ -547,18 +665,62 @@ export default function ComercialPage() {
     await load();
   }
 
-  async function approveAndConvert(q: Quote) {
-    const res = await api<
-      Quote & { draftTrip?: { code: string; id?: string }; tripError?: string | null }
-    >(`/comercial/quotes/${q.id}/status`, {
-      method: "PATCH",
-      body: JSON.stringify({ status: "WON" }),
+  function openFollow(q: Quote, stage = stageOf(q)) {
+    setStageError("");
+    setFollowQuote(q);
+    setFollowForm({
+      stage,
+      nextAction: q.nextAction || "",
+      followUpAt: q.followUpAt ? q.followUpAt.slice(0, 16) : "",
+      lossReason: q.lossReason || "",
+      fitScore: q.fitScore ? String(q.fitScore) : "",
+      urgencyScore: q.urgencyScore ? String(q.urgencyScore) : "",
+      budgetScore: q.budgetScore ? String(q.budgetScore) : "",
+      docStatus: q.docStatus || "",
     });
-    await load();
-    setConversionQuote({ ...q, ...res });
-    setConversionTripCode(res.draftTrip?.code ?? null);
-    setConversionOpen(true);
-    if (res.tripError) setCalcError(res.tripError);
+  }
+
+  async function submitFollow(e: FormEvent) {
+    e.preventDefault();
+    if (!followQuote) return;
+    setStageError("");
+    try {
+      const res = await api<
+        Quote & { contractCode?: string | null; tripError?: string | null }
+      >(`/comercial/quotes/${followQuote.id}/stage`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          stage: followForm.stage,
+          nextAction: followForm.nextAction,
+          followUpAt: followForm.followUpAt || null,
+          lossReason: followForm.lossReason,
+          fitScore: followForm.fitScore ? Number(followForm.fitScore) : undefined,
+          urgencyScore: followForm.urgencyScore
+            ? Number(followForm.urgencyScore)
+            : undefined,
+          budgetScore: followForm.budgetScore
+            ? Number(followForm.budgetScore)
+            : undefined,
+          docStatus: followForm.docStatus,
+        }),
+      });
+      setFollowQuote(null);
+      await load();
+      if (followForm.stage === "GANADO") {
+        setConversionQuote({ ...followQuote, ...res });
+        setConversionTripCode(res.draftTrip?.code ?? null);
+        setConversionOpen(true);
+        if (res.tripError) setStageError(res.tripError);
+      }
+    } catch (err) {
+      setStageError(
+        err instanceof Error ? err.message : "No se pudo mover la etapa",
+      );
+    }
+  }
+
+  function approveAndConvert(q: Quote) {
+    openFollow(q, "GANADO");
   }
 
   function renderQuoteActions(q: Quote, compact?: boolean) {
@@ -567,6 +729,13 @@ export default function ComercialPage() {
         className={`flex flex-wrap gap-1 ${compact ? "" : "justify-end"}`}
         onClick={(e) => e.stopPropagation()}
       >
+        <Button
+          variant="ghost"
+          className="w-auto"
+          onClick={() => openFollow(q)}
+        >
+          Seguimiento
+        </Button>
         <Button
           variant="ghost"
           className="w-auto"
@@ -592,49 +761,31 @@ export default function ComercialPage() {
             {q.status === "APPROVED" ? "Ganar → Viaje" : "Aprobar → Viaje"}
           </Button>
         ) : null}
-        {q.status === "DRAFT" ? (
+        {stageOf(q) === "BANT" || stageOf(q) === "DIAGNOSTICO" ? (
           <Button
             variant="ghost"
             className="w-auto"
-            onClick={async () => {
-              await api(`/comercial/quotes/${q.id}/status`, {
-                method: "PATCH",
-                body: JSON.stringify({ status: "SENT" }),
-              });
-              await load();
-            }}
+            onClick={() => openFollow(q, "COTIZADA")}
           >
-            Enviar
+            Radicar
           </Button>
         ) : null}
-        {q.status === "SENT" ? (
+        {stageOf(q) === "COTIZADA" ? (
           <Button
             variant="ghost"
             className="w-auto"
-            onClick={async () => {
-              await api(`/comercial/quotes/${q.id}/status`, {
-                method: "PATCH",
-                body: JSON.stringify({ status: "APPROVED" }),
-              });
-              await load();
-            }}
+            onClick={() => openFollow(q, "NEGOCIACION")}
           >
             Negociar
           </Button>
         ) : null}
-        {q.status === "DRAFT" || q.status === "SENT" ? (
+        {COMMERCIAL_PIPELINE.some((col) => col.open && col.key === stageOf(q)) ? (
           <Button
             variant="ghost"
             className="w-auto"
-            onClick={async () => {
-              await api(`/comercial/quotes/${q.id}/status`, {
-                method: "PATCH",
-                body: JSON.stringify({ status: "REJECTED" }),
-              });
-              await load();
-            }}
+            onClick={() => openFollow(q, "PERDIDO")}
           >
-            Rechazar
+            Perder
           </Button>
         ) : null}
         {q.status === "APPROVED" ||
@@ -847,35 +998,51 @@ export default function ComercialPage() {
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <KpiCard
-              label="Pipeline activo"
-              value={pipelineStats.activas}
-              delta={`${money(pipelineStats.pipelineValue)} en juego`}
+              label="Pipeline ponderado"
+              value={money(pipelineStats.weighted)}
+              delta={`${pipelineStats.activas} abiertas · ${money(pipelineStats.pipelineValue)}`}
               icon={<Target className="h-10 w-10" />}
+              onClick={() => {
+                setStageFilter(null);
+                setQuoteView("pipeline");
+              }}
             />
             <KpiCard
-              label="En negociación"
-              value={pipelineStats.negociacion}
-              tone="warn"
-              icon={<TrendingUp className="h-10 w-10" />}
-            />
-            <KpiCard
-              label="Ganadas"
-              value={pipelineStats.ganado}
+              label="Win rate"
+              value={`${pipelineStats.winRate}%`}
+              delta={`${pipelineStats.ganado} ganadas`}
               tone="ok"
               icon={<ShieldCheck className="h-10 w-10" />}
+              onClick={() => {
+                setStageFilter("CERRADAS");
+                setQuoteView("historial");
+              }}
             />
             <KpiCard
-              label="MRR contratos"
-              value={money(pipelineStats.mrr)}
-              delta={`${pipelineStats.contratosActivos} activo${pipelineStats.contratosActivos === 1 ? "" : "s"}`}
-              tone="ok"
-              icon={<FileText className="h-10 w-10" />}
+              label="Días hasta cierre"
+              value={pipelineStats.avgDays}
+              delta="Promedio de ganadas"
+              icon={<TrendingUp className="h-10 w-10" />}
+              onClick={() => {
+                setStageFilter("GANADO");
+                setQuoteView("pipeline");
+              }}
+            />
+            <KpiCard
+              label="Seguimientos vencidos"
+              value={pipelineStats.overdue}
+              tone={pipelineStats.overdue ? "warn" : "ok"}
+              icon={<AlertTriangle className="h-10 w-10" />}
+              onClick={() => {
+                setStageFilter("OVERDUE");
+                setQuoteView("pipeline");
+              }}
             />
           </div>
 
           <BentoPanel
-            title="Cotizador inteligente"
-            subtitle="(km × costo/km + peajes + conductor) / (1 − margen)"
+            title="Cotizador"
+            subtitle="Nacional y Bogotá · km manuales · peajes estimados"
             icon={<Calculator aria-hidden />}
             action={
               <Button
@@ -987,6 +1154,7 @@ export default function ComercialPage() {
                   title="Auto-relleno por corredor; editable"
                 />
                 <span className="font-sans text-[10px] normal-case tracking-normal text-[var(--brand-text-secondary)]">
+                  Estimado ·{" "}
                   {
                     estimateTollsForRoute(calcForm.origen, calcForm.destino)
                       .label
@@ -998,6 +1166,147 @@ export default function ComercialPage() {
                   ).avgCop.toLocaleString("es-CO")}
                   /peaje
                 </span>
+              </label>
+              <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
+                Cobertura
+                <select
+                  className="field"
+                  value={calcForm.modo}
+                  onChange={(e) => {
+                    const modo = e.target.value as "NACIONAL" | "URBANO";
+                    setCalcForm({
+                      ...calcForm,
+                      modo,
+                      factorTrafico:
+                        modo === "URBANO" ? "1.05" : "1",
+                    });
+                  }}
+                >
+                  <option value="NACIONAL">Nacional</option>
+                  <option value="URBANO">Bogotá</option>
+                </select>
+              </label>
+              <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
+                Unidades
+                <input
+                  className="field font-data"
+                  type="number"
+                  min={1}
+                  value={calcForm.cantidadVehiculos}
+                  onChange={(e) =>
+                    setCalcForm({ ...calcForm, cantidadVehiculos: e.target.value })
+                  }
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
+                Días
+                <input
+                  className="field font-data"
+                  type="number"
+                  min={1}
+                  value={calcForm.dias}
+                  onChange={(e) =>
+                    setCalcForm({ ...calcForm, dias: e.target.value })
+                  }
+                />
+              </label>
+              <label className="flex items-center gap-2 text-[11px] uppercase tracking-wide text-brand-text-secondary">
+                <input
+                  type="checkbox"
+                  checked={calcForm.idaYRegreso}
+                  onChange={(e) =>
+                    setCalcForm({ ...calcForm, idaYRegreso: e.target.checked })
+                  }
+                />
+                Ida y regreso
+              </label>
+              <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary md:col-span-2">
+                Paradas
+                <input
+                  className="field"
+                  placeholder="Separadas por coma"
+                  value={calcForm.paradas}
+                  onChange={(e) =>
+                    setCalcForm({ ...calcForm, paradas: e.target.value })
+                  }
+                />
+              </label>
+              {calcForm.modo === "URBANO" ? (
+                <>
+                  <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
+                    Tráfico
+                    <select
+                      className="field"
+                      value={calcForm.factorTrafico}
+                      onChange={(e) =>
+                        setCalcForm({
+                          ...calcForm,
+                          factorTrafico: e.target.value,
+                        })
+                      }
+                    >
+                      {URBAN_TRAFFIC_FACTORS.map((item) => (
+                        <option key={item.key} value={String(item.factor)}>
+                          {item.label} ×{item.factor}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
+                    Tarifa mínima
+                    <input
+                      className="field font-data"
+                      type="number"
+                      min={0}
+                      value={calcForm.tarifaMinima}
+                      onChange={(e) =>
+                        setCalcForm({ ...calcForm, tarifaMinima: e.target.value })
+                      }
+                    />
+                  </label>
+                </>
+              ) : null}
+              <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
+                Salida
+                <input
+                  className="field"
+                  type="datetime-local"
+                  value={calcForm.salida}
+                  onChange={(e) =>
+                    setCalcForm({ ...calcForm, salida: e.target.value })
+                  }
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
+                Regreso
+                <input
+                  className="field"
+                  type="datetime-local"
+                  value={calcForm.regreso}
+                  onChange={(e) =>
+                    setCalcForm({ ...calcForm, regreso: e.target.value })
+                  }
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
+                Pago
+                <input
+                  className="field"
+                  value={calcForm.formaPago}
+                  onChange={(e) =>
+                    setCalcForm({ ...calcForm, formaPago: e.target.value })
+                  }
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary md:col-span-2">
+                Comentario
+                <input
+                  className="field"
+                  value={calcForm.comentario}
+                  onChange={(e) =>
+                    setCalcForm({ ...calcForm, comentario: e.target.value })
+                  }
+                />
               </label>
               <label className="flex flex-col gap-2 text-[11px] uppercase tracking-wide text-[var(--brand-text-secondary)] md:col-span-2">
                 Margen objetivo
@@ -1043,7 +1352,7 @@ export default function ComercialPage() {
                     ? "Zona verde — margen saludable"
                     : marginPct >= 15
                       ? "Zona ámbar — revisar costos"
-                      : "Zona roja — rentabilidad crítica"}
+                      : `Zona roja — bajo el mínimo de ${QUOTE_MIN_MARGIN_PCT}%`}
                 </span>
               </label>
               <div className="flex items-end justify-end md:col-span-3 lg:col-span-1">
@@ -1144,29 +1453,58 @@ export default function ComercialPage() {
               </div>
             }
           >
+            {stageError ? (
+              <p role="alert" className="mb-3 text-sm text-[var(--brand-danger)]">
+                {stageError}
+              </p>
+            ) : null}
             {quoteView === "pipeline" ? (
-              !pipelineQuotes.length ? (
+              !quotes.length ? (
                 <EmptyState
                   icon={<Calculator className="h-7 w-7" />}
                   title="Pipeline vacío"
                   description="Calcule una tarifa y guarde la cotización en borrador."
                 />
               ) : (
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                  {PIPELINE_COLUMNS.map((col) => {
-                    const colQuotes = pipelineQuotes.filter(
-                      (q) => q.status === col.key,
-                    );
+                <div className="flex gap-3 overflow-x-auto pb-2">
+                  {COMMERCIAL_PIPELINE.filter((col) => {
+                    if (stageFilter === "CERRADAS") return !col.open;
+                    if (stageFilter === "OVERDUE" || !stageFilter) return col.open;
+                    return col.key === stageFilter;
+                  }).map((col) => {
+                    const colQuotes = quotes.filter((q) => {
+                      if (stageOf(q) !== col.key) return false;
+                      if (stageFilter !== "OVERDUE") return true;
+                      return Boolean(
+                        q.followUpAt && new Date(q.followUpAt).getTime() < Date.now(),
+                      );
+                    });
                     const colValue = colQuotes.reduce(
                       (sum, q) => sum + Number(q.amount),
                       0,
                     );
+                    const overdue = (q: Quote) =>
+                      Boolean(
+                        q.followUpAt &&
+                          new Date(q.followUpAt).getTime() < Date.now() &&
+                          col.open,
+                      );
                     return (
-                      <BentoPanel
+                      <div
                         key={col.key}
-                        title={col.label}
+                        className="min-w-[240px] flex-1"
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          const id = e.dataTransfer.getData("text/plain");
+                          const quote = quotes.find((item) => item.id === id);
+                          if (quote) openFollow(quote, col.key);
+                        }}
+                      >
+                      <BentoPanel
+                        title={`${col.label} · ${Math.round(col.probability * 100)}%`}
                         subtitle={`${colQuotes.length} · ${money(colValue)}`}
-                        className="!p-3"
+                        className="!p-3 h-full"
                       >
                         <div className="flex flex-1 flex-col gap-2">
                           {!colQuotes.length ? (
@@ -1174,12 +1512,27 @@ export default function ComercialPage() {
                               Sin cotizaciones
                             </p>
                           ) : (
-                            colQuotes.map((q) => (
+                            colQuotes.map((q) => {
+                              const score = commercialLeadScore(
+                                q.fitScore,
+                                q.urgencyScore,
+                                q.budgetScore,
+                              );
+                              return (
                               <article
                                 key={q.id}
-                                className="cursor-pointer rounded-md border border-[var(--brand-border)] bg-[var(--brand-surface)] p-3 transition-colors duration-150 hover:border-[color-mix(in_srgb,var(--brand-primary)_35%,transparent)]"
+                                draggable
+                                onDragStart={(e) => {
+                                  e.dataTransfer.setData("text/plain", q.id);
+                                  e.stopPropagation();
+                                }}
+                                className={`cursor-pointer rounded-md border bg-[var(--brand-surface)] p-3 transition-colors duration-150 hover:border-[color-mix(in_srgb,var(--brand-primary)_35%,transparent)] ${
+                                  overdue(q)
+                                    ? "border-[var(--brand-danger)]"
+                                    : "border-[var(--brand-border)]"
+                                }`}
                                 onClick={() => openQuoteInspector(q)}
-                                title="Abrir desglose en el inspector"
+                                title="Arrastrar para cambiar de etapa"
                               >
                                 <div className="flex items-start justify-between gap-2">
                                   <p className="font-data text-[10px] text-[var(--brand-primary)]">
@@ -1215,14 +1568,39 @@ export default function ComercialPage() {
                                     </p>
                                   </>
                                 ) : null}
+                                {score != null ? (
+                                  <p className="mt-0.5 font-data text-[10px] tabular-nums text-brand-text-secondary">
+                                    Lead {score}/5
+                                    {q.docStatus ? ` · docs ${q.docStatus}` : ""}
+                                  </p>
+                                ) : null}
+                                {q.followUpAt ? (
+                                  <p
+                                    className={`mt-0.5 text-[10px] ${
+                                      overdue(q)
+                                        ? "text-[var(--brand-danger)]"
+                                        : "text-brand-text-secondary"
+                                    }`}
+                                  >
+                                    Seguimiento{" "}
+                                    {new Date(q.followUpAt).toLocaleString("es-CO", {
+                                      day: "2-digit",
+                                      month: "short",
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })}
+                                  </p>
+                                ) : null}
                                 <div className="mt-2 border-t border-[var(--brand-border)] pt-2">
                                   {renderQuoteActions(q, true)}
                                 </div>
                               </article>
-                            ))
+                              );
+                            })
                           )}
                         </div>
                       </BentoPanel>
+                      </div>
                     );
                   })}
                 </div>
@@ -1497,9 +1875,20 @@ export default function ComercialPage() {
                       <div className="font-data text-[10px] text-brand-text-secondary">
                         {c.nit}
                       </div>
-                      {c.email || c.phone ? (
+                      {c.email || c.phone || c.contactName ? (
                         <div className="text-[10px] text-brand-text-secondary">
-                          {[c.email, c.phone].filter(Boolean).join(" · ")}
+                          {[c.contactName, c.email, c.phone].filter(Boolean).join(" · ")}
+                        </div>
+                      ) : null}
+                      {c.creditKind || c.branch ? (
+                        <div className="text-[10px] text-brand-text-secondary">
+                          {[
+                            c.branch === "BARRANQUILLA" ? "Barranquilla" : c.branch ? "Bogotá" : null,
+                            c.creditKind === "CREDITO" ? "Crédito" : c.creditKind ? "Contado" : null,
+                            c.serviceFrequency,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
                         </div>
                       ) : null}
                     </NexaCell>
@@ -1555,6 +1944,136 @@ export default function ComercialPage() {
           )}
         </BentoPanel>
       ) : null}
+
+      <Modal
+        open={Boolean(followQuote)}
+        onClose={() => setFollowQuote(null)}
+        title="Mover etapa"
+        description={followQuote ? `${followQuote.code} · ${followQuote.customer.name}` : undefined}
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-auto px-4 py-2"
+              onClick={() => setFollowQuote(null)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              form="comercial-follow-form"
+              variant="primary"
+              className="w-auto px-4 py-2"
+            >
+              Guardar etapa
+            </Button>
+          </div>
+        }
+      >
+        <form
+          id="comercial-follow-form"
+          className="grid gap-3"
+          onSubmit={(e) => void submitFollow(e)}
+        >
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
+            Etapa
+            <select
+              className="field"
+              value={followForm.stage}
+              onChange={(e) =>
+                setFollowForm({ ...followForm, stage: e.target.value })
+              }
+            >
+              {COMMERCIAL_PIPELINE.map((col) => (
+                <option key={col.key} value={col.key}>
+                  {col.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
+            Próxima acción
+            <input
+              className="field"
+              value={followForm.nextAction}
+              onChange={(e) =>
+                setFollowForm({ ...followForm, nextAction: e.target.value })
+              }
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
+            Fecha de seguimiento
+            <input
+              className="field"
+              type="datetime-local"
+              value={followForm.followUpAt}
+              onChange={(e) =>
+                setFollowForm({ ...followForm, followUpAt: e.target.value })
+              }
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
+            Documentos
+            <select
+              className="field"
+              value={followForm.docStatus}
+              onChange={(e) =>
+                setFollowForm({ ...followForm, docStatus: e.target.value })
+              }
+            >
+              <option value="">Sin marcar</option>
+              <option value="FALTAN">Faltan</option>
+              <option value="REVISION">En revisión</option>
+              <option value="COMPLETOS">Completos</option>
+            </select>
+          </label>
+          <div className="grid grid-cols-3 gap-2">
+            {(
+              [
+                ["fitScore", "Encaje"],
+                ["urgencyScore", "Urgencia"],
+                ["budgetScore", "Presupuesto"],
+              ] as const
+            ).map(([key, label]) => (
+              <label
+                key={key}
+                className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary"
+              >
+                {label}
+                <input
+                  className="field font-data"
+                  type="number"
+                  min={1}
+                  max={5}
+                  value={followForm[key]}
+                  onChange={(e) =>
+                    setFollowForm({ ...followForm, [key]: e.target.value })
+                  }
+                />
+              </label>
+            ))}
+          </div>
+          {followForm.stage === "PERDIDO" ? (
+            <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
+              Motivo de pérdida
+              <input
+                className="field"
+                required
+                value={followForm.lossReason}
+                onChange={(e) =>
+                  setFollowForm({ ...followForm, lossReason: e.target.value })
+                }
+              />
+            </label>
+          ) : null}
+          {stageError ? (
+            <p role="alert" className="text-sm text-[var(--brand-danger)]">
+              {stageError}
+            </p>
+          ) : null}
+        </form>
+      </Modal>
 
       <SlideOver
         open={customerSlideOpen}
@@ -1667,6 +2186,108 @@ export default function ComercialPage() {
               <option value="ESCOLAR">Colegio</option>
               <option value="TURISMO">Turismo</option>
             </select>
+          </label>
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
+            Contacto
+            <input
+              className="field"
+              value={customerForm.contactName}
+              onChange={(e) =>
+                setCustomerForm({ ...customerForm, contactName: e.target.value })
+              }
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
+            Sede
+            <select
+              className="field"
+              value={customerForm.branch}
+              onChange={(e) =>
+                setCustomerForm({ ...customerForm, branch: e.target.value })
+              }
+            >
+              <option value="BOGOTA">Bogotá</option>
+              <option value="BARRANQUILLA">Barranquilla</option>
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
+            Crédito
+            <select
+              className="field"
+              value={customerForm.creditKind}
+              onChange={(e) =>
+                setCustomerForm({ ...customerForm, creditKind: e.target.value })
+              }
+            >
+              <option value="CONTADO">Contado</option>
+              <option value="CREDITO">Crédito</option>
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
+            Frecuencia
+            <input
+              className="field"
+              placeholder="Semanal, mensual, por evento"
+              value={customerForm.serviceFrequency}
+              onChange={(e) =>
+                setCustomerForm({
+                  ...customerForm,
+                  serviceFrequency: e.target.value,
+                })
+              }
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
+            Servicios / mes
+            <input
+              className="field font-data"
+              value={customerForm.servicesPerMonth}
+              onChange={(e) =>
+                setCustomerForm({
+                  ...customerForm,
+                  servicesPerMonth: e.target.value,
+                })
+              }
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
+            Vehículo habitual
+            <input
+              className="field"
+              value={customerForm.preferredVehicle}
+              onChange={(e) =>
+                setCustomerForm({
+                  ...customerForm,
+                  preferredVehicle: e.target.value,
+                })
+              }
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
+            Responsable logístico
+            <input
+              className="field"
+              value={customerForm.logisticsOwner}
+              onChange={(e) =>
+                setCustomerForm({
+                  ...customerForm,
+                  logisticsOwner: e.target.value,
+                })
+              }
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
+            Nota comercial
+            <input
+              className="field"
+              value={customerForm.commercialNote}
+              onChange={(e) =>
+                setCustomerForm({
+                  ...customerForm,
+                  commercialNote: e.target.value,
+                })
+              }
+            />
           </label>
           {customerError ? (
             <p

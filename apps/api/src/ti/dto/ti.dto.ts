@@ -37,10 +37,15 @@ export type SynthesizeDto = z.infer<typeof SynthesizeSchema>;
 export const OnboardingLinkSchema = z.object({
   email: Field.email,
   name: FieldOptional.personName,
-  targetRole: z.string().min(2).max(64).optional(),
+  targetRole: z.string().min(2).max(64),
   ttlMinutes: z.coerce.number().int().positive().max(7 * 24 * 60).optional(),
 });
 export type OnboardingLinkDto = z.infer<typeof OnboardingLinkSchema>;
+
+export const RotateSecretsSchema = z.object({
+  overlapHours: z.coerce.number().int().positive().max(168).optional(),
+});
+export type RotateSecretsDto = z.infer<typeof RotateSecretsSchema>;
 
 export const MdmPairQrSchema = z.object({
   driverUserId: z.string().min(1).optional(),

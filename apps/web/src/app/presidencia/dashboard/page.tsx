@@ -40,14 +40,32 @@ import { useShell } from "@/lib/shell-context";
 import { useRouter } from "next/navigation";
 
 type Pillars = {
-  growth?: { label: string; valuePct: number; hint: string };
-  fleetAlerts?: { label: string; immobilized: number; hint: string };
-  margin?: { label: string; valuePct: number; hint: string };
-  compliance?: { label: string; valuePct: number; hint: string };
-  liquidity: { label: string; valueCop: number; hint: string };
+  growth?: { label: string; valuePct: number | null; hint: string };
+  fleetAlerts?: { label: string; immobilized: number; hint: string; href?: string };
+  margin?: { label: string; valuePct: number | null; hint: string };
+  compliance?: { label: string; valuePct: number | null; hint: string; href?: string };
+  liquidity: { label: string; valueCop: number; hint: string; href?: string };
   sla: { label: string; valuePct: number; hint: string };
   legalPesv: { label: string; level: string; blockedUnits: number; hint: string };
-  nps: { label: string; value: number; samples: number; hint: string };
+  nps: {
+    label: string;
+    value: number | null;
+    samples: number;
+    display?: string;
+    hint: string;
+  };
+};
+
+type MarginRow = {
+  tripId: string;
+  code: string;
+  customer: string;
+  driver: string;
+  fare: number;
+  cost: number | null;
+  costUnknown: boolean;
+  marginPct: number | null;
+  unbilledExtras: number;
 };
 
 type Dash = {
@@ -215,6 +233,9 @@ export default function PresidenciaDashboardPage() {
 
   const [dash, setDash] = useState<Dash | null>(null);
   const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [marginOpen, setMarginOpen] = useState(false);
+  const [marginRows, setMarginRows] = useState<MarginRow[] | null>(null);
   const [listening, setListening] = useState(false);
   const [utterance, setUtterance] = useState(
     "Briefing: estatus operativo, saldo en bancos y flota bloqueada",
@@ -322,10 +343,16 @@ export default function PresidenciaDashboardPage() {
     setError(null);
     try {
       const data = await api<{
+        generatedAt?: string;
         exportedAt: string;
+        windowHours?: number;
+        sha256?: string;
         count: number;
+        events?: unknown[];
         rows: unknown[];
-      }>("/api/v1/presidencia/forensic-export");
+        note?: string | null;
+      }>("/api/v1/presidencia/forensic-export?hours=24");
+      setNotice(data.count === 0 ? "Sin mutaciones en 24h" : "");
       const blob = new Blob([JSON.stringify(data, null, 2)], {
         type: "application/json",
       });
@@ -394,6 +421,24 @@ export default function PresidenciaDashboardPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function openMarginExceptions() {
+    setMarginOpen(true);
+    setMarginRows(null);
+    try {
+      const res = await api<{ rows: MarginRow[] }>(
+        "/api/v1/presidencia/margin-exceptions?threshold=0.20",
+      );
+      setMarginRows(res.rows ?? []);
+    } catch (e) {
+      setMarginRows([]);
+      setError((e as Error).message || "No se pudieron cargar las excepciones");
+    }
+  }
+
+  function pctOrNa(value: number | null | undefined) {
+    return value == null ? "N/A" : `${value}%`;
   }
 
   async function openCashDetail() {
@@ -562,17 +607,15 @@ export default function PresidenciaDashboardPage() {
           </div>
         </div>
         <div className="flex w-auto flex-wrap justify-end gap-2">
-          <PermissionGuard capability="gerencia_override:UPDATE">
-            <Link href="/gerencia/dashboard">
-              <Button type="button" variant="secondary" className="w-auto px-4 py-2">
-                <Gavel className="mr-1.5 inline h-4 w-4" aria-hidden />
-                Excepciones margen
-                {(dash?.pendingMarginExceptions ?? 0) > 0
-                  ? ` (${dash?.pendingMarginExceptions})`
-                  : ""}
-              </Button>
-            </Link>
-          </PermissionGuard>
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-auto px-4 py-2"
+            onClick={() => void openMarginExceptions()}
+          >
+            <Gavel className="mr-1.5 inline h-4 w-4" aria-hidden />
+            Excepciones margen
+          </Button>
           <PermissionGuard capability="audit_forense:READ">
             <Button
               type="button"
@@ -613,36 +656,59 @@ export default function PresidenciaDashboardPage() {
           {error}
         </p>
       ) : null}
+      {notice ? (
+        <p className="relative z-10 rounded-xl border border-brand-border px-4 py-3 text-sm text-brand-text-secondary">
+          {notice}
+        </p>
+      ) : null}
 
       <section className="relative z-10 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           label={p?.growth?.label || "Crecimiento comercial"}
-          value={p?.growth ? `${p.growth.valuePct >= 0 ? "+" : ""}${p.growth.valuePct}%` : "—"}
+          value={
+            p?.growth
+              ? p.growth.valuePct == null
+                ? "N/A"
+                : `${p.growth.valuePct >= 0 ? "+" : ""}${p.growth.valuePct}%`
+              : "—"
+          }
           delta={p?.growth?.hint}
-          tone={(p?.growth?.valuePct ?? 0) >= 0 ? "ok" : "danger"}
+          tone={
+            p?.growth?.valuePct == null
+              ? "neutral"
+              : p.growth.valuePct >= 0
+                ? "ok"
+                : "danger"
+          }
           icon={<TrendingUp />}
         />
-        <KpiCard
-          label={p?.fleetAlerts?.label || "Alertas de flota"}
-          value={p?.fleetAlerts?.immobilized ?? "—"}
-          delta={p?.fleetAlerts?.hint}
-          tone={(p?.fleetAlerts?.immobilized ?? 0) > 0 ? "danger" : "ok"}
-          icon={<Truck />}
-        />
+        <Link href={p?.fleetAlerts?.href || "/logistica"} className="block">
+          <KpiCard
+            label={p?.fleetAlerts?.label || "Alertas de flota"}
+            value={p?.fleetAlerts?.immobilized ?? "—"}
+            delta={p?.fleetAlerts?.hint}
+            tone={(p?.fleetAlerts?.immobilized ?? 0) > 0 ? "danger" : "ok"}
+            icon={<Truck />}
+          />
+        </Link>
         <KpiCard
           label={p?.margin?.label || "Margen operativo"}
-          value={p?.margin ? `${p.margin.valuePct}%` : "—"}
+          value={p?.margin ? pctOrNa(p.margin.valuePct) : "—"}
           delta={p?.margin?.hint}
-          tone="ok"
+          tone={p?.margin?.valuePct == null ? "neutral" : "ok"}
           icon={<Wallet />}
         />
-        <KpiCard
-          label={p?.compliance?.label || "Cumplimiento normativo"}
-          value={p?.compliance ? `${p.compliance.valuePct}%` : "—"}
-          delta={p?.compliance?.hint}
-          tone={(p?.compliance?.valuePct ?? 100) < 95 ? "warn" : "ok"}
-          icon={<ShieldAlert />}
-        />
+        <Link href={p?.compliance?.href || "/tramites"} className="block">
+          <KpiCard
+            label={p?.compliance?.label || "Cumplimiento normativo"}
+            value={p?.compliance ? pctOrNa(p.compliance.valuePct) : "—"}
+            delta={p?.compliance?.hint}
+            tone={
+              (p?.compliance?.valuePct ?? 100) < 95 ? "warn" : "ok"
+            }
+            icon={<ShieldAlert />}
+          />
+        </Link>
       </section>
 
       <section className="relative z-10 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -650,7 +716,7 @@ export default function PresidenciaDashboardPage() {
           label={p?.liquidity.label || "Caja Libre"}
           value={p ? cop(p.liquidity.valueCop) : "—"}
           delta={p?.liquidity.hint || "Clic para ver cuentas y pagos"}
-          tone="ok"
+          tone={p && p.liquidity.valueCop < 0 ? "danger" : "ok"}
           icon={<Wallet />}
           spark={burnRateSeries.map((d) => d.ingresos)}
           tip="Saldos de caja/bancos menos pagos programados a 7 días"
@@ -674,8 +740,14 @@ export default function PresidenciaDashboardPage() {
         />
         <KpiCard
           label={p?.nps.label || "Satisfacción"}
-          value={p ? String(p.nps.value) : "—"}
-          delta={p ? `${p.nps.samples} muestras · ${p.nps.hint}` : undefined}
+          value={p ? (p.nps.display ?? (p.nps.value == null ? "N/A" : String(p.nps.value))) : "—"}
+          delta={
+            p
+              ? p.nps.samples === 0
+                ? "Sin encuestas"
+                : `${p.nps.samples} muestras · ${p.nps.hint}`
+              : undefined
+          }
           tone="neutral"
           icon={<HeartPulse />}
         />
@@ -1226,6 +1298,49 @@ export default function PresidenciaDashboardPage() {
         {defconOut ? (
           <p className="mt-4 text-sm text-brand-danger">{defconOut}</p>
         ) : null}
+      </SlideOver>
+
+      <SlideOver
+        open={marginOpen}
+        onClose={() => setMarginOpen(false)}
+        title="Fugas de rentabilidad"
+        description="Viajes completados del mes con margen bajo 20%. Umbral fijo, sin modelo predictivo."
+        widthClass="max-w-xl"
+      >
+        {marginRows == null ? (
+          <p className="font-data text-xs text-brand-text-secondary">Cargando…</p>
+        ) : marginRows.length === 0 ? (
+          <EmptyState
+            title="Sin excepciones bajo 20%"
+            description="Ningún viaje completado del mes quedó bajo el umbral."
+          />
+        ) : (
+          <ul className="space-y-2">
+            {marginRows.map((row) => (
+              <li
+                key={row.tripId}
+                className="rounded-lg border border-brand-border px-3 py-2"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-data text-xs text-brand-primary">{row.code}</p>
+                  <p className="font-data text-sm tabular-nums text-brand-text-primary">
+                    {row.costUnknown ? "Costo desconocido" : pctOrNa(row.marginPct)}
+                  </p>
+                </div>
+                <p className="mt-1 text-sm text-brand-text-primary">
+                  {row.customer} · {row.driver}
+                </p>
+                <p className="mt-1 font-data text-[11px] tabular-nums text-brand-text-secondary">
+                  Tarifa {cop(row.fare)}
+                  {row.cost != null ? ` · costo ${cop(row.cost)}` : ""}
+                  {row.unbilledExtras > 0
+                    ? ` · extras ${cop(row.unbilledExtras)}`
+                    : ""}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
       </SlideOver>
 
       <SlideOver

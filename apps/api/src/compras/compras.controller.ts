@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Post,
+  Query,
   Req,
   UseGuards,
 } from "@nestjs/common";
@@ -60,11 +61,14 @@ export class ComprasController {
     return this.smart.dashboard(req.user.organizationId);
   }
 
-  /** Cupo mensual real (SCRUM-26) — sustituye hardcode UI. */
+  /** Cupo mensual real (SCRUM-76) — por área/categoría. */
   @Get("budget")
   @Permissions("compras_oc", "READ")
-  budget(@Req() req: AuthReq) {
-    return this.service.getMonthlyBudget(req.user.organizationId);
+  budget(
+    @Req() req: AuthReq,
+    @Query("category") category?: string,
+  ) {
+    return this.service.getMonthlyBudget(req.user.organizationId, category);
   }
 
   /** Directorio de proveedores (no crea usuarios). */

@@ -1,5 +1,4 @@
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
-import { QuoteStatus } from "@fsg/db";
 import { mkdir, writeFile } from "fs/promises";
 import { join, resolve } from "path";
 import PDFDocument from "pdfkit";
@@ -21,6 +20,14 @@ export type QuotePdfPayload = {
   currency?: string;
   notes?: string | null;
   issuedAt?: Date;
+  issuerName?: string | null;
+  issuerNit?: string | null;
+  stops?: string[];
+  departAt?: string | null;
+  returnAt?: string | null;
+  payment?: string | null;
+  comment?: string | null;
+  estimated?: boolean;
 };
 
 /**
@@ -109,11 +116,22 @@ export class QuotePdfService {
     });
     if (!quote) throw new NotFoundException("Cotización no encontrada");
 
+    const org = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { name: true, nit: true },
+    });
+
     const calc = (quote.calcJson ?? {}) as {
       origen?: string;
       destino?: string;
       tipoVehiculoLabel?: string;
       distanciaKm?: number;
+      paradas?: string[];
+      salida?: string;
+      regreso?: string;
+      formaPago?: string;
+      comentario?: string;
+      estimado?: boolean;
       pdfRef?: string;
     };
 
@@ -121,6 +139,8 @@ export class QuotePdfService {
       code: quote.code,
       accountName: quote.customer.name,
       nit: quote.customer.nit,
+      issuerName: org?.name,
+      issuerNit: org?.nit,
       zone: calc.origen && calc.destino ? `${calc.origen} → ${calc.destino}` : null,
       vehicleType: calc.tipoVehiculoLabel,
       distanceKm: calc.distanciaKm,
@@ -128,6 +148,12 @@ export class QuotePdfService {
       currency: quote.currency,
       notes: quote.notes,
       issuedAt: quote.createdAt,
+      stops: calc.paradas,
+      departAt: calc.salida,
+      returnAt: calc.regreso,
+      payment: calc.formaPago,
+      comment: calc.comentario,
+      estimated: calc.estimado !== false,
     });
 
     await this.prisma.quote.update({
@@ -138,7 +164,6 @@ export class QuotePdfService {
           pdfRef,
           pdfGeneratedAt: new Date().toISOString(),
         },
-        status: quote.status === QuoteStatus.DRAFT ? QuoteStatus.SENT : quote.status,
       },
     });
 
@@ -165,17 +190,31 @@ export class QuotePdfService {
               maximumFractionDigits: 0,
             }).format(n);
 
+      doc.rect(0, 0, 612, 72).fill("#050B14");
       doc
         .font("Helvetica-Bold")
         .fontSize(16)
-        .fillColor("#0B1325")
-        .text("NEXA · Oferta comercial", { align: "left" });
+        .fillColor("#00E5FF")
+        .text(payload.issuerName?.trim() || "Oferta comercial", 48, 22, {
+          align: "left",
+        });
       doc
         .font("Helvetica")
         .fontSize(9)
         .fillColor("#8B9BB4")
-        .text(`Referencia ${payload.code}`, { align: "left" });
-      doc.moveDown(0.6);
+        .text(
+          [
+            payload.issuerNit ? `NIT ${payload.issuerNit}` : null,
+            `Oferta ${payload.code}`,
+          ]
+            .filter(Boolean)
+            .join("  ·  "),
+          48,
+          44,
+        );
+      doc.fillColor("#050B14");
+      doc.y = 88;
+      doc.moveDown(0.4);
 
       doc
         .strokeColor("#1C3A5E")
@@ -215,6 +254,18 @@ export class QuotePdfService {
       if (payload.discountPct != null && payload.discountPct > 0) {
         rows.push(["Descuento", `${payload.discountPct}%`]);
       }
+      if (payload.stops?.length) {
+        rows.push(["Paradas", payload.stops.join(" · ")]);
+      }
+      if (payload.departAt) rows.push(["Salida", payload.departAt]);
+      if (payload.returnAt) rows.push(["Regreso", payload.returnAt]);
+      if (payload.payment) rows.push(["Forma de pago", payload.payment]);
+      const issued = payload.issuedAt ?? new Date();
+      const validUntil = new Date(issued.getTime() + 30 * 24 * 60 * 60 * 1000);
+      rows.push([
+        "Vigencia",
+        `30 días · hasta ${validUntil.toLocaleDateString("es-CO")}`,
+      ]);
 
       for (const [label, value] of rows) {
         doc
@@ -230,10 +281,22 @@ export class QuotePdfService {
         doc.moveDown(0.25);
       }
 
-      if (payload.notes) {
+      if (payload.comment || payload.notes) {
         doc.moveDown(0.5);
-        doc.font("Helvetica-Bold").fontSize(9).fillColor("#8B9BB4").text("Notas");
-        doc.font("Helvetica").fontSize(9).fillColor("#050B14").text(payload.notes);
+        doc.font("Helvetica-Bold").fontSize(9).fillColor("#8B9BB4").text("Comentario");
+        doc
+          .font("Helvetica")
+          .fontSize(9)
+          .fillColor("#050B14")
+          .text(payload.comment || payload.notes || "");
+      }
+      if (payload.estimated) {
+        doc.moveDown(0.6);
+        doc
+          .font("Helvetica")
+          .fontSize(8)
+          .fillColor("#8B9BB4")
+          .text("Distancias y peajes estimados. Confirmar antes de cerrar.");
       }
 
       doc.moveDown(1.5);

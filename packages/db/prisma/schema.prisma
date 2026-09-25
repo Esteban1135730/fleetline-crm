@@ -692,6 +692,12 @@ enum ArchiveEntityType {
   GENERAL
 }
 
+enum ArchiveVisibility {
+  PUBLIC
+  RESTRICTED
+  CONFIDENTIAL
+}
+
 enum InventoryItemStatus {
   AVAILABLE
   RESERVED
@@ -1004,6 +1010,8 @@ model User {
   approvalsGiven User[]       @relation("UserApprovals")
   approvedAt     DateTime?
   active         Boolean      @default(true)
+  /// Incrementar invalida JWTs emitidos con versión anterior (revoke-sessions)
+  sessionVersion Int          @default(0)
   lastLoginAt    DateTime?
   lastIp         String?
   organizationId String
@@ -2675,6 +2683,14 @@ model Customer {
   nit            String
   email          String?
   phone          String?
+  contactName        String?
+  creditKind         String?
+  serviceFrequency   String?
+  servicesPerMonth   String?
+  preferredVehicle   String?
+  logisticsOwner     String?
+  commercialNote     String?
+  branch             String?
   segment        CustomerSegment @default(B2B)
   sarlaftBlocked Boolean         @default(false)
   sarlaftRiskScore Int           @default(0)
@@ -2715,12 +2731,22 @@ model Quote {
   notes      String?
   calcJson   Json?
   secopRef   String?
+  pipelineStage String    @default("BANT")
+  nextAction    String?
+  followUpAt    DateTime?
+  lossReason    String?
+  fitScore      Int?
+  urgencyScore  Int?
+  budgetScore   Int?
+  docStatus     String?
+  wonAt         DateTime?
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
 
   @@unique([code])
   @@index([customerId, status])
   @@index([status, createdAt])
+  @@index([pipelineStage, followUpAt])
 }
 
 model TransportContract {
@@ -3149,7 +3175,7 @@ model Invoice {
   customer           Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
   supplierId         String?
   supplier           Supplier?     @relation(fields: [supplierId], references: [id], onDelete: SetNull)
-  tripId             String?
+  tripId             String?       @unique
   trip               Trip?         @relation(fields: [tripId], references: [id], onDelete: SetNull)
   purchaseOrderId    String?
   purchaseOrder      PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
@@ -3171,7 +3197,6 @@ model Invoice {
   @@index([organizationId, type, status])
   @@index([organizationId, dueDate])
   @@index([purchaseOrderId])
-  @@index([tripId])
   @@index([xmlHash])
   @@index([status, dueDate])
   @@index([dianCufe])
@@ -3955,6 +3980,7 @@ model ArchiveDocument {
   category         ArchiveCategory         @default(OTHER)
   docType          ArchiveDocType          @default(OTHER)
   validationStatus ArchiveValidationStatus @default(PENDING)
+  visibility       ArchiveVisibility       @default(RESTRICTED)
   tags             String[]
   contentHash      String?
   fileRef          String?
@@ -4001,6 +4027,7 @@ model ArchiveDocument {
   @@index([organizationId, category])
   @@index([organizationId, docType])
   @@index([organizationId, validationStatus])
+  @@index([organizationId, visibility])
   @@index([organizationId, entityType, entityId])
   @@index([organizationId, pendingDigitization])
   @@index([organizationId, custodyStatus])

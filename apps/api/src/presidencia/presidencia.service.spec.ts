@@ -168,21 +168,33 @@ describe("PresidenciaService — canvas KPIs + ExecutiveQueryLog", () => {
           { status: "COMPLIANCE_BLOCKED", _count: { _all: 2 } },
         ]),
       },
-      customer: { count: jest.fn().mockResolvedValue(1) },
-      supplier: { count: jest.fn().mockResolvedValue(0) },
-      employee: { count: jest.fn().mockResolvedValue(0) },
-      managerialOverride: { count: jest.fn().mockResolvedValue(0) },
       complianceDocument: { findMany: jest.fn().mockResolvedValue([]) },
-      commercialIntelligentQuote: {
-        aggregate: jest.fn().mockResolvedValue({ _sum: { totalAmount: 0 }, _count: 0 }),
-      },
       transportContract: {
-        aggregate: jest.fn().mockResolvedValue({ _sum: { totalValue: 0 }, _count: 0 }),
-        count: jest.fn().mockResolvedValue(0),
+        count: jest.fn().mockResolvedValue(2),
+        aggregate: jest.fn().mockResolvedValue({
+          _sum: { monthlyValue: 0 },
+          _count: { _all: 0 },
+        }),
+      },
+      commercialIntelligentQuote: {
+        aggregate: jest.fn().mockResolvedValue({
+          _sum: { proposedRatePerKm: 0 },
+          _count: { _all: 0 },
+        }),
       },
       purchaseOrder: {
-        aggregate: jest.fn().mockResolvedValue({ _sum: { totalAmount: 0 }, _count: 0 }),
+        aggregate: jest.fn().mockResolvedValue({
+          _sum: { totalEstimated: 1_200_000 },
+        }),
       },
+      account: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        findMany: jest.fn().mockResolvedValue([
+          { id: "acc-1", code: "1105", name: "Caja general" },
+          { id: "acc-2", code: "1110", name: "Banco Colombia" },
+        ]),
+      },
+      managerialOverride: { count: jest.fn().mockResolvedValue(0) },
       paymentSchedule: {
         findMany: jest.fn().mockImplementation(async (args: {
           where?: {
@@ -239,12 +251,6 @@ describe("PresidenciaService — canvas KPIs + ExecutiveQueryLog", () => {
           _avg: { npsScore: 74 },
           _count: { _all: 10 },
         }),
-      },
-      account: {
-        findMany: jest.fn().mockResolvedValue([
-          { id: "acc-1", code: "1105", name: "Caja general" },
-          { id: "acc-2", code: "1110", name: "Banco Colombia" },
-        ]),
       },
       commercialDeal: {
         findMany: jest.fn().mockResolvedValue([]),

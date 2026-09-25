@@ -376,16 +376,15 @@ html.light body {
   backdrop-filter: blur(16px) saturate(180%);
   -webkit-backdrop-filter: blur(16px) saturate(180%);
   box-shadow: var(--glass-shadow);
-  transition: all 0.25s var(--ease-tactile);
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease;
 }
 
 .nexa-panel-interactive:hover,
 .fsg-panel.nexa-panel-interactive:hover,
 .frosted-glass-interactive:hover {
-  transform: translateY(-2px);
-  background: var(--glass-canvas-hover);
-  border-top-color: color-mix(in srgb, var(--glass-border-top) 80%, white);
-  box-shadow: var(--glass-shadow-hover);
+  border-color: color-mix(in srgb, var(--brand-primary) 35%, var(--glass-border));
 }
 
 .nexa-panel-active,
@@ -1478,17 +1477,13 @@ html.light .field[type="time"] {
 }
 .data-shell table tbody tr {
   transition:
-    background-color 200ms var(--ease-tactile),
-    box-shadow 200ms var(--ease-tactile),
-    border-color 200ms var(--ease-tactile);
+    background-color 150ms ease,
+    border-color 150ms ease;
   border-left: 2px solid transparent;
 }
 .data-shell table tbody tr:hover {
   background: var(--brand-surface-hover);
   border-left-color: var(--brand-primary);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.04),
-    0 2px 8px -2px rgba(0, 0, 0, 0.2);
 }
 
 .page-title {
@@ -1883,7 +1878,9 @@ html.light .flt-search-trigger {
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
+  min-width: 0;
   height: 100%;
+  overflow-x: hidden;
   background: color-mix(in srgb, var(--brand-surface) 48%, transparent);
   border-right: 1px solid color-mix(in srgb, var(--brand-border) 70%, transparent);
   backdrop-filter: blur(16px) saturate(1.15);
@@ -2098,9 +2095,21 @@ html.light .flt-command-panel {
   margin-bottom: 0.15rem;
 }
 
+.flt-sidebar nav {
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.flt-sidebar nav::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
 .flt-dept-trigger {
   display: flex;
-  width: 100%;
+  width: auto;
+  max-width: calc(100% - 0.8rem);
   min-width: 0;
   align-items: center;
   justify-content: space-between;
@@ -2214,14 +2223,11 @@ html.light .flt-command-panel {
   border: 1px solid var(--brand-border);
   background: var(--brand-surface);
   padding: 1rem 1.15rem;
-  transition:
-    border-color 150ms ease,
-    transform 150ms ease;
+  transition: border-color 150ms ease;
 }
 
 .flt-quick-action:hover {
   border-color: color-mix(in srgb, var(--brand-primary) 45%, var(--brand-border));
-  transform: translateY(-1px);
 }
 
 .flt-workbench-toolbar {

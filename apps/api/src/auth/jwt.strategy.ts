@@ -9,7 +9,10 @@ import { Request } from "express";
 import { UserAccountStatus } from "@fsg/db";
 import { normalizeRole } from "@fsg/shared";
 import { PrismaService } from "../prisma/prisma.service";
-import { resolveJwtSecret } from "../security/jwt-secret";
+import {
+  pickJwtSecretForToken,
+  resolveJwtSecret,
+} from "../security/jwt-secret";
 import { ACCESS_COOKIE } from "../security/session-cookie";
 
 function jwtFromCookieOrBearer(req: Request): string | null {
@@ -39,7 +42,17 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     super({
       jwtFromRequest: jwtFromCookieOrBearer,
       ignoreExpiration: false,
-      secretOrKey: resolveJwtSecret(),
+      secretOrKeyProvider: (
+        _req: Request,
+        rawJwtToken: string,
+        done: (err: Error | null, secret?: string) => void,
+      ) => {
+        try {
+          done(null, pickJwtSecretForToken(rawJwtToken) || resolveJwtSecret());
+        } catch (err) {
+          done(err instanceof Error ? err : new Error("JWT secret error"));
+        }
+      },
       passReqToCallback: true,
     });
   }
@@ -52,6 +65,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       role: string;
       organizationId: string;
       directiveReadOnly?: boolean;
+      sv?: number;
     },
   ) {
     const user = await this.prisma.user.findUnique({
@@ -65,6 +79,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         active: true,
         status: true,
         mustChangePassword: true,
+        sessionVersion: true,
       },
     });
 
@@ -76,6 +91,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       user.status === UserAccountStatus.REJECTED
     ) {
       throw new UnauthorizedException("Cuenta no autorizada");
+    }
+
+    const tokenSv = typeof payload.sv === "number" ? payload.sv : 0;
+    if (tokenSv !== user.sessionVersion) {
+      throw new UnauthorizedException("Sesión revocada");
     }
 
     const path = String(req.originalUrl || req.url || req.path || "").split(
@@ -116,6 +136,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       homeOrganizationId: user.organizationId,
       directiveReadOnly: user.directiveReadOnly,
       mustChangePassword: user.mustChangePassword,
+      sessionVersion: user.sessionVersion,
     };
   }
 }

@@ -1,6 +1,7 @@
 import { Module, forwardRef } from "@nestjs/common";
 import { AuthModule } from "../auth/auth.module";
 import { ComercialModule } from "../comercial/comercial.module";
+import { SarlaftModule } from "../sarlaft/sarlaft.module";
 import { LogisticsController } from "./logistics.controller";
 import { LogisticsService } from "./logistics.service";
 import { LogisticsGateway } from "./logistics.gateway";
@@ -10,7 +11,7 @@ import { ComplianceGuard } from "./compliance.guard";
 import { KafkaEventsService } from "./kafka-events.service";
 
 @Module({
-  imports: [AuthModule, forwardRef(() => ComercialModule)],
+  imports: [AuthModule, forwardRef(() => ComercialModule), SarlaftModule],
   controllers: [LogisticsController],
   providers: [
     LogisticsService,

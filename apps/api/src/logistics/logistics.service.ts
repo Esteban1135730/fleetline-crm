@@ -18,6 +18,7 @@ import { HARD_RULES, PreoperationalChecklistSchema } from "@fsg/shared";
 import type { PreoperationalChecklist } from "@fsg/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { CommercialContractService } from "../comercial/commercial-contract.service";
+import { SarlaftComplianceGuard } from "../sarlaft/sarlaft-compliance.guard";
 import { ComplianceService } from "./compliance.service";
 import { ComplianceGateService } from "./compliance-gate.service";
 import { KafkaEventsService } from "./kafka-events.service";
@@ -66,6 +67,7 @@ export class LogisticsService {
     private compliance: ComplianceService,
     private gate: ComplianceGateService,
     private kafka: KafkaEventsService,
+    private sarlaft: SarlaftComplianceGuard,
     @Inject(forwardRef(() => CommercialContractService))
     private commercialContracts: CommercialContractService,
   ) {}
@@ -532,6 +534,11 @@ export class LogisticsService {
     }
 
     if (data.vehicleId && data.driverId) {
+      await this.sarlaft.assertDriverClear(
+        organizationId,
+        data.driverId,
+        "LOGISTICS_DISPATCH",
+      );
       const gate = await this.gate.evaluate({
         organizationId,
         vehicleId: data.vehicleId,
@@ -612,6 +619,12 @@ export class LogisticsService {
         },
       );
     }
+
+    await this.sarlaft.assertDriverClear(
+      organizationId,
+      data.driverId,
+      "LOGISTICS_DISPATCH",
+    );
 
     const gate = await this.gate.evaluate({
       organizationId,

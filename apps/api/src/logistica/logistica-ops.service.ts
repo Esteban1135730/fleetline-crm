@@ -37,6 +37,7 @@ import { LogisticsGateway } from "../logistics/logistics.gateway";
 import { LogisticsService } from "../logistics/logistics.service";
 import { ComplianceGateService } from "../logistics/compliance-gate.service";
 import { CommercialContractService } from "../comercial/commercial-contract.service";
+import { SarlaftComplianceGuard } from "../sarlaft/sarlaft-compliance.guard";
 
 const ACTIVE_STATUSES: TripStatus[] = [
   TripStatus.PENDING,
@@ -54,6 +55,7 @@ export class LogisticaOpsService {
     private gateway: LogisticsGateway,
     private logistics: LogisticsService,
     private gate: ComplianceGateService,
+    private sarlaft: SarlaftComplianceGuard,
     @Inject(forwardRef(() => CommercialContractService))
     private commercialContracts: CommercialContractService,
   ) {}
@@ -165,6 +167,19 @@ export class LogisticaOpsService {
           `Conductor no asignado — fatiga ${d.fatigueScore}/${HARD_RULES.FATIGUE_BLOCK_SCORE}`,
         );
         driverId = undefined;
+      } else {
+        try {
+          await this.sarlaft.assertDriverClear(
+            organizationId,
+            d.id,
+            "LOGISTICS_ASSIGN",
+          );
+        } catch {
+          dispatchNotes.push(
+            `Conductor no asignado — hallazgo SARLAFT alto (${d.document})`,
+          );
+          driverId = undefined;
+        }
       }
     }
 
@@ -596,6 +611,14 @@ export class LogisticaOpsService {
       actorUserId,
     });
 
+    // Liberar unidad siempre (FinOps / siguiente despacho)
+    if (trip.vehicleId) {
+      await this.prisma.vehicle.update({
+        where: { id: trip.vehicleId },
+        data: { status: VehicleStatus.AVAILABLE },
+      });
+    }
+
     if (trip.driverId) {
       const line = await this.persistOvertimeLine(
         organizationId,
@@ -614,14 +637,17 @@ export class LogisticaOpsService {
         periodStart: startedAt.toISOString(),
         periodEnd: completedAt.toISOString(),
       });
-      await this.kafka.emitTripCompleted({
-        organizationId,
-        amount: Number(trip.fareAmount ?? 0),
-        tripId: trip.id,
-        code: trip.code,
-        contractId: trip.contractId,
-      });
     }
+
+    // Prefactura CxC siempre (con o sin conductor/contrato)
+    await this.kafka.emitTripCompleted({
+      organizationId,
+      amount: Number(trip.fareAmount ?? 0),
+      tripId: trip.id,
+      code: trip.code,
+      contractId: trip.contractId,
+    });
+
     this.gateway.emitUpdate(organizationId);
     return updated;
   }
@@ -1007,6 +1033,11 @@ export class LogisticaOpsService {
         blocks: ["DRIVER_DISPATCH_BLOCKED"],
       });
     }
+    await this.sarlaft.assertDriverClear(
+      organizationId,
+      neu.id,
+      "LOGISTICS_ASSIGN",
+    );
     if (neu.fatigueScore >= HARD_RULES.FATIGUE_BLOCK_SCORE) {
       throw new UnprocessableEntityException({
         error: "COMPLIANCE_GATE_BLOCKED",
@@ -1470,6 +1501,12 @@ export class LogisticaOpsService {
       organizationId,
       input.driverId,
       input.vehicleId,
+    );
+
+    await this.sarlaft.assertDriverClear(
+      organizationId,
+      input.driverId,
+      "LOGISTICS_ASSIGN",
     );
 
     await this.assertVehicleAssignable(

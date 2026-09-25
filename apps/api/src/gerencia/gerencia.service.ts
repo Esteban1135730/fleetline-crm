@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -10,15 +11,22 @@ import {
   ContractStatus,
   ExecutiveApprovalKind,
   ExecutiveApprovalStatus,
+  FleetModule,
   InvoiceStatus,
   InvoiceType,
   ManagerialOverrideStatus,
+  NotificationChannel,
+  NotificationKind,
+  PurchaseStatus,
+  QuoteStatus,
+  RoleCode,
   SalesPipelineStage,
   TripStatus,
   VehicleStatus,
   WorkOrderStatus,
 } from "@fsg/db";
 import { PrismaService } from "../prisma/prisma.service";
+import { liquiditySnapshot } from "../finance/liquidity";
 import { ExecutiveKpiService } from "../presidencia/executive-kpi.service";
 import { PresidenciaService } from "../presidencia/presidencia.service";
 import { KafkaEventsService } from "../logistics/kafka-events.service";
@@ -27,9 +35,26 @@ import {
   pickOptimalOverrideScenario,
   type CreateApprovalDto,
   type FirmarPinDto,
+  type NotifyBottleneckDto,
   type OverrideScenario,
   type ResolverOverrideDto,
 } from "./dto/gerencia.dto";
+
+const SIGN_ROLES = new Set(["gerente_general", "org_admin", "platform_master"]);
+
+const AREA_NOTIFY_ROLES: Record<string, RoleCode[]> = {
+  COMERCIAL: [
+    RoleCode.COORDINADOR_COMERCIAL,
+    RoleCode.GESTOR_COMERCIAL,
+    RoleCode.DIRECTOR_COMERCIAL,
+  ],
+  LOGISTICA: [
+    RoleCode.SUPERVISOR_LOGISTICA,
+    RoleCode.DIRECTOR_OPERATIVO,
+    RoleCode.COORDINADOR_OPERATIVO,
+  ],
+  TALLER: [RoleCode.COORDINADOR_TALLER, RoleCode.MECANICO],
+};
 
 /**
  * Módulo 16 — Gerencia General / Executive Operations Hub (Mauricio).
@@ -130,14 +155,7 @@ export class GerenciaService {
     const [scorecard, approvals, overrides, warRooms, tacticalPanel] =
       await Promise.all([
       this.balanceScorecard(organizationId),
-      this.prisma.executiveApproval.findMany({
-        where: {
-          organizationId,
-          status: ExecutiveApprovalStatus.PENDING,
-        },
-        orderBy: { createdAt: "desc" },
-        take: 20,
-      }),
+      this.listApprovalInbox(organizationId),
       this.prisma.managerialOverride.findMany({
         where: {
           organizationId,
@@ -184,11 +202,7 @@ export class GerenciaService {
     return {
       period,
       scorecard,
-      approvalsInbox: approvals.map((a) => ({
-        ...a,
-        amountCop: Number(a.amountCop),
-        cashflowImpactCop: Number(a.cashflowImpactCop),
-      })),
+      approvalsInbox: approvals,
       pendingOverrides: overrides.map((o) => ({
         ...o,
         penaltyCostCop: Number(o.penaltyCostCop),
@@ -788,45 +802,7 @@ export class GerenciaService {
 
     const salesGrowthIdx = openDeals + wonDeals * 2;
     const fleetMaintIdx = openWo;
-    const bottlenecks: Array<{
-      area: string;
-      severity: "AMBER" | "RED";
-      message: string;
-      warRoomHint: string;
-    }> = [];
-
-    if (openWo > 3) {
-      bottlenecks.push({
-        area: "TALLER",
-        severity: openWo > 6 ? "RED" : "AMBER",
-        message: `${openWo} OT abiertas — cuello de botella en mantenimiento`,
-        warRoomHint: "DIRECTOR_OPERATIVO",
-      });
-    }
-    if (tripsInFlight > 0 && openWo / Math.max(fleetTotal, 1) > 0.4) {
-      bottlenecks.push({
-        area: "OPS_FLOTAS",
-        severity: "RED",
-        message: "Alta carga OT vs flota activa — riesgo de despacho",
-        warRoomHint: "DIRECTOR_OPERATIVO",
-      });
-    }
-    if (pendingApprovals > 2) {
-      bottlenecks.push({
-        area: "FINANZAS",
-        severity: "AMBER",
-        message: `${pendingApprovals} aprobaciones ejecutivas pendientes`,
-        warRoomHint: "DIRECTOR_FINANCIERO",
-      });
-    }
-    if (openDeals > 8 && tripsInFlight < 2) {
-      bottlenecks.push({
-        area: "COMERCIAL_OPS",
-        severity: "AMBER",
-        message: "Pipeline comercial alto sin capacidad operativa equivalente",
-        warRoomHint: "DIRECTOR_COMERCIAL",
-      });
-    }
+    const bottlenecks = await this.listRuleBottlenecks(organizationId);
 
     const vipNps = 78;
     const ministryAuditLight: "GREEN" | "AMBER" | "RED" =
@@ -1034,23 +1010,303 @@ export class GerenciaService {
     };
   }
 
+  /** Reglas fijas: cotización >24h, salida <2h sin recurso, OT >48h en repuestos. */
+  async listRuleBottlenecks(organizationId: string) {
+    const now = new Date();
+    const quoteCutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const partsCutoff = new Date(now.getTime() - 48 * 60 * 60 * 1000);
+    const departLimit = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+
+    const [quotes, trips, orders] = await Promise.all([
+      this.prisma.commercialIntelligentQuote.findMany({
+        where: {
+          organizationId,
+          sentAt: null,
+          status: { in: [QuoteStatus.DRAFT, QuoteStatus.APPROVED] },
+          updatedAt: { lt: quoteCutoff },
+        },
+        include: { deal: { select: { code: true, accountName: true } } },
+        orderBy: { updatedAt: "asc" },
+        take: 20,
+      }),
+      this.prisma.trip.findMany({
+        where: {
+          organizationId,
+          status: { not: TripStatus.CANCELLED },
+          departAt: { gte: now, lte: departLimit },
+          OR: [{ vehicleId: null }, { driverId: null }],
+        },
+        orderBy: { departAt: "asc" },
+        take: 20,
+      }),
+      this.prisma.workOrder.findMany({
+        where: {
+          organizationId,
+          status: WorkOrderStatus.WAITING_PARTS,
+          updatedAt: { lt: partsCutoff },
+        },
+        orderBy: { updatedAt: "asc" },
+        take: 20,
+      }),
+    ]);
+
+    const items: Array<{
+      area: "COMERCIAL" | "LOGISTICA" | "TALLER";
+      severity: "YELLOW" | "RED";
+      title: string;
+      message: string;
+      entityCode: string;
+      entityId: string;
+      href: string;
+    }> = [];
+
+    for (const quote of quotes) {
+      const ageH = (now.getTime() - quote.updatedAt.getTime()) / 36e5;
+      const code = quote.deal?.code ?? quote.id.slice(0, 8);
+      items.push({
+        area: "COMERCIAL",
+        severity: ageH > 72 ? "RED" : "YELLOW",
+        title: `Cotización ${code} sin envío al cliente hace ${Math.floor(ageH)} h`,
+        message: `Cotización ${code} sin envío al cliente hace ${Math.floor(ageH)} h`,
+        entityCode: code,
+        entityId: quote.id,
+        href: `/comercial?quote=${quote.id}`,
+      });
+    }
+
+    for (const trip of trips) {
+      const missing = [
+        trip.vehicleId ? null : "vehículo",
+        trip.driverId ? null : "conductor",
+      ]
+        .filter(Boolean)
+        .join(" y ");
+      items.push({
+        area: "LOGISTICA",
+        severity: "RED",
+        title: `Servicio ${trip.code} sale en menos de 2 h sin ${missing}`,
+        message: `Servicio ${trip.code} sale en menos de 2 h sin ${missing}`,
+        entityCode: trip.code,
+        entityId: trip.id,
+        href: `/logistica/servicios?trip=${trip.id}`,
+      });
+    }
+
+    for (const order of orders) {
+      const ageH = (now.getTime() - order.updatedAt.getTime()) / 36e5;
+      items.push({
+        area: "TALLER",
+        severity: ageH > 96 ? "RED" : "YELLOW",
+        title: `OT ${order.code} en espera de repuesto hace ${Math.floor(ageH)} h`,
+        message: `OT ${order.code} en espera de repuesto hace ${Math.floor(ageH)} h`,
+        entityCode: order.code,
+        entityId: order.id,
+        href: `/taller?ot=${order.id}`,
+      });
+    }
+
+    return items;
+  }
+
+  async listApprovalInbox(organizationId: string) {
+    const [approvals, orders, invoices] = await Promise.all([
+      this.prisma.executiveApproval.findMany({
+        where: {
+          organizationId,
+          status: ExecutiveApprovalStatus.PENDING,
+        },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+      }),
+      this.prisma.purchaseOrder.findMany({
+        where: {
+          organizationId,
+          status: {
+            in: [PurchaseStatus.REQUESTED, PurchaseStatus.PENDING_APPROVAL],
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+      }),
+      this.prisma.invoice.findMany({
+        where: {
+          organizationId,
+          type: InvoiceType.PAYABLE,
+          status: {
+            in: [
+              InvoiceStatus.ISSUED,
+              InvoiceStatus.CAUSED,
+              InvoiceStatus.PENDING_MATCH,
+            ],
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+      }),
+    ]);
+
+    return [
+      ...orders.map((order) => ({
+        id: order.id,
+        code: order.code,
+        kind: "COMPRA",
+        title: order.description || `Orden ${order.code}`,
+        amountCop: Number(order.totalEstimated),
+        cashflowImpactCop: -Number(order.totalEstimated),
+        originModule: "COMPRAS",
+        originType: "PURCHASE_ORDER" as const,
+        originId: order.id,
+      })),
+      ...invoices.map((invoice) => ({
+        id: invoice.id,
+        code: invoice.number,
+        kind: "PAGO",
+        title: invoice.counterparty || `CxP ${invoice.number}`,
+        amountCop: Number(invoice.amount),
+        cashflowImpactCop: -Number(invoice.amount),
+        originModule: "TESORERIA",
+        originType: "INVOICE" as const,
+        originId: invoice.id,
+      })),
+      ...approvals.map((approval) => ({
+        id: approval.id,
+        code: approval.code,
+        kind: approval.kind,
+        title: approval.title,
+        amountCop: Number(approval.amountCop),
+        cashflowImpactCop: Number(approval.cashflowImpactCop),
+        originModule: "GERENCIA",
+        originType: "EXECUTIVE_APPROVAL" as const,
+        originId: approval.id,
+      })),
+    ];
+  }
+
+  async approvalImpact(organizationId: string, id: string) {
+    const snap = await liquiditySnapshot(this.prisma, organizationId);
+    const approval = await this.prisma.executiveApproval.findFirst({
+      where: { id, organizationId },
+    });
+    let amount = 0;
+    let title = "";
+    if (approval) {
+      amount = Number(approval.amountCop);
+      title = approval.title;
+    } else {
+      const order = await this.prisma.purchaseOrder.findFirst({
+        where: { id, organizationId },
+      });
+      if (order) {
+        amount = Number(order.totalEstimated);
+        title = order.code;
+      } else {
+        const invoice = await this.prisma.invoice.findFirst({
+          where: { id, organizationId },
+        });
+        if (!invoice) throw new NotFoundException("Solicitud no encontrada");
+        amount = Number(invoice.amount);
+        title = invoice.number;
+      }
+    }
+    const balanceAfter = snap.bankBalance - amount;
+    return {
+      title,
+      bankBalance: snap.bankBalance,
+      amount,
+      balanceAfter,
+      impactPct:
+        snap.bankBalance === 0
+          ? null
+          : Math.round((amount / snap.bankBalance) * 1000) / 10,
+      payrollSafe: balanceAfter >= 0,
+      hasBankAccount: snap.hasBankAccount,
+    };
+  }
+
+  async notifyBottleneck(
+    organizationId: string,
+    userId: string,
+    dto: NotifyBottleneckDto,
+  ) {
+    const roles = AREA_NOTIFY_ROLES[dto.area] ?? [];
+    const users = roles.length
+      ? await this.prisma.user.findMany({
+          where: { organizationId, active: true, role: { in: roles } },
+          select: { id: true },
+          take: 8,
+        })
+      : [];
+
+    if (users.length) {
+      await this.prisma.userNotification.createMany({
+        data: users.map((user) => ({
+          organizationId,
+          userId: user.id,
+          kind: NotificationKind.SYSTEM,
+          title: dto.title,
+          body: `Gerencia registró un cuello de botella en ${dto.area}.`,
+          href: dto.href,
+          channels: [NotificationChannel.IN_APP],
+        })),
+      });
+    }
+
+    await this.prisma.auditLog.create({
+      data: {
+        organizationId,
+        userId,
+        action: "BOTTLENECK_NOTIFY",
+        entity: dto.area,
+        entityId: dto.entityId,
+        module: FleetModule.GERENCIA,
+        meta: {
+          title: dto.title,
+          href: dto.href,
+          notified: users.length,
+        },
+      },
+    });
+
+    return {
+      recorded: true,
+      notified: users.length,
+      message: "Aviso registrado",
+    };
+  }
+
   /**
    * Firma ejecutiva con PIN de seguridad (obligatorio).
+   * Muta el proceso de origen (OC o CxP) cuando el ítem lo indica.
    */
   async firmarAprobacionPin(
     organizationId: string,
     userId: string,
     dto: FirmarPinDto,
+    actorRole?: string,
   ) {
     const user = await this.prisma.user.findFirst({
       where: { id: userId, organizationId },
       select: { id: true, executivePinHash: true, email: true },
     });
     if (!user) throw new NotFoundException("Usuario no encontrado");
+    if (actorRole && !SIGN_ROLES.has(String(actorRole).toLowerCase())) {
+      throw new ForbiddenException("Solo gerencia u org_admin pueden firmar");
+    }
 
     assertExecutivePinValid(dto.pin as string | undefined, user.executivePinHash, (p, h) =>
       bcrypt.compareSync(p, h),
     );
+
+    if (dto.originType === "PURCHASE_ORDER" || dto.originType === "INVOICE") {
+      return this.applyOriginDecision(
+        organizationId,
+        userId,
+        dto.originType,
+        dto.originId || dto.approvalId || "",
+        Boolean(dto.approve),
+        dto.rejectReason,
+      );
+    }
 
     const approval = await this.prisma.executiveApproval.findFirst({
       where: { id: dto.approvalId, organizationId },
@@ -1071,6 +1327,12 @@ export class GerenciaService {
           rejectReason: dto.rejectReason ?? "Rechazado con PIN",
         },
       });
+      await this.writePinAudit(organizationId, userId, {
+        action: "EXECUTIVE_REJECT",
+        entity: "EXECUTIVE_APPROVAL",
+        entityId: rejected.id,
+        nextStatus: ExecutiveApprovalStatus.REJECTED,
+      });
       return {
         status: "APPROVAL_REJECTED",
         approval: rejected,
@@ -1086,6 +1348,36 @@ export class GerenciaService {
         signedAt: new Date(),
         pinVerified: true,
       },
+    });
+
+    const payload = (approval.payload ?? {}) as {
+      purchaseOrderId?: string;
+      invoiceId?: string;
+    };
+    if (payload.purchaseOrderId) {
+      await this.applyOriginDecision(
+        organizationId,
+        userId,
+        "PURCHASE_ORDER",
+        payload.purchaseOrderId,
+        true,
+      );
+    }
+    if (payload.invoiceId) {
+      await this.applyOriginDecision(
+        organizationId,
+        userId,
+        "INVOICE",
+        payload.invoiceId,
+        true,
+      );
+    }
+
+    await this.writePinAudit(organizationId, userId, {
+      action: "EXECUTIVE_SIGN",
+      entity: "EXECUTIVE_APPROVAL",
+      entityId: signed.id,
+      nextStatus: ExecutiveApprovalStatus.SIGNED,
     });
 
     await this.kafka.emit("gerencia.approval.signed", {
@@ -1109,6 +1401,116 @@ export class GerenciaService {
         note: "Impacto en flujo de caja registrado",
       },
     };
+  }
+
+  private async applyOriginDecision(
+    organizationId: string,
+    userId: string,
+    originType: "PURCHASE_ORDER" | "INVOICE",
+    originId: string,
+    approve: boolean,
+    rejectReason?: string,
+  ) {
+    if (!originId) throw new BadRequestException("originId requerido");
+    if (originType === "PURCHASE_ORDER") {
+      const order = await this.prisma.purchaseOrder.findFirst({
+        where: { id: originId, organizationId },
+      });
+      if (!order) throw new NotFoundException("Orden de compra no encontrada");
+      const openPo: PurchaseStatus[] = [
+        PurchaseStatus.REQUESTED,
+        PurchaseStatus.PENDING_APPROVAL,
+      ];
+      if (!openPo.includes(order.status)) {
+        throw new BadRequestException("La orden ya no está pendiente de firma");
+      }
+      const next = approve ? PurchaseStatus.APPROVED : PurchaseStatus.CANCELLED;
+      const updated = await this.prisma.purchaseOrder.update({
+        where: { id: order.id },
+        data: {
+          status: next,
+          ...(approve ? { approvedById: userId } : {}),
+        },
+      });
+      await this.writePinAudit(organizationId, userId, {
+        action: approve ? "EXECUTIVE_SIGN" : "EXECUTIVE_REJECT",
+        entity: "PURCHASE_ORDER",
+        entityId: order.id,
+        nextStatus: next,
+        rejectReason,
+      });
+      return {
+        status: approve ? "ORIGIN_APPROVED" : "ORIGIN_REJECTED",
+        origin: { ...updated, totalEstimated: Number(updated.totalEstimated) },
+        message: approve
+          ? "Orden de compra aprobada con PIN"
+          : "Orden de compra rechazada con PIN",
+      };
+    }
+
+    const invoice = await this.prisma.invoice.findFirst({
+      where: { id: originId, organizationId },
+    });
+    if (!invoice) throw new NotFoundException("Cuenta por pagar no encontrada");
+    const openPay: InvoiceStatus[] = [
+      InvoiceStatus.ISSUED,
+      InvoiceStatus.CAUSED,
+      InvoiceStatus.PENDING_MATCH,
+    ];
+    if (!openPay.includes(invoice.status)) {
+      throw new BadRequestException("La cuenta por pagar ya no está pendiente de firma");
+    }
+    const next = approve
+      ? InvoiceStatus.CLEARED_FOR_PAYMENT
+      : InvoiceStatus.CANCELLED;
+    const updated = await this.prisma.invoice.update({
+      where: { id: invoice.id },
+      data: { status: next },
+    });
+    await this.writePinAudit(organizationId, userId, {
+      action: approve ? "EXECUTIVE_SIGN" : "EXECUTIVE_REJECT",
+      entity: "INVOICE",
+      entityId: invoice.id,
+      nextStatus: next,
+      rejectReason,
+    });
+    return {
+      status: approve ? "ORIGIN_APPROVED" : "ORIGIN_REJECTED",
+      origin: { ...updated, amount: Number(updated.amount) },
+      message: approve
+        ? "CxP liberada para pago con PIN"
+        : "CxP rechazada con PIN",
+    };
+  }
+
+  private async writePinAudit(
+    organizationId: string,
+    userId: string,
+    input: {
+      action: string;
+      entity: string;
+      entityId: string;
+      nextStatus: string;
+      rejectReason?: string;
+    },
+  ) {
+    await this.prisma.auditLog.create({
+      data: {
+        organizationId,
+        userId,
+        action: input.action,
+        entity: input.entity,
+        entityId: input.entityId,
+        module: FleetModule.GERENCIA,
+        meta: {
+          pinVerified: true,
+          actorUserId: userId,
+          nextStatus: input.nextStatus,
+          rejectReason: input.rejectReason ?? null,
+          at: new Date().toISOString(),
+        },
+      },
+    });
   }
 
   async createApproval(
@@ -1266,7 +1668,6 @@ export class GerenciaService {
         area: b.area,
         severity: b.severity,
         message: b.message,
-        warRoomHint: b.warRoomHint,
       }));
     } catch (err) {
       this.logger.warn(

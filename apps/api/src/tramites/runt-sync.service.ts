@@ -13,6 +13,7 @@ const VEHICLE_CRITICAL: ComplianceDocType[] = [
   ComplianceDocType.SOAT,
   ComplianceDocType.TECNOMECANICA,
   ComplianceDocType.TARJETA_OPERACION,
+  ComplianceDocType.FUEC,
 ];
 
 export type SyncVehicleResult = {
@@ -135,7 +136,10 @@ export class RuntSyncService {
   ): Promise<SyncVehicleResult> {
     const vehicle = await this.prisma.vehicle.findUnique({
       where: { id: vehicleId },
-      include: { complianceDocs: true },
+      include: {
+        complianceDocs: true,
+        fuecDocuments: { orderBy: { validTo: "desc" }, take: 3 },
+      },
     });
     if (!vehicle) {
       throw new NotFoundException(`Vehículo ${vehicleId} no encontrado`);
@@ -153,6 +157,21 @@ export class RuntSyncService {
     }
 
     for (const type of VEHICLE_CRITICAL) {
+      if (type === ComplianceDocType.FUEC) {
+        const d = byType.get(type);
+        const fuecRec = vehicle.fuecDocuments[0];
+        const docExpired =
+          d &&
+          (d.status === DocStatus.SUSPENDED ||
+            d.status === DocStatus.EXPIRED ||
+            isDocCalendarExpired(d.expiresAt, now));
+        const recExpired =
+          fuecRec &&
+          (fuecRec.status === DocStatus.EXPIRED ||
+            fuecRec.validTo.getTime() <= now.getTime());
+        if (docExpired || recExpired) blocks.push("FUEC_EXPIRED");
+        continue;
+      }
       const d = byType.get(type);
       if (!d) {
         blocks.push(`${type}_MISSING`);

@@ -32,7 +32,7 @@ export function BentoPanel({
   className = "",
   id,
   accent = true,
-  interactive = true,
+  interactive = false,
   tour,
 }: BentoPanelProps) {
   return (

@@ -12,6 +12,7 @@ const CRITICAL_DOC_TYPES: ComplianceDocType[] = [
   ComplianceDocType.SOAT,
   ComplianceDocType.TECNOMECANICA,
   ComplianceDocType.TARJETA_OPERACION,
+  ComplianceDocType.FUEC,
 ];
 
 export type VehicleReadiness = {
@@ -69,7 +70,13 @@ export class ComplianceService {
   ): Promise<VehicleReadiness> {
     const vehicle = await this.prisma.vehicle.findFirst({
       where: { id: vehicleId, organizationId },
-      include: { complianceDocs: true },
+      include: {
+        complianceDocs: true,
+        fuecDocuments: {
+          orderBy: { validTo: "desc" },
+          take: 3,
+        },
+      },
     });
     if (!vehicle) {
       throw new BadRequestException("Vehículo no encontrado");
@@ -81,6 +88,41 @@ export class ComplianceService {
       const pExp = p.expiresAt?.getTime() ?? 0;
       const prevExp = prev?.expiresAt?.getTime() ?? 0;
       if (!prev || pExp > prevExp) byType.set(p.type, p);
+    }
+
+    // FUEC operativo (tabla FuecDocument) también alimenta el semáforo
+    const latestFuecRecord = vehicle.fuecDocuments[0];
+    if (latestFuecRecord && !byType.has(ComplianceDocType.FUEC)) {
+      const days = this.daysLeft(latestFuecRecord.validTo);
+      const status =
+        days < 0
+          ? DocStatus.EXPIRED
+          : days <= HARD_RULES.DOC_EXPIRING_DAYS
+            ? DocStatus.EXPIRING
+            : DocStatus.VALID;
+      byType.set(ComplianceDocType.FUEC, {
+        id: latestFuecRecord.id,
+        type: ComplianceDocType.FUEC,
+        status,
+        expiresAt: latestFuecRecord.validTo,
+      } as (typeof vehicle.complianceDocs)[0]);
+    } else if (latestFuecRecord) {
+      const existing = byType.get(ComplianceDocType.FUEC)!;
+      const recordExp = latestFuecRecord.validTo.getTime();
+      const docExp = existing.expiresAt?.getTime() ?? 0;
+      if (recordExp > docExp) {
+        const days = this.daysLeft(latestFuecRecord.validTo);
+        byType.set(ComplianceDocType.FUEC, {
+          ...existing,
+          expiresAt: latestFuecRecord.validTo,
+          status:
+            days < 0
+              ? DocStatus.EXPIRED
+              : days <= HARD_RULES.DOC_EXPIRING_DAYS
+                ? DocStatus.EXPIRING
+                : DocStatus.VALID,
+        });
+      }
     }
 
     const procedures = [...byType.values()].map((p) => {
@@ -119,12 +161,18 @@ export class ComplianceService {
     for (const type of CRITICAL_DOC_TYPES) {
       const p = byType.get(type);
       if (!p) {
-        warnings.push(`Sin registro de ${type}`);
+        // FUEC ausente = warning en matrix (bloqueo duro solo en despacho requireFuec)
+        // salvo que ya haya complianceBlocked por kill-switch
+        if (type === ComplianceDocType.FUEC) {
+          warnings.push("Sin FUEC registrado");
+        } else {
+          warnings.push(`Sin registro de ${type}`);
+        }
         continue;
       }
       const days = p.expiresAt ? this.daysLeft(p.expiresAt) : -1;
       const sem = this.semaphoreFromDays(days);
-      if (sem === "RED") {
+      if (sem === "RED" || p.status === DocStatus.EXPIRED) {
         blockReasons.push(`${type} vencido`);
         worst = "RED";
       } else if (sem === "YELLOW") {

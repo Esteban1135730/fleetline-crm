@@ -7,9 +7,18 @@ import { PrismaService } from "../prisma/prisma.service";
 import { normalizeSarlaftDoc } from "./restrictive-lists.client";
 import { SARLAFT_BLOCK_SCORE } from "./sarlaft-screening.service";
 
+export type SarlaftComplianceContext =
+  | "PURCHASE_ORDER"
+  | "TREASURY_DISBURSE"
+  | "LOGISTICS_ASSIGN"
+  | "LOGISTICS_DISPATCH"
+  | "CUSTOMER_CREATE"
+  | "INVOICE_PAY";
+
 /**
- * Guard operativo SARLAFT — Compras (08) y Tesorería (09).
- * Impide OC / desembolsos si la contraparte tiene sarlaftBlocked o alerta abierta de alto riesgo.
+ * Guard operativo SARLAFT — Compras (08), Tesorería (09) y Logística (04).
+ * Impide OC / desembolsos / asignación-despacho si la contraparte tiene
+ * sarlaftBlocked o alerta abierta de alto riesgo.
  */
 @Injectable()
 export class SarlaftComplianceGuard {
@@ -20,7 +29,7 @@ export class SarlaftComplianceGuard {
     sarlaftBlocked?: boolean | null;
     document?: string;
     entityId?: string;
-    context: "PURCHASE_ORDER" | "TREASURY_DISBURSE";
+    context: SarlaftComplianceContext;
   }) {
     if (!params.sarlaftBlocked) return;
     throw new ForbiddenException({
@@ -55,10 +64,49 @@ export class SarlaftComplianceGuard {
     return supplier;
   }
 
+  /**
+   * Hard-stop logística: conductor con hallazgo SARLAFT alto no se asigna/despacha.
+   */
+  async assertDriverClear(
+    organizationId: string,
+    driverId: string,
+    context: "LOGISTICS_ASSIGN" | "LOGISTICS_DISPATCH" = "LOGISTICS_ASSIGN",
+  ) {
+    const driver = await this.prisma.driver.findFirst({
+      where: { id: driverId, organizationId },
+      select: { id: true, name: true, document: true },
+    });
+    if (!driver) return null;
+
+    const employee = await this.prisma.employee.findFirst({
+      where: {
+        organizationId,
+        OR: [
+          { document: driver.document },
+          { driverId: driver.id },
+        ],
+      },
+      select: { id: true, name: true, document: true, sarlaftBlocked: true },
+    });
+
+    if (employee?.sarlaftBlocked) {
+      this.assertNotBlocked({
+        entityLabel: `Conductor ${driver.name}`,
+        sarlaftBlocked: true,
+        document: employee.document || driver.document,
+        entityId: employee.id,
+        context,
+      });
+    }
+
+    await this.assertDocumentClear(organizationId, driver.document, context);
+    return driver;
+  }
+
   async assertDocumentClear(
     organizationId: string,
     document: string,
-    context: "PURCHASE_ORDER" | "TREASURY_DISBURSE",
+    context: SarlaftComplianceContext,
   ) {
     const needle = normalizeSarlaftDoc(document);
     if (!needle) return;
@@ -133,7 +181,6 @@ export class SarlaftComplianceGuard {
       return;
     }
 
-    // Cliente bloqueado por flag (NIT normalizado)
     const needle = normalizeSarlaftDoc(params.subjectDoc);
     const customers = await this.prisma.customer.findMany({
       where: { organizationId: params.organizationId },

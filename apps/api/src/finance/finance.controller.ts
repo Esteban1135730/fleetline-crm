@@ -39,8 +39,9 @@ export class FinanceController {
   invoices(
     @Req() req: { user: { organizationId: string } },
     @Query("type") type?: "RECEIVABLE" | "PAYABLE",
+    @Query("origin") origin?: "trip",
   ) {
-    return this.service.listInvoices(req.user.organizationId, type);
+    return this.service.listInvoices(req.user.organizationId, type, origin);
   }
 
   @Post("invoices")

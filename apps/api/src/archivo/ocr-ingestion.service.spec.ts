@@ -130,7 +130,7 @@ describe("DataRoomService — expediente por entidad", () => {
     };
 
     const svc = new DataRoomService(prisma as never, {} as never);
-    const room = await svc.dataRoom("org-1", "VEHICLE", "veh-1");
+    const room = await svc.dataRoom("org-1", "VEHICLE", "veh-1", "GESTOR_DOCUMENTAL");
 
     expect(room.dataRoom).toBe(true);
     expect(room.entityType).toBe(ArchiveEntityType.VEHICLE);

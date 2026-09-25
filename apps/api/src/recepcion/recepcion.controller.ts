@@ -17,6 +17,7 @@ import { Permissions, PermissionsGuard } from "../auth/permissions.guard";
 import { RecepcionService } from "./recepcion.service";
 import {
   ConvertLeadSchema,
+  ForwardOmnicanalSchema,
   QuickPqrsSchema,
   RadarQuerySchema,
   RecepcionCheckInSchema,
@@ -130,6 +131,17 @@ export class RecepcionController {
   convertLead(@Req() req: AuthReq, @Body() body: unknown) {
     const dto = ConvertLeadSchema.parse(body ?? {});
     return this.recepcion.convertLead(
+      req.user.organizationId,
+      req.user.userId,
+      dto,
+    );
+  }
+
+  @Post("omnicanal/forward")
+  @Permissions("omnicanal", "UPDATE")
+  forward(@Req() req: AuthReq, @Body() body: unknown) {
+    const dto = ForwardOmnicanalSchema.parse(body ?? {});
+    return this.recepcion.forwardToArea(
       req.user.organizationId,
       req.user.userId,
       dto,

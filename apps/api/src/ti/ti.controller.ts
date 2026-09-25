@@ -23,6 +23,7 @@ import {
   MdmPairQrSchema,
   OnboardingLinkSchema,
   PatchHelpdeskTicketSchema,
+  RotateSecretsSchema,
   SynthesizeSchema,
   SystemLogsQuerySchema,
   TranscribeSchema,
@@ -64,6 +65,21 @@ export class TiController {
       req.user.userId,
       dto,
     );
+  }
+
+  /** POST /api/v1/ti/usuarios/:id/revoke-sessions — SCRUM-91 */
+  @Post("usuarios/:id/revoke-sessions")
+  @Permissions("usuarios_roles", "UPDATE")
+  revokeSessions(@Req() req: AuthReq, @Param("id") id: string) {
+    return this.ops.revokeUserSessions(req.user.organizationId, id);
+  }
+
+  /** POST /api/v1/ti/secrets/rotate-graceful — SCRUM-93 */
+  @Post("secrets/rotate-graceful")
+  @Permissions("infra_monitoreo", "UPDATE")
+  rotateSecrets(@Body() body: unknown) {
+    const dto = RotateSecretsSchema.parse(body ?? {});
+    return this.ops.rotateSecretsGraceful(dto.overlapHours);
   }
 
   /** POST /api/v1/ti/mdm/pair-qr */

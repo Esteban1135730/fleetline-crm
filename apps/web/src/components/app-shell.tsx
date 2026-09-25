@@ -328,7 +328,7 @@ function SideNav({
           </Tooltip>
         </div>
 
-        <nav className="flex-1 overflow-y-auto py-2" aria-label="Áreas del sistema">
+        <nav className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto py-2" aria-label="Áreas del sistema">
           {departments.map((dept) => {
             const multi = dept.items.length > 1;
             const anyActive = dept.items.some((i) =>
@@ -461,7 +461,7 @@ function SideNav({
           </Link>
           <button
             type="button"
-            className="flt-nav-item w-[calc(100%-1rem)] border-0 bg-transparent text-left"
+            className="flt-nav-item max-w-full border-0 bg-transparent text-left"
             onClick={onLogout}
             title="Cerrar sesión"
           >
@@ -639,6 +639,12 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!user || pathname === "/login") return;
+    if (
+      (pathname === "/qa-trace" || pathname.startsWith("/qa-trace/")) &&
+      isQaViewerClient(user.email)
+    ) {
+      return;
+    }
     const seg = pathname.split("/").filter(Boolean)[0] || "dashboard";
     if (seg === "cuenta") return;
     const resolved = resolveModuleId(seg) || seg;
