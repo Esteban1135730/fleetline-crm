@@ -29,8 +29,6 @@ import {
   Cell,
   PieChart,
   Pie,
-  AreaChart,
-  Area,
   Legend,
 } from "recharts";
 import { api } from "@/lib/api";
@@ -39,6 +37,7 @@ import { EmptyState, KpiCard, Modal, SlideOver } from "@/components/audit";
 import { BentoPanel } from "@/components/nexa/bento-panel";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
 import { useShell } from "@/lib/shell-context";
+import { useRouter } from "next/navigation";
 
 type Pillars = {
   growth?: { label: string; valuePct: number | null; hint: string };
@@ -82,20 +81,112 @@ type Dash = {
     enRuta: number;
     enPatio: number;
     enTaller: number;
+    bloqueado?: number;
     pctRuta: number;
     pctPatio: number;
     pctTaller: number;
+    pctBloqueado?: number;
   };
   complianceAlerts?: Array<{ source: string; message: string; severity: string }>;
   commercialPipeline?: {
     quotedCop: number;
     closedCop: number;
+    hasData?: boolean;
     weeks: Array<{ label: string; cotizado: number; cerrado: number }>;
   };
-  cashFlowHistory?: Array<{ mes: string; ingresos: number; costos: number }>;
+  cashFlowHistory?: Array<{
+    mes: string;
+    yearMonth?: string;
+    ingresos: number;
+    costos: number;
+    ingresosCop?: number;
+    costosCop?: number;
+  }>;
+  cashFlowForecast?: {
+    hasData?: boolean;
+    weeks: Array<{
+      name: string;
+      ingreso: number;
+      egreso: number;
+      flujo: number;
+    }>;
+  };
   pendingMarginExceptions?: number;
   killSwitch?: { blockedPct: number; blockedUnits: number };
-  cashFlow?: { atRiskAmount: number };
+  cashFlow?: {
+    atRiskAmount: number;
+    receivableAtRiskAmount?: number;
+    receivableAtRiskCount?: number;
+  };
+  opsStatus?: {
+    opsStatus: "NOMINAL" | "CRITICAL";
+    blockedVehicles: number;
+    sarlaftBlocks: number;
+    reason: string;
+    href: string | null;
+  };
+};
+
+type BurnMonthDetail = {
+  yearMonth: string;
+  mes: string;
+  ingresosCop: number;
+  costosCop: number;
+  topCustomers: Array<{
+    customerId: string | null;
+    name: string;
+    nit: string | null;
+    amount: number;
+  }>;
+  topPurchaseOrders: Array<{
+    id: string;
+    code: string;
+    description: string | null;
+    supplier: string;
+    amount: number;
+    status: string;
+  }>;
+};
+
+type CashBreakdown = {
+  asOf: string;
+  accounts: Array<{
+    id: string;
+    code: string;
+    name: string;
+    label: string;
+    balance: number;
+  }>;
+  accountsTotal: number;
+  upcomingPayments: Array<{
+    id: string;
+    counterparty: string;
+    amount: number;
+    dueDate: string | null;
+    status: string;
+    source?: "SCHEDULE" | "INVOICE";
+    overdue?: boolean;
+    invoiceNumber?: string;
+  }>;
+  upcomingPaymentsTotal: number;
+  freeCash: number;
+  formula: string;
+};
+
+type ArAtRisk = {
+  asOf: string;
+  invoices: Array<{
+    id: string;
+    number: string;
+    customer: string;
+    nit: string | null;
+    amount: number;
+    dueDate: string | null;
+    status: string;
+    daysOverdue: number;
+  }>;
+  count: number;
+  total: number;
 };
 
 function cop(n: number) {
@@ -106,8 +197,17 @@ function cop(n: number) {
   }).format(n);
 }
 
+/** Colores NEXA para gráficas del lienzo (sin neón). */
+const NEXA_CHART = {
+  ingresos: "#00E5FF",
+  costos: "#FF2A55",
+  nominal: "#10B981",
+  patio: "#64748B",
+} as const;
+
 export default function PresidenciaDashboardPage() {
   const colors = useThemeColors();
+  const router = useRouter();
   const { crisisActive: defconActive, setCrisisActive } = useShell();
   const heatColors = useMemo(
     () => [
@@ -151,6 +251,15 @@ export default function PresidenciaDashboardPage() {
   const [zoneError, setZoneError] = useState("");
   const [capexOpen, setCapexOpen] = useState(false);
   const [defconOpen, setDefconOpen] = useState(false);
+  const [cashOpen, setCashOpen] = useState(false);
+  const [cashDetail, setCashDetail] = useState<CashBreakdown | null>(null);
+  const [cashLoading, setCashLoading] = useState(false);
+  const [arOpen, setArOpen] = useState(false);
+  const [arDetail, setArDetail] = useState<ArAtRisk | null>(null);
+  const [arLoading, setArLoading] = useState(false);
+  const [burnOpen, setBurnOpen] = useState(false);
+  const [burnDetail, setBurnDetail] = useState<BurnMonthDetail | null>(null);
+  const [burnLoading, setBurnLoading] = useState(false);
 
   const load = useCallback(async () => {
     setError(null);
@@ -163,33 +272,15 @@ export default function PresidenciaDashboardPage() {
 
   useEffect(() => {
     void load();
-    const t = setInterval(() => void load(), 25_000);
+    const t = setInterval(() => void load(), 30_000);
     return () => clearInterval(t);
   }, [load]);
 
   const cashFlowSeries = useMemo(() => {
-    const heat = dash?.revenueHeat ?? [];
-    if (heat.length > 0) {
-      let running = 0;
-      return heat.map((h, i) => {
-        running += h.revenue;
-        return {
-          name: h.corridor.slice(0, 12) || `C${i + 1}`,
-          flujo: Math.round(running / 1_000_000),
-          ingreso: Math.round(h.revenue / 1_000_000),
-        };
-      });
-    }
-    const atRisk = Math.round((dash?.cashFlow?.atRiskAmount ?? 0) / 1_000_000);
-    const base = Math.round((dash?.pillars?.liquidity.valueCop ?? 0) / 1_000_000);
-    return [
-      { name: "T-4", flujo: Math.max(0, base - atRisk * 0.4), ingreso: base * 0.2 },
-      { name: "T-3", flujo: Math.max(0, base - atRisk * 0.25), ingreso: base * 0.22 },
-      { name: "T-2", flujo: Math.max(0, base - atRisk * 0.1), ingreso: base * 0.24 },
-      { name: "T-1", flujo: base, ingreso: base * 0.26 },
-      { name: "Hoy", flujo: Math.max(0, base - atRisk * 0.05), ingreso: base * 0.28 },
-    ];
-  }, [dash]);
+    const forecast = dash?.cashFlowForecast;
+    if (!forecast?.hasData) return [];
+    return forecast.weeks ?? [];
+  }, [dash?.cashFlowForecast]);
 
   const heatBars = useMemo(() => {
     return (dash?.revenueHeat ?? []).map((h) => ({
@@ -350,6 +441,54 @@ export default function PresidenciaDashboardPage() {
     return value == null ? "N/A" : `${value}%`;
   }
 
+  async function openCashDetail() {
+    setCashOpen(true);
+    setCashLoading(true);
+    setCashDetail(null);
+    try {
+      setCashDetail(
+        await api<CashBreakdown>("/api/v1/presidencia/cash-breakdown"),
+      );
+    } catch (e) {
+      setError((e as Error).message || "No se pudo cargar el detalle de caja");
+      setCashOpen(false);
+    } finally {
+      setCashLoading(false);
+    }
+  }
+
+  async function openArDetail() {
+    setArOpen(true);
+    setArLoading(true);
+    setArDetail(null);
+    try {
+      setArDetail(await api<ArAtRisk>("/api/v1/presidencia/ar-at-risk"));
+    } catch (e) {
+      setError((e as Error).message || "No se pudo cargar la cartera en riesgo");
+      setArOpen(false);
+    } finally {
+      setArLoading(false);
+    }
+  }
+
+  async function openBurnDetail(yearMonth: string) {
+    setBurnOpen(true);
+    setBurnLoading(true);
+    setBurnDetail(null);
+    try {
+      setBurnDetail(
+        await api<BurnMonthDetail>(
+          `/api/v1/presidencia/burn-rate-detail?month=${encodeURIComponent(yearMonth)}`,
+        ),
+      );
+    } catch (e) {
+      setError((e as Error).message || "No se pudo cargar el detalle del mes");
+      setBurnOpen(false);
+    } finally {
+      setBurnLoading(false);
+    }
+  }
+
   function toggleZone(zone: string) {
     setZoneError("");
     setZones((prev) =>
@@ -363,19 +502,32 @@ export default function PresidenciaDashboardPage() {
     const f = dash?.fleetHealth;
     if (!f) return [];
     return [
-      { name: "En ruta", value: f.enRuta, color: colors.success },
-      { name: "En patio", value: f.enPatio, color: colors.chartMuted },
-      { name: "En taller", value: f.enTaller, color: colors.danger },
+      { name: "En ruta", value: f.enRuta, color: NEXA_CHART.nominal, href: "/taller" },
+      { name: "Patio", value: f.enPatio, color: NEXA_CHART.patio, href: "/taller" },
+      { name: "Taller", value: f.enTaller, color: NEXA_CHART.costos, href: "/taller" },
+      {
+        name: "Bloqueado",
+        value: f.bloqueado ?? 0,
+        color: "#FF2A55",
+        href: "/tramites",
+      },
     ].filter((d) => d.value > 0);
-  }, [dash?.fleetHealth, colors]);
+  }, [dash?.fleetHealth]);
 
-  const burnRateSeries = dash?.cashFlowHistory?.length
-    ? dash.cashFlowHistory
-    : cashFlowSeries.map((d) => ({
-        mes: d.name,
-        ingresos: d.ingreso,
-        costos: Math.max(0, d.flujo - d.ingreso),
-      }));
+  const burnRateSeries = useMemo(() => {
+    const rows = dash?.cashFlowHistory ?? [];
+    if (!rows.some((r) => (r.ingresos ?? 0) > 0 || (r.costos ?? 0) > 0)) {
+      return [];
+    }
+    return rows;
+  }, [dash?.cashFlowHistory]);
+
+  const pipelineWeeks = useMemo(() => {
+    const weeks = dash?.commercialPipeline?.weeks ?? [];
+    if (dash?.commercialPipeline?.hasData === false) return [];
+    if (!weeks.some((w) => w.cotizado > 0 || w.cerrado > 0)) return [];
+    return weeks;
+  }, [dash?.commercialPipeline]);
 
   return (
     <div
@@ -397,13 +549,61 @@ export default function PresidenciaDashboardPage() {
           <h1 className="font-sans text-2xl font-semibold tracking-tight text-brand-text-primary md:text-3xl">
             Lienzo de presidencia
           </h1>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <Badge tone={defconActive ? "danger" : "success"}>
-              {defconActive ? "Alerta máxima · Sala de crisis" : "Nominal"}
-            </Badge>
-            <Badge tone="warning">
-              Bloqueo operativo {dash?.killSwitch?.blockedPct ?? 0}%
-            </Badge>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {defconActive ? (
+              <Badge tone="danger">Alerta máxima · Sala de crisis</Badge>
+            ) : null}
+            {(() => {
+              const ops = dash?.opsStatus;
+              const critical =
+                (ops?.opsStatus ?? "NOMINAL") === "CRITICAL" ||
+                (ops?.blockedVehicles ?? 0) + (ops?.sarlaftBlocks ?? 0) > 0;
+              const total =
+                (ops?.blockedVehicles ?? 0) + (ops?.sarlaftBlocks ?? 0);
+              const href =
+                ops?.href ||
+                (ops && ops.blockedVehicles > 0
+                  ? "/tramites"
+                  : ops && ops.sarlaftBlocks > 0
+                    ? "/sarlaft/bloqueos"
+                    : null);
+              const label = critical
+                ? `BLOQUEO CRÍTICO · ${total}`
+                : "NOMINAL";
+              const className = critical
+                ? "inline-flex items-center gap-1.5 rounded-full px-3 py-1 font-data text-[11px] font-bold uppercase tracking-[0.12em] text-white"
+                : "inline-flex items-center gap-1.5 rounded-full px-3 py-1 font-data text-[11px] font-bold uppercase tracking-[0.12em] text-white";
+              const style = {
+                backgroundColor: critical ? "#FF2A55" : "#10B981",
+              } as const;
+              const title =
+                ops?.reason ||
+                (critical
+                  ? "Hay bloqueos activos en flota o SARLAFT"
+                  : "Sin bloqueos activos");
+              if (href) {
+                return (
+                  <Link
+                    href={href}
+                    className={className}
+                    style={style}
+                    title={title}
+                  >
+                    {label}
+                    {ops?.reason && critical ? (
+                      <span className="ml-1 font-normal normal-case tracking-normal opacity-90">
+                        · {ops.reason}
+                      </span>
+                    ) : null}
+                  </Link>
+                );
+              }
+              return (
+                <span className={className} style={style} title={title}>
+                  {label}
+                </span>
+              );
+            })()}
           </div>
         </div>
         <div className="flex w-auto flex-wrap justify-end gap-2">
@@ -512,16 +712,16 @@ export default function PresidenciaDashboardPage() {
       </section>
 
       <section className="relative z-10 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Link href={p?.liquidity.href || "/tesoreria"} className="block">
-          <KpiCard
-            label={p?.liquidity.label || "Caja Libre"}
-            value={p ? cop(p.liquidity.valueCop) : "—"}
-            delta={p?.liquidity.hint}
-            tone={p && p.liquidity.valueCop < 0 ? "danger" : "ok"}
-            icon={<Wallet />}
-            spark={cashFlowSeries.map((d) => d.flujo)}
-          />
-        </Link>
+        <KpiCard
+          label={p?.liquidity.label || "Caja Libre"}
+          value={p ? cop(p.liquidity.valueCop) : "—"}
+          delta={p?.liquidity.hint || "Clic para ver cuentas y pagos"}
+          tone={p && p.liquidity.valueCop < 0 ? "danger" : "ok"}
+          icon={<Wallet />}
+          spark={burnRateSeries.map((d) => d.ingresos)}
+          tip="Saldos de caja/bancos menos pagos programados a 7 días"
+          onClick={() => void openCashDetail()}
+        />
         <KpiCard
           label={p?.sla.label || "Cumplimiento SLA"}
           value={p ? `${p.sla.valuePct}%` : "—"}
@@ -556,48 +756,65 @@ export default function PresidenciaDashboardPage() {
       <div className="relative z-10 grid grid-cols-1 gap-3 lg:grid-cols-12 lg:gap-4">
         <BentoPanel
           title="Burn rate · ingresos vs costos"
-          subtitle="M COP"
+          subtitle="M COP · clic en mes para detalle"
           icon={<LineChartIcon />}
           className="lg:col-span-7"
+          action={
+            <Link
+              href="/tesoreria"
+              className="font-data text-[10px] font-semibold uppercase tracking-wider text-brand-primary hover:underline"
+            >
+              Ir a tesorería →
+            </Link>
+          }
         >
           {burnRateSeries.length > 0 ? (
-            <div className="h-56 w-full">
+            <div className="h-56 w-full cursor-pointer">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={burnRateSeries}>
+                <BarChart
+                  data={burnRateSeries}
+                  onClick={(state) => {
+                    const ym = (
+                      state?.activePayload?.[0]?.payload as {
+                        yearMonth?: string;
+                      }
+                    )?.yearMonth;
+                    if (ym) void openBurnDetail(ym);
+                  }}
+                >
                   <CartesianGrid strokeDasharray="3 3" stroke={colors.chartGrid} />
                   <XAxis dataKey="mes" tick={{ fill: colors.textSecondary, fontSize: 11 }} />
                   <YAxis tick={{ fill: colors.textSecondary, fontSize: 11 }} width={48} />
                   <Tooltip contentStyle={chartTipStyle} />
                   <Legend />
-                  <Area
-                    type="monotone"
+                  <Bar
                     dataKey="ingresos"
                     name="Ingresos"
-                    stackId="1"
-                    stroke={colors.success}
-                    fill={colors.success}
-                    fillOpacity={0.35}
+                    fill={NEXA_CHART.ingresos}
+                    radius={[4, 4, 0, 0]}
+                    cursor="pointer"
                   />
-                  <Area
-                    type="monotone"
+                  <Bar
                     dataKey="costos"
                     name="Costos"
-                    stackId="2"
-                    stroke={colors.danger}
-                    fill={colors.danger}
-                    fillOpacity={0.25}
+                    fill={NEXA_CHART.costos}
+                    radius={[4, 4, 0, 0]}
+                    cursor="pointer"
                   />
-                </AreaChart>
+                </BarChart>
               </ResponsiveContainer>
             </div>
           ) : (
-            <EmptyState title="Sin serie financiera" description="Sin datos de burn rate." />
+            <EmptyState
+              title="Sin serie financiera"
+              description="Sin viajes completados ni órdenes de compra en los últimos meses."
+            />
           )}
         </BentoPanel>
 
         <BentoPanel
           title="Salud de flota"
-          subtitle="En ruta · patio · taller"
+          subtitle="En ruta · patio · taller · bloqueado"
           icon={<Truck />}
           className="lg:col-span-5"
           action={
@@ -622,6 +839,11 @@ export default function PresidenciaDashboardPage() {
                     innerRadius={52}
                     outerRadius={78}
                     paddingAngle={2}
+                    cursor="pointer"
+                    onClick={(_, index) => {
+                      const seg = fleetDonut[index];
+                      if (seg?.href) router.push(seg.href);
+                    }}
                   >
                     {fleetDonut.map((entry) => (
                       <Cell key={entry.name} fill={entry.color} />
@@ -671,40 +893,82 @@ export default function PresidenciaDashboardPage() {
 
         <BentoPanel
           title="Pipeline comercial"
-          subtitle="Cotizado vs cerrado"
+          subtitle="Cotizado vs ganado · M COP / semana"
           icon={<TrendingUp />}
           className="lg:col-span-8"
+          action={
+            <Link
+              href="/comercial"
+              className="font-data text-[10px] font-semibold uppercase tracking-wider text-brand-primary hover:underline"
+            >
+              Ir a comercial →
+            </Link>
+          }
         >
-          {(dash?.commercialPipeline?.weeks?.length ?? 0) > 0 ? (
-            <div className="h-56 w-full">
+          {pipelineWeeks.length > 0 ? (
+            <div
+              className="h-56 w-full cursor-pointer"
+              onClick={() => router.push("/comercial")}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") router.push("/comercial");
+              }}
+              role="link"
+              tabIndex={0}
+            >
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={dash!.commercialPipeline!.weeks}>
+                <BarChart data={pipelineWeeks}>
                   <CartesianGrid strokeDasharray="3 3" stroke={colors.chartGrid} />
                   <XAxis dataKey="label" tick={{ fill: colors.textSecondary, fontSize: 11 }} />
                   <YAxis tick={{ fill: colors.textSecondary, fontSize: 11 }} width={48} />
                   <Tooltip contentStyle={chartTipStyle} />
                   <Legend />
-                  <Bar dataKey="cotizado" name="Cotizado" fill={colors.chartMuted} radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="cerrado" name="Cerrado" fill={colors.success} radius={[4, 4, 0, 0]} />
+                  <Bar
+                    dataKey="cotizado"
+                    name="Cotizado"
+                    fill={NEXA_CHART.ingresos}
+                    radius={[4, 4, 0, 0]}
+                  />
+                  <Bar
+                    dataKey="cerrado"
+                    name="Ganado"
+                    fill={NEXA_CHART.nominal}
+                    radius={[4, 4, 0, 0]}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           ) : (
             <EmptyState
               title="Sin pipeline comercial"
-              description="Cotizaciones y contratos del mes aparecerán aquí."
+              description="Oportunidades y cierres de las últimas semanas aparecerán aquí."
             />
           )}
         </BentoPanel>
 
         <BentoPanel
           title="Flujo de caja"
-          subtitle="M COP · acumulado e ingreso"
+          subtitle="M COP · CxC / CxP por semana"
           icon={<LineChartIcon />}
           className="lg:col-span-6"
+          action={
+            <Link
+              href="/tesoreria"
+              className="font-data text-[10px] font-semibold uppercase tracking-wider text-brand-primary hover:underline"
+            >
+              Ir a tesorería →
+            </Link>
+          }
         >
           {cashFlowSeries.length > 0 ? (
-            <div className="h-56 w-full">
+            <div
+              className="h-56 w-full cursor-pointer"
+              onClick={() => router.push("/tesoreria")}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") router.push("/tesoreria");
+              }}
+              role="link"
+              tabIndex={0}
+            >
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={cashFlowSeries}>
                   <CartesianGrid strokeDasharray="3 3" stroke={colors.chartGrid} />
@@ -722,19 +986,29 @@ export default function PresidenciaDashboardPage() {
                     contentStyle={chartTipStyle}
                     formatter={(v: number) => [`${v} M`, ""]}
                   />
+                  <Legend />
                   <Line
                     type="monotone"
                     dataKey="flujo"
-                    name="Acumulado"
-                    stroke={colors.success}
+                    name="Neto"
+                    stroke={NEXA_CHART.nominal}
                     strokeWidth={2}
-                    dot={{ r: 3, fill: colors.success }}
+                    dot={{ r: 3, fill: NEXA_CHART.nominal }}
                   />
                   <Line
                     type="monotone"
                     dataKey="ingreso"
-                    name="Ingreso"
-                    stroke={colors.warning}
+                    name="CxC"
+                    stroke={NEXA_CHART.ingresos}
+                    strokeWidth={1.5}
+                    strokeDasharray="4 4"
+                    dot={false}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="egreso"
+                    name="CxP"
+                    stroke={NEXA_CHART.costos}
                     strokeWidth={1.5}
                     strokeDasharray="4 4"
                     dot={false}
@@ -744,15 +1018,33 @@ export default function PresidenciaDashboardPage() {
             </div>
           ) : (
             <EmptyState
-              title="Sin serie de flujo"
-              description="Sin datos de corredores o flujo de caja."
+              title="Sin datos de flujo"
+              description="No hay facturas CxC/CxP con vencimiento en las próximas semanas."
             />
           )}
-          {dash?.cashFlow?.atRiskAmount ? (
-            <p className="mt-2 font-data text-xs tabular-nums text-brand-warning">
-              En riesgo: {cop(dash.cashFlow.atRiskAmount)}
-            </p>
-          ) : null}
+          {(dash?.cashFlow?.receivableAtRiskAmount ?? 0) > 0 ? (
+            <button
+              type="button"
+              onClick={() => void openArDetail()}
+              className="mt-3 inline-flex w-auto items-center gap-1.5 rounded-lg border border-[color-mix(in_srgb,var(--brand-warning)_55%,transparent)] bg-[color-mix(in_srgb,var(--brand-warning)_18%,transparent)] px-4 py-2.5 font-data text-xs font-semibold tabular-nums text-brand-warning shadow-[0_0_0_1px_color-mix(in_srgb,var(--brand-warning)_20%,transparent)] transition hover:bg-[color-mix(in_srgb,var(--brand-warning)_28%,transparent)] hover:border-[color-mix(in_srgb,var(--brand-warning)_70%,transparent)]"
+            >
+              Cartera en riesgo ·{" "}
+              {cop(dash?.cashFlow?.receivableAtRiskAmount ?? 0)}
+              {(dash?.cashFlow?.receivableAtRiskCount ?? 0) > 0
+                ? ` · ${dash?.cashFlow?.receivableAtRiskCount} factura(s)`
+                : ""}
+              <span className="ml-1 opacity-90">Ver detalle →</span>
+            </button>
+          ) : (
+            <Button
+              type="button"
+              variant="secondary"
+              className="mt-3 w-auto px-4 py-2 text-xs"
+              onClick={() => void openArDetail()}
+            >
+              Cartera en riesgo · sin mora · Ver detalle →
+            </Button>
+          )}
         </BentoPanel>
 
         <BentoPanel
@@ -1048,6 +1340,364 @@ export default function PresidenciaDashboardPage() {
               </li>
             ))}
           </ul>
+        )}
+      </SlideOver>
+
+      <SlideOver
+        open={cashOpen}
+        onClose={() => setCashOpen(false)}
+        title="Detalle · Caja Libre"
+        description={
+          cashDetail?.formula ||
+          "Saldos de caja/bancos menos pagos programados (7 días)"
+        }
+        widthClass="max-w-xl"
+      >
+        {cashLoading ? (
+          <p className="text-sm text-brand-text-secondary">Cargando…</p>
+        ) : cashDetail ? (
+          <div className="space-y-5">
+            <div className="rounded-lg border border-brand-border bg-brand-surface p-3">
+              <p className="font-data text-[11px] uppercase tracking-wide text-brand-text-secondary">
+                Caja Libre
+              </p>
+              <p className="mt-1 font-data text-2xl font-bold tabular-nums text-brand-primary">
+                {cop(cashDetail.freeCash)}
+              </p>
+              <p className="mt-1 text-xs text-brand-text-secondary">
+                Cuentas {cop(cashDetail.accountsTotal)} − CxP{" "}
+                {cop(cashDetail.upcomingPaymentsTotal)}
+              </p>
+              {dash?.pillars?.liquidity &&
+              Math.round(dash.pillars.liquidity.valueCop) !==
+                Math.round(cashDetail.freeCash) ? (
+                <p className="mt-2 text-xs text-brand-warning">
+                  KPI en lienzo: {cop(dash.pillars.liquidity.valueCop)} · el
+                  detalle usa el cálculo al momento de abrir.
+                </p>
+              ) : null}
+            </div>
+
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-brand-text-secondary">
+                Cuentas
+              </p>
+              {cashDetail.accounts.length === 0 ? (
+                <EmptyState
+                  title="Sin cuentas de caja"
+                  description="No hay cuentas PUC 11xx / caja / banco registradas."
+                />
+              ) : (
+                <div className="overflow-x-auto rounded-lg border border-brand-border">
+                  <table className="w-full min-w-[280px] text-left text-sm">
+                    <thead className="bg-brand-surface-elevated font-data text-[10px] uppercase tracking-wide text-brand-text-secondary">
+                      <tr>
+                        <th className="px-3 py-2 font-semibold">Cuenta</th>
+                        <th className="px-3 py-2 text-right font-semibold">
+                          Saldo
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {cashDetail.accounts.map((a) => (
+                        <tr
+                          key={a.id}
+                          className="border-t border-brand-border"
+                        >
+                          <td className="px-3 py-2 text-brand-text-primary">
+                            {a.label}
+                          </td>
+                          <td className="px-3 py-2 text-right font-data tabular-nums">
+                            {cop(a.balance)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t border-brand-border bg-brand-surface-elevated">
+                        <td className="px-3 py-2 text-xs font-semibold">
+                          Total cuentas
+                        </td>
+                        <td className="px-3 py-2 text-right font-data text-xs font-semibold tabular-nums">
+                          {cop(cashDetail.accountsTotal)}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-brand-text-secondary">
+                CxP · vencidas y próximos 7 días
+              </p>
+              {cashDetail.upcomingPayments.length === 0 ? (
+                <EmptyState
+                  title="Sin CxP en ventana"
+                  description="No hay pagos en cola ni facturas por pagar vencidas o con vencimiento en 7 días."
+                />
+              ) : (
+                <div className="overflow-x-auto rounded-lg border border-brand-border">
+                  <table className="w-full min-w-[360px] text-left text-sm">
+                    <thead className="bg-brand-surface-elevated font-data text-[10px] uppercase tracking-wide text-brand-text-secondary">
+                      <tr>
+                        <th className="px-3 py-2 font-semibold">Contraparte</th>
+                        <th className="px-3 py-2 text-right font-semibold">
+                          Monto
+                        </th>
+                        <th className="px-3 py-2 font-semibold">Fecha</th>
+                        <th className="px-3 py-2 font-semibold">Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {cashDetail.upcomingPayments.map((pmt) => (
+                        <tr
+                          key={`${pmt.source ?? "p"}-${pmt.id}`}
+                          className="border-t border-brand-border"
+                        >
+                          <td className="px-3 py-2">
+                            {pmt.counterparty}
+                            {pmt.invoiceNumber ? (
+                              <span className="mt-0.5 block font-data text-[10px] text-brand-text-secondary">
+                                {pmt.invoiceNumber}
+                              </span>
+                            ) : null}
+                          </td>
+                          <td className="px-3 py-2 text-right font-data tabular-nums">
+                            {cop(pmt.amount)}
+                          </td>
+                          <td className="px-3 py-2 font-data text-xs text-brand-text-secondary">
+                            {pmt.dueDate
+                              ? new Date(pmt.dueDate).toLocaleDateString(
+                                  "es-CO",
+                                )
+                              : "—"}
+                          </td>
+                          <td className="px-3 py-2">
+                            {pmt.overdue ? (
+                              <span className="font-data text-[10px] font-bold uppercase text-brand-danger">
+                                Vencida
+                              </span>
+                            ) : (
+                              <span className="font-data text-[10px] uppercase text-brand-text-secondary">
+                                {pmt.status}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t border-brand-border bg-brand-surface-elevated">
+                        <td className="px-3 py-2 text-xs font-semibold">
+                          Total CxP
+                        </td>
+                        <td className="px-3 py-2 text-right font-data text-xs font-semibold tabular-nums">
+                          {cop(cashDetail.upcomingPaymentsTotal)}
+                        </td>
+                        <td />
+                        <td />
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <EmptyState
+            title="Sin datos"
+            description="No se pudo obtener el desglose de caja."
+          />
+        )}
+      </SlideOver>
+
+      <SlideOver
+        open={arOpen}
+        onClose={() => setArOpen(false)}
+        title="Cartera en riesgo"
+        description="Facturas por cobrar (RECEIVABLE) vencidas"
+        widthClass="max-w-xl"
+        footer={
+          <div className="flex w-full flex-wrap justify-end gap-2">
+            <Link href="/tesoreria">
+              <Button type="button" variant="secondary" className="w-auto px-4 py-2">
+                Ir a Tesorería
+              </Button>
+            </Link>
+          </div>
+        }
+      >
+        {arLoading ? (
+          <p className="text-sm text-brand-text-secondary">Cargando…</p>
+        ) : arDetail && arDetail.invoices.length > 0 ? (
+          <div className="space-y-4">
+            <div className="rounded-lg border border-brand-border bg-brand-surface p-3">
+              <p className="font-data text-[11px] uppercase tracking-wide text-brand-text-secondary">
+                Total en mora
+              </p>
+              <p className="mt-1 font-data text-2xl font-bold tabular-nums text-brand-warning">
+                {cop(arDetail.total)}
+              </p>
+              <p className="mt-1 text-xs text-brand-text-secondary">
+                {arDetail.count} factura(s) vencida(s)
+              </p>
+              {dash?.cashFlow?.receivableAtRiskAmount != null &&
+              Math.round(dash.cashFlow.receivableAtRiskAmount) !==
+                Math.round(arDetail.total) ? (
+                <p className="mt-2 text-xs text-brand-warning">
+                  KPI en lienzo: {cop(dash.cashFlow.receivableAtRiskAmount)} ·
+                  el detalle se recalcula al abrir.
+                </p>
+              ) : null}
+            </div>
+            <div className="overflow-x-auto rounded-lg border border-brand-border">
+              <table className="w-full min-w-[420px] text-left text-sm">
+                <thead className="bg-brand-surface-elevated font-data text-[10px] uppercase tracking-wide text-brand-text-secondary">
+                  <tr>
+                    <th className="px-3 py-2 font-semibold">Factura</th>
+                    <th className="px-3 py-2 font-semibold">Cliente</th>
+                    <th className="px-3 py-2 font-semibold">NIT</th>
+                    <th className="px-3 py-2 text-right font-semibold">Monto</th>
+                    <th className="px-3 py-2 text-right font-semibold">Mora</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {arDetail.invoices.map((inv) => (
+                    <tr key={inv.id} className="border-t border-brand-border">
+                      <td className="px-3 py-2 font-data text-xs">{inv.number}</td>
+                      <td className="px-3 py-2">{inv.customer}</td>
+                      <td className="px-3 py-2 font-data text-xs text-brand-text-secondary">
+                        {inv.nit || "—"}
+                      </td>
+                      <td className="px-3 py-2 text-right font-data tabular-nums">
+                        {cop(inv.amount)}
+                      </td>
+                      <td className="px-3 py-2 text-right font-data tabular-nums text-brand-warning">
+                        {inv.daysOverdue}d
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : (
+          <EmptyState
+            title="Sin facturas en mora"
+            description="No hay CxC RECEIVABLE vencidas en este momento."
+          />
+        )}
+      </SlideOver>
+
+      <SlideOver
+        open={burnOpen}
+        onClose={() => setBurnOpen(false)}
+        title={burnDetail ? `Burn rate · ${burnDetail.mes}` : "Burn rate · detalle"}
+        description="Top clientes (viajes) y órdenes de compra del mes"
+        widthClass="max-w-xl"
+        footer={
+          <div className="flex w-full flex-wrap justify-end gap-2">
+            <Link href="/tesoreria">
+              <Button type="button" variant="secondary" className="w-auto px-4 py-2">
+                Ir a Tesorería
+              </Button>
+            </Link>
+          </div>
+        }
+      >
+        {burnLoading ? (
+          <p className="text-sm text-brand-text-secondary">Cargando…</p>
+        ) : burnDetail ? (
+          <div className="space-y-5">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-lg border border-brand-border bg-brand-surface p-3">
+                <p className="font-data text-[10px] uppercase text-brand-text-secondary">
+                  Ingresos
+                </p>
+                <p
+                  className="mt-1 font-data text-lg font-bold tabular-nums"
+                  style={{ color: NEXA_CHART.ingresos }}
+                >
+                  {cop(burnDetail.ingresosCop)}
+                </p>
+              </div>
+              <div className="rounded-lg border border-brand-border bg-brand-surface p-3">
+                <p className="font-data text-[10px] uppercase text-brand-text-secondary">
+                  Costos OC
+                </p>
+                <p
+                  className="mt-1 font-data text-lg font-bold tabular-nums"
+                  style={{ color: NEXA_CHART.costos }}
+                >
+                  {cop(burnDetail.costosCop)}
+                </p>
+              </div>
+            </div>
+
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-brand-text-secondary">
+                Top 5 clientes
+              </p>
+              {burnDetail.topCustomers.length === 0 ? (
+                <EmptyState
+                  title="Sin viajes del mes"
+                  description="No hay viajes COMPLETED con tarifa en este periodo."
+                />
+              ) : (
+                <ul className="space-y-1.5">
+                  {burnDetail.topCustomers.map((c) => (
+                    <li
+                      key={c.customerId || c.name}
+                      className="flex items-center justify-between rounded-md border border-brand-border px-3 py-2 text-sm"
+                    >
+                      <span>
+                        {c.name}
+                        {c.nit ? (
+                          <span className="ml-1 font-data text-[10px] text-brand-text-secondary">
+                            {c.nit}
+                          </span>
+                        ) : null}
+                      </span>
+                      <span className="font-data tabular-nums">{cop(c.amount)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-brand-text-secondary">
+                Top 5 órdenes de compra
+              </p>
+              {burnDetail.topPurchaseOrders.length === 0 ? (
+                <EmptyState
+                  title="Sin OC del mes"
+                  description="No hay órdenes de compra (no canceladas) en este periodo."
+                />
+              ) : (
+                <ul className="space-y-1.5">
+                  {burnDetail.topPurchaseOrders.map((po) => (
+                    <li
+                      key={po.id}
+                      className="flex items-center justify-between rounded-md border border-brand-border px-3 py-2 text-sm"
+                    >
+                      <span>
+                        <span className="font-data text-xs">{po.code}</span>
+                        <span className="mt-0.5 block text-brand-text-secondary">
+                          {po.supplier}
+                        </span>
+                      </span>
+                      <span className="font-data tabular-nums">{cop(po.amount)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        ) : (
+          <EmptyState title="Sin detalle" description="Seleccione un mes en la gráfica." />
         )}
       </SlideOver>
     </div>

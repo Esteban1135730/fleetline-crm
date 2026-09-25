@@ -3,15 +3,18 @@ import { Injectable, Logger } from "@nestjs/common";
 import {
   ComplianceDocType,
   ContractStatus,
+  InvoiceStatus,
+  InvoiceType,
+  JournalEntryStatus,
   ManagerialOverrideStatus,
   PaymentScheduleStatus,
-  QuoteStatus,
+  PurchaseStatus,
   RoleCode,
+  SalesPipelineStage,
   TripStatus,
   VehicleStatus,
 } from "@fsg/db";
 import { PrismaService } from "../prisma/prisma.service";
-import { liquiditySnapshot } from "../finance/liquidity";
 import { ExecutiveKpiService } from "./executive-kpi.service";
 import { TextToSqlAssistantService } from "./text-to-sql-assistant.service";
 import { KafkaEventsService } from "../logistics/kafka-events.service";
@@ -46,6 +49,9 @@ export class PresidenciaService {
       commercialPipeline,
       cashFlowHistory,
       pendingMarginExceptions,
+      opsStatus,
+      arRisk,
+      cashFlowForecast,
     ] = await Promise.all([
       this.buildFourPillars(organizationId, canvas),
       this.revenueHeatMap(organizationId),
@@ -59,6 +65,9 @@ export class PresidenciaService {
           status: ManagerialOverrideStatus.PENDING,
         },
       }),
+      this.buildOpsStatus(organizationId),
+      this.arAtRisk(organizationId),
+      this.buildInvoiceCashFlowForecast(organizationId),
     ]);
 
     await this.prisma.executiveQueryLog.create({
@@ -73,6 +82,9 @@ export class PresidenciaService {
           generatedAt: canvas.generatedAt,
           killSwitchBlockedPct: canvas.killSwitch.blockedPct,
           atRiskAmount: canvas.cashFlow.atRiskAmount,
+          opsStatus: opsStatus.opsStatus,
+          blockedVehicles: opsStatus.blockedVehicles,
+          sarlaftBlocks: opsStatus.sarlaftBlocks,
         }),
       },
     });
@@ -86,14 +98,307 @@ export class PresidenciaService {
       complianceAlerts,
       commercialPipeline,
       cashFlowHistory,
+      cashFlowForecast,
       pendingMarginExceptions,
       ...canvas,
+      cashFlow: {
+        ...canvas.cashFlow,
+        /** CxC vencida — alimenta el KPI «Cartera en riesgo» del lienzo */
+        receivableAtRiskAmount: arRisk.total,
+        receivableAtRiskCount: arRisk.count,
+      },
+      opsStatus,
       ui: {
         theme: "founders_ipad",
         jarvisCenter: true,
         encryptedHeatMap: true,
       },
     };
+  }
+
+  /**
+   * Estado operativo dinámico — bloqueos de flota (compliance) + SARLAFT.
+   * Alimenta el badge NOMINAL / CRITICAL del Founder's Canvas.
+   */
+  async buildOpsStatus(organizationId: string) {
+    const [blockedVehicles, sarlaftCustomers, sarlaftSuppliers, sarlaftEmployees] =
+      await Promise.all([
+        this.prisma.vehicle.count({
+          where: {
+            organizationId,
+            OR: [
+              { complianceBlocked: true },
+              { status: VehicleStatus.COMPLIANCE_BLOCKED },
+            ],
+          },
+        }),
+        this.prisma.customer.count({
+          where: { organizationId, sarlaftBlocked: true },
+        }),
+        this.prisma.supplier.count({
+          where: { organizationId, sarlaftBlocked: true },
+        }),
+        this.prisma.employee.count({
+          where: { organizationId, sarlaftBlocked: true },
+        }),
+      ]);
+
+    const sarlaftBlocks =
+      sarlaftCustomers + sarlaftSuppliers + sarlaftEmployees;
+    const totalBlocks = blockedVehicles + sarlaftBlocks;
+    const opsStatus = totalBlocks > 0 ? ("CRITICAL" as const) : ("NOMINAL" as const);
+
+    const parts: string[] = [];
+    if (blockedVehicles > 0) {
+      parts.push(
+        `${blockedVehicles} unidad${blockedVehicles === 1 ? "" : "es"} SOAT/FUEC`,
+      );
+    }
+    if (sarlaftBlocks > 0) {
+      parts.push(
+        `${sarlaftBlocks} SARLAFT`,
+      );
+    }
+
+    return {
+      opsStatus,
+      blockedVehicles,
+      sarlaftBlocks,
+      reason:
+        totalBlocks > 0 ? parts.join(" · ") : "Sin bloqueos activos",
+      href:
+        blockedVehicles > 0
+          ? "/tramites"
+          : sarlaftBlocks > 0
+            ? "/sarlaft/bloqueos"
+            : null,
+    };
+  }
+
+  /**
+   * Detalle de Caja Libre — saldos PUC 11xx/caja/banco + CxP a cubrir
+   * (vencidas pendientes + programadas en los próximos 7 días).
+   */
+  async cashBreakdown(organizationId: string) {
+    const now = new Date();
+    const in7 = new Date(now);
+    in7.setDate(in7.getDate() + 7);
+    in7.setHours(23, 59, 59, 999);
+
+    const accountRows = await this.prisma.account.findMany({
+      where: {
+        organizationId,
+        OR: [
+          { code: { startsWith: "11" } },
+          { name: { contains: "Banco", mode: "insensitive" } },
+          { name: { contains: "Caja", mode: "insensitive" } },
+        ],
+      },
+      orderBy: { code: "asc" },
+      select: { id: true, code: true, name: true },
+    });
+
+    const accounts = await Promise.all(
+      accountRows.map(async (a) => {
+        const balance = await this.accountBalanceCop(organizationId, a.id);
+        return {
+          id: a.id,
+          code: a.code,
+          name: a.name,
+          label: `${a.code} · ${a.name}`,
+          balance,
+        };
+      }),
+    );
+
+    // Cola de tesorería: vencidas + próximas 7 días (no solo “desde hoy”)
+    const scheduleRows = await this.prisma.paymentSchedule.findMany({
+      where: {
+        organizationId,
+        status: {
+          in: [PaymentScheduleStatus.QUEUED, PaymentScheduleStatus.PENDING],
+        },
+        OR: [{ dueDate: null }, { dueDate: { lte: in7 } }],
+      },
+      orderBy: { dueDate: "asc" },
+      select: {
+        id: true,
+        invoiceId: true,
+        counterparty: true,
+        amount: true,
+        dueDate: true,
+        status: true,
+      },
+    });
+
+    const scheduledInvoiceIds = new Set(
+      scheduleRows.map((s) => s.invoiceId).filter(Boolean),
+    );
+
+    // CxP (facturas PAYABLE) sin PaymentSchedule aún — mismas reglas de ventana
+    const payableRows = await this.prisma.invoice.findMany({
+      where: {
+        organizationId,
+        type: InvoiceType.PAYABLE,
+        status: {
+          notIn: [
+            InvoiceStatus.PAID,
+            InvoiceStatus.CANCELLED,
+            InvoiceStatus.DRAFT,
+          ],
+        },
+        OR: [{ dueDate: null }, { dueDate: { lte: in7 } }],
+        ...(scheduledInvoiceIds.size > 0
+          ? { id: { notIn: [...scheduledInvoiceIds] } }
+          : {}),
+      },
+      orderBy: { dueDate: "asc" },
+      select: {
+        id: true,
+        number: true,
+        counterparty: true,
+        amount: true,
+        dueDate: true,
+        status: true,
+        supplier: { select: { name: true } },
+      },
+    });
+
+    const upcomingPayments = [
+      ...scheduleRows.map((s) => {
+        const overdue = s.dueDate != null && s.dueDate < now;
+        return {
+          id: s.id,
+          source: "SCHEDULE" as const,
+          counterparty: s.counterparty,
+          amount: Number(s.amount),
+          dueDate: s.dueDate ? s.dueDate.toISOString() : null,
+          status: s.status,
+          overdue,
+        };
+      }),
+      ...payableRows.map((inv) => {
+        const overdue =
+          inv.status === InvoiceStatus.OVERDUE ||
+          (inv.dueDate != null && inv.dueDate < now);
+        return {
+          id: inv.id,
+          source: "INVOICE" as const,
+          counterparty:
+            inv.supplier?.name || inv.counterparty || inv.number || "Proveedor",
+          amount: Number(inv.amount),
+          dueDate: inv.dueDate ? inv.dueDate.toISOString() : null,
+          status: inv.status,
+          overdue,
+          invoiceNumber: inv.number,
+        };
+      }),
+    ].sort((a, b) => {
+      const da = a.dueDate ? new Date(a.dueDate).getTime() : 0;
+      const db = b.dueDate ? new Date(b.dueDate).getTime() : 0;
+      return da - db;
+    });
+
+    const accountsTotal = accounts.reduce((sum, a) => sum + a.balance, 0);
+    const upcomingPaymentsTotal = upcomingPayments.reduce(
+      (sum, p) => sum + p.amount,
+      0,
+    );
+    const freeCash = Math.max(0, accountsTotal - upcomingPaymentsTotal);
+
+    return {
+      asOf: now.toISOString(),
+      accounts,
+      accountsTotal,
+      upcomingPayments,
+      upcomingPaymentsTotal,
+      freeCash,
+      formula:
+        "Σ saldos caja/bancos − CxP vencidas y programadas (próx. 7 días)",
+    };
+  }
+
+  /**
+   * Cartera en riesgo — facturas RECEIVABLE vencidas (dueDate < hoy o OVERDUE).
+   */
+  async arAtRisk(organizationId: string) {
+    const now = new Date();
+    const rows = await this.prisma.invoice.findMany({
+      where: {
+        organizationId,
+        type: InvoiceType.RECEIVABLE,
+        status: {
+          notIn: [
+            InvoiceStatus.PAID,
+            InvoiceStatus.CANCELLED,
+            InvoiceStatus.DRAFT,
+          ],
+        },
+        OR: [
+          { status: InvoiceStatus.OVERDUE },
+          { dueDate: { lt: now } },
+        ],
+      },
+      include: {
+        customer: { select: { name: true, nit: true } },
+      },
+      orderBy: { dueDate: "asc" },
+    });
+
+    const invoices = rows
+      .filter((inv) => inv.dueDate != null || inv.status === InvoiceStatus.OVERDUE)
+      .map((inv) => {
+        const due = inv.dueDate ?? now;
+        const daysOverdue = Math.max(
+          0,
+          Math.floor(
+            (now.getTime() - due.getTime()) / (24 * 60 * 60 * 1000),
+          ),
+        );
+        return {
+          id: inv.id,
+          number: inv.number,
+          customer: inv.customer?.name || inv.counterparty || "Sin cliente",
+          nit: inv.customer?.nit ?? null,
+          amount: Number(inv.amount),
+          dueDate: inv.dueDate ? inv.dueDate.toISOString() : null,
+          status: inv.status,
+          daysOverdue,
+        };
+      })
+      .filter((inv) => inv.daysOverdue > 0 || inv.status === InvoiceStatus.OVERDUE);
+
+    const total = invoices.reduce((sum, i) => sum + i.amount, 0);
+
+    return {
+      asOf: now.toISOString(),
+      invoices,
+      count: invoices.length,
+      total,
+    };
+  }
+
+  private async accountBalanceCop(
+    organizationId: string,
+    accountId: string,
+  ): Promise<number> {
+    const lines = await this.prisma.journalLine.findMany({
+      where: {
+        entry: { organizationId, status: JournalEntryStatus.POSTED },
+        OR: [{ debitAccountId: accountId }, { creditAccountId: accountId }],
+      },
+      select: {
+        amount: true,
+        debitAccountId: true,
+        creditAccountId: true,
+      },
+    });
+    return lines.reduce((sum, l) => {
+      const amt = Number(l.amount);
+      if (l.debitAccountId === accountId) return sum + amt;
+      if (l.creditAccountId === accountId) return sum - amt;
+      return sum;
+    }, 0);
   }
 
   /** Salud de flota para gráfico de dona (PDF Presidencia). */
@@ -106,6 +411,7 @@ export class PresidenciaService {
     let enRuta = 0;
     let enPatio = 0;
     let enTaller = 0;
+    let bloqueado = 0;
     for (const row of grouped) {
       const n = row._count._all;
       if (row.status === VehicleStatus.IN_SERVICE) enRuta += n;
@@ -116,18 +422,30 @@ export class PresidenciaService {
       ) {
         enTaller += n;
       } else if (row.status === VehicleStatus.COMPLIANCE_BLOCKED) {
-        enTaller += n;
+        bloqueado += n;
       }
     }
-    const total = enRuta + enPatio + enTaller || 1;
+    // También cuenta complianceBlocked aunque el status no sea COMPLIANCE_BLOCKED
+    const blockedFlag = await this.prisma.vehicle.count({
+      where: {
+        organizationId,
+        complianceBlocked: true,
+        status: { not: VehicleStatus.COMPLIANCE_BLOCKED },
+      },
+    });
+    bloqueado += blockedFlag;
+
+    const total = enRuta + enPatio + enTaller + bloqueado || 1;
     return {
       enRuta,
       enPatio,
       enTaller,
+      bloqueado,
       total,
       pctRuta: Math.round((enRuta / total) * 100),
       pctPatio: Math.round((enPatio / total) * 100),
       pctTaller: Math.round((enTaller / total) * 100),
+      pctBloqueado: Math.round((bloqueado / total) * 100),
     };
   }
 
@@ -179,92 +497,138 @@ export class PresidenciaService {
     return alerts.slice(0, 3);
   }
 
-  /** Pipeline comercial: cotizado vs cerrado (mes actual). */
+  /** Pipeline comercial: cotizado vs ganado por semana (deals reales). */
   async buildCommercialPipeline(organizationId: string) {
-    const start = new Date();
-    start.setDate(1);
-    start.setHours(0, 0, 0, 0);
+    const now = new Date();
+    const weeks: Array<{
+      label: string;
+      weekStart: string;
+      cotizado: number;
+      cerrado: number;
+    }> = [];
 
-    const [quoted, closed] = await Promise.all([
-      this.prisma.commercialIntelligentQuote.aggregate({
-        where: {
-          organizationId,
-          createdAt: { gte: start },
-          status: { in: [QuoteStatus.SENT, QuoteStatus.WON, QuoteStatus.APPROVED] },
-        },
-        _sum: { proposedRatePerKm: true },
-        _count: { _all: true },
-      }),
-      this.prisma.transportContract.aggregate({
-        where: {
-          organizationId,
-          createdAt: { gte: start },
-          status: { in: [ContractStatus.ACTIVE] },
-        },
-        _sum: { monthlyValue: true },
-        _count: { _all: true },
-      }),
-    ]);
+    for (let i = 3; i >= 0; i--) {
+      const weekStart = new Date(now);
+      weekStart.setHours(0, 0, 0, 0);
+      const day = (weekStart.getDay() + 6) % 7; // lunes = 0
+      weekStart.setDate(weekStart.getDate() - day - i * 7);
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekEnd.getDate() + 7);
+
+      const [quotedDeals, wonDeals] = await Promise.all([
+        this.prisma.commercialDeal.findMany({
+          where: {
+            organizationId,
+            createdAt: { gte: weekStart, lt: weekEnd },
+            stage: { not: SalesPipelineStage.CERRADO_PERDIDO },
+          },
+          select: { estimatedMonthlyValue: true },
+        }),
+        this.prisma.commercialDeal.findMany({
+          where: {
+            organizationId,
+            OR: [
+              { wonAt: { gte: weekStart, lt: weekEnd } },
+              {
+                stage: SalesPipelineStage.CERRADO_GANADO,
+                updatedAt: { gte: weekStart, lt: weekEnd },
+                wonAt: null,
+              },
+            ],
+          },
+          select: { estimatedMonthlyValue: true },
+        }),
+      ]);
+
+      const cotizado = quotedDeals.reduce(
+        (s, d) => s + Number(d.estimatedMonthlyValue || 0),
+        0,
+      );
+      const cerrado = wonDeals.reduce(
+        (s, d) => s + Number(d.estimatedMonthlyValue || 0),
+        0,
+      );
+
+      weeks.push({
+        label: `Sem ${4 - i}`,
+        weekStart: weekStart.toISOString().slice(0, 10),
+        cotizado: Math.round(cotizado / 1_000_000),
+        cerrado: Math.round(cerrado / 1_000_000),
+      });
+    }
+
+    const quotedCop = weeks.reduce((s, w) => s + w.cotizado * 1_000_000, 0);
+    const closedCop = weeks.reduce((s, w) => s + w.cerrado * 1_000_000, 0);
 
     return {
-      quotedCop: Number(quoted._sum.proposedRatePerKm ?? 0) * 1000,
-      closedCop: Number(closed._sum.monthlyValue ?? 0),
-      quotedCount: quoted._count._all,
-      closedCount: closed._count._all,
-      weeks: [
-        {
-          label: "Sem 1",
-          cotizado: Math.round(Number(quoted._sum.proposedRatePerKm ?? 0) * 250),
-          cerrado: Math.round(Number(closed._sum.monthlyValue ?? 0) * 0.2),
-        },
-        {
-          label: "Sem 2",
-          cotizado: Math.round(Number(quoted._sum.proposedRatePerKm ?? 0) * 300),
-          cerrado: Math.round(Number(closed._sum.monthlyValue ?? 0) * 0.25),
-        },
-        {
-          label: "Sem 3",
-          cotizado: Math.round(Number(quoted._sum.proposedRatePerKm ?? 0) * 350),
-          cerrado: Math.round(Number(closed._sum.monthlyValue ?? 0) * 0.28),
-        },
-        {
-          label: "Sem 4",
-          cotizado: Math.round(Number(quoted._sum.proposedRatePerKm ?? 0) * 400),
-          cerrado: Math.round(Number(closed._sum.monthlyValue ?? 0) * 0.27),
-        },
-      ],
+      quotedCop,
+      closedCop,
+      quotedCount: weeks.filter((w) => w.cotizado > 0).length,
+      closedCount: weeks.filter((w) => w.cerrado > 0).length,
+      weeks,
+      hasData: weeks.some((w) => w.cotizado > 0 || w.cerrado > 0),
     };
   }
 
-  /** Burn rate — ingresos vs costos (últimos 6 meses). */
+  /** Burn rate — ingresos (viajes COMPLETED) vs costos (OC no canceladas), últimos 6 meses. */
   async buildCashFlowHistory(organizationId: string) {
-    const months: Array<{ mes: string; ingresos: number; costos: number }> = [];
+    const months: Array<{
+      mes: string;
+      yearMonth: string;
+      ingresos: number;
+      costos: number;
+      ingresosCop: number;
+      costosCop: number;
+    }> = [];
     const now = new Date();
     for (let i = 5; i >= 0; i--) {
       const start = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59);
+      const end = new Date(
+        now.getFullYear(),
+        now.getMonth() - i + 1,
+        0,
+        23,
+        59,
+        59,
+        999,
+      );
       const label = start.toLocaleDateString("es-CO", { month: "short" });
+      const yearMonth = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}`;
+
       const [income, purchases] = await Promise.all([
         this.prisma.trip.aggregate({
           where: {
             organizationId,
             status: TripStatus.COMPLETED,
-            completedAt: { gte: start, lte: end },
+            OR: [
+              { completedAt: { gte: start, lte: end } },
+              {
+                completedAt: null,
+                updatedAt: { gte: start, lte: end },
+              },
+            ],
           },
           _sum: { fareAmount: true },
         }),
         this.prisma.purchaseOrder.aggregate({
           where: {
             organizationId,
+            status: { not: PurchaseStatus.CANCELLED },
             createdAt: { gte: start, lte: end },
           },
           _sum: { totalEstimated: true },
         }),
       ]);
+
+      const ingresosCop = Number(income._sum.fareAmount ?? 0);
+      const costosCop = Number(purchases._sum.totalEstimated ?? 0);
       months.push({
         mes: label,
-        ingresos: Math.round(Number(income._sum.fareAmount ?? 0) / 1_000_000),
-        costos: Math.round(Number(purchases._sum.totalEstimated ?? 0) / 1_000_000),
+        yearMonth,
+        ingresos: Math.round(ingresosCop / 1_000_000),
+        costos: Math.round(costosCop / 1_000_000),
+        ingresosCop,
+        costosCop,
       });
     }
     return months;
@@ -325,6 +689,162 @@ export class PresidenciaService {
       window: "month",
       count: rows.length,
       rows,
+    };
+  }
+
+  /**
+   * Drill-down burn rate de un mes: top 5 clientes (viajes) + top 5 OC.
+   * yearMonth formato YYYY-MM
+   */
+  async burnRateMonthDetail(organizationId: string, yearMonth: string) {
+    const match = /^(\d{4})-(\d{2})$/.exec(yearMonth.trim());
+    if (!match) {
+      return {
+        yearMonth,
+        mes: yearMonth,
+        topCustomers: [],
+        topPurchaseOrders: [],
+        ingresosCop: 0,
+        costosCop: 0,
+      };
+    }
+    const year = Number(match[1]);
+    const month = Number(match[2]) - 1;
+    const start = new Date(year, month, 1);
+    const end = new Date(year, month + 1, 0, 23, 59, 59, 999);
+    const mes = start.toLocaleDateString("es-CO", {
+      month: "long",
+      year: "numeric",
+    });
+
+    const [trips, purchaseOrders] = await Promise.all([
+      this.prisma.trip.findMany({
+        where: {
+          organizationId,
+          status: TripStatus.COMPLETED,
+          OR: [
+            { completedAt: { gte: start, lte: end } },
+            { completedAt: null, updatedAt: { gte: start, lte: end } },
+          ],
+        },
+        select: {
+          fareAmount: true,
+          customer: { select: { id: true, name: true, nit: true } },
+          customerId: true,
+        },
+      }),
+      this.prisma.purchaseOrder.findMany({
+        where: {
+          organizationId,
+          status: { not: PurchaseStatus.CANCELLED },
+          createdAt: { gte: start, lte: end },
+        },
+        orderBy: { totalEstimated: "desc" },
+        take: 5,
+        select: {
+          id: true,
+          code: true,
+          description: true,
+          totalEstimated: true,
+          status: true,
+          supplier: { select: { name: true } },
+        },
+      }),
+    ]);
+
+    const byCustomer = new Map<
+      string,
+      { customerId: string | null; name: string; nit: string | null; amount: number }
+    >();
+    for (const t of trips) {
+      const key = t.customerId || "sin-cliente";
+      const cur = byCustomer.get(key) || {
+        customerId: t.customerId,
+        name: t.customer?.name || "Sin cliente",
+        nit: t.customer?.nit ?? null,
+        amount: 0,
+      };
+      cur.amount += Number(t.fareAmount || 0);
+      byCustomer.set(key, cur);
+    }
+
+    const topCustomers = [...byCustomer.values()]
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 5);
+
+    const topPurchaseOrders = purchaseOrders.map((po) => ({
+      id: po.id,
+      code: po.code,
+      description: po.description,
+      supplier: po.supplier?.name || "Sin proveedor",
+      amount: Number(po.totalEstimated),
+      status: po.status,
+    }));
+
+    return {
+      yearMonth,
+      mes,
+      ingresosCop: topCustomers.reduce((s, c) => s + c.amount, 0),
+      costosCop: topPurchaseOrders.reduce((s, p) => s + p.amount, 0),
+      topCustomers,
+      topPurchaseOrders,
+    };
+  }
+
+  /** Flujo de caja proyectado — CxC/CxP abiertas por semana (4 semanas). */
+  async buildInvoiceCashFlowForecast(organizationId: string) {
+    const now = new Date();
+    const invoices = await this.prisma.invoice.findMany({
+      where: {
+        organizationId,
+        status: {
+          in: [
+            InvoiceStatus.ISSUED,
+            InvoiceStatus.OVERDUE,
+            InvoiceStatus.CAUSED,
+            InvoiceStatus.CLEARED_FOR_PAYMENT,
+          ],
+        },
+        dueDate: { not: null },
+      },
+      select: { type: true, amount: true, dueDate: true, status: true },
+    });
+
+    const weeks = Array.from({ length: 4 }, (_, i) => {
+      const start = new Date(now);
+      start.setHours(0, 0, 0, 0);
+      start.setDate(start.getDate() + i * 7);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 7);
+      return { start, end, label: `Sem ${i + 1}` };
+    });
+
+    const series = weeks.map((w) => {
+      const open = invoices.filter(
+        (inv) =>
+          inv.dueDate &&
+          inv.dueDate >= w.start &&
+          inv.dueDate < w.end,
+      );
+      const ingresoCop = open
+        .filter((inv) => inv.type === InvoiceType.RECEIVABLE)
+        .reduce((s, inv) => s + Number(inv.amount), 0);
+      const egresoCop = open
+        .filter((inv) => inv.type === InvoiceType.PAYABLE)
+        .reduce((s, inv) => s + Number(inv.amount), 0);
+      return {
+        name: w.label,
+        ingreso: Number((ingresoCop / 1_000_000).toFixed(2)),
+        egreso: Number((egresoCop / 1_000_000).toFixed(2)),
+        flujo: Number(((ingresoCop - egresoCop) / 1_000_000).toFixed(2)),
+        ingresoCop,
+        egresoCop,
+      };
+    });
+
+    return {
+      weeks: series,
+      hasData: series.some((w) => w.ingresoCop > 0 || w.egresoCop > 0),
     };
   }
 
@@ -446,8 +966,9 @@ export class PresidenciaService {
     organizationId: string,
     canvas?: Awaited<ReturnType<ExecutiveKpiService["buildCanvasKpis"]>>,
   ) {
-    const [blocked, tripsOnTime, npsAgg, contractsThisMonth, contractsLastMonth] =
+    const [cash, blocked, tripsOnTime, npsAgg, contractsThisMonth, contractsLastMonth] =
       await Promise.all([
+      this.cashBreakdown(organizationId),
       this.prisma.vehicle.count({
         where: {
           organizationId,
@@ -491,6 +1012,7 @@ export class PresidenciaService {
       }),
     ]);
 
+    const freeCash = cash.freeCash;
     const slaPct =
       tripsOnTime > 0 ? Number(Math.min(99.5, 94 + Math.min(5, tripsOnTime / 10)).toFixed(1)) : 0;
     const legalRisk =
@@ -512,7 +1034,7 @@ export class PresidenciaService {
     const monthStart = new Date();
     monthStart.setDate(1);
     monthStart.setHours(0, 0, 0, 0);
-    const [monthFare, monthCosts, liquidity, compliance] = await Promise.all([
+    const [monthFare, monthCosts, compliance] = await Promise.all([
       this.prisma.trip.aggregate({
         where: {
           organizationId,
@@ -525,7 +1047,6 @@ export class PresidenciaService {
         where: { organizationId, createdAt: { gte: monthStart } },
         _sum: { totalEstimated: true },
       }),
-      liquiditySnapshot(this.prisma, organizationId),
       this.complianceCoverage(organizationId),
     ]);
     const ingresos = Number(monthFare._sum.fareAmount ?? 0);
@@ -566,10 +1087,10 @@ export class PresidenciaService {
       },
       liquidity: {
         label: "Caja Libre",
-        valueCop: liquidity.netLiquidity,
+        valueCop: freeCash,
         href: "/tesoreria",
-        hint: liquidity.hasBankAccount
-          ? "Bancos + CxC − CxP"
+        hint: cash.accounts.length
+          ? cash.formula
           : "Sin saldo bancario",
       },
       sla: {

@@ -6,8 +6,10 @@ import {
   Post,
   Query,
   Req,
+  Res,
   UseGuards,
 } from "@nestjs/common";
+import type { Response } from "express";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { ModulesGuard, RequireModule } from "../auth/modules.guard";
 import { Roles, RolesGuard } from "../auth/roles.guard";
@@ -50,6 +52,8 @@ export class GerenciaController {
   dashboard(
     @Req() req: AuthReq,
     @Query("period") period?: string,
+    @Query("from") from?: string,
+    @Query("to") to?: string,
   ) {
     const p =
       period === "day" ||
@@ -57,8 +61,8 @@ export class GerenciaController {
       period === "month" ||
       period === "year"
         ? period
-        : "week";
-    return this.gerencia.dashboard(req.user.organizationId, p);
+        : "month";
+    return this.gerencia.dashboard(req.user.organizationId, p, from, to);
   }
 
   @Get("strategy-hub")
@@ -131,5 +135,95 @@ export class GerenciaController {
       req.user.userId,
       dto,
     );
+  }
+
+  /** CxP abiertas — detalle SlideOver */
+  @Get("cxp-open")
+  @Permissions("balance_scorecard", "READ")
+  cxpOpen(
+    @Req() req: AuthReq,
+    @Query("from") from?: string,
+    @Query("to") to?: string,
+  ) {
+    return this.gerencia.listOpenPayables(
+      req.user.organizationId,
+      from,
+      to,
+    );
+  }
+
+  /** Vehículos bloqueados (compliance) — placa + motivo */
+  @Get("dispatch-blocks")
+  @Permissions("balance_scorecard", "READ")
+  dispatchBlocks(@Req() req: AuthReq) {
+    return this.gerencia.listDispatchBlockVehicles(req.user.organizationId);
+  }
+
+  /** OT abiertas — detalle SlideOver */
+  @Get("work-orders-open")
+  @Permissions("balance_scorecard", "READ")
+  workOrdersOpen(
+    @Req() req: AuthReq,
+    @Query("from") from?: string,
+    @Query("to") to?: string,
+  ) {
+    return this.gerencia.listOpenWorkOrdersDetail(
+      req.user.organizationId,
+      from,
+      to,
+    );
+  }
+
+  /** Aging CxC — facturas por bucket (0-15 | 16-30 | 31-60 | gt60) */
+  @Get("cxc-aging")
+  @Permissions("balance_scorecard", "READ")
+  cxcAging(
+    @Req() req: AuthReq,
+    @Query("bucket") bucket?: string,
+  ) {
+    const raw = (bucket ?? "").trim();
+    // Compat: antiguos clientes enviaban "60+" (el + llega como espacio)
+    const normalized =
+      raw === "60+" || raw === "60" || raw === ">60" ? "gt60" : raw;
+    const b =
+      normalized === "0-15" ||
+      normalized === "16-30" ||
+      normalized === "31-60" ||
+      normalized === "gt60"
+        ? (normalized as "0-15" | "16-30" | "31-60" | "gt60")
+        : undefined;
+    return this.gerencia.listCxcAgingInvoices(req.user.organizationId, b);
+  }
+
+  /** Reporte de turno diario (JSON) — día America/Bogota */
+  @Get("shift-report")
+  @Permissions("balance_scorecard", "READ")
+  shiftReport(@Req() req: AuthReq, @Query("date") date?: string) {
+    return this.gerencia.buildShiftReport(
+      req.user.organizationId,
+      req.user.userId,
+      date,
+    );
+  }
+
+  /** Reporte de turno — PDF (pdfkit) */
+  @Get("shift-report.pdf")
+  @Permissions("balance_scorecard", "READ")
+  async shiftReportPdf(
+    @Req() req: AuthReq,
+    @Res() res: Response,
+    @Query("date") date?: string,
+  ) {
+    const out = await this.gerencia.buildShiftReportPdf(
+      req.user.organizationId,
+      req.user.userId,
+      date,
+    );
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${out.filename}"`,
+    );
+    res.send(out.buffer);
   }
 }

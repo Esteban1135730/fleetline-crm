@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import * as bcrypt from "bcryptjs";
+import PDFDocument from "pdfkit";
 import {
   ContractStatus,
   ExecutiveApprovalKind,
@@ -27,6 +28,7 @@ import {
 import { PrismaService } from "../prisma/prisma.service";
 import { liquiditySnapshot } from "../finance/liquidity";
 import { ExecutiveKpiService } from "../presidencia/executive-kpi.service";
+import { PresidenciaService } from "../presidencia/presidencia.service";
 import { KafkaEventsService } from "../logistics/kafka-events.service";
 import {
   assertExecutivePinValid,
@@ -64,6 +66,7 @@ export class GerenciaService {
   constructor(
     private prisma: PrismaService,
     private kpis: ExecutiveKpiService,
+    private presidencia: PresidenciaService,
     private kafka: KafkaEventsService,
   ) {}
 
@@ -145,7 +148,9 @@ export class GerenciaService {
 
   async dashboard(
     organizationId: string,
-    period: "day" | "week" | "month" | "year" = "week",
+    period: "day" | "week" | "month" | "year" = "month",
+    fromIso?: string,
+    toIso?: string,
   ) {
     const [scorecard, approvals, overrides, warRooms, tacticalPanel] =
       await Promise.all([
@@ -164,7 +169,7 @@ export class GerenciaService {
         orderBy: { createdAt: "desc" },
         take: 8,
       }),
-      this.buildTacticalPanel(organizationId, period),
+      this.buildTacticalPanel(organizationId, period, fromIso, toIso),
     ]);
 
     const directors = [
@@ -210,133 +215,122 @@ export class GerenciaService {
     };
   }
 
-  /** Panel táctico COO — PDF Gerencia General. */
+  /** Panel táctico COO — KPIs reales filtrados por período (from/to ISO). */
   async buildTacticalPanel(
     organizationId: string,
-    period: "day" | "week" | "month" | "year" = "week",
+    period: "day" | "week" | "month" | "year" = "month",
+    fromIso?: string,
+    toIso?: string,
   ) {
     const now = new Date();
     const threeDaysAgo = new Date(now);
     threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-    const rangeStart = (() => {
-      const d = new Date(now);
-      if (period === "day") d.setHours(0, 0, 0, 0);
-      else if (period === "week") d.setDate(d.getDate() - 7);
-      else if (period === "month") d.setMonth(d.getMonth() - 1);
-      else d.setFullYear(d.getFullYear() - 1);
-      return d;
-    })();
 
-    const activeStatuses = [
-      TripStatus.IN_TRANSIT,
-      TripStatus.ASSIGNED,
-      TripStatus.AWAITING_PREOP,
-      TripStatus.AWAITING_FUEC,
-      TripStatus.PENDING,
-    ] as const;
+    const { rangeStart, rangeEnd } = this.resolvePeriodRange(
+      period,
+      fromIso,
+      toIso,
+      now,
+    );
+
+    /** Viajes «en curso» — IN_TRANSIT (equiv. IN_PROGRESS / EN_ROUTE del dominio). En vivo. */
+    const inFlightStatuses = [TripStatus.IN_TRANSIT] as const;
 
     const [
       tripsInFlight,
       openWorkOrders,
       delayedWorkOrders,
-      dispatchBlocks,
+      vehicleBlocks,
+      driverSarlaftBlocks,
+      customerSarlaftBlocks,
       openInvoices,
       activityTrips,
-      fareProxyTrips,
       vehicles,
+      cxcAging,
     ] = await Promise.all([
       this.prisma.trip.count({
         where: {
           organizationId,
-          status: {
-            in: [
-              TripStatus.IN_TRANSIT,
-              TripStatus.ASSIGNED,
-              TripStatus.AWAITING_PREOP,
-              TripStatus.AWAITING_FUEC,
-            ],
-          },
+          status: { in: [...inFlightStatuses] },
         },
       }),
       this.prisma.workOrder.count({
         where: {
           organizationId,
-          status: {
-            in: [
-              WorkOrderStatus.OPEN,
-              WorkOrderStatus.IN_PROGRESS,
-              WorkOrderStatus.WAITING_PARTS,
-            ],
-          },
+          status: { in: [...this.openWoStatuses] },
+          openedAt: { gte: rangeStart, lte: rangeEnd },
         },
       }),
       this.prisma.workOrder.count({
         where: {
           organizationId,
           status: WorkOrderStatus.WAITING_PARTS,
-          openedAt: { lt: threeDaysAgo },
+          openedAt: { lt: threeDaysAgo, gte: rangeStart },
         },
       }),
-      this.prisma.trip.count({
+      this.prisma.vehicle.count({
         where: {
           organizationId,
-          status: { in: [TripStatus.AWAITING_FUEC, TripStatus.AWAITING_PREOP] },
+          OR: [
+            { complianceBlocked: true },
+            { status: VehicleStatus.COMPLIANCE_BLOCKED },
+          ],
         },
+      }),
+      // Conductores bloqueados para despacho: flag propio o empleado SARLAFT
+      this.prisma.driver.count({
+        where: {
+          organizationId,
+          OR: [
+            { dispatchBlocked: true },
+            { employee: { sarlaftBlocked: true } },
+          ],
+        },
+      }),
+      this.prisma.customer.count({
+        where: { organizationId, sarlaftBlocked: true },
       }),
       this.prisma.invoice.findMany({
         where: {
           organizationId,
-          type: {
-            in: [InvoiceType.RECEIVABLE, InvoiceType.PAYABLE],
-          },
+          type: { in: [InvoiceType.RECEIVABLE, InvoiceType.PAYABLE] },
           status: {
-            in: [
-              InvoiceStatus.ISSUED,
-              InvoiceStatus.OVERDUE,
-              InvoiceStatus.CLEARED_FOR_PAYMENT,
-              InvoiceStatus.CAUSED,
-            ],
+            in: [InvoiceStatus.ISSUED, InvoiceStatus.OVERDUE],
           },
+          OR: [
+            { dueDate: { gte: rangeStart, lte: rangeEnd } },
+            {
+              dueDate: null,
+              createdAt: { gte: rangeStart, lte: rangeEnd },
+            },
+          ],
         },
         select: { type: true, amount: true, dueDate: true, status: true },
       }),
-      // Picos: viajes del día + activos (no solo hora exacta del slot)
       this.prisma.trip.findMany({
         where: {
           organizationId,
           OR: [
-            { status: { in: [...activeStatuses] } },
-            { departAt: { gte: rangeStart } },
+            { status: { in: [...inFlightStatuses] } },
+            { departAt: { gte: rangeStart, lte: rangeEnd } },
             {
               status: TripStatus.COMPLETED,
-              completedAt: { gte: rangeStart },
+              completedAt: { gte: rangeStart, lte: rangeEnd },
             },
           ],
         },
         select: { departAt: true, startedAt: true, completedAt: true },
         take: 500,
       }),
-      // Proxy CxC operativo si aún no hay facturas
-      this.prisma.trip.findMany({
-        where: {
-          organizationId,
-          departAt: { gte: rangeStart },
-          status: {
-            in: [
-              TripStatus.COMPLETED,
-              TripStatus.IN_TRANSIT,
-              TripStatus.ASSIGNED,
-            ],
-          },
-        },
-        select: { fareAmount: true, departAt: true, status: true },
-        take: 500,
-      }),
       this.prisma.vehicle.findMany({
         where: { organizationId },
         select: { capacity: true, status: true, complianceBlocked: true },
       }),
+      this.buildCxcAging(organizationId),
     ]);
+
+    const dispatchBlocks =
+      vehicleBlocks + driverSarlaftBlocks + customerSarlaftBlocks;
 
     let cxcOpen = 0;
     let cxpOpen = 0;
@@ -359,12 +353,6 @@ export class GerenciaService {
       else if (days <= 30) bucket = 1;
       else if (days <= 60) bucket = 2;
       if (inv.type === InvoiceType.RECEIVABLE) {
-        if (
-          inv.status !== InvoiceStatus.ISSUED &&
-          inv.status !== InvoiceStatus.OVERDUE
-        ) {
-          continue;
-        }
         cxcOpen += amt;
         agingBuckets[bucket].cxc += Math.round(amt / 1_000_000);
       } else if (inv.type === InvoiceType.PAYABLE) {
@@ -373,31 +361,13 @@ export class GerenciaService {
       }
     }
 
-    // Sin facturas: estimar CxC con tarifas de viajes (operativo)
-    if (openInvoices.length === 0 && fareProxyTrips.length > 0) {
-      for (const t of fareProxyTrips) {
-        const amt = Number(t.fareAmount || 0);
-        if (amt <= 0) continue;
-        cxcOpen += amt;
-        const days = Math.max(
-          0,
-          Math.ceil((now.getTime() - t.departAt.getTime()) / 86400000),
-        );
-        let bucket = 0;
-        if (days > 60) bucket = 3;
-        else if (days > 30) bucket = 2;
-        else if (days > 15) bucket = 1;
-        agingBuckets[bucket].cxc += Math.round(amt / 1_000_000);
-      }
-    }
-
     const hourSlots = [4, 6, 8, 10, 12, 14, 16, 18];
     const hourlyActivity = hourSlots.map((slot) => {
       const label = `${String(slot).padStart(2, "0")}:00`;
       const viajes = activityTrips.filter((t) => {
         const ref = t.startedAt ?? t.departAt;
+        if (!ref) return false;
         const h = ref.getHours();
-        // Ventana de 2 h: 08:00 captura 08–09, 10:00 captura 10–11, etc.
         return h >= slot && h < slot + 2;
       }).length;
       return { hora: label, viajes };
@@ -425,21 +395,331 @@ export class GerenciaService {
 
     return {
       period,
+      from: rangeStart.toISOString(),
+      to: rangeEnd.toISOString(),
       rangeStart: rangeStart.toISOString(),
       kpis: {
         tripsInFlight,
+        tripsInFlightLive: true,
         openWorkOrders,
         delayedWorkOrders,
+        cxcOpen,
+        cxpOpen,
         cxcOpenMillions: Math.round(cxcOpen / 1_000_000),
         cxpOpenMillions: Math.round(cxpOpen / 1_000_000),
         dispatchBlocks,
+        dispatchBlocksBreakdown: {
+          vehicles: vehicleBlocks,
+          drivers: driverSarlaftBlocks,
+          customers: customerSarlaftBlocks,
+        },
       },
       hourlyActivity,
       fleetByType,
       cashAging: agingBuckets,
-      cashAgingSource:
-        openInvoices.length > 0 ? ("invoices" as const) : ("trip_fares" as const),
+      cxcAging,
+      cashAgingSource: "invoices" as const,
     };
+  }
+
+  private openWoStatuses = [
+    WorkOrderStatus.OPEN,
+    WorkOrderStatus.DIAGNOSIS,
+    WorkOrderStatus.IN_PROGRESS,
+    WorkOrderStatus.WAITING_PARTS,
+    WorkOrderStatus.PENDING_APPROVAL,
+  ] as const;
+
+  private agingBucketId(daysOverdue: number): "0-15" | "16-30" | "31-60" | "gt60" {
+    if (daysOverdue <= 15) return "0-15";
+    if (daysOverdue <= 30) return "16-30";
+    if (daysOverdue <= 60) return "31-60";
+    return "gt60";
+  }
+
+  private daysPastDue(dueDate: Date | null, now: Date): number {
+    if (!dueDate) return 0;
+    return Math.max(
+      0,
+      Math.floor((now.getTime() - dueDate.getTime()) / 86400000),
+    );
+  }
+
+  /** Aging CxC — RECEIVABLE no PAID/CANCELLED/DRAFT, buckets por dueDate. */
+  async buildCxcAging(organizationId: string) {
+    const now = new Date();
+    const invoices = await this.prisma.invoice.findMany({
+      where: {
+        organizationId,
+        type: InvoiceType.RECEIVABLE,
+        status: {
+          notIn: [
+            InvoiceStatus.PAID,
+            InvoiceStatus.CANCELLED,
+            InvoiceStatus.DRAFT,
+          ],
+        },
+      },
+      select: { amount: true, dueDate: true },
+    });
+
+    const buckets: Array<{
+      id: "0-15" | "16-30" | "31-60" | "gt60";
+      label: string;
+      amountCop: number;
+      count: number;
+    }> = [
+      { id: "0-15", label: "0–15 días", amountCop: 0, count: 0 },
+      { id: "16-30", label: "16–30 días", amountCop: 0, count: 0 },
+      { id: "31-60", label: "31–60 días", amountCop: 0, count: 0 },
+      { id: "gt60", label: ">60 días", amountCop: 0, count: 0 },
+    ];
+
+    for (const inv of invoices) {
+      const days = this.daysPastDue(inv.dueDate, now);
+      const id = this.agingBucketId(days);
+      const b = buckets.find((x) => x.id === id)!;
+      b.amountCop += Number(inv.amount);
+      b.count += 1;
+    }
+
+    return {
+      asOf: now.toISOString(),
+      totalCop: buckets.reduce((s, b) => s + b.amountCop, 0),
+      totalCount: buckets.reduce((s, b) => s + b.count, 0),
+      buckets,
+      note: "Incluye RECEIVABLE no PAID/CANCELLED/DRAFT; días desde dueDate (0 si no vencida).",
+    };
+  }
+
+  /** Facturas PAYABLE abiertas (CxP) — detalle SlideOver. */
+  async listOpenPayables(
+    organizationId: string,
+    fromIso?: string,
+    toIso?: string,
+  ) {
+    const now = new Date();
+    const { rangeStart, rangeEnd } = this.resolvePeriodRange(
+      "month",
+      fromIso,
+      toIso,
+      now,
+    );
+    const rows = await this.prisma.invoice.findMany({
+      where: {
+        organizationId,
+        type: InvoiceType.PAYABLE,
+        status: {
+          in: [InvoiceStatus.ISSUED, InvoiceStatus.OVERDUE],
+        },
+        ...(fromIso && toIso
+          ? {
+              OR: [
+                { dueDate: { gte: rangeStart, lte: rangeEnd } },
+                {
+                  dueDate: null,
+                  createdAt: { gte: rangeStart, lte: rangeEnd },
+                },
+              ],
+            }
+          : {}),
+      },
+      include: {
+        supplier: { select: { name: true, nit: true } },
+      },
+      orderBy: { dueDate: "asc" },
+    });
+
+    const invoices = rows.map((inv) => ({
+      id: inv.id,
+      number: inv.number,
+      supplier: inv.supplier?.name || inv.counterparty || "Sin proveedor",
+      nit: inv.supplier?.nit ?? null,
+      amount: Number(inv.amount),
+      dueDate: inv.dueDate ? inv.dueDate.toISOString() : null,
+      status: inv.status,
+      daysOverdue: this.daysPastDue(inv.dueDate, now),
+    }));
+
+    return {
+      asOf: now.toISOString(),
+      from: fromIso ?? null,
+      to: toIso ?? null,
+      count: invoices.length,
+      total: invoices.reduce((s, i) => s + i.amount, 0),
+      invoices,
+    };
+  }
+
+  /** Vehículos complianceBlocked — placa + motivo. */
+  async listDispatchBlockVehicles(organizationId: string) {
+    const vehicles = await this.prisma.vehicle.findMany({
+      where: {
+        organizationId,
+        OR: [
+          { complianceBlocked: true },
+          { status: VehicleStatus.COMPLIANCE_BLOCKED },
+        ],
+      },
+      select: {
+        id: true,
+        plate: true,
+        brand: true,
+        model: true,
+        status: true,
+        complianceBlocked: true,
+        complianceReason: true,
+      },
+      orderBy: { plate: "asc" },
+    });
+
+    return {
+      asOf: new Date().toISOString(),
+      count: vehicles.length,
+      vehicles: vehicles.map((v) => ({
+        id: v.id,
+        plate: v.plate,
+        label: `${v.brand} ${v.model}`.trim(),
+        status: v.status,
+        reason:
+          v.complianceReason?.trim() ||
+          (v.status === VehicleStatus.COMPLIANCE_BLOCKED
+            ? "Estado COMPLIANCE_BLOCKED"
+            : "Bloqueo de cumplimiento (SOAT/FUEC/docs)"),
+      })),
+    };
+  }
+
+  /** OT abiertas — código, vehículo, estado, antigüedad. */
+  async listOpenWorkOrdersDetail(
+    organizationId: string,
+    fromIso?: string,
+    toIso?: string,
+  ) {
+    const now = new Date();
+    const { rangeStart, rangeEnd } = this.resolvePeriodRange(
+      "month",
+      fromIso,
+      toIso,
+      now,
+    );
+    const rows = await this.prisma.workOrder.findMany({
+      where: {
+        organizationId,
+        status: { in: [...this.openWoStatuses] },
+        ...(fromIso && toIso
+          ? { openedAt: { gte: rangeStart, lte: rangeEnd } }
+          : {}),
+      },
+      include: {
+        vehicle: { select: { plate: true, brand: true, model: true } },
+      },
+      orderBy: { openedAt: "asc" },
+    });
+
+    const workOrders = rows.map((wo) => {
+      const ageDays = Math.max(
+        0,
+        Math.floor((now.getTime() - wo.openedAt.getTime()) / 86400000),
+      );
+      return {
+        id: wo.id,
+        code: wo.code,
+        description: wo.description,
+        status: wo.status,
+        openedAt: wo.openedAt.toISOString(),
+        ageDays,
+        vehiclePlate: wo.vehicle?.plate ?? "—",
+        vehicleLabel: wo.vehicle
+          ? `${wo.vehicle.brand} ${wo.vehicle.model}`.trim()
+          : "Sin vehículo",
+      };
+    });
+
+    return {
+      asOf: now.toISOString(),
+      from: fromIso ?? null,
+      to: toIso ?? null,
+      count: workOrders.length,
+      workOrders,
+    };
+  }
+
+  /** Facturas CxC de un bucket de aging (o todas si bucket omitido). */
+  async listCxcAgingInvoices(
+    organizationId: string,
+    bucket?: "0-15" | "16-30" | "31-60" | "gt60",
+  ) {
+    const now = new Date();
+    const rows = await this.prisma.invoice.findMany({
+      where: {
+        organizationId,
+        type: InvoiceType.RECEIVABLE,
+        status: {
+          notIn: [
+            InvoiceStatus.PAID,
+            InvoiceStatus.CANCELLED,
+            InvoiceStatus.DRAFT,
+          ],
+        },
+      },
+      include: {
+        customer: { select: { name: true, nit: true } },
+      },
+      orderBy: { dueDate: "asc" },
+    });
+
+    const invoices = rows
+      .map((inv) => {
+        const daysOverdue = this.daysPastDue(inv.dueDate, now);
+        return {
+          id: inv.id,
+          number: inv.number,
+          customer: inv.customer?.name || inv.counterparty || "Sin cliente",
+          nit: inv.customer?.nit ?? null,
+          amount: Number(inv.amount),
+          dueDate: inv.dueDate ? inv.dueDate.toISOString() : null,
+          status: inv.status,
+          daysOverdue,
+          bucket: this.agingBucketId(daysOverdue),
+        };
+      })
+      .filter((inv) => (bucket ? inv.bucket === bucket : true));
+
+    return {
+      asOf: now.toISOString(),
+      bucket: bucket ?? "all",
+      count: invoices.length,
+      total: invoices.reduce((s, i) => s + i.amount, 0),
+      invoices,
+    };
+  }
+
+  private resolvePeriodRange(
+    period: "day" | "week" | "month" | "year",
+    fromIso: string | undefined,
+    toIso: string | undefined,
+    now: Date,
+  ): { rangeStart: Date; rangeEnd: Date } {
+    if (fromIso && toIso) {
+      const start = new Date(fromIso);
+      const end = new Date(toIso);
+      if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime())) {
+        return { rangeStart: start, rangeEnd: end };
+      }
+    }
+    const rangeEnd = new Date(now);
+    const rangeStart = new Date(now);
+    if (period === "day") {
+      rangeStart.setHours(0, 0, 0, 0);
+    } else if (period === "week") {
+      rangeStart.setDate(rangeStart.getDate() - 7);
+    } else if (period === "month") {
+      rangeStart.setMonth(rangeStart.getMonth() - 1);
+    } else {
+      rangeStart.setFullYear(rangeStart.getFullYear() - 1);
+    }
+    return { rangeStart, rangeEnd };
   }
 
   /**
@@ -1253,6 +1533,329 @@ export class GerenciaService {
         requestedById,
         status: ExecutiveApprovalStatus.PENDING,
       },
+    });
+  }
+
+  /** Día calendario America/Bogota → UTC bounds 00:00–23:59:59.999 */
+  private bogotaDayBounds(dateYmd?: string): {
+    date: string;
+    start: Date;
+    end: Date;
+  } {
+    const bogotaToday = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Bogota",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+    const date =
+      dateYmd && /^\d{4}-\d{2}-\d{2}$/.test(dateYmd) ? dateYmd : bogotaToday;
+    // Colombia UTC−5 sin DST
+    const start = new Date(`${date}T00:00:00.000-05:00`);
+    const end = new Date(`${date}T23:59:59.999-05:00`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      throw new BadRequestException("Fecha inválida. Use YYYY-MM-DD.");
+    }
+    return { date, start, end };
+  }
+
+  /**
+   * Reporte de turno diario — cifras reales, texto fijo (sin IA).
+   * GET /gerencia/shift-report?date=YYYY-MM-DD
+   */
+  async buildShiftReport(
+    organizationId: string,
+    userId: string,
+    dateYmd?: string,
+  ) {
+    const { date, start, end } = this.bogotaDayBounds(dateYmd);
+    const exportedAt = new Date();
+
+    const [org, user, tripIncome, dayTrips, signedApprovals, cash, qhseCount, maintVehicles] =
+      await Promise.all([
+        this.prisma.organization.findUnique({
+          where: { id: organizationId },
+          select: { name: true, nit: true },
+        }),
+        this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { id: true, name: true, email: true },
+        }),
+        this.prisma.trip.aggregate({
+          where: {
+            organizationId,
+            status: TripStatus.COMPLETED,
+            completedAt: { gte: start, lte: end },
+          },
+          _sum: { fareAmount: true },
+          _count: { _all: true },
+        }),
+        this.prisma.trip.findMany({
+          where: {
+            organizationId,
+            OR: [
+              { departAt: { gte: start, lte: end } },
+              { completedAt: { gte: start, lte: end } },
+            ],
+          },
+          select: {
+            id: true,
+            status: true,
+            arriveAt: true,
+            completedAt: true,
+          },
+        }),
+        this.prisma.executiveApproval.findMany({
+          where: {
+            organizationId,
+            status: ExecutiveApprovalStatus.SIGNED,
+            signedAt: { gte: start, lte: end },
+          },
+          select: { amountCop: true },
+        }),
+        this.presidencia.cashBreakdown(organizationId).catch((err) => {
+          this.logger.warn(
+            `shift-report cashBreakdown: ${err instanceof Error ? err.message : err}`,
+          );
+          return {
+            accountsTotal: 0,
+            asOf: exportedAt.toISOString(),
+          };
+        }),
+        this.prisma.hqseIncident.count({
+          where: {
+            organizationId,
+            occurredAt: { gte: start, lte: end },
+          },
+        }),
+        this.prisma.vehicle.findMany({
+          where: {
+            organizationId,
+            status: VehicleStatus.MAINTENANCE,
+            updatedAt: { gte: start, lte: end },
+          },
+          select: { id: true, plate: true },
+          orderBy: { plate: "asc" },
+        }),
+      ]);
+
+    let withArrive = 0;
+    let onTime = 0;
+    for (const t of dayTrips) {
+      if (
+        t.status === TripStatus.COMPLETED &&
+        t.completedAt &&
+        t.arriveAt
+      ) {
+        withArrive += 1;
+        if (t.completedAt.getTime() <= t.arriveAt.getTime()) onTime += 1;
+      }
+    }
+    const slaMeasured = withArrive > 0;
+    const slaOnTimePct = slaMeasured
+      ? Math.round((onTime / withArrive) * 1000) / 10
+      : null;
+
+    let bottlenecks: Array<{
+      area: string;
+      severity: string;
+      message: string;
+      warRoomHint?: string;
+    }> = [];
+    try {
+      const scorecard = await this.balanceScorecard(organizationId);
+      bottlenecks = (scorecard.bottlenecks ?? []).map((b) => ({
+        area: b.area,
+        severity: b.severity,
+        message: b.message,
+        warRoomHint: b.warRoomHint,
+      }));
+    } catch (err) {
+      this.logger.warn(
+        `shift-report bottlenecks: ${err instanceof Error ? err.message : err}`,
+      );
+      bottlenecks = [];
+    }
+
+    const approvalsSum = signedApprovals.reduce(
+      (s, a) => s + Number(a.amountCop),
+      0,
+    );
+
+    return {
+      header: {
+        organization: org?.name ?? "Organización",
+        organizationNit: org?.nit ?? "",
+        shiftDate: date,
+        timezone: "America/Bogota" as const,
+        dayStartIso: start.toISOString(),
+        dayEndIso: end.toISOString(),
+        exportedBy: {
+          userId: user?.id ?? userId,
+          name: user?.name ?? "Usuario",
+          email: user?.email ?? "",
+        },
+        exportedAt: exportedAt.toISOString(),
+      },
+      financial: {
+        dayIncomeCop: Number(tripIncome._sum.fareAmount ?? 0),
+        dayIncomeCount: tripIncome._count._all,
+        dayIncomeSource:
+          "Trip.fareAmount · viajes COMPLETED (completedAt en el día)",
+        approvalsSignedCount: signedApprovals.length,
+        approvalsSignedSumCop: approvalsSum,
+        bankBalanceCop: Number(
+          (cash as { accountsTotal?: number }).accountsTotal ?? 0,
+        ),
+        bankBalanceLabel: "Saldo actual cuentas caja/banco (PUC 11xx)",
+        bankBalanceAsOf:
+          (cash as { asOf?: string }).asOf ?? exportedAt.toISOString(),
+      },
+      operational: {
+        tripsCount: dayTrips.length,
+        slaOnTimePct,
+        slaLabel: slaMeasured
+          ? `${slaOnTimePct}% a tiempo (${onTime}/${withArrive} con arriveAt)`
+          : "SLA no medido",
+        qhseIncidentsCount: qhseCount,
+        vehiclesToMaintenanceCount: maintVehicles.length,
+        vehiclesToMaintenance: maintVehicles,
+      },
+      bottlenecks: {
+        count: bottlenecks.length,
+        items: bottlenecks,
+        source: "balance-scorecard (cuellos abiertos)",
+      },
+    };
+  }
+
+  /** PDF texto plano del reporte de turno (pdfkit). */
+  async buildShiftReportPdf(
+    organizationId: string,
+    userId: string,
+    dateYmd?: string,
+  ): Promise<{ buffer: Buffer; filename: string }> {
+    const report = await this.buildShiftReport(
+      organizationId,
+      userId,
+      dateYmd,
+    );
+    const buffer = await this.renderShiftReportPdf(report);
+    return {
+      buffer,
+      filename: `reporte-turno-${report.header.shiftDate}.pdf`,
+    };
+  }
+
+  private moneyCop(n: number) {
+    return new Intl.NumberFormat("es-CO", {
+      style: "currency",
+      currency: "COP",
+      maximumFractionDigits: 0,
+    }).format(n);
+  }
+
+  private renderShiftReportPdf(report: Awaited<ReturnType<GerenciaService["buildShiftReport"]>>) {
+    return new Promise<Buffer>((resolve, reject) => {
+      const doc = new PDFDocument({ margin: 48, size: "LETTER" });
+      const chunks: Buffer[] = [];
+      doc.on("data", (c) => chunks.push(c as Buffer));
+      doc.on("end", () => resolve(Buffer.concat(chunks)));
+      doc.on("error", reject);
+
+      const line = (label: string, value: string) => {
+        doc
+          .fillColor("#334155")
+          .font("Helvetica")
+          .fontSize(10)
+          .text(`${label}: `, { continued: true })
+          .fillColor("#0F172A")
+          .font("Helvetica-Bold")
+          .text(value)
+          .font("Helvetica");
+      };
+
+      const section = (title: string) => {
+        doc.moveDown(0.8);
+        doc
+          .fillColor("#0F172A")
+          .font("Helvetica-Bold")
+          .fontSize(12)
+          .text(title);
+        doc.moveDown(0.3);
+      };
+
+      doc
+        .fillColor("#0F172A")
+        .font("Helvetica-Bold")
+        .fontSize(16)
+        .text("Reporte de turno");
+      doc
+        .moveDown(0.2)
+        .font("Helvetica")
+        .fontSize(10)
+        .fillColor("#64748B")
+        .text("Resumen diario operativo y financiero · sin contenido generado por IA");
+
+      section("Encabezado");
+      line("Organización", report.header.organization);
+      line("NIT", report.header.organizationNit || "—");
+      line("Fecha del turno", `${report.header.shiftDate} (${report.header.timezone})`);
+      line(
+        "Exportado por",
+        `${report.header.exportedBy.name} <${report.header.exportedBy.email}>`,
+      );
+      line("Timestamp", report.header.exportedAt);
+
+      section("Financiero");
+      line("Ingresos del día", this.moneyCop(report.financial.dayIncomeCop));
+      line("Fuente ingresos", report.financial.dayIncomeSource);
+      line("Viajes completados (ingreso)", String(report.financial.dayIncomeCount));
+      line(
+        "Aprobaciones firmadas",
+        `${report.financial.approvalsSignedCount} · ${this.moneyCop(report.financial.approvalsSignedSumCop)}`,
+      );
+      line("Saldo bancario actual", this.moneyCop(report.financial.bankBalanceCop));
+      line("Saldo · detalle", report.financial.bankBalanceLabel);
+
+      section("Operativo");
+      line("Viajes del día", String(report.operational.tripsCount));
+      line("SLA / llegada", report.operational.slaLabel);
+      line("Incidentes QHSE", String(report.operational.qhseIncidentsCount));
+      line(
+        "Vehículos a MAINTENANCE",
+        String(report.operational.vehiclesToMaintenanceCount),
+      );
+      if (report.operational.vehiclesToMaintenance.length > 0) {
+        line(
+          "Placas",
+          report.operational.vehiclesToMaintenance.map((v) => v.plate).join(", "),
+        );
+      }
+
+      section("Cuellos abiertos");
+      line("Cantidad", String(report.bottlenecks.count));
+      line("Fuente", report.bottlenecks.source);
+      if (report.bottlenecks.items.length === 0) {
+        line("Estado", "Sin cuellos abiertos (0)");
+      } else {
+        for (const b of report.bottlenecks.items) {
+          doc
+            .fillColor("#0F172A")
+            .fontSize(10)
+            .text(`· [${b.severity}] ${b.area}: ${b.message}`);
+        }
+      }
+
+      doc.moveDown(1.2);
+      doc
+        .fontSize(8)
+        .fillColor("#94A3B8")
+        .text(
+          "Documento generado por Fleetline OS · Gerencia General · texto fijo + datos del sistema.",
+        );
+
+      doc.end();
     });
   }
 }

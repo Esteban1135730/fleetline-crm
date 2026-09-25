@@ -112,6 +112,7 @@ describe("GerenciaService.firmarAprobacionPin", () => {
     const svc = new GerenciaService(
       prisma as never,
       {} as never,
+      {} as never,
       { emit: jest.fn() } as never,
     );
 
@@ -169,6 +170,7 @@ describe("GerenciaService.firmarAprobacionPin", () => {
 
     const svc = new GerenciaService(
       prisma as never,
+      {} as never,
       {} as never,
       kafka as never,
     );
