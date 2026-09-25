@@ -86,8 +86,9 @@ export function KpiCard({
     </>
   );
 
-  const shellClass =
-    "nexa-panel frosted-glass nexa-panel-interactive frosted-glass-interactive bento-panel-accent relative w-full min-w-0 overflow-hidden p-4 text-left";
+  const shellClass = `nexa-panel frosted-glass bento-panel-accent relative w-full min-w-0 overflow-hidden p-4 text-left${
+    onClick ? " nexa-panel-interactive frosted-glass-interactive cursor-pointer" : ""
+  }`;
 
   const card = onClick ? (
     <button

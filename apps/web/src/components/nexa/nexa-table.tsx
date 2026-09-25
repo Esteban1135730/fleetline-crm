@@ -41,7 +41,7 @@ export function NexaRow({ children, onClick, active }: NexaRowProps) {
   return (
     <tr
       onClick={onClick}
-      className={`border-l-2 border-l-transparent transition-all duration-[250ms] ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-px hover:border-l-brand-primary hover:bg-brand-surface-hover/80 ${
+      className={`border-l-2 border-l-transparent transition-colors duration-150 hover:border-l-brand-primary hover:bg-brand-surface-hover/80 ${
         onClick ? "cursor-pointer" : ""
       } ${active ? "border-l-brand-primary bg-brand-surface-hover/80" : ""}`}
     >
