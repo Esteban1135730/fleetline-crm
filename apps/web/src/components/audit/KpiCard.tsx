@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { MouseEventHandler, ReactNode } from "react";
 import { Tooltip } from "@fsg/ui";
 
 type KpiCardProps = {
@@ -13,6 +13,8 @@ type KpiCardProps = {
   icon?: ReactNode;
   /** Explicación corta al pasar el mouse (qué mide / de dónde sale). */
   tip?: string;
+  /** Hace el KPI clicable (p. ej. abrir detalle). */
+  onClick?: MouseEventHandler<HTMLButtonElement>;
 };
 
 const toneValue: Record<NonNullable<KpiCardProps["tone"]>, string> = {
@@ -31,10 +33,11 @@ export function KpiCard({
   spark,
   icon,
   tip,
+  onClick,
 }: KpiCardProps) {
   const max = spark?.length ? Math.max(...spark, 1) : 1;
-  const card = (
-    <article className="nexa-panel frosted-glass nexa-panel-interactive frosted-glass-interactive bento-panel-accent relative w-full min-w-0 overflow-hidden p-4">
+  const body = (
+    <>
       {icon ? (
         <div
           className="pointer-events-none absolute right-3 top-3 text-[var(--brand-text-secondary)]/30 [&_svg]:h-7 [&_svg]:w-7 sm:[&_svg]:h-10 sm:[&_svg]:w-10"
@@ -80,7 +83,23 @@ export function KpiCard({
           </svg>
         ) : null}
       </div>
-    </article>
+    </>
+  );
+
+  const shellClass =
+    "nexa-panel frosted-glass nexa-panel-interactive frosted-glass-interactive bento-panel-accent relative w-full min-w-0 overflow-hidden p-4 text-left";
+
+  const card = onClick ? (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`${shellClass} cursor-pointer`}
+      aria-label={`Ver detalle de ${label}`}
+    >
+      {body}
+    </button>
+  ) : (
+    <article className={shellClass}>{body}</article>
   );
 
   if (!tip) return card;

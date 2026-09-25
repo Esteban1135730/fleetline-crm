@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Post,
+  Query,
   Req,
   UseGuards,
   UseInterceptors,
@@ -90,6 +91,39 @@ export class PresidenciaController {
   @Permissions("founders_canvas", "READ")
   forensicExport(@Req() req: AuthReq) {
     return this.presidencia.forensicExport(req.user.organizationId);
+  }
+
+  /** Detalle Caja Libre — cuentas + pagos programados (7 días) */
+  @Get("cash-breakdown")
+  @Permissions("founders_canvas", "READ")
+  cashBreakdown(@Req() req: AuthReq) {
+    return this.presidencia.cashBreakdown(req.user.organizationId);
+  }
+
+  /** Cartera en riesgo — CxC RECEIVABLE vencidas */
+  @Get("ar-at-risk")
+  @Permissions("founders_canvas", "READ")
+  arAtRisk(@Req() req: AuthReq) {
+    return this.presidencia.arAtRisk(req.user.organizationId);
+  }
+
+  /** Drill-down burn rate de un mes (YYYY-MM) */
+  @Get("burn-rate-detail")
+  @Permissions("founders_canvas", "READ")
+  burnRateDetail(
+    @Req() req: AuthReq,
+    @Query("month") month?: string,
+  ) {
+    const yearMonth =
+      month?.trim() ||
+      (() => {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      })();
+    return this.presidencia.burnRateMonthDetail(
+      req.user.organizationId,
+      yearMonth,
+    );
   }
 
   @Post("ask-ai")

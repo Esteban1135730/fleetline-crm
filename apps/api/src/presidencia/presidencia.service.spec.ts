@@ -122,7 +122,37 @@ describe("PresidenciaService — canvas KPIs + ExecutiveQueryLog", () => {
         ]),
       },
       journalLine: {
-        findMany: jest.fn().mockResolvedValue([{ amount: 4_500_000 }]),
+        findMany: jest.fn().mockImplementation(async (args: {
+          where?: { OR?: Array<{ debitAccountId?: string; creditAccountId?: string }> };
+          select?: { amount?: boolean };
+        }) => {
+          // Mayor para saldos de caja
+          const or = args?.where?.OR;
+          if (or?.some((c) => c.debitAccountId || c.creditAccountId)) {
+            const debitId = or.find((c) => c.debitAccountId)?.debitAccountId;
+            if (debitId === "acc-1") {
+              return [
+                {
+                  amount: 80_000_000,
+                  debitAccountId: "acc-1",
+                  creditAccountId: "other",
+                },
+              ];
+            }
+            if (debitId === "acc-2") {
+              return [
+                {
+                  amount: 120_000_000,
+                  debitAccountId: "acc-2",
+                  creditAccountId: "other",
+                },
+              ];
+            }
+            return [];
+          }
+          // Ingresos contables (módulo 04)
+          return [{ amount: 4_500_000 }];
+        }),
       },
       vehicle: {
         findMany: jest.fn().mockResolvedValue([
@@ -132,12 +162,57 @@ describe("PresidenciaService — canvas KPIs + ExecutiveQueryLog", () => {
           { id: "v4", complianceBlocked: true },
         ]),
         count: jest.fn().mockResolvedValue(2),
+        groupBy: jest.fn().mockResolvedValue([
+          { status: "IN_SERVICE", _count: { _all: 1 } },
+          { status: "AVAILABLE", _count: { _all: 1 } },
+          { status: "COMPLIANCE_BLOCKED", _count: { _all: 2 } },
+        ]),
+      },
+      customer: { count: jest.fn().mockResolvedValue(1) },
+      supplier: { count: jest.fn().mockResolvedValue(0) },
+      employee: { count: jest.fn().mockResolvedValue(0) },
+      managerialOverride: { count: jest.fn().mockResolvedValue(0) },
+      complianceDocument: { findMany: jest.fn().mockResolvedValue([]) },
+      commercialIntelligentQuote: {
+        aggregate: jest.fn().mockResolvedValue({ _sum: { totalAmount: 0 }, _count: 0 }),
+      },
+      transportContract: {
+        aggregate: jest.fn().mockResolvedValue({ _sum: { totalValue: 0 }, _count: 0 }),
+        count: jest.fn().mockResolvedValue(0),
+      },
+      purchaseOrder: {
+        aggregate: jest.fn().mockResolvedValue({ _sum: { totalAmount: 0 }, _count: 0 }),
       },
       paymentSchedule: {
-        findMany: jest.fn().mockResolvedValue([
-          { amount: 1_000_000, dueDate: new Date("2020-01-01") },
-          { amount: 500_000, dueDate: new Date("2099-01-01") },
-        ]),
+        findMany: jest.fn().mockImplementation(async (args: {
+          where?: {
+            dueDate?: { gte?: Date; lte?: Date };
+            OR?: Array<{ dueDate?: null | { lte?: Date } }>;
+            status?: unknown;
+          };
+          select?: { amount?: boolean; dueDate?: boolean };
+        }) => {
+          // cash-breakdown: vencidas + ventana 7 días
+          if (args?.where?.OR?.some((c) => c.dueDate === null || c.dueDate?.lte)) {
+            const soon = new Date();
+            soon.setDate(soon.getDate() + 3);
+            return [
+              {
+                id: "ps-1",
+                invoiceId: "inv-pay-1",
+                counterparty: "Proveedor Demo",
+                amount: 20_000_000,
+                dueDate: soon,
+                status: "QUEUED",
+              },
+            ];
+          }
+          // executive KPI cola
+          return [
+            { amount: 1_000_000, dueDate: new Date("2020-01-01") },
+            { amount: 500_000, dueDate: new Date("2099-01-01") },
+          ];
+        }),
         aggregate: jest.fn().mockResolvedValue({
           _sum: { amount: 1_500_000 },
         }),
@@ -147,6 +222,7 @@ describe("PresidenciaService — canvas KPIs + ExecutiveQueryLog", () => {
           _sum: { amount: 750_000 },
           _count: 2,
         }),
+        findMany: jest.fn().mockResolvedValue([]),
       },
       threeWayMatch: {
         groupBy: jest.fn().mockResolvedValue([
@@ -163,6 +239,15 @@ describe("PresidenciaService — canvas KPIs + ExecutiveQueryLog", () => {
           _avg: { npsScore: 74 },
           _count: { _all: 10 },
         }),
+      },
+      account: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: "acc-1", code: "1105", name: "Caja general" },
+          { id: "acc-2", code: "1110", name: "Banco Colombia" },
+        ]),
+      },
+      commercialDeal: {
+        findMany: jest.fn().mockResolvedValue([]),
       },
       executiveQueryLog: { create: executiveCreate },
     };
@@ -204,6 +289,15 @@ describe("PresidenciaService — canvas KPIs + ExecutiveQueryLog", () => {
 
     expect(out.pillars.nps.value).toBe(74);
     expect(out.pillars.liquidity.label).toBe("Caja Libre");
+    // 80M + 120M − 20M pagos 7d
+    expect(out.pillars.liquidity.valueCop).toBe(180_000_000);
+    expect(out.cashFlow.receivableAtRiskAmount).toBe(0);
+
+    expect(out.opsStatus.opsStatus).toBe("CRITICAL");
+    expect(out.opsStatus.blockedVehicles).toBe(2);
+    expect(out.opsStatus.sarlaftBlocks).toBe(1);
+    expect(out.opsStatus.reason).toBe("2 unidades SOAT/FUEC · 1 SARLAFT");
+    expect(out.opsStatus.href).toBe("/tramites");
 
     expect(executiveCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
