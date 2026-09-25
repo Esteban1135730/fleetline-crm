@@ -2683,6 +2683,14 @@ model Customer {
   nit            String
   email          String?
   phone          String?
+  contactName        String?
+  creditKind         String?
+  serviceFrequency   String?
+  servicesPerMonth   String?
+  preferredVehicle   String?
+  logisticsOwner     String?
+  commercialNote     String?
+  branch             String?
   segment        CustomerSegment @default(B2B)
   sarlaftBlocked Boolean         @default(false)
   sarlaftRiskScore Int           @default(0)
@@ -2723,12 +2731,22 @@ model Quote {
   notes      String?
   calcJson   Json?
   secopRef   String?
+  pipelineStage String    @default("BANT")
+  nextAction    String?
+  followUpAt    DateTime?
+  lossReason    String?
+  fitScore      Int?
+  urgencyScore  Int?
+  budgetScore   Int?
+  docStatus     String?
+  wonAt         DateTime?
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
 
   @@unique([code])
   @@index([customerId, status])
   @@index([status, createdAt])
+  @@index([pipelineStage, followUpAt])
 }
 
 model TransportContract {

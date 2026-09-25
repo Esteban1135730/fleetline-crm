@@ -138,7 +138,6 @@ export const ORG_ASSIGNABLE_ROLES: Role[] = [
   "coordinador_campo",
   "operador_centro_control",
   "conductor",
-  "monitora",
   // Compras, Mantenimiento y Patio
   "lider_compras",
   "coordinador_taller",
@@ -202,7 +201,6 @@ export const ORG_ASSIGNABLE_ROLE_GROUPS: ReadonlyArray<{
       "coordinador_campo",
       "operador_centro_control",
       "conductor",
-      "monitora",
     ],
   },
   {
@@ -262,9 +260,9 @@ export const ROLE_LABELS: Record<Role, string> = {
   auxiliar_patio: "Auxiliar de patio / Lavado",
   conductor: "Conductor / App del conductor",
   sub_gerente: "Subgerente / Ejecución táctica",
-  monitora: "Monitora escolar",
-  padre: "Padre / acudiente",
-  pasajero: "Pasajero",
+  monitora: "Monitora escolar (deshabilitado)",
+  padre: "Padre / acudiente (retirado)",
+  pasajero: "Pasajero (retirado)",
 };
 
 /** Jerarquía: mayor = más mando. Alta de rol ≥ actor → PENDING */
@@ -1239,6 +1237,39 @@ export const QUOTE_VEHICLE_COSTS: Record<
 /** Costo promedio peaje COP (piloto) */
 export const QUOTE_AVG_TOLL_COP = 18_000;
 export const QUOTE_DEFAULT_MARGIN_PCT = 30;
+export const QUOTE_MIN_MARGIN_PCT = 15;
+
+/** Embudo comercial del Excel de pipeline. Probabilidad de cierre por etapa. */
+export const COMMERCIAL_PIPELINE = [
+  { key: "BANT", label: "Calificación", probability: 0.1, open: true },
+  { key: "DIAGNOSTICO", label: "Diagnóstico", probability: 0.3, open: true },
+  { key: "COTIZADA", label: "Cotización radicada", probability: 0.6, open: true },
+  { key: "NEGOCIACION", label: "Negociación", probability: 0.8, open: true },
+  { key: "TRAMITES", label: "Trámites SAGRILAFT", probability: 0.9, open: true },
+  { key: "GANADO", label: "Contrato firmado", probability: 1, open: false },
+  { key: "PERDIDO", label: "Perdido", probability: 0, open: false },
+] as const;
+
+export type CommercialPipelineStage = (typeof COMMERCIAL_PIPELINE)[number]["key"];
+
+export const URBAN_TRAFFIC_FACTORS = [
+  { key: "VALLE", label: "Valle", factor: 0.9 },
+  { key: "NORMAL", label: "Normal", factor: 1.05 },
+  { key: "PICO", label: "Pico", factor: 1.3 },
+  { key: "LLUVIA", label: "Lluvia", factor: 1.55 },
+] as const;
+
+export function commercialLeadScore(
+  fit?: number | null,
+  urgency?: number | null,
+  budget?: number | null,
+): number | null {
+  const vals = [fit, urgency, budget].filter(
+    (n): n is number => typeof n === "number" && n >= 1 && n <= 5,
+  );
+  if (!vals.length) return null;
+  return Math.round((vals.reduce((sum, n) => sum + n, 0) / vals.length) * 10) / 10;
+}
 
 /** Estimación de peajes por corredor (catálogo mínimo COM-02). */
 export const TOLL_CORRIDOR_CATALOG: Array<{
@@ -1307,6 +1338,17 @@ export const QuoteCalculateInputSchema = z.object({
   distanciaKm: z.number().positive(),
   cantidadPeajes: z.number().int().min(0).default(0),
   margenDeseado: z.number().min(1).max(80).default(QUOTE_DEFAULT_MARGIN_PCT),
+  modo: z.enum(["NACIONAL", "URBANO"]).default("NACIONAL"),
+  cantidadVehiculos: z.number().int().min(1).max(40).default(1),
+  dias: z.number().int().min(1).max(30).default(1),
+  idaYRegreso: z.boolean().default(false),
+  paradas: z.array(z.string().min(1).max(120)).max(8).default([]),
+  factorTrafico: z.number().min(0.5).max(2).default(1),
+  tarifaMinima: z.number().min(0).default(0),
+  salida: z.string().max(40).optional(),
+  regreso: z.string().max(40).optional(),
+  formaPago: z.string().max(80).optional(),
+  comentario: z.string().max(800).optional(),
 });
 export type QuoteCalculateInput = z.infer<typeof QuoteCalculateInputSchema>;
 
@@ -1328,6 +1370,17 @@ export type QuoteCostBreakdown = {
   precioSugerido: number;
   currency: "COP";
   formula: string;
+  modo: "NACIONAL" | "URBANO";
+  cantidadVehiculos: number;
+  dias: number;
+  idaYRegreso: boolean;
+  paradas: string[];
+  factorTrafico: number;
+  estimado: true;
+  salida?: string;
+  regreso?: string;
+  formaPago?: string;
+  comentario?: string;
 };
 
 export function calculateQuotePrice(
@@ -1337,18 +1390,27 @@ export function calculateQuotePrice(
   const vehicle = QUOTE_VEHICLE_COSTS[tipo];
   const margen = input.margenDeseado ?? QUOTE_DEFAULT_MARGIN_PCT;
   const peajes = input.cantidadPeajes ?? 0;
+  const qty = input.cantidadVehiculos ?? 1;
+  const dias = input.dias ?? 1;
+  const ida = input.idaYRegreso ?? false;
+  const factor = input.factorTrafico ?? 1;
+  const kmFactor = ida ? 2 : 1;
   const tollMeta = estimateTollsForRoute(input.origen, input.destino);
   const peajeUnit =
     peajes > 0 && tollMeta.source === "catalog"
       ? tollMeta.avgCop
       : QUOTE_AVG_TOLL_COP;
-  const costoDistancia = input.distanciaKm * vehicle.costPerKm;
-  const costoPeajes = peajes * peajeUnit;
-  const pagoConductor = vehicle.driverPay;
+  const costoDistancia =
+    input.distanciaKm * kmFactor * vehicle.costPerKm * factor * dias * qty;
+  const costoPeajes = peajes * kmFactor * peajeUnit * qty;
+  const pagoConductor = vehicle.driverPay * dias * qty;
   const costoOperativo = costoDistancia + costoPeajes + pagoConductor;
   const divisor = 1 - margen / 100;
-  const precioSugerido = divisor > 0 ? costoOperativo / divisor : costoOperativo;
+  let precioSugerido = divisor > 0 ? costoOperativo / divisor : costoOperativo;
+  const minima = (input.tarifaMinima ?? 0) * dias * qty;
+  if (minima > precioSugerido) precioSugerido = minima;
   const utilidadBruta = precioSugerido - costoOperativo;
+  const paradas = (input.paradas ?? []).map((p) => p.trim()).filter(Boolean);
 
   return {
     origen: input.origen.trim(),
@@ -1368,7 +1430,18 @@ export function calculateQuotePrice(
     precioSugerido: Math.round(precioSugerido),
     currency: "COP",
     formula:
-      "Precio = (km×costoKm + peajes×peajeAvg + pagoConductor) / (1 − margen/100)",
+      "Precio = ((km × ida/regreso × costoKm × tráfico × días × unidades) + peajes + conductor) / (1 − margen/100)",
+    modo: input.modo ?? "NACIONAL",
+    cantidadVehiculos: qty,
+    dias,
+    idaYRegreso: ida,
+    paradas,
+    factorTrafico: factor,
+    estimado: true,
+    salida: input.salida,
+    regreso: input.regreso,
+    formaPago: input.formaPago,
+    comentario: input.comentario,
   };
 }
 export type DispatchSemaphore = "GREEN" | "YELLOW" | "RED";

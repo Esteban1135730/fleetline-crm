@@ -42,6 +42,14 @@ export class CustomersController {
       email?: string;
       phone?: string;
       segment?: "B2B" | "ESCOLAR" | "TURISMO";
+      contactName?: string;
+      creditKind?: string;
+      serviceFrequency?: string;
+      servicesPerMonth?: string;
+      preferredVehicle?: string;
+      logisticsOwner?: string;
+      commercialNote?: string;
+      branch?: string;
       forceDespiteSarlaft?: boolean;
     },
   ) {
@@ -61,6 +69,14 @@ export class CustomersController {
       email?: string;
       phone?: string;
       segment?: "B2B" | "ESCOLAR" | "TURISMO";
+      contactName?: string;
+      creditKind?: string;
+      serviceFrequency?: string;
+      servicesPerMonth?: string;
+      preferredVehicle?: string;
+      logisticsOwner?: string;
+      commercialNote?: string;
+      branch?: string;
     },
   ) {
     return this.service.updateCustomer(req.user.organizationId, id, body);
@@ -104,6 +120,25 @@ export class CustomersController {
     const filename = pdfRef.split("/").pop() ?? "oferta.pdf";
     res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
     return new StreamableFile(buffer);
+  }
+
+  @Patch("quotes/:id/stage")
+  moveQuoteStage(
+    @Req() req: { user: { organizationId: string } },
+    @Param("id") id: string,
+    @Body()
+    body: {
+      stage: string;
+      nextAction?: string;
+      followUpAt?: string | null;
+      lossReason?: string;
+      fitScore?: number | null;
+      urgencyScore?: number | null;
+      budgetScore?: number | null;
+      docStatus?: string;
+    },
+  ) {
+    return this.service.moveQuoteStage(req.user.organizationId, id, body);
   }
 
   @Patch("quotes/:id/status")
