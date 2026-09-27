@@ -42,6 +42,7 @@ import {
   humanizeBlockReason,
   summarizeBlockReasons,
 } from "@/lib/block-reasons";
+import { useCanPerform } from "@/lib/route-access";
 
 const ServicioMapPlanner = dynamic(
   () =>
@@ -120,6 +121,9 @@ function KillSwitchCard({ blockers }: { blockers: string[] }) {
 }
 
 export default function LogisticaServiciosPage() {
+  const canCreate = useCanPerform("logistica.servicio.crear");
+  const canAssign = useCanPerform("logistica.servicio.asignar");
+  const canDelete = useCanPerform("logistica.servicio.borrar");
   const [servicios, setServicios] = useState<Servicio[]>([]);
   const [drivers, setDrivers] = useState<PoolDriver[]>([]);
   const [vehicles, setVehicles] = useState<PoolVehicle[]>([]);
@@ -598,10 +602,12 @@ export default function LogisticaServiciosPage() {
                 </span>
               ) : null}
             </Button>
-            <Button type="button" variant="primary" className="w-auto" onClick={openCreate}>
-              <Plus className="mr-1 h-4 w-4" />
-              Nueva ruta
-            </Button>
+            {canCreate ? (
+              <Button type="button" variant="primary" className="w-auto" onClick={openCreate}>
+                <Plus className="mr-1 h-4 w-4" />
+                Nueva ruta
+              </Button>
+            ) : null}
           </div>
         </div>
         <LogisticaToolbar
@@ -678,10 +684,12 @@ export default function LogisticaServiciosPage() {
                   description={
                     servicios.length
                       ? "Ajuste filtros o búsqueda táctica."
-                      : "Crea una ruta en el mapa para despachar la flota."
+                      : canCreate
+                        ? "Crea una ruta en el mapa para despachar la flota."
+                        : "Aún no hay servicios programados."
                   }
-                  actionLabel={servicios.length ? undefined : "Nueva ruta"}
-                  onAction={servicios.length ? undefined : openCreate}
+                  actionLabel={servicios.length || !canCreate ? undefined : "Nueva ruta"}
+                  onAction={servicios.length || !canCreate ? undefined : openCreate}
                 />
               ) : (
                 <NexaTable
@@ -719,7 +727,7 @@ export default function LogisticaServiciosPage() {
                         </StatusPulseBadge>
                       </NexaCell>
                       <NexaCell>
-                        {s.status !== "IN_TRANSIT" ? (
+                        {!canDelete ? null : s.status !== "IN_TRANSIT" ? (
                           <button
                             type="button"
                             className="inline-flex h-7 w-7 items-center justify-center rounded border border-transparent text-[var(--brand-danger)] hover:border-[var(--brand-danger)]/40 hover:bg-[var(--brand-danger)]/10"
@@ -775,7 +783,7 @@ export default function LogisticaServiciosPage() {
                     Cerrar
                   </Button>
                 ) : null}
-                {selected.status !== "IN_TRANSIT" ? (
+                {canDelete && selected.status !== "IN_TRANSIT" ? (
                   <Button
                     variant="ghost"
                     className="w-auto px-2 py-1 text-xs text-[var(--brand-danger)]"
@@ -1082,7 +1090,8 @@ export default function LogisticaServiciosPage() {
             </form>
           ) : null}
 
-          {selected &&
+          {canAssign &&
+          selected &&
           (!selected.driver || !selected.vehicle) &&
           selected.status !== "COMPLETED" ? (
             <div className="nexa-panel shrink-0 space-y-2 p-3">
@@ -1279,7 +1288,10 @@ export default function LogisticaServiciosPage() {
                 }
               />
             ) : null}
-            {selected && !createOpen && selected.status !== "IN_TRANSIT" ? (
+            {canDelete &&
+            selected &&
+            !createOpen &&
+            selected.status !== "IN_TRANSIT" ? (
               <Button
                 type="button"
                 variant="ghost"

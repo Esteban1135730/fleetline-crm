@@ -15,6 +15,7 @@ import { BentoPanel } from "@/components/nexa/bento-panel";
 import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
 import { WorkbenchSearch, WorkbenchToolbar } from "@/components/workbench-toolbar";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
+import { useHasPermission } from "@/lib/permissions";
 
 type Dash = {
   kpis: {
@@ -64,6 +65,8 @@ function money(n: number) {
 }
 
 export default function GestorContableDashboardPage() {
+  const canEmitFe = useHasPermission("facturacion_electronica", "CREATE");
+  const canApproveExpense = useHasPermission("gastos_ruta", "UPDATE");
   const [dash, setDash] = useState<Dash | null>(null);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
@@ -246,14 +249,16 @@ export default function GestorContableDashboardPage() {
               Emitir FE DIAN
             </Button>
           </PermissionGuard>
-          <Button
-            type="button"
-            variant="ghost"
-            className="w-auto px-4 py-2"
-            onClick={() => void syncTaller()}
-          >
-            Sincronizar taller
-          </Button>
+          <PermissionGuard capability="contabilidad:CREATE">
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-auto px-4 py-2"
+              onClick={() => void syncTaller()}
+            >
+              Sincronizar taller
+            </Button>
+          </PermissionGuard>
         </div>
       </header>
 
@@ -419,10 +424,14 @@ export default function GestorContableDashboardPage() {
                 {(dash?.bandeja.facturasRecurrentes || []).map((c) => (
                   <NexaRow
                     key={c.id}
-                    onClick={() => {
-                      setCustomerId(c.id);
-                      setFacturacionOpen(true);
-                    }}
+                    onClick={
+                      canEmitFe
+                        ? () => {
+                            setCustomerId(c.id);
+                            setFacturacionOpen(true);
+                          }
+                        : undefined
+                    }
                   >
                     <NexaCell>{c.name}</NexaCell>
                     <NexaCell mono className="text-xs">
@@ -520,7 +529,7 @@ export default function GestorContableDashboardPage() {
         description="Soporte visual · extracción IA · centro de costo por placa"
         widthClass="max-w-xl"
         footer={
-          selectedExpense ? (
+          selectedExpense && canApproveExpense ? (
             <>
               <Button
                 type="button"

@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@fsg/ui";
-import { HARD_RULES } from "@fsg/shared";
+import { HARD_RULES, isPathDeniedForRole, normalizeRole } from "@fsg/shared";
 import {
   Activity,
   AlertTriangle,
@@ -34,6 +34,8 @@ import {
   type Substitute,
 } from "@/components/logistica/logistica-shared";
 import { collectDriverBlockReasons } from "@/lib/block-reasons";
+import { useAuth } from "@/lib/auth-context";
+import { useCanPerform } from "@/lib/route-access";
 
 /** Referencia legal orientativa — termómetro mensual de HED/HEN. */
 const MONTHLY_OVERTIME_LIMIT_H = 48;
@@ -117,6 +119,10 @@ function OvertimeBar({ hours }: { hours: number }) {
 }
 
 export default function LogisticaConductoresPage() {
+  const { user } = useAuth();
+  const canSeeNomina =
+    !!user?.role && !isPathDeniedForRole(normalizeRole(user.role), "/nomina");
+  const canReassign = useCanPerform("logistica.servicio.reasignar");
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [clock, setClock] = useState<string>("—");
   const [error, setError] = useState("");
@@ -165,6 +171,10 @@ export default function LogisticaConductoresPage() {
   }, [calMonth]);
 
   const loadNomina = useCallback(async () => {
+    if (!canSeeNomina) {
+      setNomina(null);
+      return;
+    }
     const mes = `${calMonth.year}-${String(calMonth.month).padStart(2, "0")}`;
     try {
       const r = await api<NominaGeneral>(
@@ -174,7 +184,7 @@ export default function LogisticaConductoresPage() {
     } catch {
       setNomina(null);
     }
-  }, [calMonth]);
+  }, [calMonth, canSeeNomina]);
 
   useEffect(() => {
     void Promise.all([loadDrivers(), loadClock()]).catch((e) =>
@@ -349,29 +359,33 @@ export default function LogisticaConductoresPage() {
   return (
     <div className="fade-in mx-auto max-w-[1600px] space-y-6">
       <div
-        className="grid grid-cols-2 gap-3 lg:grid-cols-4"
+        className={`grid grid-cols-2 gap-3 ${canSeeNomina ? "lg:grid-cols-4" : ""}`}
         data-testid="conductores-kpis"
       >
-        <BentoPanel
-          title="Horas extras mes"
-          subtitle={`${overtimePct}% del límite ${MONTHLY_OVERTIME_LIMIT_H}h`}
-          icon={<Clock aria-hidden />}
-        >
-          <p
-            className={`font-data text-3xl font-bold tabular-nums ${overtimeTone}`}
-          >
-            {totalExtrasHours.toFixed(1)}
-          </p>
-        </BentoPanel>
-        <BentoPanel
-          title="Costo extras"
-          subtitle="Liquidación telemétrica"
-          icon={<Activity aria-hidden />}
-        >
-          <p className="font-data text-2xl font-bold tabular-nums text-brand-warning md:text-3xl">
-            {money(nomina?.metrics.totalExtrasAmount ?? 0)}
-          </p>
-        </BentoPanel>
+        {canSeeNomina ? (
+          <>
+            <BentoPanel
+              title="Horas extras mes"
+              subtitle={`${overtimePct}% del límite ${MONTHLY_OVERTIME_LIMIT_H}h`}
+              icon={<Clock aria-hidden />}
+            >
+              <p
+                className={`font-data text-3xl font-bold tabular-nums ${overtimeTone}`}
+              >
+                {totalExtrasHours.toFixed(1)}
+              </p>
+            </BentoPanel>
+            <BentoPanel
+              title="Costo extras"
+              subtitle="Liquidación telemétrica"
+              icon={<Activity aria-hidden />}
+            >
+              <p className="font-data text-2xl font-bold tabular-nums text-brand-warning md:text-3xl">
+                {money(nomina?.metrics.totalExtrasAmount ?? 0)}
+              </p>
+            </BentoPanel>
+          </>
+        ) : null}
         <BentoPanel
           title="Bloqueo PESV"
           subtitle="Fatiga ≥80 · kill-switch"
@@ -401,31 +415,33 @@ export default function LogisticaConductoresPage() {
         </BentoPanel>
       </div>
 
-      <BentoPanel
-        title="Termómetro horas extras"
-        subtitle="Flota · referencia legal 48h/mes"
-        icon={<AlertTriangle aria-hidden />}
-        action={
-          <span
-            className={`font-data text-sm font-bold tabular-nums ${overtimeTone}`}
-          >
-            {totalExtrasHours.toFixed(1)} / {MONTHLY_OVERTIME_LIMIT_H}h
-          </span>
-        }
-      >
-        <div className="h-3 overflow-hidden rounded-full bg-brand-border">
-          <div
-            className={`h-full transition-all duration-150 ${overtimeBarTone}`}
-            style={{ width: `${overtimePct}%` }}
-          />
-        </div>
-        {overtimePct >= 70 ? (
-          <p className="mt-2 flex items-center gap-1 text-xs text-brand-warning">
-            <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
-            Alerta de sobrecosto — revise turnos y telemetría GPS
-          </p>
-        ) : null}
-      </BentoPanel>
+      {canSeeNomina ? (
+        <BentoPanel
+          title="Termómetro horas extras"
+          subtitle="Flota · referencia legal 48h/mes"
+          icon={<AlertTriangle aria-hidden />}
+          action={
+            <span
+              className={`font-data text-sm font-bold tabular-nums ${overtimeTone}`}
+            >
+              {totalExtrasHours.toFixed(1)} / {MONTHLY_OVERTIME_LIMIT_H}h
+            </span>
+          }
+        >
+          <div className="h-3 overflow-hidden rounded-full bg-brand-border">
+            <div
+              className={`h-full transition-all duration-150 ${overtimeBarTone}`}
+              style={{ width: `${overtimePct}%` }}
+            />
+          </div>
+          {overtimePct >= 70 ? (
+            <p className="mt-2 flex items-center gap-1 text-xs text-brand-warning">
+              <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
+              Alerta de sobrecosto — revise turnos y telemetría GPS
+            </p>
+          ) : null}
+        </BentoPanel>
+      ) : null}
 
       {statusMsg ? (
         <p
@@ -470,7 +486,7 @@ export default function LogisticaConductoresPage() {
                       ) : null}
                     </div>
                   </div>
-                  {impacted[0] ? (
+                  {impacted[0] && canReassign ? (
                     <Button
                       variant="primary"
                       className="w-auto"
@@ -532,7 +548,7 @@ export default function LogisticaConductoresPage() {
               columns={[
                 "Conductor",
                 "Fatiga PESV",
-                "Extras mes",
+                ...(canSeeNomina ? ["Extras mes"] : []),
                 "Estado",
                 "Despacho",
                 "Acciones",
@@ -568,9 +584,11 @@ export default function LogisticaConductoresPage() {
                         blocked={dr.dispatchBlocked}
                       />
                     </NexaCell>
-                    <NexaCell>
-                      <OvertimeBar hours={extras?.totalExtrasHours ?? 0} />
-                    </NexaCell>
+                    {canSeeNomina ? (
+                      <NexaCell>
+                        <OvertimeBar hours={extras?.totalExtrasHours ?? 0} />
+                      </NexaCell>
+                    ) : null}
                     <NexaCell>
                       {activeNov ? (
                         <span

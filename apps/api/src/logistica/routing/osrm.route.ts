@@ -23,9 +23,34 @@ export function straightRouteFallback(
   return [origin, { lat: midLat, lng: midLng }, dest];
 }
 
+type OsrmStep = {
+  intersections?: Array<{ classes?: string[] }>;
+};
+
+/**
+ * Cuenta tramos continuos con clase `toll` en los pasos OSRM.
+ * null = el servidor no expone clases de vía (p. ej. demo pública), no hay dato.
+ */
+function countTollSegments(steps: OsrmStep[]): number | null {
+  let classesSeen = false;
+  let segments = 0;
+  let prevToll = false;
+  for (const step of steps) {
+    let isToll = false;
+    for (const inter of step.intersections ?? []) {
+      if (inter.classes?.length) classesSeen = true;
+      if (inter.classes?.includes("toll")) isToll = true;
+    }
+    if (isToll && !prevToll) segments += 1;
+    prevToll = isToll;
+  }
+  return classesSeen ? segments : null;
+}
+
 export async function fetchDrivingRoute(
   origin: LatLng,
   dest: LatLng,
+  opts?: { steps?: boolean },
 ): Promise<{
   points: LatLng[];
   distanceM: number;
@@ -33,9 +58,11 @@ export async function fetchDrivingRoute(
   /** true si OSRM falló y se usó línea recta */
   degraded?: boolean;
   routingError?: string;
+  /** Solo con opts.steps; null si OSRM no reporta clases de vía */
+  tollSegments?: number | null;
 }> {
   const coords = `${origin.lng},${origin.lat};${dest.lng},${dest.lat}`;
-  const url = `${OSRM_BASE}/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=false`;
+  const url = `${OSRM_BASE}/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=${opts?.steps ? "true" : "false"}`;
 
   try {
     const res = await fetch(url, {
@@ -49,6 +76,7 @@ export async function fetchDrivingRoute(
         distance: number;
         duration: number;
         geometry?: { coordinates: Array<[number, number]> };
+        legs?: Array<{ steps?: OsrmStep[] }>;
       }>;
     };
     const route = data.routes?.[0];
@@ -64,6 +92,13 @@ export async function fetchDrivingRoute(
       distanceM: route.distance,
       durationS: route.duration,
       degraded: false,
+      ...(opts?.steps
+        ? {
+            tollSegments: countTollSegments(
+              (route.legs ?? []).flatMap((leg) => leg.steps ?? []),
+            ),
+          }
+        : {}),
     };
   } catch (err) {
     const message =

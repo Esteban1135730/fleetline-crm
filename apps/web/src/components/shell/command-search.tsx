@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MODULE_HELP, MODULE_LABELS, type ModuleId } from "@fsg/shared";
+import { useCanOpenPath } from "@/lib/route-access";
 import { useShell } from "@/lib/shell-context";
 import { NavIcon } from "@/components/shell/nav-icons";
 
@@ -74,6 +75,7 @@ function looksLikePlate(q: string) {
 export function CommandSearch({ items }: { items: NavItem[] }) {
   const { commandOpen, setCommandOpen } = useShell();
   const router = useRouter();
+  const canOpenPath = useCanOpenPath();
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
@@ -87,20 +89,24 @@ export function CommandSearch({ items }: { items: NavItem[] }) {
     const q = query.trim();
     const plate = looksLikePlate(q);
     if (plate) {
-      base.unshift({
-        href: `/tramites?q=${encodeURIComponent(q.toUpperCase())}`,
-        view: "tramites",
-        label: `Placa ${q.toUpperCase()} · semáforo documental`,
-        section: "placa",
-        group: "VEHÍCULOS/PLACAS",
-      });
-      base.unshift({
-        href: `/logistica/servicios?plate=${encodeURIComponent(q.toUpperCase())}`,
-        view: "logistica",
-        label: `Placa ${q.toUpperCase()} · mapa / tracking`,
-        section: "placa",
-        group: "VEHÍCULOS/PLACAS",
-      });
+      if (canOpenPath("/tramites")) {
+        base.unshift({
+          href: `/tramites?q=${encodeURIComponent(q.toUpperCase())}`,
+          view: "tramites",
+          label: `Placa ${q.toUpperCase()} · semáforo documental`,
+          section: "placa",
+          group: "VEHÍCULOS/PLACAS",
+        });
+      }
+      if (canOpenPath("/logistica/servicios")) {
+        base.unshift({
+          href: `/logistica/servicios?plate=${encodeURIComponent(q.toUpperCase())}`,
+          view: "logistica",
+          label: `Placa ${q.toUpperCase()} · mapa / tracking`,
+          section: "placa",
+          group: "VEHÍCULOS/PLACAS",
+        });
+      }
     }
 
     const ql = q.toLowerCase();
@@ -120,7 +126,7 @@ export function CommandSearch({ items }: { items: NavItem[] }) {
         );
       })
       .slice(0, 16);
-  }, [items, query]);
+  }, [items, query, canOpenPath]);
 
   const flat = enriched;
 

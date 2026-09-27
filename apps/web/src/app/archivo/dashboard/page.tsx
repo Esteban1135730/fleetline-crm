@@ -17,8 +17,16 @@ import {
   UserX,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { EmptyState, KpiCard, SlideOver, SlideOverHelp, StatusPulseBadge } from "@/components/audit";
-import { BentoPanel } from "@/components/nexa/bento-panel";
+import {
+  EmptyState,
+  KpiCard,
+  SkeletonKpis,
+  SkeletonRows,
+  SlideOver,
+  SlideOverHelp,
+  StatusPulseBadge,
+} from "@/components/audit";
+import { NexaCell, NexaRow, NexaTable } from "@/components/nexa/nexa-table";
 
 type SearchHit = {
   kind?: "document" | "vehicle" | "driver" | "employee" | "customer";
@@ -34,7 +42,7 @@ type SearchHit = {
 };
 
 type VaultMetrics = {
-  ocrPrecisionPct: number;
+  ocrPrecisionPct: number | null;
   habeasShreddedToday: number;
   operationalAssets: number;
   liquidationBlocks: number;
@@ -119,6 +127,8 @@ function hitKind(h: SearchHit): NonNullable<SearchHit["kind"]> {
   return h.kind || "document";
 }
 
+const PANEL_ROWS = 8;
+
 function shortHash(h?: string | null) {
   if (!h) return "—";
   return `${h.slice(0, 8)}…`;
@@ -140,6 +150,7 @@ export default function ArchivoDashboardPage() {
   const [q, setQ] = useState("");
   const [hits, setHits] = useState<SearchHit[]>([]);
   const [dash, setDash] = useState<Dashboard | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [searching, setSearching] = useState(false);
   const [searched, setSearched] = useState(false);
@@ -171,8 +182,15 @@ export default function ArchivoDashboardPage() {
       setDash(d);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Conexión de archivo fallida");
+    } finally {
+      setLoading(false);
     }
   }, []);
+
+  const initialLoading = loading && !dash;
+  const processingCount = (dash?.ingestionQueue ?? []).filter(
+    (i) => i.status === "processing",
+  ).length;
 
   useEffect(() => {
     void loadDash();
@@ -350,10 +368,6 @@ export default function ArchivoDashboardPage() {
               </p>
             </div>
           ) : null}
-          <Button type="button" variant="primary" className="w-auto">
-            <ScanLine className="mr-1.5 inline h-4 w-4" aria-hidden />
-            Ingesta masiva (AI)
-          </Button>
         </div>
       </header>
 
@@ -363,13 +377,23 @@ export default function ArchivoDashboardPage() {
         </p>
       ) : null}
 
-      {metrics ? (
+      {initialLoading ? (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <SkeletonKpis count={4} />
+        </div>
+      ) : metrics ? (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <KpiCard
             label="Precisión OCR (auto-indexado)"
-            value={`${metrics.ocrPrecisionPct}%`}
-            delta="Cero intervención humana"
-            tone="ok"
+            value={
+              metrics.ocrPrecisionPct == null ? "—" : `${metrics.ocrPrecisionPct}%`
+            }
+            delta={
+              metrics.ocrPrecisionPct == null
+                ? "Aún no hay documentos procesados por OCR"
+                : "Validados sobre documentos procesados por OCR"
+            }
+            tone={metrics.ocrPrecisionPct == null ? "neutral" : "ok"}
             icon={<Cpu className="h-5 w-5 text-brand-secondary" aria-hidden />}
           />
           <KpiCard
@@ -476,12 +500,16 @@ export default function ArchivoDashboardPage() {
                 Cognitive Ingestion Pipeline
               </h2>
             </div>
-            <StatusPulseBadge tone="fatiga" pulse>
-              Procesando
-            </StatusPulseBadge>
+            {processingCount > 0 ? (
+              <StatusPulseBadge tone="fatiga" pulse>
+                {processingCount} procesando
+              </StatusPulseBadge>
+            ) : null}
           </header>
           <div className="flex-1 space-y-3 overflow-y-auto p-4">
-            {(dash?.ingestionQueue ?? []).length === 0 ? (
+            {initialLoading ? (
+              <SkeletonRows rows={4} />
+            ) : (dash?.ingestionQueue ?? []).length === 0 ? (
               <EmptyState
                 icon={<Database className="h-7 w-7" aria-hidden />}
                 title="Cola vacía"
@@ -556,7 +584,9 @@ export default function ArchivoDashboardPage() {
               ) : null}
             </header>
             <div className="flex-1 space-y-3 overflow-y-auto p-4">
-              {(dash?.assetAlerts ?? []).length === 0 ? (
+              {initialLoading ? (
+                <SkeletonRows rows={2} />
+              ) : (dash?.assetAlerts ?? []).length === 0 ? (
                 <EmptyState
                   icon={<ShieldCheck className="h-7 w-7" aria-hidden />}
                   title="Sin bloqueos activos"
@@ -601,23 +631,37 @@ export default function ArchivoDashboardPage() {
         <section className="nexa-panel p-4 lg:col-span-1">
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--brand-text-secondary)]">
             Pendientes de digitalizar
-          </h2>
-          <div className="space-y-2">
-            {(dash?.pendingDigitization ?? []).slice(0, 6).map((p) => (
-              <article
-                key={p.id}
-                className="rounded-md border border-[var(--brand-border)] px-3 py-2"
-              >
-                <p className="text-sm">{p.title}</p>
-                <p className="font-data text-[10px] text-[var(--brand-text-secondary)]">
-                  {p.plate || p.documentNumber || "—"} · {p.locationLabel || "Sin ubicación"}
-                </p>
-              </article>
-            ))}
-            {!dash?.pendingDigitization?.length ? (
-              <p className="text-xs text-[var(--brand-text-secondary)]">Bandeja vacía.</p>
+            {dash?.pendingDigitization?.length ? (
+              <span className="ml-2 font-data normal-case">
+                ({dash.pendingDigitization.length})
+              </span>
             ) : null}
-          </div>
+          </h2>
+          {initialLoading ? (
+            <SkeletonRows rows={3} />
+          ) : !dash?.pendingDigitization?.length ? (
+            <EmptyState
+              icon={<ScanLine className="h-6 w-6" aria-hidden />}
+              title="Sin pendientes de digitalizar"
+              description="Los expedientes físicos marcados para escaneo aparecerán aquí con su ubicación."
+            />
+          ) : (
+            <NexaTable columns={["Expediente", "Ubicación"]} className="data-shell-compact">
+              {dash.pendingDigitization.slice(0, PANEL_ROWS).map((p) => (
+                <NexaRow key={p.id}>
+                  <NexaCell>
+                    <span className="text-sm">{p.title}</span>
+                    <span className="mt-0.5 block font-data text-[10px] text-brand-text-secondary">
+                      {p.plate || p.documentNumber || "—"}
+                    </span>
+                  </NexaCell>
+                  <NexaCell className="text-xs text-brand-text-secondary">
+                    {p.locationLabel || "Sin ubicación"}
+                  </NexaCell>
+                </NexaRow>
+              ))}
+            </NexaTable>
+          )}
         </section>
 
         <section className="nexa-panel p-4 lg:col-span-1">
@@ -629,64 +673,68 @@ export default function ArchivoDashboardPage() {
               </span>
             ) : null}
           </h2>
-          <div className="space-y-2">
-            {(dash?.loansOnHand ?? []).slice(0, 6).map((l) => (
-              <article
-                key={l.loanId}
-                className="rounded-md border border-[var(--brand-border)] px-3 py-2"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <p className="text-sm">{l.title}</p>
-                  <Badge tone={l.overdue ? "danger" : "warning"}>{l.daysOut}d</Badge>
-                </div>
-                <p className="text-xs text-[var(--brand-text-secondary)]">
-                  {l.borrowerName || "Solicitante"}
-                </p>
-              </article>
-            ))}
-            {!dash?.loansOnHand?.length ? (
-              <EmptyState
-                icon={<Lock className="h-6 w-6" aria-hidden />}
-                title="Sin préstamos activos"
-                description="Use «Préstamo carpeta» para registrar el check-out de un expediente físico."
-                actionLabel="Préstamo carpeta"
-                onAction={() => setOpsPanel("prestamo")}
-              />
-            ) : null}
-          </div>
+          {initialLoading ? (
+            <SkeletonRows rows={3} />
+          ) : !dash?.loansOnHand?.length ? (
+            <EmptyState
+              icon={<Lock className="h-6 w-6" aria-hidden />}
+              title="Sin préstamos activos"
+              description="Use «Préstamo carpeta» para registrar el check-out de un expediente físico."
+              actionLabel="Préstamo carpeta"
+              onAction={() => setOpsPanel("prestamo")}
+            />
+          ) : (
+            <NexaTable columns={["Carpeta", "Días"]} className="data-shell-compact">
+              {dash.loansOnHand.slice(0, PANEL_ROWS).map((l) => (
+                <NexaRow key={l.loanId}>
+                  <NexaCell>
+                    <span className="text-sm">{l.title}</span>
+                    <span className="mt-0.5 block text-[11px] text-brand-text-secondary">
+                      {l.borrowerName || "Solicitante sin nombre"}
+                    </span>
+                  </NexaCell>
+                  <NexaCell>
+                    <Badge tone={l.overdue ? "danger" : "warning"}>
+                      {l.daysOut}d{l.overdue ? " · vencida" : ""}
+                    </Badge>
+                  </NexaCell>
+                </NexaRow>
+              ))}
+            </NexaTable>
+          )}
         </section>
 
         <section className="nexa-panel p-4 lg:col-span-1">
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--brand-text-secondary)]">
             Inventario administrativo
           </h2>
-          <div className="space-y-2">
-            {(dash?.inventory ?? []).slice(0, 6).map((i) => (
-              <article
-                key={i.id}
-                className={`rounded-md border px-3 py-2 ${
-                  i.critical ? "border-[var(--brand-danger)]/40 bg-[var(--brand-danger)]/5" : "border-[var(--brand-border)]"
-                }`}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm">{i.name}</p>
-                  {i.critical ? <Badge tone="danger">Crítico</Badge> : null}
-                </div>
-                <p className="font-data text-xs text-[var(--brand-text-secondary)]">
-                  {i.sku} · {i.quantity}/{i.minStock} {i.unit}
-                </p>
-              </article>
-            ))}
-            {!dash?.inventory?.length ? (
-              <EmptyState
-                icon={<Box className="h-6 w-6" aria-hidden />}
-                title="Sin ítems de papelería"
-                description="Cargue el inventario administrativo para despachar."
-                actionLabel="Despachar papelería"
-                onAction={() => setOpsPanel("despacho")}
-              />
-            ) : null}
-          </div>
+          {initialLoading ? (
+            <SkeletonRows rows={3} />
+          ) : !dash?.inventory?.length ? (
+            <EmptyState
+              icon={<Box className="h-6 w-6" aria-hidden />}
+              title="Sin ítems de papelería"
+              description="Aún no hay inventario administrativo registrado; cuando exista stock podrá despacharlo desde «Despachar papelería»."
+            />
+          ) : (
+            <NexaTable columns={["Ítem", "Stock / mín."]} className="data-shell-compact">
+              {dash.inventory.slice(0, PANEL_ROWS).map((i) => (
+                <NexaRow key={i.id}>
+                  <NexaCell>
+                    <span className="text-sm">{i.name}</span>
+                    <span className="mt-0.5 block font-data text-[10px] text-brand-text-secondary">
+                      {i.sku}
+                    </span>
+                  </NexaCell>
+                  <NexaCell>
+                    <Badge tone={i.critical ? "danger" : "success"}>
+                      {i.quantity}/{i.minStock} {i.unit}
+                    </Badge>
+                  </NexaCell>
+                </NexaRow>
+              ))}
+            </NexaTable>
+          )}
         </section>
       </div>
 
@@ -697,52 +745,50 @@ export default function ArchivoDashboardPage() {
             Descargas, sellados e indexaciones · trazabilidad legal
           </p>
         </header>
-        {!dash?.accessLog?.length ? (
+        {initialLoading ? (
+          <div className="p-4">
+            <SkeletonRows rows={4} />
+          </div>
+        ) : !dash?.accessLog?.length ? (
           <div className="p-4">
             <EmptyState
               icon={<FileArchive className="h-7 w-7" aria-hidden />}
-              title="Sin eventos"
-              description="Los accesos a la bóveda aparecerán aquí."
+              title="Sin eventos de custodia"
+              description="Las descargas, sellados e indexaciones de la bóveda aparecerán aquí con operador y hash."
             />
           </div>
         ) : (
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="text-[11px] uppercase tracking-wider text-[var(--brand-text-secondary)]">
-                <th className="px-4 py-2">Acción</th>
-                <th className="px-4 py-2">Documento</th>
-                <th className="px-4 py-2">Hash</th>
-                <th className="px-4 py-2">Operador</th>
-                <th className="px-4 py-2">Timestamp</th>
-              </tr>
-            </thead>
-            <tbody>
-              {dash.accessLog.map((a) => (
-                <tr key={a.id} className="border-t border-[var(--brand-border)]">
-                  <td className="px-4 py-2">
-                    <StatusPulseBadge
-                      tone={
-                        a.action.includes("DELETE")
-                          ? "danger"
-                          : a.action.includes("OCR") || a.action.includes("UPLOAD")
-                            ? "active"
-                            : "neutral"
-                      }
-                      pulse={false}
-                    >
-                      {a.action}
-                    </StatusPulseBadge>
-                  </td>
-                  <td className="px-4 py-2 text-xs">{a.title || "—"}</td>
-                  <td className="px-4 py-2 font-data text-xs">{shortHash(a.contentHash)}</td>
-                  <td className="px-4 py-2 text-xs">{a.userName}</td>
-                  <td className="px-4 py-2 font-data text-xs">
-                    {new Date(a.createdAt).toLocaleString("es-CO")}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <NexaTable
+            columns={["Acción", "Documento", "Hash", "Operador", "Fecha"]}
+            className="rounded-none"
+          >
+            {dash.accessLog.map((a) => (
+              <NexaRow key={a.id}>
+                <NexaCell>
+                  <StatusPulseBadge
+                    tone={
+                      a.action.includes("DELETE")
+                        ? "danger"
+                        : a.action.includes("OCR") || a.action.includes("UPLOAD")
+                          ? "active"
+                          : "neutral"
+                    }
+                    pulse={false}
+                  >
+                    {a.action}
+                  </StatusPulseBadge>
+                </NexaCell>
+                <NexaCell className="text-xs">{a.title || "—"}</NexaCell>
+                <NexaCell className="font-data text-xs text-brand-text-secondary">
+                  {shortHash(a.contentHash)}
+                </NexaCell>
+                <NexaCell className="text-xs">{a.userName}</NexaCell>
+                <NexaCell className="font-data text-xs text-brand-text-secondary">
+                  {new Date(a.createdAt).toLocaleString("es-CO")}
+                </NexaCell>
+              </NexaRow>
+            ))}
+          </NexaTable>
         )}
       </section>
 

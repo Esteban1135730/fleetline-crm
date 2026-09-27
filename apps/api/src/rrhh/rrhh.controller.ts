@@ -55,6 +55,7 @@ type AuthReq = {
   "platform_master",
   "gerente_general",
   "sub_gerente",
+  "lider_qhse",
 )
 @Permissions("rrhh", "READ")
 export class RrhhController {
@@ -227,18 +228,21 @@ export class RrhhController {
   }
 
   @Post("employees/:id/access/suspend")
+  @Roles("platform_master", "org_admin", "rrhh", "vinculaciones")
   @Permissions("personal", "UPDATE")
   suspendAccess(@Req() req: AuthReq, @Param("id") id: string) {
     return this.rrhh.suspendAccess(req.user.organizationId, id);
   }
 
   @Post("employees/:id/access/restore")
+  @Roles("platform_master", "org_admin", "rrhh", "vinculaciones")
   @Permissions("personal", "UPDATE")
   restoreAccess(@Req() req: AuthReq, @Param("id") id: string) {
     return this.rrhh.restoreAccess(req.user.organizationId, id);
   }
 
   @Post("employees/:id/terminate")
+  @Roles("platform_master", "org_admin", "rrhh", "vinculaciones")
   @Permissions("personal", "UPDATE")
   terminateEmployee(
     @Req() req: AuthReq,

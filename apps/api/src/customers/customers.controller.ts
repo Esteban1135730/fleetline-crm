@@ -71,9 +71,19 @@ export class CustomersController {
     return this.service.listQuotes(req.user.organizationId);
   }
 
+  @Get("quotes/summary")
+  quotesSummary(@Req() req: { user: { organizationId: string } }) {
+    return this.service.quotesSummary(req.user.organizationId);
+  }
+
   @Post("quotes/calculate")
   calculateQuote(@Body() body: unknown) {
     return this.service.calculateQuote(body);
+  }
+
+  @Post("quotes/route-estimate")
+  estimateQuoteRoute(@Body() body: unknown) {
+    return this.service.estimateQuoteRoute(body);
   }
 
   @Post("quotes")

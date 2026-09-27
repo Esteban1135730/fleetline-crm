@@ -4,9 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
 import { Camera, Package, QrCode, Search } from "lucide-react";
 import { api } from "@/lib/api";
-import { EmptyState } from "@/components/audit";
+import { EmptyState, Skeleton, SkeletonRows } from "@/components/audit";
 import { BentoPanel } from "@/components/nexa/bento-panel";
 import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
+import { PermissionGuard } from "@/components/auth/PermissionGuard";
 
 type Item = {
   id: string;
@@ -36,6 +37,8 @@ export default function AlmacenTallerDashboard() {
   const [query, setQuery] = useState("");
   const [workOrderId, setWorkOrderId] = useState("");
   const [partQr, setPartQr] = useState("");
+  const [qrFromDemo, setQrFromDemo] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -96,6 +99,7 @@ export default function AlmacenTallerDashboard() {
             const raw = codes[0]?.rawValue;
             if (raw) {
               setPartQr(String(raw));
+              setQrFromDemo(false);
               setMsg(`QR leído: ${raw}`);
               stopScan();
             }
@@ -124,6 +128,8 @@ export default function AlmacenTallerDashboard() {
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Conexión fallida");
+    } finally {
+      setLoading(false);
     }
   }, [workOrderId]);
 
@@ -155,8 +161,12 @@ export default function AlmacenTallerDashboard() {
         quantity: 1,
       });
       setMsg(
-        `${res.message} · stock ${res.stockRemaining} · ${res.costCenterPlate}`,
+        `${res.message} · stock ${res.stockRemaining} · ${res.costCenterPlate}${
+          qrFromDemo ? " · QR tomado del inventario (demostración, sin escaneo)" : ""
+        }`,
       );
+      setPartQr("");
+      setQrFromDemo(false);
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Despacho fallido");
@@ -179,9 +189,14 @@ export default function AlmacenTallerDashboard() {
       </header>
 
       <div className="rounded-lg border border-brand-warning/40 bg-brand-warning/10 px-4 py-3 font-sans text-sm text-brand-text-primary">
-        Hard lock antifraude: el despacho exige{" "}
-        <span className="font-semibold">QR/serial</span> de la pieza. Sin
-        escaneo válido el API rechaza el movimiento.
+        Control antifraude: el despacho exige el{" "}
+        <span className="font-semibold">QR/serial</span> de una pieza registrada
+        en el inventario; el API rechaza códigos que no existan.
+        <span className="mt-1 block text-xs text-brand-text-secondary">
+          Modo demostración: tocar una fila del inventario carga su QR sin
+          escaneo físico. Úselo solo para pruebas; en operación use el lector
+          USB o la cámara.
+        </span>
       </div>
 
       {error ? (
@@ -204,24 +219,45 @@ export default function AlmacenTallerDashboard() {
           className="lg:col-span-5"
         >
           <div className="flex flex-col gap-3">
-            <select
-              value={workOrderId}
-              onChange={(e) => setWorkOrderId(e.target.value)}
-              className="field font-data"
-            >
-              {(dash?.dispatchTray ?? []).map((t) => (
-                <option key={t.workOrderId} value={t.workOrderId}>
-                  {t.code} · {t.plate} · {t.mechanic ?? "—"}
-                </option>
-              ))}
-            </select>
+            {loading && !dash ? (
+              <Skeleton className="h-10 w-full" />
+            ) : dash?.dispatchTray.length ? (
+              <select
+                value={workOrderId}
+                onChange={(e) => setWorkOrderId(e.target.value)}
+                className="field font-data"
+                aria-label="Orden de trabajo destino"
+              >
+                {dash.dispatchTray.map((t) => (
+                  <option key={t.workOrderId} value={t.workOrderId}>
+                    {t.code} · {t.plate} · {t.mechanic ?? "—"}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <p className="rounded-lg border border-dashed border-brand-border px-3 py-2.5 font-sans text-xs text-brand-text-secondary">
+                Sin órdenes de trabajo abiertas para despachar. Cree o reabra
+                una OT en Taller para habilitar el despacho.
+              </p>
+            )}
             <input
               value={partQr}
-              onChange={(e) => setPartQr(e.target.value)}
+              onChange={(e) => {
+                setPartQr(e.target.value);
+                setQrFromDemo(false);
+              }}
               placeholder="Escanear QR / serial (lector USB o cámara)"
               className="field font-data"
               autoFocus
             />
+            {qrFromDemo && partQr ? (
+              <div className="flex items-center gap-2">
+                <Badge tone="warning">Demostración</Badge>
+                <span className="font-sans text-xs text-brand-text-secondary">
+                  QR tomado del inventario, no de un escaneo físico.
+                </span>
+              </div>
+            ) : null}
             {scanning ? (
               <div className="overflow-hidden rounded-lg border border-brand-border">
                 <video
@@ -253,20 +289,26 @@ export default function AlmacenTallerDashboard() {
                 <Camera className="mr-1.5 inline h-4 w-4" aria-hidden />
                 Escanear con cámara
               </Button>
-              <Button
-                className="w-auto px-4 py-2"
-                disabled={busy || !partQr.trim()}
-                onClick={() => void despachar()}
-              >
-                Despachar
-              </Button>
+              <PermissionGuard capability="taller_despacho:CREATE">
+                <Button
+                  className="w-auto px-4 py-2"
+                  disabled={busy || !partQr.trim() || !workOrderId}
+                  onClick={() => void despachar()}
+                >
+                  Despachar
+                </Button>
+              </PermissionGuard>
             </div>
           </div>
         </BentoPanel>
 
         <BentoPanel
           title="Inventario"
-          subtitle={`${filtered.length} ítems`}
+          subtitle={
+            loading && !dash
+              ? "Cargando…"
+              : `${filtered.length} ítems · tocar fila = QR demo`
+          }
           icon={<Package />}
           className="lg:col-span-7"
           action={
@@ -285,16 +327,30 @@ export default function AlmacenTallerDashboard() {
             </div>
           }
         >
-          {!filtered.length ? (
+          {loading && !dash ? (
+            <SkeletonRows rows={5} />
+          ) : !filtered.length ? (
             <EmptyState
               icon={<Package className="h-7 w-7" />}
-              title="Sin ítems en vista"
-              description="Ajuste la búsqueda o cargue stock al almacén."
+              title={query ? "Sin ítems que coincidan" : "Inventario vacío"}
+              description={
+                query
+                  ? "Ajuste la búsqueda por QR, SKU o nombre."
+                  : "Aún no hay stock registrado en el almacén del taller."
+              }
             />
           ) : (
             <NexaTable columns={["SKU", "QR", "Stock", "Costo"]}>
               {filtered.map((i) => (
-                <NexaRow key={i.id} onClick={() => setPartQr(i.qrCode)}>
+                <NexaRow
+                  key={i.id}
+                  active={qrFromDemo && partQr === i.qrCode}
+                  onClick={() => {
+                    setPartQr(i.qrCode);
+                    setQrFromDemo(true);
+                    setError(null);
+                  }}
+                >
                   <NexaCell>
                     <span className="font-data text-xs">{i.sku}</span>
                     <span className="mt-0.5 block font-sans text-[11px] text-brand-text-secondary">

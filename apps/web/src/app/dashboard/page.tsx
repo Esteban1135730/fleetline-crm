@@ -2,14 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import {
-  ROLE_LABELS,
-  isPathDeniedForRole,
-  resolveModuleId,
-} from "@fsg/shared";
+import { ROLE_LABELS } from "@fsg/shared";
 import { Tooltip } from "@fsg/ui";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { useCanOpenPath } from "@/lib/route-access";
 import { useShell } from "@/lib/shell-context";
 
 type Metrics = {
@@ -51,35 +48,21 @@ const ACTIONS = [
   },
 ] as const;
 
-function canOpenPath(
-  role: string | undefined,
-  canAccess: (view: string) => boolean,
-  href: string,
-): boolean {
-  if (!role) return false;
-  if (isPathDeniedForRole(role, href)) return false;
-  const seg = href.split("/").filter(Boolean)[0] || "dashboard";
-  const resolved = resolveModuleId(seg) || seg;
-  return canAccess(resolved);
-}
-
 export default function DashboardPage() {
-  const { user, canAccess } = useAuth();
+  const { user } = useAuth();
+  const canOpenPath = useCanOpenPath();
   const { setHelpOpen } = useShell();
   const [m, setM] = useState<Metrics | null>(null);
   const [error, setError] = useState("");
   const firstName = user?.name?.split(" ")[0] || "Operador";
 
   const visibleActions = useMemo(
-    () =>
-      ACTIONS.filter((a) =>
-        canOpenPath(user?.role, canAccess, a.href),
-      ),
-    [user?.role, canAccess],
+    () => ACTIONS.filter((a) => canOpenPath(a.href)),
+    [canOpenPath],
   );
 
-  const showTesoreria = canOpenPath(user?.role, canAccess, "/tesoreria");
-  const showArchivo = canOpenPath(user?.role, canAccess, "/archivo");
+  const showTesoreria = canOpenPath("/tesoreria");
+  const showArchivo = canOpenPath("/archivo");
 
   useEffect(() => {
     api<Metrics>("/dashboard/metrics")

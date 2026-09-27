@@ -15,6 +15,7 @@ import {
 import { KeyRound, Plus, Shield, UserCheck, Users } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { useCanPerform } from "@/lib/route-access";
 import { Modal, SlideOver, StatusPulseBadge } from "@/components/audit";
 import { BentoPanel } from "@/components/nexa/bento-panel";
 import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
@@ -76,6 +77,7 @@ function userStatusBadge(u: UserRow) {
 
 export default function UsuariosPage() {
   const { user: me } = useAuth();
+  const canAuthorize = useCanPerform("usuarios.autorizar");
   const isMaster = me?.role === "platform_master";
   const assignable = isMaster
     ? ORG_ASSIGNABLE_ROLES
@@ -264,41 +266,47 @@ export default function UsuariosPage() {
                     {u.email} · {ROLE_LABELS[u.role] ?? u.role}
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="primary"
-                    className="w-auto px-3 py-1.5 text-xs"
-                    onClick={async () => {
-                      const res = await api<UserRow>(`/users/${u.id}/authorize`, {
-                        method: "POST",
-                        body: JSON.stringify({ decision: "APPROVE" }),
-                      });
-                      if (res.tempPassword) {
-                        setTempHandoff({
-                          name: u.name,
-                          email: u.email,
-                          tempPassword: res.tempPassword,
+                {canAuthorize ? (
+                  <div className="flex gap-2">
+                    <Button
+                      variant="primary"
+                      className="w-auto px-3 py-1.5 text-xs"
+                      onClick={async () => {
+                        const res = await api<UserRow>(`/users/${u.id}/authorize`, {
+                          method: "POST",
+                          body: JSON.stringify({ decision: "APPROVE" }),
                         });
-                      }
-                      await load();
-                    }}
-                  >
-                    Autorizar
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    className="w-auto px-3 py-1.5 text-xs"
-                    onClick={async () => {
-                      await api(`/users/${u.id}/authorize`, {
-                        method: "POST",
-                        body: JSON.stringify({ decision: "REJECT" }),
-                      });
-                      await load();
-                    }}
-                  >
-                    Rechazar
-                  </Button>
-                </div>
+                        if (res.tempPassword) {
+                          setTempHandoff({
+                            name: u.name,
+                            email: u.email,
+                            tempPassword: res.tempPassword,
+                          });
+                        }
+                        await load();
+                      }}
+                    >
+                      Autorizar
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      className="w-auto px-3 py-1.5 text-xs"
+                      onClick={async () => {
+                        await api(`/users/${u.id}/authorize`, {
+                          method: "POST",
+                          body: JSON.stringify({ decision: "REJECT" }),
+                        });
+                        await load();
+                      }}
+                    >
+                      Rechazar
+                    </Button>
+                  </div>
+                ) : (
+                  <span className="font-data text-[11px] text-brand-text-secondary">
+                    Requiere autorización de mando superior
+                  </span>
+                )}
               </li>
             ))}
           </ul>

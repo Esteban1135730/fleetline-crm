@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { statusEs } from "@fsg/shared";
 import { EmptyState } from "@/components/audit";
 import { BentoPanel } from "@/components/nexa/bento-panel";
+import { PermissionGuard } from "@/components/auth/PermissionGuard";
 
 type Order = {
   id: string;
@@ -141,15 +142,17 @@ export default function MecanicoTechAppPage() {
                       <Timer className="mr-2 inline h-5 w-5" aria-hidden />
                       {running ? "DETENER TIMER" : "INICIAR TIMER"}
                     </Button>
-                    <Button
-                      variant="secondary"
-                      className="!min-h-[64px] w-full !text-lg"
-                      disabled={busy}
-                      onClick={() => void hallazgo(o.id)}
-                    >
-                      <Camera className="mr-2 inline h-5 w-5" aria-hidden />
-                      FOTO + VOZ
-                    </Button>
+                    <PermissionGuard capability="taller_mecanico:CREATE">
+                      <Button
+                        variant="secondary"
+                        className="!min-h-[64px] w-full !text-lg"
+                        disabled={busy}
+                        onClick={() => void hallazgo(o.id)}
+                      >
+                        <Camera className="mr-2 inline h-5 w-5" aria-hidden />
+                        FOTO + VOZ
+                      </Button>
+                    </PermissionGuard>
                   </div>
                 </BentoPanel>
               </li>

@@ -1,8 +1,10 @@
 ﻿"use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, Fragment, useEffect, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
+import { Users } from "lucide-react";
 import { api } from "@/lib/api";
+import { EmptyState, SkeletonRows } from "@/components/audit";
 import {
   clearFieldError,
   splitFormApiError,
@@ -29,6 +31,9 @@ const CREATE_FIELDS = [
 
 export default function RecepcionPanel() {
   const [rows, setRows] = useState<Visitor[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [listError, setListError] = useState("");
+  const [checkoutBusyId, setCheckoutBusyId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({
     purpose: "",
@@ -50,8 +55,29 @@ export default function RecepcionPanel() {
     setRows(await api<Visitor[]>("/recepcion/visitors"));
   }
   useEffect(() => {
-    void load().catch(console.error);
+    void load()
+      .catch((e) =>
+        setListError(
+          e instanceof Error ? e.message : "No se pudieron cargar los visitantes",
+        ),
+      )
+      .finally(() => setLoading(false));
   }, []);
+
+  async function checkout(id: string) {
+    setCheckoutBusyId(id);
+    setListError("");
+    try {
+      await api(`/recepcion/visitors/${id}/checkout`, { method: "PATCH" });
+      await load();
+    } catch (e) {
+      setListError(
+        e instanceof Error ? e.message : "No se pudo registrar la salida",
+      );
+    } finally {
+      setCheckoutBusyId(null);
+    }
+  }
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
@@ -196,6 +222,23 @@ export default function RecepcionPanel() {
           Registrar ingreso
         </Button>
       </form>
+      {listError ? (
+        <p
+          role="alert"
+          className="rounded border border-[var(--brand-danger)]/40 bg-[var(--brand-danger)]/10 px-3 py-2 text-sm text-[var(--brand-danger)]"
+        >
+          {listError}
+        </p>
+      ) : null}
+      {loading ? (
+        <SkeletonRows rows={4} />
+      ) : rows.length === 0 ? (
+        <EmptyState
+          icon={<Users className="h-7 w-7" />}
+          title="Sin visitantes registrados"
+          description="Registre el ingreso con el formulario de arriba. Desde aquí podrá editar la visita y marcar la salida."
+        />
+      ) : (
       <div className="nexa-panel data-shell overflow-hidden">
         <table className="w-full text-left text-sm">
           <thead>
@@ -209,7 +252,8 @@ export default function RecepcionPanel() {
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.id} className="border-t border-[var(--brand-border)]">
+              <Fragment key={r.id}>
+              <tr className="border-t border-[var(--brand-border)]">
                 <td className="px-4 py-2.5">
                   {r.name}
                   <div className="text-[11px] text-[var(--brand-text-secondary)]">
@@ -233,12 +277,8 @@ export default function RecepcionPanel() {
                     <div className="flex flex-wrap gap-1">
                       <Button
                         variant="ghost"
-                        onClick={async () => {
-                          await api(`/recepcion/visitors/${r.id}/checkout`, {
-                            method: "PATCH",
-                          });
-                          await load();
-                        }}
+                        disabled={checkoutBusyId === r.id}
+                        onClick={() => void checkout(r.id)}
                       >
                         Registrar salida
                       </Button>
@@ -260,14 +300,8 @@ export default function RecepcionPanel() {
                   ) : null}
                 </td>
               </tr>
-            ))}
-            {rows
-              .filter((r) => editingId === r.id && !r.checkedOutAt)
-              .map((r) => (
-                <tr
-                  key={`edit-${r.id}`}
-                  className="border-t border-[var(--brand-border)] bg-[var(--brand-surface)]"
-                >
+              {editingId === r.id && !r.checkedOutAt ? (
+                <tr className="border-t border-[var(--brand-border)] bg-[var(--brand-surface)]">
                   <td colSpan={5} className="px-4 py-3">
                     {editError ? (
                       <p
@@ -332,10 +366,13 @@ export default function RecepcionPanel() {
                     </div>
                   </td>
                 </tr>
-              ))}
+              ) : null}
+              </Fragment>
+            ))}
           </tbody>
         </table>
       </div>
+      )}
     </div>
   );
 }

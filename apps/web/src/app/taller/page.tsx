@@ -2,8 +2,8 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { normalizeRole } from "@fsg/shared";
 import { useAuth } from "@/lib/auth-context";
+import { tallerHubPath } from "@/lib/route-access";
 
 /** Hub taller → pantalla según cargo (SCRUM-57). */
 export default function TallerPage() {
@@ -11,16 +11,7 @@ export default function TallerPage() {
   const router = useRouter();
 
   useEffect(() => {
-    const role = normalizeRole(String(user?.role || ""));
-    if (role === "mecanico") {
-      router.replace("/taller/mecanico");
-      return;
-    }
-    if (role === "auxiliar_almacen_taller") {
-      router.replace("/taller/almacen/dashboard");
-      return;
-    }
-    router.replace("/taller/coordinador/dashboard");
+    router.replace(tallerHubPath(String(user?.role || "")));
   }, [user, router]);
 
   return (

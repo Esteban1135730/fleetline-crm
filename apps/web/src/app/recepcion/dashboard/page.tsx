@@ -1,6 +1,13 @@
 ﻿"use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import Link from "next/link";
 import { Button } from "@fsg/ui";
 import {
@@ -19,6 +26,8 @@ import { statusEs } from "@fsg/shared";
 import {
   EmptyState,
   KpiCard,
+  SkeletonKpis,
+  SkeletonRows,
   SlideOver,
   StatusPulseBadge,
 } from "@/components/audit";
@@ -176,6 +185,9 @@ export default function RecepcionDashboardPage() {
   const [infoHref, setInfoHref] = useState("");
   const [selectedChat, setSelectedChat] = useState<InboxItem | null>(null);
   const [radarQ, setRadarQ] = useState("");
+  const radarQRef = useRef("");
+  radarQRef.current = radarQ;
+  const [loading, setLoading] = useState(true);
   const [panel, setPanel] = useState<"none" | "visit" | "lead" | "pqrs">("none");
   const [visitFormError, setVisitFormError] = useState("");
   const [visitFieldErrors, setVisitFieldErrors] = useState<
@@ -230,7 +242,7 @@ export default function RecepcionDashboardPage() {
           `/api/v1/pqrs/tickets${pqrsQs}`,
         ).catch(() => []),
         api<{ items: RadarItem[] }>(
-          `/api/v1/recepcion/rutas/radar-status?q=${encodeURIComponent(radarQ)}`,
+          `/api/v1/recepcion/rutas/radar-status?q=${encodeURIComponent(radarQRef.current)}`,
         ).catch(() => ({ items: [] as RadarItem[] })),
       ]);
       setInbox(ib);
@@ -241,8 +253,10 @@ export default function RecepcionDashboardPage() {
       setRadarError("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error de conexión");
+    } finally {
+      setLoading(false);
     }
-  }, [boardFilter, pqrsStatus, radarQ]);
+  }, [boardFilter, pqrsStatus]);
 
   useEffect(() => {
     void load();
@@ -515,6 +529,10 @@ export default function RecepcionDashboardPage() {
       ) : null}
 
       <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {loading ? (
+          <SkeletonKpis count={4} />
+        ) : (
+          <>
         <KpiCard
           label="Visitas hoy"
           value={metrics?.visitors ?? "—"}
@@ -551,6 +569,8 @@ export default function RecepcionDashboardPage() {
           delta="Accidente, abogado, peligro…"
           tip="Mensajes con temas críticos en la bandeja."
         />
+          </>
+        )}
       </section>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
@@ -568,7 +588,9 @@ export default function RecepcionDashboardPage() {
               para leerlo y enviarlo a Comercial cuando pida cotización.
             </p>
           </div>
-          {inbox.length === 0 ? (
+          {loading ? (
+            <SkeletonRows rows={4} className="p-3" />
+          ) : inbox.length === 0 ? (
             <div className="p-4">
               <EmptyState
                 icon={<MessageSquare className="h-7 w-7" />}
@@ -695,12 +717,22 @@ export default function RecepcionDashboardPage() {
             </div>
           </div>
           <div className="flex-1 overflow-y-auto">
-            {visitors.length === 0 ? (
+            {loading ? (
+              <SkeletonRows rows={4} className="p-3" />
+            ) : visitors.length === 0 ? (
               <div className="p-4">
                 <EmptyState
                   icon={<Users className="h-7 w-7" />}
-                  title="Sin visitas registradas"
-                  description="Registra el primer visitante del día."
+                  title={
+                    boardFilter
+                      ? "Sin visitas con este estado"
+                      : "Sin visitas registradas hoy"
+                  }
+                  description={
+                    boardFilter
+                      ? "No hay visitantes de hoy en el estado seleccionado."
+                      : "Registra el primer visitante del día."
+                  }
                   actionLabel="+ Nuevo visitante"
                   onAction={() => {
                     setVisitFormError("");
@@ -791,6 +823,12 @@ export default function RecepcionDashboardPage() {
                 placeholder="Colegio / ruta / placa"
                 value={radarQ}
                 onChange={(e) => setRadarQ(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    void searchRadar();
+                  }
+                }}
               />
               <Button
                 variant="ghost"
@@ -805,8 +843,12 @@ export default function RecepcionDashboardPage() {
                 {radarError}
               </p>
             ) : null}
-            {radar.length === 0 ? (
-              <p className="text-xs text-brand-text-secondary">Sin resultados de radar</p>
+            {loading ? (
+              <SkeletonRows rows={2} />
+            ) : radar.length === 0 ? (
+              <p className="rounded border border-dashed border-[var(--brand-border)] px-3 py-2 text-xs text-brand-text-secondary">
+                Sin rutas en curso para la búsqueda actual.
+              </p>
             ) : (
               <ul className="max-h-36 space-y-1 overflow-y-auto text-xs">
                 {radar.map((r) => (
@@ -857,11 +899,17 @@ export default function RecepcionDashboardPage() {
             </button>
           ))}
         </div>
-        {pqrsTickets.length === 0 ? (
+        {loading ? (
+          <SkeletonRows rows={3} />
+        ) : pqrsTickets.length === 0 ? (
           <EmptyState
             icon={<AlertTriangle className="h-7 w-7" />}
-            title="Sin PQRS"
-            description="Crea un ticket rápido o espera ingresos omnicanal."
+            title={pqrsStatus ? "Sin PQRS en este estado" : "Sin PQRS"}
+            description={
+              pqrsStatus
+                ? "Cambie el filtro para ver otras PQRS."
+                : "Crea un ticket rápido o espera ingresos omnicanal."
+            }
             actionLabel="+ PQRS"
             onAction={() => setPanel("pqrs")}
           />

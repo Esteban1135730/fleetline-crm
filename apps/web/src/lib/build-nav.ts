@@ -10,6 +10,7 @@ import {
   type NavDeptItem,
   type Role,
 } from "@fsg/shared";
+import { canOpenPath } from "@/lib/route-access";
 
 /**
  * Solo pantallas independientes en el sidebar.
@@ -36,12 +37,13 @@ function isNavAllowedForRole(role: string, item: NavDeptItem): boolean {
   if (!isIndependentHref(item.href)) return false;
   if (item.view === "cuenta") return true;
   if (isPathDeniedForRole(role, item.href)) return false;
-  return true;
+  return canOpenPath(role, item.href);
 }
 
 /**
  * Construye el menú lateral: hubs solo con opciones permitidas
- * por ROLE_VIEWS y sin rutas en ROLE_DENIED_PATH_PREFIXES.
+ * por ROLE_VIEWS, sin rutas en ROLE_DENIED_PATH_PREFIXES y cuya
+ * pantalla destino el backend deja cargar al rol.
  * Si el rol tiene menú curado (*_NAV), se reutiliza y se agrupa en hubs.
  */
 export function buildNavDepartmentsForRole(

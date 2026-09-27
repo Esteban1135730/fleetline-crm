@@ -4,9 +4,18 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useNotifications } from "@/lib/notifications-context";
+import { useCanOpenPath } from "@/lib/route-access";
+
+/** Solo enlaza la alerta si el rol puede abrir la pantalla destino. */
+function useNotificationHref() {
+  const canOpenPath = useCanOpenPath();
+  return (href?: string | null) =>
+    href && (!href.startsWith("/") || canOpenPath(href)) ? href : null;
+}
 
 export function NotificationBell() {
   const router = useRouter();
+  const allowedHref = useNotificationHref();
   const {
     items,
     unread,
@@ -121,9 +130,10 @@ export function NotificationBell() {
                     }`}
                     onClick={() => {
                       void markRead(n.id);
-                      if (n.href) {
+                      const href = allowedHref(n.href);
+                      if (href) {
                         setOpen(false);
-                        router.push(n.href);
+                        router.push(href);
                       }
                     }}
                   >
@@ -192,6 +202,7 @@ export function NotificationBell() {
 export function NotificationToasts() {
   const { toasts, dismissToast, markRead } = useNotifications();
   const router = useRouter();
+  const allowedHref = useNotificationHref();
 
   if (!toasts.length) return null;
 
@@ -220,14 +231,14 @@ export function NotificationToasts() {
             </button>
           </div>
           <div className="mt-2 flex gap-2">
-            {t.href ? (
+            {allowedHref(t.href) ? (
               <button
                 type="button"
                 className="text-[11px] font-semibold text-[var(--brand-primary)]"
                 onClick={() => {
                   void markRead(t.id);
                   dismissToast(t.toastId);
-                  router.push(t.href!);
+                  router.push(allowedHref(t.href)!);
                 }}
               >
                 Abrir

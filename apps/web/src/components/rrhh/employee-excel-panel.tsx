@@ -25,11 +25,18 @@ type Props = {
   open: boolean;
   onClose: () => void;
   onImported?: () => void;
+  /** POST /rrhh/employees/import/excel exige personal:CREATE */
+  canImport?: boolean;
 };
 
 const GROUPS = Object.keys(RRHH_EXCEL_GROUP_LABELS) as RrhhExcelColumnGroup[];
 
-export function EmployeeExcelPanel({ open, onClose, onImported }: Props) {
+export function EmployeeExcelPanel({
+  open,
+  onClose,
+  onImported,
+  canImport = true,
+}: Props) {
   const [mode, setMode] = useState<"export" | "import">("export");
   const [selected, setSelected] = useState<Set<RrhhExcelColumnKey>>(
     () => new Set(RRHH_EXCEL_DEFAULT_EXPORT_KEYS),
@@ -164,17 +171,19 @@ export function EmployeeExcelPanel({ open, onClose, onImported }: Props) {
           >
             Exportar
           </button>
-          <button
-            type="button"
-            className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${
-              mode === "import"
-                ? "bg-[var(--brand-primary)] text-[var(--brand-primary-fg)]"
-                : "border border-[var(--brand-border)] text-[var(--brand-text-secondary)]"
-            }`}
-            onClick={() => setMode("import")}
-          >
-            Importar
-          </button>
+          {canImport ? (
+            <button
+              type="button"
+              className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${
+                mode === "import"
+                  ? "bg-[var(--brand-primary)] text-[var(--brand-primary-fg)]"
+                  : "border border-[var(--brand-border)] text-[var(--brand-text-secondary)]"
+              }`}
+              onClick={() => setMode("import")}
+            >
+              Importar
+            </button>
+          ) : null}
         </div>
 
         {error ? (
