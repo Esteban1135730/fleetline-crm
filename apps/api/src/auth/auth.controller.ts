@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -41,6 +42,8 @@ const ChangePasswordSchema = z.object({
 
 const LoginBodySchema = LoginSchema.extend({
   turnstileToken: z.string().optional(),
+  /** crm = escritorio web. app = NEXA Conductor. Si falta, no se parte el acceso. */
+  channel: z.enum(["crm", "app"]).optional(),
 });
 
 @Controller("auth")
@@ -64,7 +67,12 @@ export class AuthController {
         (req.headers["x-turnstile-token"] as string | undefined),
       req.ip,
     );
-    const result = await this.auth.login(dto.email, dto.password, req.ip);
+    const result = await this.auth.login(
+      dto.email,
+      dto.password,
+      req.ip,
+      dto.channel,
+    );
     res.cookie(ACCESS_COOKIE, result.accessToken, sessionCookieOptions());
     return result;
   }
@@ -93,6 +101,16 @@ export class AuthController {
   @SkipThrottle()
   unlockLogin(@Body() body: { ip?: string } | undefined) {
     return this.auth.clearLoginLock(body?.ip);
+  }
+
+  @Public()
+  @SkipThrottle()
+  @Post("onboarding")
+  onboarding(@Body() body: { token?: string; password?: string }) {
+    const token = body?.token?.trim() || "";
+    const password = body?.password || "";
+    if (!token) throw new BadRequestException("Falta el enlace");
+    return this.auth.completeOnboarding(token, password);
   }
 
   @Public()

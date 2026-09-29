@@ -246,6 +246,10 @@ describe("PresidenciaService — canvas KPIs + ExecutiveQueryLog", () => {
           { status: ThreeWayMatchStatus.PENDING, _count: { _all: 1 } },
         ]),
       },
+      customer: { count: jest.fn().mockResolvedValue(1) },
+      supplier: { count: jest.fn().mockResolvedValue(0) },
+      employee: { count: jest.fn().mockResolvedValue(0) },
+      hqseIncident: { findMany: jest.fn().mockResolvedValue([]) },
       qualityEvent: {
         aggregate: jest.fn().mockResolvedValue({
           _avg: { npsScore: 74 },
@@ -298,6 +302,13 @@ describe("PresidenciaService — canvas KPIs + ExecutiveQueryLog", () => {
     // 80M + 120M − 20M pagos 7d
     expect(out.pillars.liquidity.valueCop).toBe(180_000_000);
     expect(out.cashFlow.receivableAtRiskAmount).toBe(0);
+    expect(out.manual.utilizationPct).toBe(25);
+    expect(out.manual.units.map((unit) => unit.key)).toEqual([
+      "CORPORATIVO",
+      "ESCOLAR",
+      "TURISMO",
+    ]);
+    expect(out.manual.accidentCount).toBe(0);
 
     expect(out.opsStatus.opsStatus).toBe("CRITICAL");
     expect(out.opsStatus.blockedVehicles).toBe(2);

@@ -4,6 +4,7 @@ import {
   ComplianceDocType,
   ContractStatus,
   InvoiceStatus,
+  IncidentKind,
   InvoiceType,
   JournalEntryStatus,
   ManagerialOverrideStatus,
@@ -52,6 +53,7 @@ export class PresidenciaService {
       opsStatus,
       arRisk,
       cashFlowForecast,
+      manual,
     ] = await Promise.all([
       this.buildFourPillars(organizationId, canvas),
       this.revenueHeatMap(organizationId),
@@ -68,6 +70,7 @@ export class PresidenciaService {
       this.buildOpsStatus(organizationId),
       this.arAtRisk(organizationId),
       this.buildInvoiceCashFlowForecast(organizationId),
+      this.buildManualBoard(organizationId),
     ]);
 
     await this.prisma.executiveQueryLog.create({
@@ -99,6 +102,7 @@ export class PresidenciaService {
       commercialPipeline,
       cashFlowHistory,
       cashFlowForecast,
+      manual,
       pendingMarginExceptions,
       ...canvas,
       cashFlow: {
@@ -925,19 +929,24 @@ export class PresidenciaService {
     }));
 
     const generatedAt = new Date().toISOString();
-    const unsigned = {
-      generatedAt,
-      windowHours,
-      count: events.length,
-      events,
-    };
+    const count = events.length;
     const sha256 = createHash("sha256")
-      .update(JSON.stringify(unsigned))
+      .update(
+        JSON.stringify({
+          generatedAt,
+          windowHours,
+          count,
+          events,
+        }),
+      )
       .digest("hex");
 
     return {
-      ...unsigned,
+      generatedAt,
+      windowHours,
       sha256,
+      count,
+      events,
       exportedAt: generatedAt,
       organizationId,
       rows: events,
@@ -1160,6 +1169,206 @@ export class PresidenciaService {
     return {
       valuePct: Math.round((compliant / vehicles.length) * 100),
       hint: `${compliant}/${vehicles.length} con SOAT, TM y FUEC vigentes`,
+    };
+  }
+
+  /**
+   * KPIs del Manual Único: ingresos MTD/YTD, EBITDA estimado,
+   * utilización de flota, siniestralidad, donut por unidad de negocio
+   * y ocupación por origen.
+   */
+  async buildManualBoard(organizationId: string) {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    monthStart.setHours(0, 0, 0, 0);
+    const yearStart = new Date(now.getFullYear(), 0, 1);
+    const completed = {
+      organizationId,
+      status: TripStatus.COMPLETED,
+    };
+
+    const [mtdAgg, ytdAgg, fleet, incidents, trips] = await Promise.all([
+      this.prisma.trip.aggregate({
+        where: { ...completed, completedAt: { gte: monthStart } },
+        _sum: { fareAmount: true },
+        _count: { _all: true },
+      }),
+      this.prisma.trip.aggregate({
+        where: { ...completed, completedAt: { gte: yearStart } },
+        _sum: { fareAmount: true },
+        _count: { _all: true },
+      }),
+      this.prisma.vehicle.groupBy({
+        by: ["status"],
+        where: { organizationId },
+        _count: { _all: true },
+      }),
+      this.prisma.hqseIncident.findMany({
+        where: {
+          organizationId,
+          kind: IncidentKind.TRAFFIC_ACCIDENT,
+          occurredAt: { gte: yearStart },
+        },
+        select: {
+          code: true,
+          title: true,
+          severity: true,
+          occurredAt: true,
+          location: true,
+        },
+        orderBy: { occurredAt: "desc" },
+        take: 12,
+      }),
+      this.prisma.trip.findMany({
+        where: { ...completed, completedAt: { gte: yearStart } },
+        select: {
+          fareAmount: true,
+          completedAt: true,
+          origin: true,
+          customer: { select: { name: true, segment: true } },
+          routeExpenses: { select: { amount: true } },
+        },
+      }),
+    ]);
+
+    const rows = trips.flatMap((trip) => {
+      const fare = Number(trip.fareAmount);
+      const completedAt = trip.completedAt
+        ? new Date(trip.completedAt)
+        : null;
+      if (!Number.isFinite(fare) || !completedAt || Number.isNaN(completedAt.getTime())) {
+        return [];
+      }
+      const cost = (trip.routeExpenses ?? []).reduce(
+        (sum, expense) => sum + Number(expense.amount ?? 0),
+        0,
+      );
+      const segment = trip.customer?.segment;
+      const unit =
+        segment === "ESCOLAR"
+          ? "ESCOLAR"
+          : segment === "TURISMO"
+            ? "TURISMO"
+            : "CORPORATIVO";
+      return [
+        {
+          fare,
+          cost,
+          completedAt,
+          origin: trip.origin?.trim() || "Sin origen",
+          customer: trip.customer?.name || "Sin cliente",
+          unit,
+        },
+      ];
+    });
+
+    const monthRows = rows.filter((row) => row.completedAt >= monthStart);
+    const grossMtd = rows.length
+      ? monthRows.reduce((sum, row) => sum + row.fare, 0)
+      : Number(mtdAgg._sum.fareAmount ?? 0);
+    const grossYtd = rows.length
+      ? rows.reduce((sum, row) => sum + row.fare, 0)
+      : Number(ytdAgg._sum.fareAmount ?? 0);
+    const costMtd = monthRows.reduce((sum, row) => sum + row.cost, 0);
+    const ebitdaMtd = grossMtd - costMtd;
+    const costsObserved = monthRows.some((row) => row.cost > 0);
+
+    const fleetTotal = fleet.reduce((sum, row) => sum + row._count._all, 0);
+    const inService =
+      fleet.find((row) => row.status === VehicleStatus.IN_SERVICE)?._count
+        ._all ?? 0;
+    const utilizationPct = fleetTotal
+      ? Number(((inService / fleetTotal) * 100).toFixed(1))
+      : null;
+
+    const ytdTrips = rows.length || (ytdAgg._count?._all ?? 0);
+    const accidentCount = incidents.length;
+    const accidentIndex =
+      ytdTrips > 0
+        ? Number(((accidentCount / ytdTrips) * 100).toFixed(2))
+        : null;
+
+    const unitOrder = [
+      { key: "CORPORATIVO", label: "Corporativo" },
+      { key: "ESCOLAR", label: "Escolar" },
+      { key: "TURISMO", label: "Turismo" },
+    ] as const;
+    const units = unitOrder.map((unit) => {
+      const slice = rows.filter((row) => row.unit === unit.key);
+      const revenue = slice.reduce((sum, row) => sum + row.fare, 0);
+      const margin = slice.reduce((sum, row) => sum + (row.fare - row.cost), 0);
+      return { ...unit, revenue, margin, trips: slice.length };
+    });
+
+    const byOrigin = new Map<string, number>();
+    for (const row of rows) {
+      byOrigin.set(row.origin, (byOrigin.get(row.origin) ?? 0) + 1);
+    }
+    const originMax = Math.max(1, ...byOrigin.values());
+    const geo = [...byOrigin.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([zone, tripsInZone]) => ({
+        zone,
+        trips: tripsInZone,
+        occupancy: Number(((tripsInZone / originMax) * 100).toFixed(0)),
+      }));
+
+    const dayKey = (date: Date) => date.toISOString().slice(0, 10);
+    const dailyMap = new Map<string, { revenue: number; ebitda: number }>();
+    for (let i = 13; i >= 0; i--) {
+      const day = new Date(now);
+      day.setHours(0, 0, 0, 0);
+      day.setDate(day.getDate() - i);
+      dailyMap.set(dayKey(day), { revenue: 0, ebitda: 0 });
+    }
+    for (const row of rows) {
+      const key = dayKey(row.completedAt);
+      const bucket = dailyMap.get(key);
+      if (!bucket) continue;
+      bucket.revenue += row.fare;
+      bucket.ebitda += row.fare - row.cost;
+    }
+    const daily = [...dailyMap.entries()].map(([day, value]) => ({
+      day,
+      revenue: value.revenue,
+      ebitda: value.ebitda,
+    }));
+
+    const byCustomer = new Map<string, number>();
+    for (const row of monthRows.length ? monthRows : rows) {
+      byCustomer.set(
+        row.customer,
+        (byCustomer.get(row.customer) ?? 0) + row.fare,
+      );
+    }
+    const topCustomers = [...byCustomer.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([name, amount]) => ({ name, amount }));
+
+    return {
+      grossMtd,
+      grossYtd,
+      ebitdaMtd,
+      costsObserved,
+      utilizationPct,
+      inService,
+      fleetTotal,
+      accidentIndex,
+      accidentCount,
+      ytdTrips,
+      units,
+      geo,
+      daily,
+      topCustomers,
+      recentAccidents: incidents.map((incident) => ({
+        code: incident.code,
+        title: incident.title,
+        severity: incident.severity,
+        location: incident.location,
+        occurredAt: incident.occurredAt,
+      })),
     };
   }
 

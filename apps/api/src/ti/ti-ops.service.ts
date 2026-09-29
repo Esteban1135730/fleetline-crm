@@ -23,7 +23,6 @@ const ROLE_TO_PRISMA: Record<string, Role> = {
   centro_control: Role.CENTRO_CONTROL,
   tesoreria: Role.TESORERIA,
   vinculaciones: Role.VINCULACIONES,
-  monitora: Role.MONITORA,
   gestor_documental: Role.GESTOR_DOCUMENTAL,
   auxiliar_contable: Role.AUXILIAR_CONTABLE,
   gestor_contable: Role.GESTOR_CONTABLE,
@@ -83,6 +82,7 @@ function resolveTiTargetRole(raw?: string): Role {
       message: `Rol no permitido en onboarding TI: ${raw}`,
     });
   }
+  UsersService.assertRoleAvailable(prismaRole);
   return prismaRole;
 }
 
@@ -205,11 +205,11 @@ export class TiOpsService {
         where: {
           id: dto.driverUserId,
           organizationId,
-          role: { in: [Role.CONDUCTOR, Role.MONITORA] },
+          role: Role.CONDUCTOR,
         },
       });
       if (!driver) {
-        throw new NotFoundException("Conductor/monitora no encontrado en la org");
+        throw new NotFoundException("Conductor no encontrado en la org");
       }
     }
 

@@ -22,6 +22,7 @@ import {
   YAxis,
 } from "recharts";
 import { api } from "@/lib/api";
+import { PasswordField } from "@/components/forms/password-field";
 import { statusEs } from "@fsg/shared";
 import { useThemeColors } from "@/lib/use-theme-colors";
 import {
@@ -1070,9 +1071,8 @@ export default function FinanzasPage() {
             {payTarget.type === "PAYABLE" ? (
               <label className="flex flex-col gap-1 font-data text-[10px] uppercase tracking-wider text-brand-text-secondary">
                 PIN de seguridad (6 dígitos)
-                <input
+                <PasswordField
                   className="field font-data tracking-[0.3em]"
-                  type="password"
                   inputMode="numeric"
                   autoComplete="one-time-code"
                   maxLength={6}

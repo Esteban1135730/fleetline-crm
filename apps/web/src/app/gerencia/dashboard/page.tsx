@@ -16,6 +16,7 @@ import {
 } from "recharts";
 import { api, apiDownload } from "@/lib/api";
 import { EmptyState, KpiCard, Modal, SlideOver } from "@/components/audit";
+import { PasswordField } from "@/components/forms/password-field";
 import { BentoPanel } from "@/components/nexa/bento-panel";
 import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
 import { StatusPulseBadge } from "@/components/audit/KpiCard";
@@ -928,14 +929,14 @@ export default function GerenciaDashboardPage() {
               Autoriza o rechaza la solicitud seleccionada. El PIN es personal
               del gerente (mismo de firma ejecutiva).
             </span>
-            <input
-              type="password"
+            <PasswordField
               inputMode="numeric"
               maxLength={6}
               className="login-field mt-1 font-data tracking-widest"
               value={pin}
               onChange={(e) => setPin(e.target.value)}
               placeholder="••••••"
+              autoComplete="off"
             />
           </label>
           <div className="mt-3 flex flex-wrap justify-end gap-2">

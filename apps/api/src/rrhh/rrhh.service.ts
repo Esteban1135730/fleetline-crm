@@ -638,6 +638,7 @@ export class RrhhService {
     }
 
     const targetRole = UsersService.resolveRole(dto.role);
+    UsersService.assertRoleAvailable(targetRole);
     if (targetRole === Role.PLATFORM_MASTER) {
       throw new ForbiddenException("No se puede provisionar PLATFORM_MASTER");
     }
@@ -898,6 +899,7 @@ export class RrhhService {
 
     if (dto.role && existing.userId) {
       const targetRole = UsersService.resolveRole(dto.role);
+      UsersService.assertRoleAvailable(targetRole);
       if (targetRole === Role.PLATFORM_MASTER) {
         throw new ForbiddenException("No se puede asignar PLATFORM_MASTER");
       }

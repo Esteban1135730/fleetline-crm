@@ -321,6 +321,43 @@ export class ModulesController {
     return this.svc.appsOverview(req.user.organizationId);
   }
 
+  @Get("apps/drill")
+  @RequireModule("apps")
+  appsDrill(
+    @Req() req: { user: { organizationId: string } },
+    @Query("card") card?: string,
+  ) {
+    return this.svc.appsDrill(req.user.organizationId, card || "");
+  }
+
+  @Get("apps/inbox")
+  @RequireModule("apps")
+  appsInbox(@Req() req: { user: { organizationId: string } }) {
+    return this.svc.appsInbox(req.user.organizationId);
+  }
+
+  @Post("apps/inbox")
+  @RequireModule("apps")
+  appsReply(
+    @Req() req: { user: { organizationId: string; userId: string } },
+    @Body() body: { body?: string },
+  ) {
+    return this.svc.replyInbox(
+      req.user.organizationId,
+      req.user.userId,
+      body?.body || "",
+    );
+  }
+
+  @Post("apps/tickets/:id/close")
+  @RequireModule("apps")
+  appsCloseTicket(
+    @Req() req: { user: { organizationId: string } },
+    @Param("id") id: string,
+  ) {
+    return this.svc.updateTicketStatus(req.user.organizationId, id, "CLOSED");
+  }
+
   // Compras
   @Get("compras/orders")
   @RequireModule("compras")

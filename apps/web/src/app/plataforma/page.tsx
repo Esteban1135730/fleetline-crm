@@ -14,6 +14,7 @@ import { ROLE_LABELS, statusEs, type Role } from "@fsg/shared";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
 import { SlideOver, StatusPulseBadge } from "@/components/audit";
+import { PasswordField } from "@/components/forms/password-field";
 import { BentoPanel } from "@/components/nexa/bento-panel";
 import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
 import {
@@ -509,16 +510,16 @@ export default function PlataformaPage() {
             }
             required
           />
-          <input
+          <PasswordField
             className="field"
             placeholder="Clave del administrador (mín. 8)"
-            type="password"
             value={form.adminPassword}
             onChange={(e) =>
               setForm((f) => ({ ...f, adminPassword: e.target.value }))
             }
             required
             minLength={8}
+            autoComplete="new-password"
           />
         </form>
       </SlideOver>

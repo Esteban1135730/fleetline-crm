@@ -11,6 +11,7 @@ import {
 } from "@fsg/shared";
 import { api, setSession, getTokenPublic, type AuthUser } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { PasswordField } from "@/components/forms/password-field";
 import { AuthLayout } from "@/components/nexa/auth-layout";
 import { BentoPanel } from "@/components/nexa/bento-panel";
 import { StatusPulseBadge } from "@/components/audit/KpiCard";
@@ -84,9 +85,8 @@ function PasswordForm({
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
-      <input
+      <PasswordField
         className="login-field font-sans"
-        type="password"
         placeholder={
           force
             ? "Contraseña temporal actual"
@@ -99,9 +99,8 @@ function PasswordForm({
         autoFocus={force}
       />
       <div>
-        <input
+        <PasswordField
           className="login-field font-sans"
-          type="password"
           placeholder="Nueva contraseña"
           data-field="password"
           value={newPassword}
@@ -120,9 +119,8 @@ function PasswordForm({
         ) : null}
       </div>
       <div>
-        <input
+        <PasswordField
           className="login-field font-sans"
-          type="password"
           placeholder="Confirmar nueva contraseña"
           value={confirmPassword}
           onChange={(e) => setConfirm(e.target.value)}

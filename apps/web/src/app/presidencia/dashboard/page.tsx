@@ -68,6 +68,38 @@ type MarginRow = {
   unbilledExtras: number;
 };
 
+type ManualBoard = {
+  grossMtd: number;
+  grossYtd: number;
+  ebitdaMtd: number;
+  costsObserved: boolean;
+  utilizationPct: number | null;
+  inService: number;
+  fleetTotal: number;
+  accidentIndex: number | null;
+  accidentCount: number;
+  ytdTrips: number;
+  units: Array<{
+    key: string;
+    label: string;
+    revenue: number;
+    margin: number;
+    trips: number;
+  }>;
+  geo: Array<{ zone: string; trips: number; occupancy: number }>;
+  daily: Array<{ day: string; revenue: number; ebitda: number }>;
+  topCustomers: Array<{ name: string; amount: number }>;
+  recentAccidents: Array<{
+    code: string;
+    title: string;
+    severity: string;
+    location: string | null;
+    occurredAt: string;
+  }>;
+};
+
+type ManualKpi = "gross" | "ebitda" | "fleet" | "risk";
+
 type Dash = {
   canvas: string;
   pillars: Pillars;
@@ -112,6 +144,7 @@ type Dash = {
     }>;
   };
   pendingMarginExceptions?: number;
+  manual?: ManualBoard;
   killSwitch?: { blockedPct: number; blockedUnits: number };
   cashFlow?: {
     atRiskAmount: number;
@@ -260,6 +293,7 @@ export default function PresidenciaDashboardPage() {
   const [burnOpen, setBurnOpen] = useState(false);
   const [burnDetail, setBurnDetail] = useState<BurnMonthDetail | null>(null);
   const [burnLoading, setBurnLoading] = useState(false);
+  const [manualKpi, setManualKpi] = useState<ManualKpi | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -353,7 +387,14 @@ export default function PresidenciaDashboardPage() {
         note?: string | null;
       }>("/api/v1/presidencia/forensic-export?hours=24");
       setNotice(data.count === 0 ? "Sin mutaciones en 24h" : "");
-      const blob = new Blob([JSON.stringify(data, null, 2)], {
+      const file = {
+        generatedAt: data.generatedAt,
+        windowHours: data.windowHours ?? 24,
+        sha256: data.sha256,
+        count: data.count,
+        events: data.events ?? data.rows ?? [],
+      };
+      const blob = new Blob([JSON.stringify(file, null, 2)], {
         type: "application/json",
       });
       const url = URL.createObjectURL(blob);
@@ -497,6 +538,7 @@ export default function PresidenciaDashboardPage() {
   }
 
   const p = dash?.pillars;
+  const m = dash?.manual;
 
   const fleetDonut = useMemo(() => {
     const f = dash?.fleetHealth;
@@ -664,6 +706,73 @@ export default function PresidenciaDashboardPage() {
 
       <section className="relative z-10 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
+          label="Ingresos brutos MTD"
+          value={m ? cop(m.grossMtd) : "—"}
+          delta={m ? `YTD ${cop(m.grossYtd)}` : undefined}
+          tone="ok"
+          icon={<Wallet />}
+          tip="Servicios completados del mes. Clic para composición."
+          onClick={() => setManualKpi("gross")}
+        />
+        <KpiCard
+          label="EBITDA estimado"
+          value={m ? cop(m.ebitdaMtd) : "—"}
+          delta={
+            m
+              ? m.costsObserved
+                ? "Ingresos − costos de ruta del mes"
+                : "Sin costos de ruta en el mes"
+              : undefined
+          }
+          tone={m && m.ebitdaMtd < 0 ? "danger" : "ok"}
+          icon={<TrendingUp />}
+          onClick={() => setManualKpi("ebitda")}
+        />
+        <KpiCard
+          label="Utilización de flota"
+          value={
+            m
+              ? m.utilizationPct == null
+                ? "N/A"
+                : `${m.utilizationPct}%`
+              : "—"
+          }
+          delta={
+            m ? `${m.inService}/${m.fleetTotal} unidades en servicio` : undefined
+          }
+          tone={
+            m?.utilizationPct == null
+              ? "neutral"
+              : m.utilizationPct < 40
+                ? "warn"
+                : "ok"
+          }
+          icon={<Gauge />}
+          onClick={() => setManualKpi("fleet")}
+        />
+        <KpiCard
+          label="Siniestralidad"
+          value={
+            m
+              ? m.accidentIndex == null
+                ? "N/A"
+                : `${m.accidentIndex}`
+              : "—"
+          }
+          delta={
+            m
+              ? `${m.accidentCount} accidentes / ${m.ytdTrips} viajes YTD`
+              : undefined
+          }
+          tone={(m?.accidentCount ?? 0) > 0 ? "danger" : "ok"}
+          icon={<ShieldAlert />}
+          tip="Accidentes de tránsito HQSE por cada 100 viajes del año"
+          onClick={() => setManualKpi("risk")}
+        />
+      </section>
+
+      <section className="relative z-10 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCard
           label={p?.growth?.label || "Crecimiento comercial"}
           value={
             p?.growth
@@ -752,6 +861,87 @@ export default function PresidenciaDashboardPage() {
           icon={<HeartPulse />}
         />
       </section>
+
+      <div className="relative z-10 grid grid-cols-1 gap-3 lg:grid-cols-12 lg:gap-4">
+        <BentoPanel
+          title="Rentabilidad por unidad"
+          subtitle="Corporativo · escolar · turismo"
+          icon={<LineChartIcon />}
+          className="lg:col-span-5"
+        >
+          {(m?.units ?? []).some((unit) => unit.revenue > 0) ? (
+            <div className="h-56 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={m?.units ?? []}
+                    dataKey="revenue"
+                    nameKey="label"
+                    innerRadius={52}
+                    outerRadius={78}
+                    paddingAngle={2}
+                  >
+                    {(m?.units ?? []).map((unit) => (
+                      <Cell
+                        key={unit.key}
+                        fill={
+                          unit.key === "ESCOLAR"
+                            ? "#00B4D8"
+                            : unit.key === "TURISMO"
+                              ? NEXA_CHART.nominal
+                              : NEXA_CHART.ingresos
+                        }
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={chartTipStyle}
+                    formatter={(value) => cop(Number(value ?? 0))}
+                  />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <EmptyState
+              title="Sin ingresos por unidad"
+              description="Cuando haya viajes completados con cliente, el donut separa corporativo, escolar y turismo."
+            />
+          )}
+        </BentoPanel>
+        <BentoPanel
+          title="Ocupación geográfica"
+          subtitle="Viajes completados por origen · año en curso"
+          icon={<Truck />}
+          className="lg:col-span-7"
+        >
+          {(m?.geo.length ?? 0) === 0 ? (
+            <EmptyState
+              title="Sin mapa de ocupación"
+              description="Aún no hay orígenes con servicios completados en el año."
+            />
+          ) : (
+            <ul className="space-y-2">
+              {m?.geo.map((zone) => (
+                <li key={zone.zone} className="grid grid-cols-[9rem_1fr_auto] items-center gap-3">
+                  <span className="truncate font-sans text-xs text-brand-text-secondary">
+                    {zone.zone}
+                  </span>
+                  <span className="h-2 overflow-hidden rounded-full bg-brand-border/40">
+                    <span
+                      className="block h-full rounded-full bg-brand-primary"
+                      style={{ width: `${zone.occupancy}%`, opacity: 0.35 + zone.occupancy / 160 }}
+                    />
+                  </span>
+                  <span className="font-data text-xs tabular-nums text-brand-text-primary">
+                    {zone.trips}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </BentoPanel>
+      </div>
 
       <div className="relative z-10 grid grid-cols-1 gap-3 lg:grid-cols-12 lg:gap-4">
         <BentoPanel
@@ -1220,6 +1410,97 @@ export default function PresidenciaDashboardPage() {
           <p className="mt-4 text-sm text-brand-text-primary">{capexOut}</p>
         ) : null}
       </Modal>
+
+      <SlideOver
+        open={manualKpi != null}
+        onClose={() => setManualKpi(null)}
+        title={
+          manualKpi === "gross"
+            ? "Ingresos brutos"
+            : manualKpi === "ebitda"
+              ? "EBITDA estimado"
+              : manualKpi === "fleet"
+                ? "Utilización de flota"
+                : "Siniestralidad"
+        }
+        description="Composición del indicador · tendencia de 14 días y principales aportes"
+      >
+        {manualKpi === "fleet" ? (
+          <p className="font-data text-sm tabular-nums text-brand-text-primary">
+            {m?.inService ?? 0} en servicio de {m?.fleetTotal ?? 0} unidades
+            {m?.utilizationPct == null ? "" : ` · ${m.utilizationPct}%`}.
+          </p>
+        ) : null}
+        {manualKpi === "risk" ? (
+          (m?.recentAccidents.length ?? 0) === 0 ? (
+            <EmptyState
+              title="Sin accidentes en el año"
+              description="HQSE no registra accidentes de tránsito en el año en curso."
+            />
+          ) : (
+            <ul className="space-y-2">
+              {m?.recentAccidents.map((incident) => (
+                <li
+                  key={incident.code}
+                  className="rounded-lg border border-brand-border px-3 py-2"
+                >
+                  <p className="font-data text-xs text-brand-primary">{incident.code}</p>
+                  <p className="text-sm text-brand-text-primary">{incident.title}</p>
+                  <p className="text-xs text-brand-text-secondary">
+                    {incident.severity}
+                    {incident.location ? ` · ${incident.location}` : ""} ·{" "}
+                    {new Date(incident.occurredAt).toISOString()}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )
+        ) : null}
+        {manualKpi === "gross" || manualKpi === "ebitda" ? (
+          <div className="space-y-4">
+            <div className="h-40 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={m?.daily ?? []}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={colors.chartGrid} />
+                  <XAxis dataKey="day" tick={{ fill: colors.textSecondary, fontSize: 10 }} />
+                  <YAxis tick={{ fill: colors.textSecondary, fontSize: 10 }} width={48} />
+                  <Tooltip contentStyle={chartTipStyle} />
+                  <Line
+                    type="monotone"
+                    dataKey={manualKpi === "gross" ? "revenue" : "ebitda"}
+                    name={manualKpi === "gross" ? "Ingresos" : "EBITDA"}
+                    stroke={manualKpi === "gross" ? NEXA_CHART.ingresos : NEXA_CHART.nominal}
+                    dot={false}
+                    strokeWidth={2}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            <div>
+              <p className="mb-2 font-data text-[10px] uppercase tracking-wider text-brand-text-secondary">
+                Cinco cuentas que más aportan
+              </p>
+              {(m?.topCustomers.length ?? 0) === 0 ? (
+                <p className="text-sm text-brand-text-secondary">Sin clientes con tarifa en el periodo.</p>
+              ) : (
+                <ul className="space-y-1">
+                  {m?.topCustomers.map((customer) => (
+                    <li
+                      key={customer.name}
+                      className="flex items-center justify-between gap-3 text-sm"
+                    >
+                      <span className="truncate text-brand-text-primary">{customer.name}</span>
+                      <span className="font-data tabular-nums text-brand-primary">
+                        {cop(customer.amount)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        ) : null}
+      </SlideOver>
 
       <SlideOver
         open={defconOpen}

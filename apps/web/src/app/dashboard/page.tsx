@@ -1,224 +1,400 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import {
-  ROLE_LABELS,
-  isPathDeniedForRole,
-  resolveModuleId,
-} from "@fsg/shared";
-import { Tooltip } from "@fsg/ui";
+import { FormEvent, Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { ROLE_LABELS } from "@fsg/shared";
+import { Button } from "@fsg/ui";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { useShell } from "@/lib/shell-context";
+import { SlideOver } from "@/components/audit";
+
+type Senal = "ok" | "sin_senal";
 
 type Metrics = {
   ingresosMtd: number;
+  egresosAbiertos: number;
   viajesActivos: number;
   viajesMes: number;
   novedades: number;
   bloqueosHoy: number;
+  vehiculosTaller: number;
+  docsPorVencer: number;
+  senales?: { operacion: Senal; riesgo: Senal; caja: Senal };
+};
+
+type TodayEvent = { id: string; at: string; kind: string; text: string };
+
+type Options = {
+  customers: { id: string; name: string }[];
+  vehicles: { id: string; plate: string }[];
+  drivers: { id: string; name: string }[];
+};
+
+type PlateCard = {
+  plate: string;
+  brand: string;
+  model: string;
+  documentos: { label: string; estado: string; vence: string | null; numero?: string }[];
 };
 
 function money(n: number) {
   return `$${(n / 1_000_000).toFixed(1)}M`;
 }
 
-const ACTIONS = [
-  {
-    href: "/logistica/servicios",
-    title: "Crear nuevo viaje",
-    hint: "Despacho y ruta",
-    tip: "Abre Logística para registrar un viaje con origen, destino y unidad.",
-  },
-  {
-    href: "/taller",
-    title: "Registrar mantenimiento",
-    hint: "Orden de trabajo",
-    tip: "Abre Taller para crear o actualizar una OT de la flota.",
-  },
-  {
-    href: "/tramites",
-    title: "Consultar vehículo",
-    hint: "Semáforo documental",
-    tip: "Abre Trámites para ver SOAT/tecnomecánica y bloqueos de despacho.",
-  },
-  {
-    href: "/logistica/servicios",
-    title: "Ver mapa en vivo",
-    hint: "GPS de flota",
-    tip: "Muestra coordenadas GPS registradas de las unidades en Logística.",
-  },
-] as const;
+function hour(iso: string) {
+  return new Date(iso).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
+}
 
-function canOpenPath(
-  role: string | undefined,
-  canAccess: (view: string) => boolean,
-  href: string,
-): boolean {
-  if (!role) return false;
-  if (isPathDeniedForRole(role, href)) return false;
-  const seg = href.split("/").filter(Boolean)[0] || "dashboard";
-  const resolved = resolveModuleId(seg) || seg;
-  return canAccess(resolved);
+function DashboardPageInner() {
+  const { user } = useAuth();
+  const { setHelpOpen } = useShell();
+  const params = useSearchParams();
+  const [m, setM] = useState<Metrics | null>(null);
+  const [loadError, setLoadError] = useState("");
+  const [events, setEvents] = useState<TodayEvent[]>([]);
+  const [panel, setPanel] = useState<"trip" | "ot" | "plate" | null>(null);
+  const [options, setOptions] = useState<Options | null>(null);
+  const [formError, setFormError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [origin, setOrigin] = useState("");
+  const [destination, setDestination] = useState("");
+  const [customerId, setCustomerId] = useState("");
+  const [vehicleId, setVehicleId] = useState("");
+  const [driverId, setDriverId] = useState("");
+  const [otVehicleId, setOtVehicleId] = useState("");
+  const [otReason, setOtReason] = useState("");
+  const [plateQuery, setPlateQuery] = useState("");
+  const [plateCard, setPlateCard] = useState<PlateCard | null>(null);
+  const firstName = user?.name?.split(" ")[0] || "Operador";
+
+  async function loadMetrics() {
+    try {
+      const data = await api<Metrics>("/dashboard/metrics");
+      setM(data);
+      setLoadError("");
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : "Sin señal del tablero");
+    }
+  }
+
+  useEffect(() => {
+    void loadMetrics();
+    void api<TodayEvent[]>("/dashboard/today")
+      .then(setEvents)
+      .catch(() => setEvents([]));
+  }, []);
+
+  useEffect(() => {
+    const action = params.get("action");
+    const plate = params.get("plate");
+    if (action === "trip") setPanel("trip");
+    if (action === "plate") {
+      setPanel("plate");
+      if (plate) setPlateQuery(plate);
+    }
+  }, [params]);
+
+  useEffect(() => {
+    if (panel !== "trip" && panel !== "ot") return;
+    if (options) return;
+    void api<Options>("/dashboard/dispatch-options")
+      .then(setOptions)
+      .catch((e) => setFormError(e instanceof Error ? e.message : "Sin catálogo"));
+  }, [panel, options]);
+
+  async function onTrip(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setFormError("");
+    try {
+      await api("/dashboard/trips", {
+        method: "POST",
+        body: JSON.stringify({
+          origin,
+          destination,
+          customerId: customerId || undefined,
+          vehicleId: vehicleId || undefined,
+          driverId: driverId || undefined,
+        }),
+      });
+      setPanel(null);
+      setOrigin("");
+      setDestination("");
+      await loadMetrics();
+      const next = await api<TodayEvent[]>("/dashboard/today");
+      setEvents(next);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "No se pudo despachar");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onOt(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setFormError("");
+    try {
+      await api("/dashboard/work-orders", {
+        method: "POST",
+        body: JSON.stringify({ vehicleId: otVehicleId, description: otReason }),
+      });
+      setPanel(null);
+      setOtReason("");
+      const next = await api<TodayEvent[]>("/dashboard/today");
+      setEvents(next);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "No se pudo abrir la orden");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onPlate(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setFormError("");
+    setPlateCard(null);
+    try {
+      const card = await api<PlateCard>(
+        `/dashboard/plate?q=${encodeURIComponent(plateQuery)}`,
+      );
+      setPlateCard(card);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Placa sin registro");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const senal = m?.senales;
+
+  return (
+    <div className="fade-in mx-auto max-w-[960px] space-y-8 py-2">
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="font-data text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--brand-primary)]">
+            Tablero operativo · {user ? ROLE_LABELS[user.role] : "—"}
+          </p>
+          <h1 className="mt-2 font-display text-2xl font-bold tracking-tight text-[var(--brand-text-primary)] sm:text-3xl">
+            Hola {firstName}, este es el estado operativo de hoy
+          </h1>
+        </div>
+        <button
+          type="button"
+          className="flt-help-btn"
+          onClick={() => setHelpOpen(true)}
+          aria-label="Cómo leer el tablero"
+        >
+          ?
+        </button>
+      </header>
+
+      {loadError ? (
+        <p className="text-sm text-[var(--brand-danger)]">{loadError}</p>
+      ) : null}
+
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <SignalCard
+          label="Operación"
+          ok={senal?.operacion !== "sin_senal"}
+          value={m ? String(m.viajesActivos) : "—"}
+          hint={m ? `${m.viajesMes} viajes del mes` : "Cargando"}
+        />
+        <SignalCard
+          label="Riesgo"
+          ok={senal?.riesgo !== "sin_senal"}
+          value={m ? String(m.bloqueosHoy + m.novedades + m.vehiculosTaller) : "—"}
+          hint={
+            m
+              ? `${m.vehiculosTaller} en taller · ${m.docsPorVencer} docs < 15 días`
+              : "Cargando"
+          }
+        />
+        <SignalCard
+          label="Caja"
+          ok={senal?.caja !== "sin_senal"}
+          value={m ? money(m.ingresosMtd) : "—"}
+          hint={m ? `CxP ${money(m.egresosAbiertos)}` : "Cargando"}
+        />
+      </section>
+
+      <section className="flex flex-wrap justify-end gap-2">
+        <Button type="button" variant="primary" className="w-auto px-4 py-2" onClick={() => { setFormError(""); setPanel("trip"); }}>
+          Crear viaje
+        </Button>
+        <Button type="button" variant="secondary" className="w-auto px-4 py-2" onClick={() => { setFormError(""); setPanel("ot"); }}>
+          Orden de taller
+        </Button>
+        <Button type="button" variant="secondary" className="w-auto px-4 py-2" onClick={() => { setFormError(""); setPlateCard(null); setPanel("plate"); }}>
+          Consultar placa
+        </Button>
+      </section>
+
+      <section className="nexa-panel p-4">
+        <h2 className="font-display text-sm font-semibold text-[var(--brand-text-primary)]">
+          Hoy
+        </h2>
+        {events.length === 0 ? (
+          <p className="mt-3 text-sm text-[var(--brand-text-secondary)]">
+            Sin viajes, órdenes ni cotizaciones ganadas en el día.
+          </p>
+        ) : (
+          <ul className="mt-3 space-y-2">
+            {events.map((ev) => (
+              <li key={`${ev.kind}-${ev.id}`} className="flex gap-3 text-sm">
+                <span className="font-data text-xs text-[var(--brand-text-secondary)]">{hour(ev.at)}</span>
+                <span className="font-data text-[10px] uppercase tracking-wide text-[var(--brand-primary)]">{ev.kind}</span>
+                <span className="text-[var(--brand-text-primary)]">{ev.text}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="mt-4 flex gap-3 text-sm">
+          <Link href="/tesoreria" className="text-[var(--brand-primary)]">Tesorería</Link>
+          <Link href="/archivo" className="text-[var(--brand-primary)]">Archivo</Link>
+        </div>
+      </section>
+
+      <SlideOver
+        open={panel === "trip"}
+        onClose={() => setPanel(null)}
+        title="Crear viaje"
+        footer={
+          <Button type="submit" form="cockpit-trip" variant="primary" className="w-auto px-4 py-2" disabled={busy}>
+            Despachar
+          </Button>
+        }
+      >
+        <form id="cockpit-trip" className="space-y-3" onSubmit={onTrip}>
+          <Field label="Origen" value={origin} onChange={setOrigin} />
+          <Field label="Destino" value={destination} onChange={setDestination} />
+          <Select label="Cliente" value={customerId} onChange={setCustomerId} options={(options?.customers || []).map((c) => ({ id: c.id, label: c.name }))} />
+          <Select label="Vehículo" value={vehicleId} onChange={setVehicleId} options={(options?.vehicles || []).map((v) => ({ id: v.id, label: v.plate }))} />
+          <Select label="Conductor" value={driverId} onChange={setDriverId} options={(options?.drivers || []).map((d) => ({ id: d.id, label: d.name }))} />
+          {formError ? <p className="text-sm text-[var(--brand-danger)]">{formError}</p> : null}
+        </form>
+      </SlideOver>
+
+      <SlideOver
+        open={panel === "ot"}
+        onClose={() => setPanel(null)}
+        title="Orden de taller"
+        footer={
+          <Button type="submit" form="cockpit-ot" variant="primary" className="w-auto px-4 py-2" disabled={busy}>
+            Guardar
+          </Button>
+        }
+      >
+        <form id="cockpit-ot" className="space-y-3" onSubmit={onOt}>
+          <Select label="Placa" value={otVehicleId} onChange={setOtVehicleId} options={(options?.vehicles || []).map((v) => ({ id: v.id, label: v.plate }))} />
+          <label className="block text-xs text-[var(--brand-text-secondary)]">
+            Motivo
+            <textarea className="field mt-1 w-full" rows={3} value={otReason} onChange={(e) => setOtReason(e.target.value)} />
+          </label>
+          {formError ? <p className="text-sm text-[var(--brand-danger)]">{formError}</p> : null}
+        </form>
+      </SlideOver>
+
+      <SlideOver open={panel === "plate"} onClose={() => setPanel(null)} title="Consultar placa">
+        <form className="space-y-3" onSubmit={onPlate}>
+          <Field label="Placa" value={plateQuery} onChange={setPlateQuery} />
+          <Button type="submit" variant="primary" className="w-auto px-4 py-2" disabled={busy}>
+            Ver documentos
+          </Button>
+          {formError ? <p className="text-sm text-[var(--brand-danger)]">{formError}</p> : null}
+          {plateCard ? (
+            <div className="space-y-2 pt-2">
+              <p className="font-data text-sm text-[var(--brand-text-primary)]">
+                {plateCard.plate} · {plateCard.brand} {plateCard.model}
+              </p>
+              {plateCard.documentos.map((d) => (
+                <p key={d.label} className="text-sm text-[var(--brand-text-secondary)]">
+                  {d.label}: {d.estado}
+                  {d.vence ? ` · vence ${d.vence.slice(0, 10)}` : ""}
+                </p>
+              ))}
+            </div>
+          ) : null}
+        </form>
+      </SlideOver>
+    </div>
+  );
+}
+
+function SignalCard({
+  label,
+  value,
+  hint,
+  ok,
+}: {
+  label: string;
+  value: string;
+  hint: string;
+  ok: boolean;
+}) {
+  return (
+    <div className={`nexa-panel p-4 ${ok ? "" : "opacity-60"}`}>
+      <p className="font-data text-[10px] uppercase tracking-[0.14em] text-[var(--brand-text-secondary)]">
+        {label}
+      </p>
+      <p className="mt-2 font-data text-3xl font-bold tabular-nums text-[var(--brand-text-primary)]">
+        {ok ? value : "—"}
+      </p>
+      <p className="mt-1 text-xs text-[var(--brand-text-secondary)]">
+        {ok ? hint : "Sin señal"}
+      </p>
+    </div>
+  );
+}
+
+function Field({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <label className="block text-xs text-[var(--brand-text-secondary)]">
+      {label}
+      <input className="field mt-1 w-full" value={value} onChange={(e) => onChange(e.target.value)} />
+    </label>
+  );
+}
+
+function Select({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: { id: string; label: string }[];
+}) {
+  return (
+    <label className="block text-xs text-[var(--brand-text-secondary)]">
+      {label}
+      <select className="field mt-1 w-full" value={value} onChange={(e) => onChange(e.target.value)}>
+        <option value="">—</option>
+        {options.map((o) => (
+          <option key={o.id} value={o.id}>{o.label}</option>
+        ))}
+      </select>
+    </label>
+  );
 }
 
 export default function DashboardPage() {
-  const { user, canAccess } = useAuth();
-  const { setHelpOpen } = useShell();
-  const [m, setM] = useState<Metrics | null>(null);
-  const [error, setError] = useState("");
-  const firstName = user?.name?.split(" ")[0] || "Operador";
-
-  const visibleActions = useMemo(
-    () =>
-      ACTIONS.filter((a) =>
-        canOpenPath(user?.role, canAccess, a.href),
-      ),
-    [user?.role, canAccess],
-  );
-
-  const showTesoreria = canOpenPath(user?.role, canAccess, "/tesoreria");
-  const showArchivo = canOpenPath(user?.role, canAccess, "/archivo");
-
-  useEffect(() => {
-    api<Metrics>("/dashboard/metrics")
-      .then(setM)
-      .catch((e) => setError(e instanceof Error ? e.message : "Error de conexión"));
-  }, []);
-
-  const alertas = m ? m.bloqueosHoy + m.novedades : 0;
-  const alertTone =
-    alertas === 0 ? "ok" : alertas <= 3 ? "warn" : "critical";
-
   return (
-    <div className="fade-in mx-auto max-w-[960px] space-y-10 py-2">
-      <header className="flt-cockpit-banner">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="font-data text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--brand-primary)]">
-              Tablero operativo · {user ? ROLE_LABELS[user.role] : "—"}
-            </p>
-            <h1 className="mt-2 font-display text-2xl font-bold tracking-tight text-[var(--brand-text-primary)] sm:text-3xl">
-              Hola {firstName}, este es el estado operativo de hoy
-            </h1>
-            <p className="mt-2 max-w-xl text-sm text-[var(--brand-text-secondary)]">
-              Tres señales. Cuatro acciones. Sin ruido.
-            </p>
-          </div>
-          <Tooltip content="Abre la guía de 3 pasos de este cockpit (también Cmd/Ctrl+/)">
-            <button
-              type="button"
-              className="flt-help-btn"
-              onClick={() => setHelpOpen(true)}
-              title="Cómo leer el tablero"
-              aria-label="Cómo leer el tablero"
-            >
-              ?
-            </button>
-          </Tooltip>
-        </div>
-      </header>
-
-      {error ? (
-        <p className="text-sm text-[var(--brand-danger)]">{error}</p>
-      ) : null}
-
-      {m ? (
-        <section className="grid grid-cols-1 gap-4 sm:grid-cols-3" data-tour="kpi">
-          <div
-            className="flt-kpi-giant flt-kpi-giant--ok"
-            title="Viajes asignados o en ruta ahora mismo"
-          >
-            <p className="flt-kpi-giant-label">Viajes activos</p>
-            <p className="flt-kpi-giant-value font-data">{m.viajesActivos}</p>
-            <p className="flt-kpi-giant-hint font-data">
-              {m.viajesMes} programados este mes
-            </p>
-          </div>
-          <div
-            className={`flt-kpi-giant ${
-              alertTone === "ok"
-                ? "flt-kpi-giant--ok"
-                : alertTone === "warn"
-                  ? "flt-kpi-giant--warn"
-                  : "flt-kpi-giant--critical"
-            }`}
-            title="Suma de novedades e incidentes de hoy. Rojo/ámbar = revisar Trámites o Logística"
-          >
-            <p className="flt-kpi-giant-label">Alertas / bloqueos</p>
-            <p className="flt-kpi-giant-value font-data">{alertas}</p>
-            <p className="flt-kpi-giant-hint font-data">
-              {m.bloqueosHoy} hoy · {m.novedades} novedades
-            </p>
-          </div>
-          <div
-            className="flt-kpi-giant flt-kpi-giant--metric"
-            title="Ingresos CxC del mes (pagadas + emitidas abiertas)"
-          >
-            <p className="flt-kpi-giant-label">Facturación del mes</p>
-            <p className="flt-kpi-giant-value font-data">
-              {money(m.ingresosMtd)}
-            </p>
-            <p className="flt-kpi-giant-hint font-data">CxC MTD</p>
-          </div>
-        </section>
-      ) : (
-        <p className="text-sm text-[var(--brand-text-secondary)]">
-          Sincronizando estado operativo…
-        </p>
-      )}
-
-      <section className="space-y-3" data-tour="secondary">
-        <h2 className="font-display text-lg font-semibold tracking-tight">
-          Acciones rápidas
-        </h2>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {visibleActions.map((a) => (
-            <Tooltip key={a.title} content={a.tip} side="bottom" className="w-full">
-              <Link href={a.href} className="flt-quick-action group w-full" title={a.tip}>
-                <span className="min-w-0">
-                  <span className="block font-display text-base font-semibold text-[var(--brand-text-primary)]">
-                    {a.title}
-                  </span>
-                  <span className="mt-0.5 block text-sm text-[var(--brand-text-secondary)]">
-                    {a.hint}
-                  </span>
-                </span>
-                <span className="font-data text-xs font-semibold text-[var(--brand-primary)] opacity-70 transition group-hover:opacity-100">
-                  Abrir →
-                </span>
-              </Link>
-            </Tooltip>
-          ))}
-        </div>
-        {showTesoreria || showArchivo ? (
-        <div className="flex flex-wrap gap-3 pt-1 text-sm">
-          {showTesoreria ? (
-          <Tooltip content="Ir a Tesorería: CxC / CxP y aprobación de pagos">
-            <Link
-              href="/tesoreria"
-              className="text-[var(--brand-primary)] underline-offset-2 hover:underline"
-              title="Abrir Tesorería"
-            >
-              Tesorería
-            </Link>
-          </Tooltip>
-          ) : null}
-          {showArchivo ? (
-          <Tooltip content="Ir a la sala documental: documentos con sello digital">
-            <Link
-              href="/archivo"
-              className="text-[var(--brand-primary)] underline-offset-2 hover:underline"
-              title="Abrir Archivo digital"
-            >
-              Archivo
-            </Link>
-          </Tooltip>
-          ) : null}
-        </div>
-        ) : null}
-      </section>
-    </div>
+    <Suspense fallback={null}>
+      <DashboardPageInner />
+    </Suspense>
   );
 }

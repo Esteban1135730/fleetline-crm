@@ -1,8 +1,10 @@
+import { createHash } from "crypto";
 import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
+  NotFoundException,
   UnauthorizedException,
 } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
@@ -56,7 +58,12 @@ export class AuthService {
     };
   }
 
-  async login(email: string, password: string, _clientIp?: string) {
+  async login(
+    email: string,
+    password: string,
+    _clientIp?: string,
+    channel?: "crm" | "app",
+  ) {
     const user = await this.prisma.user.findUnique({
       where: { email: email.toLowerCase().trim() },
       include: { organization: true },
@@ -80,6 +87,25 @@ export class AuthService {
     const ok = await verifyPassword(password, user.passwordHash);
     if (!ok) {
       throw new UnauthorizedException("Credenciales inválidas");
+    }
+
+    const role = normalizeRole(String(user.role));
+    if (role === "padre" || role === "pasajero") {
+      throw new ForbiddenException("Este rol fue retirado.");
+    }
+    if (role === "monitora") {
+      throw new ForbiddenException("El rol monitora está deshabilitado.");
+    }
+    const mobileOnly = role === "conductor";
+    if (channel === "app" && !mobileOnly) {
+      throw new ForbiddenException(
+        "Esta cuenta es del CRM. Entra por el escritorio web.",
+      );
+    }
+    if (channel === "crm" && mobileOnly) {
+      throw new ForbiddenException(
+        "Esta cuenta es exclusiva de la app móvil. Entra desde NEXA Conductor.",
+      );
     }
 
     /** Siempre: clave genérica detectada → forzar cambio. */
@@ -183,6 +209,34 @@ export class AuthService {
       },
     });
     return { ok: true, mustChangePassword: false };
+  }
+
+  async completeOnboarding(token: string, password: string) {
+    assertPasswordPolicy(password);
+    const tokenHash = createHash("sha256").update(token).digest("hex");
+    const link = await this.prisma.tiOnboardingLink.findFirst({
+      where: { tokenHash },
+    });
+    if (!link || link.usedAt || link.expiresAt.getTime() < Date.now()) {
+      throw new NotFoundException("El enlace no es válido o ya venció");
+    }
+    const user = await this.prisma.user.findFirst({
+      where: { email: link.email.toLowerCase(), organizationId: link.organizationId },
+    });
+    if (!user) throw new NotFoundException("No hay una cuenta para este enlace");
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash: await hashPassword(password),
+        mustChangePassword: false,
+        sessionVersion: { increment: 1 },
+      },
+    });
+    await this.prisma.tiOnboardingLink.update({
+      where: { id: link.id },
+      data: { usedAt: new Date() },
+    });
+    return { ok: true as const };
   }
 
   /**

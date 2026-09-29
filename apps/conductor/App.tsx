@@ -5,8 +5,10 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import {
+  clearToken,
   getStoredUser,
   getToken,
+  isMobileAppRole,
   normalizeRole,
   type AuthUser,
   type Trip,
@@ -42,7 +44,7 @@ export type RootStackParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 function initialRouteFor(user: AuthUser | null): keyof RootStackParamList {
-  if (!user) return "Login";
+  if (!user || !isMobileAppRole(user.role)) return "Login";
   if (user.mustChangePassword) return "ChangePassword";
   const role = normalizeRole(user.role);
   if (role === "conductor") return "Trips";
@@ -58,7 +60,12 @@ export default function App() {
     void (async () => {
       const token = await getToken();
       const stored = token ? await getStoredUser() : null;
-      setUser(stored);
+      if (stored && !isMobileAppRole(stored.role)) {
+        await clearToken();
+        setUser(null);
+      } else {
+        setUser(stored);
+      }
       setReady(true);
     })();
   }, []);
@@ -70,10 +77,10 @@ export default function App() {
           flex: 1,
           justifyContent: "center",
           alignItems: "center",
-          backgroundColor: "#0A0D14",
+          backgroundColor: "#050B14",
         }}
       >
-        <ActivityIndicator size="large" color="#10B981" />
+        <ActivityIndicator size="large" color="#00E5FF" />
       </View>
     );
   }
@@ -92,14 +99,17 @@ export default function App() {
               key={mustChange ? "force-pw" : authed ? "app" : "login"}
               initialRouteName={start}
               screenOptions={{
-                headerStyle: { backgroundColor: "#0A0D14" },
-                headerTintColor: "#F8FAFC",
+                headerStyle: { backgroundColor: "#050B14" },
+                headerTintColor: "#00E5FF",
                 headerTitleStyle: { fontWeight: "600" },
-                contentStyle: { backgroundColor: "#0A0D14" },
+                contentStyle: { backgroundColor: "#050B14" },
               }}
             >
               {!authed ? (
-                <Stack.Screen name="Login" options={{ title: "INRETRANS OS" }}>
+                <Stack.Screen
+                  name="Login"
+                  options={{ headerShown: false, title: "NEXA Conductor" }}
+                >
                   {(props) => (
                     <LoginScreen
                       {...props}

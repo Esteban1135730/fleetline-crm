@@ -9,7 +9,7 @@ const USER_KEY = "fsg_user_json";
 let memoryToken: string | null = null;
 let memoryUser: AuthUser | null = null;
 
-const VPS_API = "http://76.13.101.203:4010";
+const VPS_API = "https://crm-api.inredesoft.com";
 
 function extraApiUrl(): string | null {
   const extra = Constants.expoConfig?.extra as { apiUrl?: string } | undefined;
@@ -107,6 +107,23 @@ export type AppRole =
   | "despacho"
   | string;
 
+const MOBILE_APP_ROLES = new Set(["conductor"]);
+
+export function isMobileAppRole(role: string) {
+  return MOBILE_APP_ROLES.has(String(role).toLowerCase().trim());
+}
+
+function rejectNonConductor(role: string): never {
+  const key = String(role).toLowerCase().trim();
+  if (key === "monitora") {
+    throw new Error("El rol monitora está deshabilitado.");
+  }
+  if (key === "padre" || key === "pasajero") {
+    throw new Error("Este rol fue retirado.");
+  }
+  throw new Error("Esta cuenta es del CRM. Entra por el escritorio web.");
+}
+
 export function normalizeRole(role: string): AppRole {
   return String(role).toLowerCase() as AppRole;
 }
@@ -170,7 +187,7 @@ export async function apiFetch<T>(
     res = await fetch(`${base}${path}`, { ...options, headers });
   } catch {
     throw new Error(
-      `Sin uplink a la API (${base}). Verifica datos móviles/Wi‑Fi y el VPS :4010.`,
+      `Sin uplink a la API (${base}). Revisa datos móviles o Wi‑Fi.`,
     );
   }
   if (!res.ok) {
@@ -203,11 +220,15 @@ export async function login(
     "/auth/login",
     {
       method: "POST",
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password, channel: "app" }),
     },
   );
   if (!data?.accessToken) {
     throw new Error("Uplink de autenticación incompleto — sin token");
+  }
+  if (!isMobileAppRole(data.user.role)) {
+    await clearToken();
+    rejectNonConductor(data.user.role);
   }
   await setSession(data.accessToken, data.user);
   return data;
@@ -215,6 +236,10 @@ export async function login(
 
 export async function fetchMe(): Promise<AuthUser> {
   const me = await apiRequest<AuthUser>("/auth/me");
+  if (!isMobileAppRole(me.role)) {
+    await clearToken();
+    rejectNonConductor(me.role);
+  }
   const token = await getToken();
   if (token) await setSession(token, me);
   return me;

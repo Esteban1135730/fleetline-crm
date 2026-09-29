@@ -1116,6 +1116,126 @@ export class ModulesService {
     );
   }
 
+  async appsDrill(organizationId: string, card: string) {
+    if (card === "tickets") {
+      return this.prisma.ticket.findMany({
+        where: { organizationId, status: { in: ["OPEN", "IN_PROGRESS"] } },
+        select: { id: true, code: true, subject: true, requester: true, status: true },
+        orderBy: { createdAt: "desc" },
+        take: 30,
+      });
+    }
+    if (card === "visitantes") {
+      return this.prisma.visitor.findMany({
+        where: { organizationId, checkedOutAt: null },
+        select: { id: true, name: true, hostName: true, reason: true },
+        orderBy: { checkedInAt: "desc" },
+        take: 30,
+      });
+    }
+    if (card === "conductores") {
+      return this.prisma.driver.findMany({
+        where: { organizationId, active: true },
+        select: { id: true, name: true, document: true },
+        orderBy: { name: "asc" },
+        take: 40,
+      });
+    }
+    if (card === "clientes") {
+      return this.prisma.customer.findMany({
+        where: { organizationId },
+        select: { id: true, name: true, nit: true },
+        orderBy: { name: "asc" },
+        take: 40,
+      });
+    }
+    if (card === "operativos") {
+      return this.prisma.employee.findMany({
+        where: { organizationId, area: "Operaciones", status: "ACTIVE" },
+        select: { id: true, name: true, area: true },
+        orderBy: { name: "asc" },
+        take: 40,
+      });
+    }
+    if (card === "viajes") {
+      return this.prisma.trip.findMany({
+        where: { organizationId, status: { in: ["IN_TRANSIT", "ASSIGNED"] } },
+        select: { id: true, code: true, origin: true, destination: true, status: true },
+        orderBy: { departAt: "desc" },
+        take: 30,
+      });
+    }
+    return [];
+  }
+
+  async appsInbox(organizationId: string) {
+    const [chats, tickets] = await Promise.all([
+      this.prisma.supportChatMessage.findMany({
+        where: { organizationId },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+        select: { id: true, authorName: true, body: true, createdAt: true },
+      }),
+      this.prisma.tripChatMessage.findMany({
+        where: { organizationId },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+        select: {
+          id: true,
+          authorName: true,
+          body: true,
+          createdAt: true,
+          trip: { select: { code: true } },
+        },
+      }),
+    ]);
+    const open = await this.prisma.ticket.findMany({
+      where: { organizationId, status: { in: ["OPEN", "IN_PROGRESS"] } },
+      select: { id: true, code: true, subject: true, message: true, status: true },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+    });
+    return {
+      mensajes: [
+        ...chats.map((m) => ({
+          id: m.id,
+          canal: "soporte",
+          quien: m.authorName,
+          texto: m.body,
+          at: m.createdAt.toISOString(),
+        })),
+        ...tickets.map((m) => ({
+          id: m.id,
+          canal: m.trip.code,
+          quien: m.authorName,
+          texto: m.body,
+          at: m.createdAt.toISOString(),
+        })),
+      ].sort((a, b) => (a.at < b.at ? 1 : -1)).slice(0, 30),
+      tickets: open,
+    };
+  }
+
+  async replyInbox(organizationId: string, userId: string, body: string) {
+    const text = body.trim();
+    if (text.length < 1) throw new BadRequestException("Escribe una respuesta");
+    const actor = await this.prisma.user.findFirst({
+      where: { id: userId, organizationId },
+      select: { id: true, name: true, role: true },
+    });
+    if (!actor) throw new NotFoundException("Usuario no encontrado");
+    return this.prisma.supportChatMessage.create({
+      data: {
+        organizationId,
+        authorUserId: actor.id,
+        authorName: actor.name,
+        authorRole: actor.role,
+        body: text,
+      },
+      select: { id: true, body: true, createdAt: true },
+    });
+  }
+
   // —— Compras ——
   private purchaseUiMeta(meta: unknown): {
     supplierName?: string;

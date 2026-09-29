@@ -3,9 +3,23 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from "@nestjs/common";
+import { createHash, randomBytes } from "crypto";
+import * as bcrypt from "bcryptjs";
 import { Role, UserAccountStatus } from "@fsg/db";
 import { normalizeRole, roleRank } from "@fsg/shared";
+import { assertExecutivePinValid } from "../gerencia/dto/gerencia.dto";
+
+const EXECUTIVE_ROLES = new Set<Role>([
+  Role.PRESIDENTE,
+  Role.PRESIDENCIA,
+  Role.GERENTE_GENERAL,
+  Role.SUB_GERENTE,
+  Role.GERENCIA,
+  Role.REVISOR_FISCAL,
+  Role.REVISORIA,
+]);
 import { PrismaService } from "../prisma/prisma.service";
 import {
   assertPasswordPolicy,
@@ -179,6 +193,16 @@ export class UsersService {
     return role;
   }
 
+  /** Padre y pasajero retirados. Monitora apagada hasta nueva orden. */
+  static assertRoleAvailable(role: Role) {
+    if (role === Role.PADRE || role === Role.PASAJERO) {
+      throw new BadRequestException("Los roles padre y pasajero fueron retirados.");
+    }
+    if (role === Role.MONITORA) {
+      throw new BadRequestException("El rol monitora está deshabilitado.");
+    }
+  }
+
   static async hashPassword(password: string): Promise<string> {
     return hashPassword(password);
   }
@@ -239,6 +263,7 @@ export class UsersService {
     },
   ) {
     const targetRole = this.parseRole(data.role);
+    UsersService.assertRoleAvailable(targetRole);
     if (targetRole === Role.PLATFORM_MASTER) {
       throw new ForbiddenException(
         "Solo el seed/plataforma puede tener maestro global",
@@ -308,14 +333,22 @@ export class UsersService {
       },
     });
 
+    const onboardingUrl = await this.issueOnboardingLink(
+      orgId,
+      actor.userId,
+      user.email,
+      user.name,
+      targetRole,
+    );
+
     return {
       ...this.toPublic(user),
-      tempPassword: tempPassword ?? plain,
+      onboardingUrl,
       pendingAuthorization: status === UserAccountStatus.PENDING,
       message:
         status === UserAccountStatus.PENDING
-          ? "Usuario creado en PENDING — requiere autorización de mando superior / admin de empresa"
-          : "Usuario activo — entrega la clave temporal y fuerza cambio en el primer acceso",
+          ? "Alta en pendiente. El enlace sirve cuando mando superior autorice."
+          : "Enlace de un solo uso. El usuario define su clave. No se muestra ninguna contraseña.",
     };
   }
 
@@ -340,6 +373,7 @@ export class UsersService {
       data: {
         passwordHash: await hashPassword(tempPassword),
         mustChangePassword: true,
+        sessionVersion: { increment: 1 },
       },
     });
 
@@ -366,6 +400,7 @@ export class UsersService {
       active?: boolean;
       password?: string;
       status?: string;
+      pin?: string;
     },
   ) {
     const existing = await this.prisma.user.findFirst({
@@ -378,8 +413,25 @@ export class UsersService {
     }
 
     const role = data.role ? this.parseRole(data.role) : undefined;
+    if (role) UsersService.assertRoleAvailable(role);
     if (role === Role.PLATFORM_MASTER) {
       throw new ForbiddenException("No se puede asignar PLATFORM_MASTER");
+    }
+    if (role && EXECUTIVE_ROLES.has(role) && role !== existing.role) {
+      const signer = await this.prisma.user.findUnique({
+        where: { id: actor.userId },
+        select: { executivePinHash: true },
+      });
+      try {
+        assertExecutivePinValid(data.pin, signer?.executivePinHash, (p, h) =>
+          bcrypt.compareSync(p, h),
+        );
+      } catch (err) {
+        if (err instanceof UnauthorizedException || err instanceof BadRequestException) {
+          throw err;
+        }
+        throw err;
+      }
     }
 
     if (data.email && data.email.toLowerCase() !== existing.email) {
@@ -412,6 +464,7 @@ export class UsersService {
           ? {
               passwordHash: await hashPassword(data.password),
               mustChangePassword: true,
+              sessionVersion: { increment: 1 },
             }
           : {}),
       },
@@ -420,7 +473,7 @@ export class UsersService {
       },
     });
 
-    const { password: _omitPassword, ...auditMeta } = data;
+    const { password: _omitPassword, pin: _omitPin, ...auditMeta } = data;
     await this.prisma.auditLog.create({
       data: {
         action: "USER_UPDATE",
@@ -454,7 +507,11 @@ export class UsersService {
 
     const user = await this.prisma.user.update({
       where: { id },
-      data: { active: false, status: UserAccountStatus.REJECTED },
+      data: {
+        active: false,
+        status: UserAccountStatus.REJECTED,
+        sessionVersion: { increment: 1 },
+      },
       include: {
         organization: { select: { id: true, name: true, nit: true } },
       },
@@ -547,9 +604,76 @@ export class UsersService {
       },
     });
 
+    const link =
+      decision === "APPROVE"
+        ? await this.issueOnboardingLink(
+            user.organizationId,
+            actor.userId,
+            user.email,
+            user.name,
+            user.role,
+          )
+        : undefined;
+
     return {
       ...this.toPublic(user),
-      ...(tempPassword ? { tempPassword } : {}),
+      ...(link ? { onboardingUrl: link } : {}),
     };
+  }
+
+  async revokeSessions(
+    actor: { userId: string; organizationId: string; role: string },
+    id: string,
+  ) {
+    if (id === actor.userId) {
+      throw new BadRequestException("No puedes cerrar tu propia sesión desde aquí");
+    }
+    const existing = await this.prisma.user.findFirst({
+      where: this.actorUserWhere(actor, id),
+      select: { id: true },
+    });
+    if (!existing) throw new NotFoundException("Usuario no encontrado");
+    const updated = await this.prisma.user.update({
+      where: { id },
+      data: { sessionVersion: { increment: 1 } },
+      select: { id: true, sessionVersion: true },
+    });
+    await this.prisma.auditLog.create({
+      data: {
+        action: "USER_REVOKE_SESSIONS",
+        entity: "User",
+        entityId: id,
+        userId: actor.userId,
+        meta: { sessionVersion: updated.sessionVersion },
+      },
+    });
+    return { ok: true as const, sessionVersion: updated.sessionVersion };
+  }
+
+  private async issueOnboardingLink(
+    organizationId: string,
+    createdById: string,
+    email: string,
+    name: string,
+    targetRole: Role,
+  ) {
+    const rawToken = randomBytes(32).toString("base64url");
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+    await this.prisma.tiOnboardingLink.create({
+      data: {
+        organizationId,
+        email: email.toLowerCase(),
+        name,
+        targetRole,
+        tokenHash: createHash("sha256").update(rawToken).digest("hex"),
+        expiresAt,
+        createdById,
+      },
+    });
+    const base =
+      process.env.WEB_APP_URL ||
+      process.env.NEXT_PUBLIC_APP_URL ||
+      "http://localhost:3000";
+    return `${base.replace(/\/$/, "")}/onboarding?token=${rawToken}`;
   }
 }

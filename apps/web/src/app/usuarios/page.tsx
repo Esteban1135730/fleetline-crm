@@ -35,6 +35,7 @@ type UserRow = {
   pendingAuthorization?: boolean;
   message?: string;
   tempPassword?: string;
+  onboardingUrl?: string;
 };
 
 const MATRIX_MODULES: ModuleId[] = CORPORATE_AREA_MODULES;
@@ -96,10 +97,15 @@ export default function UsuariosPage() {
   const [tempHandoff, setTempHandoff] = useState<{
     name: string;
     email: string;
-    tempPassword: string;
+    tempPassword?: string;
+    onboardingUrl?: string;
     pending?: boolean;
     generic?: boolean;
   } | null>(null);
+  const [pendingOnly, setPendingOnly] = useState(false);
+  const [roleUser, setRoleUser] = useState<UserRow | null>(null);
+  const [roleDraft, setRoleDraft] = useState<Role>("gestor_operativo");
+  const [rolePin, setRolePin] = useState("");
 
   async function load() {
     setUsers(await api<UserRow[]>("/users"));
@@ -117,16 +123,19 @@ export default function UsuariosPage() {
   ).length;
 
   const filteredUsers = useMemo(() => {
+    const base = pendingOnly
+      ? users.filter((u) => u.status === "pending")
+      : users;
     const q = search.trim().toLowerCase();
-    if (!q) return users;
-    return users.filter(
+    if (!q) return base;
+    return base.filter(
       (u) =>
         u.name.toLowerCase().includes(q) ||
         u.email.toLowerCase().includes(q) ||
         (u.organization?.name ?? "").toLowerCase().includes(q) ||
         (ROLE_LABELS[u.role] ?? u.role).toLowerCase().includes(q),
     );
-  }, [users, search]);
+  }, [users, search, pendingOnly]);
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
@@ -144,7 +153,15 @@ export default function UsuariosPage() {
       setEmail("");
       setRole("gestor_operativo");
       setSlideOpen(false);
-      if (created.tempPassword) {
+      if (created.onboardingUrl) {
+        setTempHandoff({
+          name: handoffName,
+          email: handoffEmail,
+          onboardingUrl: created.onboardingUrl,
+          pending:
+            created.pendingAuthorization || created.status === "pending",
+        });
+      } else if (created.tempPassword) {
         setTempHandoff({
           name: handoffName,
           email: handoffEmail,
@@ -225,15 +242,21 @@ export default function UsuariosPage() {
             {activeCount}
           </p>
         </BentoPanel>
+        <button
+          type="button"
+          className="text-left"
+          onClick={() => setPendingOnly((v) => !v)}
+        >
         <BentoPanel
           title="Pendientes"
-          subtitle="Autorización"
+          subtitle={pendingOnly ? "Filtro activo" : "Autorización"}
           icon={<Shield aria-hidden />}
         >
           <p className="font-data text-3xl font-bold tabular-nums text-brand-warning">
             {pending.length}
           </p>
         </BentoPanel>
+        </button>
         <BentoPanel
           title="Roles"
           subtitle="Asignables"
@@ -274,7 +297,13 @@ export default function UsuariosPage() {
                         method: "POST",
                         body: JSON.stringify({ decision: "APPROVE" }),
                       });
-                      if (res.tempPassword) {
+                      if (res.onboardingUrl) {
+                        setTempHandoff({
+                          name: u.name,
+                          email: u.email,
+                          onboardingUrl: res.onboardingUrl,
+                        });
+                      } else if (res.tempPassword) {
                         setTempHandoff({
                           name: u.name,
                           email: u.email,
@@ -385,19 +414,22 @@ export default function UsuariosPage() {
                   </NexaCell>
                 ) : null}
                 <NexaCell>
-                  <select
-                    className="field w-full py-1 text-xs"
-                    value={u.role}
-                    onChange={async (e) => {
-                      await api(`/users/${u.id}`, {
-                        method: "PATCH",
-                        body: JSON.stringify({ role: e.target.value }),
-                      });
-                      await load();
-                    }}
-                  >
-                    <RoleOptions assignable={assignable} />
-                  </select>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs">{ROLE_LABELS[u.role] ?? u.role}</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="w-auto px-2 py-1 text-xs"
+                      onClick={() => {
+                        setRoleUser(u);
+                        setRoleDraft(u.role);
+                        setRolePin("");
+                        setError("");
+                      }}
+                    >
+                      Cambiar
+                    </Button>
+                  </div>
                 </NexaCell>
                 <NexaCell>{userStatusBadge(u)}</NexaCell>
                 <NexaCell>
@@ -409,6 +441,16 @@ export default function UsuariosPage() {
                       onClick={() => void onResetPassword(u)}
                     >
                       Reset clave
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      className="w-auto px-2 py-1 text-xs text-[var(--brand-danger)]"
+                      onClick={async () => {
+                        await api(`/users/${u.id}/revoke-sessions`, { method: "POST" });
+                        setInfo(`Sesión de ${u.name} invalidada`);
+                      }}
+                    >
+                      Cerrar sesión
                     </Button>
                     {u.active ? (
                       <Button
@@ -549,8 +591,7 @@ export default function UsuariosPage() {
             autoComplete="email"
           />
           <p className="font-data text-[11px] text-brand-text-secondary">
-            Se genera una clave temporal única. El usuario deberá cambiarla en el
-            primer acceso.
+            Se genera un enlace de un solo uso. El usuario define su clave. Aquí no aparece ninguna contraseña.
           </p>
           <select
             className="field"
@@ -563,18 +604,77 @@ export default function UsuariosPage() {
         </form>
       </SlideOver>
 
+      <SlideOver
+        open={Boolean(roleUser)}
+        onClose={() => setRoleUser(null)}
+        title="Cambiar rol"
+        footer={
+          <Button
+            type="button"
+            variant="primary"
+            className="w-auto px-4 py-2"
+            disabled={busy}
+            onClick={async () => {
+              if (!roleUser) return;
+              setBusy(true);
+              setError("");
+              try {
+                await api(`/users/${roleUser.id}`, {
+                  method: "PATCH",
+                  body: JSON.stringify({ role: roleDraft, pin: rolePin || undefined }),
+                });
+                setRoleUser(null);
+                await load();
+              } catch (err) {
+                setError(err instanceof Error ? err.message : "No se cambió el rol");
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            Guardar rol
+          </Button>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-brand-text-primary">{roleUser?.name}</p>
+          <select
+            className="field w-full"
+            value={roleDraft}
+            onChange={(e) => setRoleDraft(e.target.value as Role)}
+          >
+            <RoleOptions assignable={assignable} />
+          </select>
+          <label className="block text-xs text-brand-text-secondary">
+            PIN de 6 dígitos si el cargo es de presidencia, gerencia o revisoría
+            <input
+              className="field mt-1 w-full font-data"
+              inputMode="numeric"
+              maxLength={6}
+              value={rolePin}
+              onChange={(e) => setRolePin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+            />
+          </label>
+          {error ? <p className="text-sm text-brand-danger">{error}</p> : null}
+        </div>
+      </SlideOver>
+
       <Modal
         open={Boolean(tempHandoff)}
         onClose={() => setTempHandoff(null)}
         title={
-          tempHandoff?.generic
-            ? "Clave genérica restaurada"
-            : "Clave temporal"
+          tempHandoff?.onboardingUrl
+            ? "Enlace de alta"
+            : tempHandoff?.generic
+              ? "Clave genérica restaurada"
+              : "Clave temporal"
         }
         description={
-          tempHandoff?.generic
-            ? "Se restauró la clave genérica de flota. En el próximo inicio de sesión el usuario deberá cambiarla por una personal segura."
-            : "Cópiala ahora — no se volverá a mostrar. Entrégala al usuario por canal seguro."
+          tempHandoff?.onboardingUrl
+            ? "Cópialo y entrégalo. El correo no sale solo. Quien lo abre define su clave."
+            : tempHandoff?.generic
+              ? "Se restauró la clave genérica de flota. En el próximo inicio de sesión el usuario deberá cambiarla por una personal segura."
+              : "Cópiala ahora — no se volverá a mostrar. Entrégala al usuario por canal seguro."
         }
         footer={
           <Button
@@ -604,13 +704,15 @@ export default function UsuariosPage() {
             ) : null}
             <div className="rounded-lg border border-brand-border bg-brand-surface-elevated p-3">
               <div className="font-data text-[10px] uppercase tracking-wide text-brand-text-secondary">
-                {tempHandoff.generic
-                  ? "Contraseña genérica"
-                  : "Contraseña temporal"}
+                {tempHandoff.onboardingUrl
+                  ? "Enlace"
+                  : tempHandoff.generic
+                    ? "Contraseña genérica"
+                    : "Contraseña temporal"}
               </div>
-              <div className="mt-1 break-all font-data text-lg text-brand-primary">
-                {tempHandoff.tempPassword}
-              </div>
+              <p className="mt-1 break-all font-data text-sm text-brand-text-primary">
+                {tempHandoff.onboardingUrl || tempHandoff.tempPassword}
+              </p>
               {tempHandoff.generic ? (
                 <p className="mt-2 font-data text-[11px] text-brand-text-secondary">
                   Al iniciar con esta clave el sistema pedirá cambiarla

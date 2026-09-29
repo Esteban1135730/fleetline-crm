@@ -23,6 +23,10 @@ function canUseRemotePush() {
 }
 
 async function loadModules() {
+  // Importar expo-notifications en Expo Go Android lanza al evaluar el módulo (SDK 53+).
+  if (!canUseRemotePush()) {
+    return { notifications: null, device: null };
+  }
   if (!notifications) {
     try {
       notifications = await import("expo-notifications");
@@ -59,14 +63,7 @@ export async function ensureNotificationHandler() {
  * En Expo Go Android se omite a propósito (SDK 53+).
  */
 export async function registerForPushAsync(): Promise<string | null> {
-  if (!canUseRemotePush()) {
-    if (__DEV__) {
-      console.info(
-        "[INRETRANS] Push remoto omitido en Expo Go (Android). Usa un development build para FCM.",
-      );
-    }
-    return null;
-  }
+  if (!canUseRemotePush()) return null;
 
   const { notifications: n, device: d } = await loadModules();
   if (!n || !d) return null;

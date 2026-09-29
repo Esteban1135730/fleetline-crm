@@ -2,8 +2,6 @@ import { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -12,7 +10,9 @@ import {
 } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../App";
-import { getApiUrl, login } from "../api";
+import { KeyboardForm } from "../components/KeyboardForm";
+import { PasswordField } from "../components/PasswordField";
+import { login } from "../api";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Login"> & {
   onLoggedIn: () => void;
@@ -25,7 +25,7 @@ export default function LoginScreen({ onLoggedIn }: Props) {
 
   async function handleLogin() {
     if (!email.trim() || !password) {
-      Alert.alert("Datos incompletos", "Ingresa email y contraseña.");
+      Alert.alert("Datos incompletos", "Ingresa correo y clave.");
       return;
     }
     setLoading(true);
@@ -34,8 +34,8 @@ export default function LoginScreen({ onLoggedIn }: Props) {
       onLoggedIn();
     } catch (err) {
       Alert.alert(
-        "No se pudo iniciar sesión",
-        err instanceof Error ? err.message : "Error desconocido",
+        "Uplink rechazado",
+        err instanceof Error ? err.message : "No se pudo autenticar",
       );
     } finally {
       setLoading(false);
@@ -43,116 +43,110 @@ export default function LoginScreen({ onLoggedIn }: Props) {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <View style={styles.card}>
-        <Text style={styles.title}>INRETRANS OS</Text>
-        <Text style={styles.subtitle}>
-          Login único multi-rol. Al autenticar, la interfaz se adapta a Conductor,
-          Supervisor, Monitora, Padre o Pasajero.
-        </Text>
+    <KeyboardForm center contentStyle={styles.container}>
+      <Text style={styles.kicker}>NEXA · FLOTA</Text>
+      <Text style={styles.title}>Conductor</Text>
+      <Text style={styles.subtitle}>Autenticación de turno</Text>
 
-        <Text style={styles.label}>Email</Text>
+      <View style={styles.card}>
+        <Text style={styles.label}>Correo</Text>
         <TextInput
           style={styles.input}
           autoCapitalize="none"
+          autoCorrect={false}
           keyboardType="email-address"
           value={email}
           onChangeText={setEmail}
           placeholder="conductor@inretrans.com"
+          placeholderTextColor="#8B9BB4"
         />
 
-        <Text style={styles.label}>Contraseña</Text>
-        <TextInput
-          style={styles.input}
-          secureTextEntry
+        <Text style={styles.label}>Clave</Text>
+        <PasswordField
           value={password}
           onChangeText={setPassword}
           placeholder="••••••••"
+          onSubmitEditing={() => void handleLogin()}
         />
 
-        <Text style={styles.apiHint}>API · {getApiUrl()}</Text>
         <Pressable
           style={[styles.button, loading && styles.buttonDisabled]}
           onPress={() => void handleLogin()}
           disabled={loading}
         >
           {loading ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color="#050B14" />
           ) : (
             <Text style={styles.buttonText}>Entrar</Text>
           )}
         </Pressable>
       </View>
-    </KeyboardAvoidingView>
+    </KeyboardForm>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: "#f0f4f8",
-    justifyContent: "center",
-    padding: 24,
+    paddingHorizontal: 24,
   },
-  card: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 20,
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  title: {
-    fontSize: 22,
+  kicker: {
+    color: "#00E5FF",
+    fontSize: 11,
     fontWeight: "700",
-    color: "#1e3a5f",
+    letterSpacing: 1.6,
     marginBottom: 8,
   },
+  title: {
+    fontSize: 32,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    letterSpacing: -0.4,
+  },
   subtitle: {
+    marginTop: 4,
+    marginBottom: 28,
     fontSize: 14,
-    color: "#64748b",
-    marginBottom: 20,
-    lineHeight: 20,
+    color: "#8B9BB4",
+  },
+  card: {
+    backgroundColor: "rgba(11, 19, 37, 0.92)",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#1C3A5E",
+    padding: 20,
   },
   label: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "600",
-    color: "#334155",
+    color: "#8B9BB4",
     marginBottom: 6,
+    letterSpacing: 0.4,
   },
   input: {
     borderWidth: 1,
-    borderColor: "#cbd5e1",
+    borderColor: "#1C3A5E",
     borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 14,
+    paddingVertical: 12,
+    marginBottom: 16,
     fontSize: 16,
-    backgroundColor: "#fff",
+    color: "#FFFFFF",
+    backgroundColor: "#050B14",
   },
   button: {
-    backgroundColor: "#1e3a5f",
+    alignSelf: "flex-end",
+    backgroundColor: "#00E5FF",
     borderRadius: 8,
-    paddingVertical: 14,
-    alignItems: "center",
-    marginTop: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 28,
+    marginTop: 4,
   },
   buttonDisabled: {
     opacity: 0.7,
   },
   buttonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  apiHint: {
-    marginBottom: 8,
-    fontSize: 11,
-    color: "#64748b",
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    color: "#050B14",
+    fontSize: 15,
+    fontWeight: "700",
   },
 });

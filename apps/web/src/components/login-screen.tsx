@@ -1,11 +1,11 @@
 "use client";
 
-import { Eye, EyeOff } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { homePathForRole, useAuth } from "@/lib/auth-context";
 import { authenticateNode } from "@/lib/auth-mock";
 import { AUTH_COPY, AuthNodeError } from "@/lib/auth-types";
+import { PasswordField } from "@/components/forms/password-field";
 import { AuthLayout } from "@/components/nexa/auth-layout";
 
 type FormPhase = "idle" | "loading" | "success" | "error";
@@ -16,7 +16,6 @@ export function LoginScreen() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [phase, setPhase] = useState<FormPhase>("idle");
@@ -109,37 +108,21 @@ export function LoginScreen() {
           <label className="field-label" htmlFor="nodePassword">
             {AUTH_COPY.passwordLabel}
           </label>
-          <div className="relative">
-            <input
-              id="nodePassword"
-              className="login-field w-full pr-11 font-data"
-              type={showPassword ? "text" : "password"}
-              placeholder={AUTH_COPY.passwordPlaceholder}
-              value={password}
-              onChange={(e) => {
-                setPassword(e.target.value);
-                if (errorMessage) setErrorMessage("");
-                if (phase === "error") setPhase("idle");
-              }}
-              required
-              disabled={isLoading}
-              autoComplete="current-password"
-              minLength={8}
-            />
-            <button
-              type="button"
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-text-secondary transition-colors hover:text-brand-primary"
-              onClick={() => setShowPassword((v) => !v)}
-              aria-label={showPassword ? "Ocultar clave" : "Ver clave"}
-              tabIndex={-1}
-            >
-              {showPassword ? (
-                <EyeOff className="h-4 w-4" />
-              ) : (
-                <Eye className="h-4 w-4" />
-              )}
-            </button>
-          </div>
+          <PasswordField
+            id="nodePassword"
+            className="login-field w-full font-data"
+            placeholder={AUTH_COPY.passwordPlaceholder}
+            value={password}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              if (errorMessage) setErrorMessage("");
+              if (phase === "error") setPhase("idle");
+            }}
+            required
+            disabled={isLoading}
+            autoComplete="current-password"
+            minLength={8}
+          />
           <div className="mt-2 flex justify-end">
             <p className="max-w-[16rem] text-right font-sans text-xs text-brand-text-secondary">
               ¿Olvidaste tu clave? Contacta a tu administrador o RRHH para un

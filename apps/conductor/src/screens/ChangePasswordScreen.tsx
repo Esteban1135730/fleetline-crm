@@ -2,16 +2,15 @@ import { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../App";
+import { KeyboardForm } from "../components/KeyboardForm";
+import { PasswordField } from "../components/PasswordField";
 import { changePassword } from "../api";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ChangePassword"> & {
@@ -68,10 +67,7 @@ export default function ChangePasswordScreen({ onDone }: Props) {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
+    <KeyboardForm contentStyle={styles.container}>
       <View style={styles.card}>
         <Text style={styles.title}>Cambiar contraseña</Text>
         <Text style={styles.subtitle}>
@@ -79,25 +75,22 @@ export default function ChangePasswordScreen({ onDone }: Props) {
         </Text>
 
         <Text style={styles.label}>Actual (temporal)</Text>
-        <TextInput
+        <PasswordField
           style={styles.input}
-          secureTextEntry
           value={current}
           onChangeText={setCurrent}
         />
         <Text style={styles.label}>Nueva</Text>
-        <TextInput
+        <PasswordField
           style={styles.input}
-          secureTextEntry
           value={next}
           onChangeText={setNext}
           placeholder="Mín. 10 · mayúscula, número y símbolo"
           placeholderTextColor="#64748B"
         />
         <Text style={styles.label}>Confirmar</Text>
-        <TextInput
+        <PasswordField
           style={styles.input}
-          secureTextEntry
           value={confirm}
           onChangeText={setConfirm}
           placeholderTextColor="#64748B"
@@ -115,15 +108,12 @@ export default function ChangePasswordScreen({ onDone }: Props) {
           )}
         </Pressable>
       </View>
-    </KeyboardAvoidingView>
+    </KeyboardForm>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: "#0A0D14",
-    justifyContent: "center",
     padding: 20,
   },
   card: {

@@ -1,14 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   FlatList,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { io, type Socket } from "socket.io-client";
@@ -36,14 +35,36 @@ type Msg = {
   createdAt?: string;
 };
 
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean).slice(0, 2);
+  const mark = parts.map((p) => p[0]?.toUpperCase() ?? "").join("");
+  return mark || "·";
+}
+
+function clock(iso?: string) {
+  const d = new Date(iso || Date.now());
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleTimeString("es-CO", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
+function roleLabel(role: string) {
+  return role.replace(/_/g, " ").toLowerCase();
+}
+
 function ChatView({
   title,
+  hint,
   mode,
   tripId,
   load,
   send,
 }: {
   title: string;
+  hint: string;
   mode: "trip" | "support";
   tripId?: string;
   load: () => Promise<Msg[]>;
@@ -57,6 +78,7 @@ function ChatView({
   const [meName, setMeName] = useState("");
   const listRef = useRef<FlatList<Msg>>(null);
   const socketRef = useRef<Socket | null>(null);
+  const canSend = text.trim().length > 0 && !sending;
 
   const refresh = useCallback(async () => {
     const rows = await load();
@@ -121,7 +143,7 @@ function ChatView({
   }, [messages.length]);
 
   async function onSend() {
-    if (!text.trim()) return;
+    if (!canSend) return;
     setSending(true);
     try {
       const body = text.trim();
@@ -140,68 +162,87 @@ function ChatView({
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 88 : 0}
-    >
+    <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>{title}</Text>
-        <View style={[styles.livePill, live ? styles.liveOn : styles.liveOff]}>
-          <Text style={styles.liveText}>{live ? "EN VIVO" : "OFFLINE"}</Text>
+        <Ionicons
+          name={live ? "radio-outline" : "cloud-offline-outline"}
+          size={18}
+          color={live ? "#00E5FF" : "#8B9BB4"}
+        />
+        <View style={styles.headerCopy}>
+          <Text style={styles.title} numberOfLines={1}>
+            {title}
+          </Text>
+          <Text style={styles.hint}>
+            {live ? "En línea" : "Sin enlace"} · {hint}
+          </Text>
         </View>
       </View>
+
       <FlatList
         ref={listRef}
         data={messages}
         keyExtractor={(m) => m.id}
-        contentContainerStyle={{ padding: 16, paddingBottom: 8, gap: 10 }}
+        style={styles.listFlex}
+        contentContainerStyle={[
+          styles.list,
+          messages.length === 0 && styles.listEmpty,
+        ]}
         onContentSizeChange={() =>
           listRef.current?.scrollToEnd({ animated: false })
         }
         renderItem={({ item }) => {
-          const mine = meName && item.authorName === meName;
+          const mine = Boolean(meName) && item.authorName === meName;
           return (
-            <View
-              style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleOther]}
-            >
-              {!mine ? (
-                <Text style={styles.meta}>
-                  {item.authorName} · {item.authorRole}
-                </Text>
-              ) : null}
-              <Text style={styles.body}>{item.body}</Text>
-              <Text style={styles.time}>
-                {new Date(item.serverTime || item.createdAt || Date.now()).toLocaleTimeString(
-                  "es-CO",
-                  { hour12: false },
+            <View style={[styles.row, mine ? styles.rowMine : styles.rowOther]}>
+              {mine ? null : (
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarText}>{initials(item.authorName)}</Text>
+                </View>
+              )}
+              <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleOther]}>
+                {mine ? null : (
+                  <Text style={styles.meta} numberOfLines={1}>
+                    {item.authorName}
+                    <Text style={styles.role}>  {roleLabel(item.authorRole)}</Text>
+                  </Text>
                 )}
-              </Text>
+                <Text style={[styles.body, mine && styles.bodyMine]}>{item.body}</Text>
+                <Text style={[styles.time, mine && styles.timeMine]}>
+                  {clock(item.serverTime || item.createdAt)}
+                </Text>
+              </View>
             </View>
           );
         }}
         ListEmptyComponent={
-          <Text style={styles.empty}>Sin mensajes. Escribe el primero.</Text>
+          <View style={styles.empty}>
+            <Ionicons name="chatbubbles-outline" size={36} color="#00E5FF" />
+            <Text style={styles.emptyTitle}>Canal en silencio</Text>
+            <Text style={styles.emptyBody}>El primer mensaje abre el hilo.</Text>
+          </View>
         }
       />
+
       <View style={[styles.composer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
         <TextInput
           style={styles.input}
           value={text}
           onChangeText={setText}
-          placeholder="Mensaje…"
-          placeholderTextColor="#64748B"
+          placeholder="Escribe al canal"
+          placeholderTextColor="#8B9BB4"
           multiline
         />
         <Pressable
-          style={[styles.send, sending && { opacity: 0.6 }]}
-          disabled={sending}
+          style={[styles.send, !canSend && styles.sendOff]}
+          disabled={!canSend}
           onPress={() => void onSend()}
+          accessibilityLabel="Enviar"
         >
-          <Text style={styles.sendText}>{sending ? "…" : "Enviar"}</Text>
+          <Ionicons name="send" size={18} color="#050B14" />
         </Pressable>
       </View>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
@@ -209,7 +250,8 @@ export function TripChatScreen({ route }: TripProps) {
   const { tripId, code } = route.params;
   return (
     <ChatView
-      title={`Viaje ${code}`}
+      title={code}
+      hint="viaje"
       mode="trip"
       tripId={tripId}
       load={() => fetchTripChat(tripId)}
@@ -221,7 +263,8 @@ export function TripChatScreen({ route }: TripProps) {
 export function SupportChatScreen(_props: SupportProps) {
   return (
     <ChatView
-      title="Soporte flota"
+      title="Soporte"
+      hint="flota"
       mode="support"
       load={() => fetchSupportChat()}
       send={(body) => postSupportChat(body)}
@@ -230,80 +273,110 @@ export function SupportChatScreen(_props: SupportProps) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0A0D14" },
+  container: { flex: 1, backgroundColor: "#050B14" },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: 10,
     paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 8,
+    paddingTop: 10,
+    paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.07)",
+    borderBottomColor: "#1C3A5E",
   },
-  title: { color: "#94A3B8", fontSize: 13, fontWeight: "600", flex: 1 },
-  livePill: {
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+  headerCopy: { flex: 1 },
+  title: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "700",
+    letterSpacing: -0.2,
   },
-  liveOn: { backgroundColor: "rgba(16,185,129,0.2)" },
-  liveOff: { backgroundColor: "rgba(148,163,184,0.15)" },
-  liveText: {
-    color: "#F8FAFC",
-    fontSize: 10,
-    fontWeight: "800",
-    letterSpacing: 0.6,
+  hint: { marginTop: 2, color: "#8B9BB4", fontSize: 12 },
+  listFlex: { flex: 1 },
+  list: { paddingHorizontal: 14, paddingTop: 16, paddingBottom: 12, gap: 12 },
+  listEmpty: { flexGrow: 1, justifyContent: "center" },
+  row: { flexDirection: "row", alignItems: "flex-end", gap: 8, maxWidth: "100%" },
+  rowMine: { justifyContent: "flex-end" },
+  rowOther: { justifyContent: "flex-start" },
+  avatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,229,255,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(0,229,255,0.35)",
   },
+  avatarText: { color: "#00E5FF", fontSize: 11, fontWeight: "700" },
   bubble: {
-    maxWidth: "88%",
-    borderRadius: 12,
-    padding: 12,
+    maxWidth: "78%",
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 7,
     borderWidth: 1,
   },
   bubbleMine: {
-    alignSelf: "flex-end",
-    backgroundColor: "rgba(16,185,129,0.15)",
-    borderColor: "rgba(16,185,129,0.35)",
+    backgroundColor: "rgba(0,229,255,0.16)",
+    borderColor: "rgba(0,229,255,0.4)",
+    borderBottomRightRadius: 4,
   },
   bubbleOther: {
-    alignSelf: "flex-start",
-    backgroundColor: "#121722",
-    borderColor: "rgba(255,255,255,0.07)",
+    backgroundColor: "rgba(11,19,37,0.92)",
+    borderColor: "#1C3A5E",
+    borderBottomLeftRadius: 4,
   },
-  meta: { color: "#10B981", fontSize: 11, fontWeight: "700", marginBottom: 4 },
-  body: { color: "#F8FAFC", fontSize: 15, lineHeight: 20 },
+  meta: { color: "#FFFFFF", fontSize: 12, fontWeight: "700", marginBottom: 3 },
+  role: { color: "#8B9BB4", fontWeight: "500" },
+  body: { color: "#FFFFFF", fontSize: 15, lineHeight: 21 },
+  bodyMine: { color: "#F4FEFF" },
   time: {
-    color: "#64748B",
+    marginTop: 4,
+    color: "#8B9BB4",
     fontSize: 10,
-    marginTop: 6,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    fontVariant: ["tabular-nums"],
+    alignSelf: "flex-end",
   },
-  empty: { color: "#64748B", textAlign: "center", marginTop: 40 },
+  timeMine: { color: "rgba(0,229,255,0.85)" },
+  empty: { alignItems: "center", paddingHorizontal: 32 },
+  emptyTitle: {
+    marginTop: 14,
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  emptyBody: { marginTop: 4, color: "#8B9BB4", fontSize: 13 },
   composer: {
     flexDirection: "row",
+    alignItems: "flex-end",
     gap: 8,
     paddingHorizontal: 12,
     paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.07)",
-    backgroundColor: "#0A0D14",
+    borderTopColor: "#1C3A5E",
+    backgroundColor: "#050B14",
   },
   input: {
     flex: 1,
-    maxHeight: 100,
-    backgroundColor: "#121722",
-    borderRadius: 8,
-    paddingHorizontal: 12,
+    maxHeight: 88,
+    minHeight: 44,
+    backgroundColor: "rgba(11,19,37,0.92)",
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: "#1C3A5E",
+    paddingHorizontal: 16,
     paddingVertical: 10,
-    color: "#F8FAFC",
+    color: "#FFFFFF",
+    fontSize: 15,
   },
   send: {
-    backgroundColor: "#10B981",
-    borderRadius: 8,
-    paddingHorizontal: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#00E5FF",
+    alignItems: "center",
     justifyContent: "center",
-    minHeight: 44,
   },
-  sendText: { color: "#04110c", fontWeight: "800" },
+  sendOff: { opacity: 0.35 },
 });

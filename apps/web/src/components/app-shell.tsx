@@ -632,7 +632,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
   useQaTraceBeacon();
 
   useEffect(() => {
-    if (!loading && !user && pathname !== "/login") {
+    if (!loading && !user && pathname !== "/login" && pathname !== "/onboarding") {
       router.replace("/login");
     }
   }, [loading, user, pathname, router]);
@@ -706,7 +706,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     ];
   }, [departments]);
 
-  if (pathname === "/login") return <>{children}</>;
+  if (pathname === "/login" || pathname === "/onboarding") return <>{children}</>;
 
   if (loading || !user) {
     return (

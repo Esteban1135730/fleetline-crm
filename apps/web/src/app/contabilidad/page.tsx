@@ -4,8 +4,8 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
 import {
   BookOpen,
-  CheckCircle,
   FileSpreadsheet,
+  ChevronRight,
   Landmark,
   Lock,
   Plus,
@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { statusEs } from "@fsg/shared";
-import { EmptyState, KpiCard, SlideOver } from "@/components/audit";
+import { EmptyState, KpiCard, Modal, SlideOver } from "@/components/audit";
 import { BentoPanel } from "@/components/nexa/bento-panel";
 import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
 import {
@@ -66,6 +66,88 @@ function formatCop(n: number) {
   }).format(Math.round(n));
 }
 
+type PucNode = AccountRow & { children: PucNode[] };
+
+function buildPucTree(rows: AccountRow[]): PucNode[] {
+  const sorted = [...rows].sort((a, b) =>
+    a.code.localeCompare(b.code, "es", { numeric: true }),
+  );
+  const nodes = new Map<string, PucNode>();
+  for (const row of sorted) nodes.set(row.code, { ...row, children: [] });
+  const roots: PucNode[] = [];
+  for (const row of sorted) {
+    const node = nodes.get(row.code)!;
+    let parent: PucNode | undefined;
+    for (let i = row.code.length - 1; i >= 1; i--) {
+      parent = nodes.get(row.code.slice(0, i));
+      if (parent) break;
+    }
+    if (parent && parent !== node) parent.children.push(node);
+    else roots.push(node);
+  }
+  return roots;
+}
+
+function PucBranch({
+  node,
+  depth,
+  open,
+  onToggle,
+}: {
+  node: PucNode;
+  depth: number;
+  open: Set<string>;
+  onToggle: (code: string) => void;
+}) {
+  const expanded = open.has(node.code);
+  const hasKids = node.children.length > 0;
+  return (
+    <>
+      <div
+        className="grid grid-cols-[1fr_7rem_7rem] items-center gap-2 border-b border-brand-border/40 py-1.5 pr-2"
+        style={{ paddingLeft: 8 + depth * 14 }}
+      >
+        <button
+          type="button"
+          className="flex min-w-0 items-center gap-1 text-left"
+          onClick={() => {
+            if (hasKids) onToggle(node.code);
+          }}
+          disabled={!hasKids}
+        >
+          {hasKids ? (
+            <ChevronRight
+              className={`h-3.5 w-3.5 shrink-0 text-brand-text-secondary transition ${expanded ? "rotate-90" : ""}`}
+              aria-hidden
+            />
+          ) : (
+            <span className="w-3.5 shrink-0" />
+          )}
+          <span className="font-data text-xs text-brand-primary">{node.code}</span>
+          <span className="truncate text-sm text-brand-text-primary">{node.name}</span>
+        </button>
+        <span className="text-right font-data text-xs tabular-nums text-brand-text-primary">
+          {node.debit ? node.debit.toLocaleString("es-CO") : "—"}
+        </span>
+        <span className="text-right font-data text-xs tabular-nums text-brand-text-primary">
+          {node.credit ? node.credit.toLocaleString("es-CO") : "—"}
+        </span>
+      </div>
+      {expanded
+        ? node.children.map((child) => (
+            <PucBranch
+              key={child.id}
+              node={child}
+              depth={depth + 1}
+              open={open}
+              onToggle={onToggle}
+            />
+          ))
+        : null}
+    </>
+  );
+}
+
 function accountIndent(code: string) {
   const len = code.replace(/\D/g, "").length;
   if (len <= 1) return "pl-0 font-bold";
@@ -96,6 +178,14 @@ export default function ContabilidadPage() {
     type: "ASSET",
   });
   const [pucQuery, setPucQuery] = useState("");
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [notice, setNotice] = useState("");
+  const [confirm, setConfirm] = useState<
+    | { kind: "close" }
+    | { kind: "reopen" }
+    | { kind: "void"; entryId: string; number: string }
+    | null
+  >(null);
 
   async function load(puc?: string) {
     const pucParam = (puc ?? pucQuery).trim();
@@ -134,11 +224,16 @@ export default function ContabilidadPage() {
     const pasivos = net("LIABILITY", true);
     const patrimonio =
       net("EQUITY", true) + net("INCOME", true) - net("EXPENSE", false);
+    const ingresos = net("INCOME", true);
+    const egresos = net("EXPENSE", false);
+    const utilidadNeta = ingresos - egresos;
     const totalDebit = balance.reduce((s, r) => s + r.debit, 0);
     const totalCredit = balance.reduce((s, r) => s + r.credit, 0);
     const delta = totalDebit - totalCredit;
-    return { activos, pasivos, patrimonio, totalDebit, totalCredit, delta };
+    return { activos, pasivos, patrimonio, utilidadNeta, totalDebit, totalCredit, delta };
   }, [balance]);
+
+  const pucTree = useMemo(() => buildPucTree(balance), [balance]);
 
   const journalRows = useMemo(
     () =>
@@ -207,48 +302,53 @@ export default function ContabilidadPage() {
     }
   }
 
+  function togglePuc(code: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(code)) next.delete(code);
+      else next.add(code);
+      return next;
+    });
+  }
+
   async function closeMonth() {
-    if (
-      !confirm(
-        "¿Cerrar el mes? No se podrán publicar ni anular asientos del periodo. Puede reabrirse mientras no esté en Hard Lock de Revisoría.",
-      )
-    ) {
-      return;
-    }
     setError("");
+    setNotice("");
     try {
       const res = await api<{ message: string }>("/accounting/period/close", {
         method: "POST",
         body: JSON.stringify({}),
       });
+      setConfirm(null);
       await load();
-      window.alert(res.message || "Periodo cerrado");
+      setNotice(res.message || "Periodo cerrado");
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo cerrar el mes");
     }
   }
 
   async function reopenMonth() {
-    if (!confirm("¿Reabrir el periodo? Se habilitarán asientos nuevamente.")) {
-      return;
-    }
     setError("");
+    setNotice("");
     try {
       const res = await api<{ message: string }>("/accounting/period/reopen", {
         method: "POST",
         body: JSON.stringify({}),
       });
+      setConfirm(null);
       await load();
-      window.alert(res.message || "Periodo reabierto");
+      setNotice(res.message || "Periodo reabierto");
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo reabrir");
     }
   }
 
-  async function voidEntry(entryId: string, number: string) {
-    if (!confirm(`¿Anular asiento ${number}?`)) return;
+  async function voidEntry(entryId: string) {
+    setError("");
     await api(`/accounting/journal/${entryId}/void`, { method: "PATCH" });
+    setConfirm(null);
     await load();
+    setNotice("Asiento anulado");
   }
 
   return (
@@ -271,7 +371,7 @@ export default function ContabilidadPage() {
             variant="ghost"
             className="w-auto px-4 py-2"
             disabled={periodLocked}
-            onClick={() => void closeMonth()}
+            onClick={() => setConfirm({ kind: "close" })}
           >
             <Lock className="mr-1.5 inline h-4 w-4" aria-hidden />
             Cerrar mes
@@ -281,7 +381,7 @@ export default function ContabilidadPage() {
               type="button"
               variant="secondary"
               className="w-auto px-4 py-2"
-              onClick={() => void reopenMonth()}
+              onClick={() => setConfirm({ kind: "reopen" })}
             >
               Reabrir periodo
             </Button>
@@ -326,6 +426,11 @@ export default function ContabilidadPage() {
           {error}
         </p>
       ) : null}
+      {notice ? (
+        <p role="status" className="text-sm text-brand-success">
+          {notice}
+        </p>
+      ) : null}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <KpiCard
@@ -346,11 +451,11 @@ export default function ContabilidadPage() {
           icon={<TrendingUp className="h-10 w-10" />}
         />
         <KpiCard
-          label="Estado de cuadre"
-          value={Math.abs(macros.delta) < 1 ? "CUADRADO" : "DESCUADRE"}
-          delta={`Δ ${formatCop(macros.delta)}`}
-          tone={Math.abs(macros.delta) < 1 ? "ok" : "danger"}
-          icon={<CheckCircle className="h-10 w-10" />}
+          label="Utilidad neta"
+          value={formatCop(macros.utilidadNeta)}
+          delta="Ingresos − gastos del mayor"
+          tone={macros.utilidadNeta >= 0 ? "ok" : "danger"}
+          icon={<TrendingUp className="h-10 w-10" />}
         />
       </div>
 
@@ -372,24 +477,22 @@ export default function ContabilidadPage() {
               description="Publica asientos para construir el balance de prueba."
             />
           ) : (
-            <NexaTable columns={["Cuenta", "Débito", "Crédito"]}>
-              {balance.map((r) => (
-                <NexaRow key={r.id}>
-                  <NexaCell className={accountIndent(r.code)}>
-                    <span className="font-data text-xs text-brand-primary">
-                      {r.code}
-                    </span>{" "}
-                    {r.name}
-                  </NexaCell>
-                  <NexaCell mono>
-                    {r.debit ? r.debit.toLocaleString("es-CO") : "—"}
-                  </NexaCell>
-                  <NexaCell mono>
-                    {r.credit ? r.credit.toLocaleString("es-CO") : "—"}
-                  </NexaCell>
-                </NexaRow>
+            <div className="max-h-[min(70vh,40rem)] overflow-auto">
+              <div className="grid grid-cols-[1fr_7rem_7rem] gap-2 px-2 py-1 font-data text-[10px] uppercase tracking-wider text-brand-text-secondary">
+                <span>Cuenta</span>
+                <span className="text-right">Débito</span>
+                <span className="text-right">Crédito</span>
+              </div>
+              {pucTree.map((node) => (
+                <PucBranch
+                  key={node.id}
+                  node={node}
+                  depth={0}
+                  open={expanded}
+                  onToggle={togglePuc}
+                />
               ))}
-            </NexaTable>
+            </div>
           )}
         </BentoPanel>
 
@@ -472,7 +575,11 @@ export default function ContabilidadPage() {
                           variant="ghost"
                           className="w-auto text-xs"
                           onClick={() =>
-                            void voidEntry(row.entryId, row.number)
+                            setConfirm({
+                              kind: "void",
+                              entryId: row.entryId,
+                              number: row.number,
+                            })
                           }
                         >
                           Anular
@@ -757,6 +864,57 @@ export default function ContabilidadPage() {
           </div>
         </form>
       </SlideOver>
+
+      <Modal
+        open={confirm != null}
+        onClose={() => setConfirm(null)}
+        title={
+          confirm?.kind === "close"
+            ? "Cerrar periodo"
+            : confirm?.kind === "reopen"
+              ? "Reabrir periodo"
+              : "Anular asiento"
+        }
+        description={
+          confirm?.kind === "close"
+            ? "No se podrán publicar ni anular asientos del periodo. Se puede reabrir mientras Revisoría no aplique Hard Lock."
+            : confirm?.kind === "reopen"
+              ? "Los asientos del periodo vuelven a quedar habilitados."
+              : confirm?.kind === "void"
+                ? `El asiento ${confirm.number} queda anulado en el mayor.`
+                : undefined
+        }
+        footer={
+          <div className="flex w-full justify-end gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-auto px-4 py-2"
+              onClick={() => setConfirm(null)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              className="w-auto px-4 py-2"
+              onClick={() => {
+                if (confirm?.kind === "close") void closeMonth();
+                else if (confirm?.kind === "reopen") void reopenMonth();
+                else if (confirm?.kind === "void") void voidEntry(confirm.entryId);
+              }}
+            >
+              Confirmar
+            </Button>
+          </div>
+        }
+      >
+        <p className="text-sm text-brand-text-secondary">
+          {period?.yearMonth
+            ? `Periodo ${period.yearMonth} · ${statusEs(period.status)}`
+            : "Periodo contable vigente"}
+        </p>
+      </Modal>
     </div>
   );
 }

@@ -3,6 +3,34 @@ import { FleetModule } from "@fsg/db";
 import { PrismaService } from "../prisma/prisma.service";
 import type { AuditTrailQueryDto } from "./dto/audit-trail-query.dto";
 
+function clip(value: unknown): string {
+  if (value == null) return "—";
+  const text =
+    typeof value === "string" ? value : JSON.stringify(value);
+  return text.length > 96 ? `${text.slice(0, 93)}…` : text;
+}
+
+/** Valor anterior / nuevo cuando el meta trae el diff; si no, un resumen corto. */
+function valuePair(meta: unknown): { before: string; after: string } {
+  if (!meta || typeof meta !== "object" || Array.isArray(meta)) {
+    return { before: "—", after: "—" };
+  }
+  const row = meta as Record<string, unknown>;
+  const before =
+    row.before ?? row.previous ?? row.oldValue ?? row.valorAnterior;
+  const after = row.after ?? row.next ?? row.newValue ?? row.valorNuevo;
+  if (before == null && after == null) {
+    const keys = Object.keys(row).slice(0, 3);
+    return {
+      before: "—",
+      after: keys.length
+        ? keys.map((key) => `${key}: ${clip(row[key])}`).join(" · ")
+        : "—",
+    };
+  }
+  return { before: clip(before), after: clip(after) };
+}
+
 /**
  * Ledger forense — consume AuditLog + ExecutiveQueryLog (inmutable).
  */
@@ -54,19 +82,25 @@ export class RevisoriaForenseService {
     ]);
 
     const trail = [
-      ...auditLogs.map((row) => ({
-        kind: "AUDIT_LOG" as const,
-        id: row.id,
-        at: row.createdAt,
-        module: row.module,
-        action: row.action,
-        entity: row.entity,
-        entityId: row.entityId,
-        userId: row.userId,
-        user: row.user,
-        meta: row.meta,
-        immutable: true,
-      })),
+      ...auditLogs.map((row) => {
+        const values = valuePair(row.meta);
+        return {
+          kind: "AUDIT_LOG" as const,
+          id: row.id,
+          at: row.createdAt,
+          module: row.module,
+          action: row.action,
+          entity: row.entity,
+          entityId: row.entityId,
+          ipAddress: row.ipAddress,
+          userId: row.userId,
+          user: row.user,
+          before: values.before,
+          after: values.after,
+          meta: row.meta,
+          immutable: true,
+        };
+      }),
       ...executiveQueries.map((row) => ({
         kind: "EXECUTIVE_QUERY" as const,
         id: row.id,
@@ -75,8 +109,11 @@ export class RevisoriaForenseService {
         action: "TEXT_TO_SQL",
         entity: "ExecutiveQueryLog",
         entityId: row.id,
+        ipAddress: null,
         userId: row.userId,
         user: row.user,
+        before: "—",
+        after: clip(row.utterance),
         meta: {
           utterance: row.utterance,
           generatedSql: row.generatedSql,

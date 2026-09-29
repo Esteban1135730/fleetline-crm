@@ -18,7 +18,8 @@ export function ForcePasswordGate({ children }: { children: ReactNode }) {
     const allowed =
       pathname === "/cuenta" ||
       pathname === "/login" ||
-      pathname.startsWith("/login");
+      pathname.startsWith("/login") ||
+      pathname === "/onboarding";
     if (!allowed) {
       router.replace("/cuenta?force=1");
     }

@@ -26,6 +26,7 @@ const UpdateUserBody = z.object({
   /** Preferir POST /users/:id/reset-password; si llega, fuerza mustChange. */
   password: Field.password.optional(),
   status: z.string().optional(),
+  pin: z.string().optional(),
 });
 
 /** Quién puede listar / dar de alta (org admin + mando alto + ops/vinculaciones/ti) */
@@ -118,9 +119,16 @@ export class UsersController {
       active?: boolean;
       password?: string;
       status?: string;
+      pin?: string;
     },
   ) {
     return this.users.update(req.user, id, UpdateUserBody.parse(body ?? {}));
+  }
+
+  @Post(":id/revoke-sessions")
+  @Roles(...EDITORS)
+  revokeSessions(@Req() req: AuthReq, @Param("id") id: string) {
+    return this.users.revokeSessions(req.user, id);
   }
 
   @Post(":id/deactivate")

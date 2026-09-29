@@ -10,14 +10,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@fsg/ui";
 import { HARD_RULES, statusEs } from "@fsg/shared";
 import { api } from "@/lib/api";
-import {
-  EmptyState,
-  KpiCard,
-  Modal,
-  SlideOverHelp,
-  StatusPulseBadge,
-  StoredAttachmentViewer,
-} from "@/components/audit";
+import { EmptyState, KpiCard, Modal, SlideOverHelp, StatusPulseBadge, StoredAttachmentViewer } from "@/components/audit";
+import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
 
 type PucNode = {
   id: string;
@@ -115,7 +109,20 @@ type Drill = {
   message: string;
 };
 
-type TabId = "alertas" | "puc" | "muestreo";
+type TabId = "alertas" | "puc" | "muestreo" | "forense";
+
+type ForensicRow = {
+  id: string;
+  at: string;
+  module: string | null;
+  action: string;
+  entity: string;
+  entityId: string | null;
+  ipAddress: string | null;
+  before: string;
+  after: string;
+  user: { name?: string | null; email?: string | null } | null;
+};
 
 function money(n: number) {
   return new Intl.NumberFormat("es-CO", {
@@ -151,6 +158,8 @@ export default function RevisoriaFiscalDashboardPage() {
   const [pdfRef, setPdfRef] = useState("uploads/dictamen/dictamen-mes.pdf");
   const [riskAck, setRiskAck] = useState(false);
   const [confirmPhrase, setConfirmPhrase] = useState("");
+  const [forensic, setForensic] = useState<ForensicRow[]>([]);
+  const [forensicError, setForensicError] = useState<string | null>(null);
 
   const ym =
     dash?.yearMonth ||
@@ -179,6 +188,27 @@ export default function RevisoriaFiscalDashboardPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (tab !== "forense") return;
+    let cancelled = false;
+    void api
+      .get<{ trail: ForensicRow[] }>("/api/v1/audit-forensic/audit-trail")
+      .then((data) => {
+        if (!cancelled) {
+          setForensic(data.trail ?? []);
+          setForensicError(null);
+        }
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) {
+          setForensicError(e instanceof Error ? e.message : "Log forense no disponible");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tab]);
 
   async function openDrill(facturaId: string) {
     setBusy(true);
@@ -309,9 +339,21 @@ export default function RevisoriaFiscalDashboardPage() {
     );
   }, [dash, q]);
 
-  const saleSpark = [42, 48, 45, 52, 58, 55, 61];
-  const buySpark = [38, 40, 44, 41, 47, 50, 49];
-  const flagSpark = [2, 1, 3, 4, 2, 5, flagged.length || 1];
+  const filteredForensic = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    if (!s) return forensic;
+    return forensic.filter((row) => {
+      const user = `${row.user?.name ?? ""} ${row.user?.email ?? ""}`.toLowerCase();
+      return (
+        user.includes(s) ||
+        row.action.toLowerCase().includes(s) ||
+        (row.entityId ?? "").toLowerCase().includes(s) ||
+        (row.module ?? "").toLowerCase().includes(s) ||
+        row.before.toLowerCase().includes(s) ||
+        row.after.toLowerCase().includes(s)
+      );
+    });
+  }, [forensic, q]);
 
   return (
     <div className="space-y-5">
@@ -390,30 +432,26 @@ export default function RevisoriaFiscalDashboardPage() {
         <KpiCard
           label="Ventas DIAN"
           value={money(dash?.impuestosSummary.saleTotal ?? 0)}
-          delta="vs mes · tendencia"
+          delta="Periodo vigente"
           tone="ok"
-          spark={saleSpark}
         />
         <KpiCard
           label="Compras DIAN"
           value={money(dash?.impuestosSummary.purchaseTotal ?? 0)}
-          delta="vs mes · tendencia"
+          delta="vs mes"
           tone="neutral"
-          spark={buySpark}
         />
         <KpiCard
           label="Alertas retención"
           value={dash?.impuestosSummary.flaggedCount ?? 0}
           delta={flagged.length ? "DANGER · revisar" : "Nominal"}
           tone={(dash?.impuestosSummary.flaggedCount ?? 0) > 0 ? "danger" : "ok"}
-          spark={flagSpark}
         />
         <KpiCard
           label="Muestreo"
           value={`${dash?.sampling.sampleSize ?? 0}/${dash?.sampling.population ?? 0}`}
           delta={`${dash?.sampling.samplePct ?? HARD_RULES.REVISORIA_SAMPLE_PCT}% población`}
           tone="warn"
-          spark={[3, 4, 5, 4, 6, 5, dash?.sampling.sampleSize ?? 4]}
         />
       </div>
 
@@ -425,6 +463,7 @@ export default function RevisoriaFiscalDashboardPage() {
               ["alertas", "Alertas DIAN"],
               ["puc", "Balance PUC"],
               ["muestreo", "Muestreo"],
+              ["forense", "Log forense"],
             ] as const
           ).map(([id, label]) => (
             <button
@@ -599,6 +638,47 @@ export default function RevisoriaFiscalDashboardPage() {
               </tbody>
             </table>
           </div>
+        )
+      ) : null}
+
+      {tab === "forense" ? (
+        forensicError ? (
+          <p className="font-mono text-sm text-[var(--brand-danger)]">{forensicError}</p>
+        ) : filteredForensic.length === 0 ? (
+          <EmptyState
+            title="Sin mutaciones en el ledger"
+            description="El log forense no tiene eventos para el filtro actual."
+          />
+        ) : (
+          <NexaTable
+            columns={[
+              "Timestamp",
+              "Usuario",
+              "IP",
+              "Módulo",
+              "Acción",
+              "ID",
+              "Valor ant/nuevo",
+            ]}
+          >
+            {filteredForensic.map((row) => (
+              <NexaRow key={row.id}>
+                <NexaCell mono>
+                  {new Date(row.at).toISOString()}
+                </NexaCell>
+                <NexaCell>
+                  {row.user?.name || row.user?.email || "—"}
+                </NexaCell>
+                <NexaCell mono>{row.ipAddress || "—"}</NexaCell>
+                <NexaCell>{row.module || "—"}</NexaCell>
+                <NexaCell>{row.action}</NexaCell>
+                <NexaCell mono>{row.entityId || row.id}</NexaCell>
+                <NexaCell>
+                  {row.before} → {row.after}
+                </NexaCell>
+              </NexaRow>
+            ))}
+          </NexaTable>
         )
       ) : null}
 

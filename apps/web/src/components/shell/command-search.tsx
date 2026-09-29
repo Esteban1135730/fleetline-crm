@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MODULE_HELP, MODULE_LABELS, type ModuleId } from "@fsg/shared";
 import { useShell } from "@/lib/shell-context";
+import { useTheme } from "@/lib/theme";
 import { NavIcon } from "@/components/shell/nav-icons";
 
 type NavItem = {
@@ -73,6 +74,7 @@ function looksLikePlate(q: string) {
 
 export function CommandSearch({ items }: { items: NavItem[] }) {
   const { commandOpen, setCommandOpen } = useShell();
+  const { toggle: toggleTheme, setMode } = useTheme();
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
@@ -85,25 +87,36 @@ export function CommandSearch({ items }: { items: NavItem[] }) {
     }));
 
     const q = query.trim();
+    const ql = q.toLowerCase();
     const plate = looksLikePlate(q);
     if (plate) {
       base.unshift({
-        href: `/tramites?q=${encodeURIComponent(q.toUpperCase())}`,
+        href: `cockpit:plate:${q.toUpperCase().replace(/\s|-/g, "")}`,
         view: "tramites",
-        label: `Placa ${q.toUpperCase()} · semáforo documental`,
+        label: `Consultar documentos de ${q.toUpperCase()}`,
         section: "placa",
-        group: "VEHÍCULOS/PLACAS",
+        group: "ACCIONES RÁPIDAS",
       });
+    }
+    if (!ql || ql.includes("viaje") || ql.includes("despach")) {
       base.unshift({
-        href: `/logistica/servicios?plate=${encodeURIComponent(q.toUpperCase())}`,
+        href: "cockpit:trip",
         view: "logistica",
-        label: `Placa ${q.toUpperCase()} · mapa / tracking`,
-        section: "placa",
-        group: "VEHÍCULOS/PLACAS",
+        label: "Crear viaje",
+        section: "acción",
+        group: "ACCIONES RÁPIDAS",
+      });
+    }
+    if (!ql || ql.includes("tema") || ql.includes("oscuro") || ql.includes("claro")) {
+      base.unshift({
+        href: "cockpit:theme",
+        view: "cuenta",
+        label: "Cambiar tema claro / oscuro",
+        section: "acción",
+        group: "ACCIONES RÁPIDAS",
       });
     }
 
-    const ql = q.toLowerCase();
     if (!ql) return base.slice(0, 12);
 
     return base
@@ -148,6 +161,25 @@ export function CommandSearch({ items }: { items: NavItem[] }) {
   if (!commandOpen) return null;
 
   function go(href: string) {
+    if (href === "cockpit:theme") {
+      const q = query.toLowerCase();
+      if (q.includes("oscuro")) setMode("dark");
+      else if (q.includes("claro")) setMode("light");
+      else toggleTheme();
+      setCommandOpen(false);
+      return;
+    }
+    if (href === "cockpit:trip") {
+      setCommandOpen(false);
+      router.push("/dashboard?action=trip");
+      return;
+    }
+    if (href.startsWith("cockpit:plate:")) {
+      const plate = href.slice("cockpit:plate:".length);
+      setCommandOpen(false);
+      router.push(`/dashboard?action=plate&plate=${encodeURIComponent(plate)}`);
+      return;
+    }
     setCommandOpen(false);
     router.push(href);
   }

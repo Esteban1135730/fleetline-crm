@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../App";
+import { useKeyboardLift } from "../components/useKeyboardLift";
 import {
   getCurrentGps,
   iniciarServicio,
@@ -42,6 +43,7 @@ const EMPTY: PreoperationalPayload = {
 
 export default function PreoperationalScreen({ navigation, route }: Props) {
   const { trip } = route.params;
+  const keyboardLift = useKeyboardLift();
   const alreadySigned = !!trip.preoperationalAt;
   const [checklist, setChecklist] = useState<PreoperationalPayload>(EMPTY);
   const [signed, setSigned] = useState(alreadySigned);
@@ -121,7 +123,7 @@ export default function PreoperationalScreen({ navigation, route }: Props) {
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingBottom: 48 + keyboardLift }]}
       keyboardShouldPersistTaps="handled"
     >
       <Text style={styles.eyebrow}>INSPECCIÓN PREOPERACIONAL</Text>

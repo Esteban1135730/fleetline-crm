@@ -28,6 +28,7 @@ import {
 import { useGps } from "../hooks/useGps";
 import { TripRouteMap } from "../components/TripRouteMap";
 import { scheduleTripLocalReminder } from "../notifications/push";
+import { useKeyboardLift } from "../components/useKeyboardLift";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Trips"> & {
   onLogout: () => void;
@@ -65,6 +66,7 @@ export default function TripsScreen({ navigation, onLogout }: Props) {
     useState<(typeof INCIDENT_CATEGORIES)[number]["id"]>("TRAFFIC");
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [actionId, setActionId] = useState<string | null>(null);
+  const keyboardLift = useKeyboardLift();
 
   const inTransitTrip = trips.find(
     (t) => t.status === "IN_TRANSIT" && !!t.preoperationalAt,
@@ -386,6 +388,14 @@ export default function TripsScreen({ navigation, onLogout }: Props) {
 
       <Modal visible={!!incidentTrip} transparent animationType="slide">
         <View style={styles.modalBackdrop}>
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            nestedScrollEnabled
+            contentContainerStyle={[
+              styles.modalScroll,
+              { paddingBottom: 12 + keyboardLift },
+            ]}
+          >
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Reportar incidente</Text>
             <Text style={styles.modalSub}>
@@ -477,6 +487,7 @@ export default function TripsScreen({ navigation, onLogout }: Props) {
               </Pressable>
             </View>
           </View>
+          </ScrollView>
         </View>
       </Modal>
     </View>
@@ -573,6 +584,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.55)",
     justifyContent: "flex-end",
   },
+  modalScroll: { flexGrow: 1, justifyContent: "flex-end" },
   modalCard: {
     backgroundColor: "#121722",
     borderTopLeftRadius: 16,

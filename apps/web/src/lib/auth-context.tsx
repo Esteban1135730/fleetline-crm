@@ -10,6 +10,12 @@ import {
   type ReactNode,
 } from "react";
 import { ROLE_VIEWS, normalizeRole, resolveModuleId, type Role } from "@fsg/shared";
+
+const MOBILE_APP_ROLES = new Set(["conductor"]);
+
+function isMobileAppRole(role: string) {
+  return MOBILE_APP_ROLES.has(normalizeRole(role));
+}
 import {
   api,
   clearSession,
@@ -165,6 +171,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     api<AuthUser>("/auth/me")
       .then((me) => {
         if (cancelled) return;
+        if (isMobileAppRole(me.role)) {
+          clearSession();
+          setUser(null);
+          return;
+        }
         setUser(me);
         localStorage.setItem("fsg_user", JSON.stringify(me));
         if (!getActiveOrganizationId()) {
@@ -216,9 +227,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       "/auth/login",
       {
         method: "POST",
-        body: JSON.stringify({ email: email.toLowerCase().trim(), password }),
+        body: JSON.stringify({
+          email: email.toLowerCase().trim(),
+          password,
+          channel: "crm",
+        }),
       },
     );
+    if (isMobileAppRole(res.user.role)) {
+      clearSession();
+      throw new Error(
+        "Esta cuenta es exclusiva de la app móvil. Entra desde NEXA Conductor.",
+      );
+    }
     setSession(res.accessToken, res.user);
     setUser(res.user);
     setActiveOrganizationId(res.user.organizationId);

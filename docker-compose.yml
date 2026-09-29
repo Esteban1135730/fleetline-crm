@@ -9,7 +9,7 @@ services:
     restart: unless-stopped
     ports:
       # Puerto no estándar para no chocar con Postgres del otro stack (:5432)
-      - "55432:5432"
+      - "15432:5432"
     environment:
       POSTGRES_USER: fsg
       POSTGRES_PASSWORD: fsg_secret

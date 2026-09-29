@@ -43,6 +43,17 @@ function setNativeValue(
   el.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
+function readSelection(el: HTMLInputElement | HTMLTextAreaElement) {
+  try {
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    if (start == null || end == null) return null;
+    return { start, end };
+  } catch {
+    return null;
+  }
+}
+
 function markValidity(
   el: HTMLInputElement | HTMLTextAreaElement,
   kind: FieldKind,
@@ -57,19 +68,43 @@ function markValidity(
  */
 export function FormGuard() {
   useEffect(() => {
+    const lastSelection = new WeakMap<
+      HTMLInputElement | HTMLTextAreaElement,
+      { start: number; end: number }
+    >();
+
+    const rememberSelection = (el: HTMLInputElement | HTMLTextAreaElement) => {
+      const sel = readSelection(el);
+      if (sel) lastSelection.set(el, sel);
+    };
+
+    const onSelect = (event: Event) => {
+      if (!isTextControl(event.target)) return;
+      rememberSelection(event.target);
+    };
+
     const onBeforeInput = (event: Event) => {
       const e = event as InputEvent;
       if (!isTextControl(e.target)) return;
       const el = e.target;
       const kind = kindOf(el);
       if (!kind) return;
+      if (
+        e.inputType === "insertFromPaste" ||
+        e.inputType === "insertFromDrop"
+      ) {
+        rememberSelection(el);
+        e.preventDefault();
+        return;
+      }
       if (e.inputType?.startsWith("delete") || e.inputType === "historyUndo") {
         return;
       }
       const data = e.data;
       if (data == null) return;
-      const start = el.selectionStart ?? el.value.length;
-      const end = el.selectionEnd ?? el.value.length;
+      const live = readSelection(el);
+      const start = live?.start ?? el.value.length;
+      const end = live?.end ?? el.value.length;
       const next = el.value.slice(0, start) + data + el.value.slice(end);
       if (!isAllowedPartial(kind, next)) {
         e.preventDefault();
@@ -84,16 +119,28 @@ export function FormGuard() {
       if (!kind) return;
       const pasted = e.clipboardData?.getData("text") ?? "";
       e.preventDefault();
-      const start = el.selectionStart ?? el.value.length;
-      const end = el.selectionEnd ?? el.value.length;
+      const live = readSelection(el);
+      const saved = lastSelection.get(el);
+      const range =
+        live && live.start !== live.end
+          ? live
+          : saved && saved.start !== saved.end
+            ? saved
+            : live || saved || { start: el.value.length, end: el.value.length };
+      const inserted = filterPasted(kind, pasted);
       const next =
-        el.value.slice(0, start) +
-        filterPasted(kind, pasted) +
-        el.value.slice(end);
+        el.value.slice(0, range.start) + inserted + el.value.slice(range.end);
       const clipped = isAllowedPartial(kind, next)
         ? next
         : filterPasted(kind, next);
       setNativeValue(el, clipped);
+      const caret = Math.min(range.start + inserted.length, clipped.length);
+      try {
+        el.setSelectionRange(caret, caret);
+      } catch {
+        /* type=password en algunos navegadores */
+      }
+      lastSelection.set(el, { start: caret, end: caret });
     };
 
     const onBlur = (event: Event) => {
@@ -135,12 +182,14 @@ export function FormGuard() {
       }
     };
 
+    document.addEventListener("select", onSelect, true);
     document.addEventListener("beforeinput", onBeforeInput, true);
     document.addEventListener("paste", onPaste, true);
     document.addEventListener("focusout", onBlur, true);
     document.addEventListener("input", onInput, true);
     document.addEventListener("submit", onSubmit, true);
     return () => {
+      document.removeEventListener("select", onSelect, true);
       document.removeEventListener("beforeinput", onBeforeInput, true);
       document.removeEventListener("paste", onPaste, true);
       document.removeEventListener("focusout", onBlur, true);

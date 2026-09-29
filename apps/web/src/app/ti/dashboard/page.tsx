@@ -647,7 +647,6 @@ export default function TiDashboardPage() {
                     <option value="recepcionista">Recepcionista</option>
                     <option value="revisor_fiscal">Revisor fiscal</option>
                     <option value="gestor_operativo">Gestor operativo</option>
-                    <option value="monitora">Monitora</option>
                   </select>
                 </div>
                 <Button type="submit" className="w-auto px-4 py-2">
