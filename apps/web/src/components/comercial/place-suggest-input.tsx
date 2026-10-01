@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
 
 type PlaceHit = { lat: number; lng: number; label: string };
 
@@ -18,6 +19,7 @@ type Props = {
 /**
  * Autocomplete de lugares CO vía Nominatim ya expuesto en Logística.
  * Solo rellena el texto; no altera contratos ni generación de viajes.
+ * Sin módulo Logística el endpoint responde 403: queda como texto libre.
  */
 export function PlaceSuggestInput({
   value,
@@ -28,6 +30,8 @@ export function PlaceSuggestInput({
   className = "field",
   id,
 }: Props) {
+  const { canAccess } = useAuth();
+  const canGeocode = canAccess("logistica");
   const [hits, setHits] = useState<PlaceHit[]>([]);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -45,7 +49,7 @@ export function PlaceSuggestInput({
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     const q = value.trim();
-    if (q.length < 3) {
+    if (!canGeocode || q.length < 3) {
       setHits([]);
       setBusy(false);
       return;
@@ -65,7 +69,7 @@ export function PlaceSuggestInput({
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [value]);
+  }, [value, canGeocode]);
 
   return (
     <div ref={boxRef} className="relative">

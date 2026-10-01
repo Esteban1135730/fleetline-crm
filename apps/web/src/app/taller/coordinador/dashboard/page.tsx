@@ -43,9 +43,10 @@ type Dash = {
 const COLS = ["OPEN", "IN_PROGRESS", "WAITING_PARTS", "DONE"] as const;
 
 export default function CoordinadorTallerDashboard() {
-  const { user } = useAuth();
+  const { user, canAccess } = useAuth();
   const role = normalizeRole(String(user?.role || ""));
   const canCreateOt = hasPermission(role, "taller_ot", "CREATE");
+  const canAddVehicle = canAccess("tramites");
   const [dash, setDash] = useState<Dash | null>(null);
   const [vehicles, setVehicles] = useState<
     Array<{ id: string; plate: string; status: string }>
@@ -95,7 +96,7 @@ export default function CoordinadorTallerDashboard() {
     setMsg(null);
     try {
       const created = await api.post<{ id: string; plate: string }>(
-        "/api/v1/tramites/vehicles",
+        "/tramites/vehicles",
         {
           plate: alta.plate.trim().toUpperCase(),
           brand: alta.brand.trim(),
@@ -189,15 +190,17 @@ export default function CoordinadorTallerDashboard() {
           </h1>
         </div>
         <div className="flex w-auto flex-wrap justify-end gap-2">
-          <Button
-            type="button"
-            variant="secondary"
-            className="w-auto px-4 py-2"
-            onClick={() => setVehicleOpen(true)}
-          >
-            <Plus className="mr-1.5 inline h-4 w-4" aria-hidden />
-            Agregar vehículo
-          </Button>
+          {canAddVehicle ? (
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-auto px-4 py-2"
+              onClick={() => setVehicleOpen(true)}
+            >
+              <Plus className="mr-1.5 inline h-4 w-4" aria-hidden />
+              Agregar vehículo
+            </Button>
+          ) : null}
           {canCreateOt ? (
             <Button
               type="button"

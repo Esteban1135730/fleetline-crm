@@ -10,7 +10,16 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@fsg/ui";
 import { HARD_RULES, statusEs } from "@fsg/shared";
 import { api } from "@/lib/api";
-import { EmptyState, KpiCard, Modal, SlideOverHelp, StatusPulseBadge, StoredAttachmentViewer } from "@/components/audit";
+import {
+  EmptyState,
+  KpiCard,
+  Modal,
+  SkeletonKpis,
+  SkeletonRows,
+  SlideOverHelp,
+  StatusPulseBadge,
+  StoredAttachmentViewer,
+} from "@/components/audit";
 import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
 
 type PucNode = {
@@ -146,6 +155,7 @@ function hardLockConfirmPhrase(yearMonth: string) {
 
 export default function RevisoriaFiscalDashboardPage() {
   const [dash, setDash] = useState<Dash | null>(null);
+  const [loading, setLoading] = useState(true);
   const [flagged, setFlagged] = useState<Flagged[]>([]);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [drill, setDrill] = useState<Drill | null>(null);
@@ -182,6 +192,8 @@ export default function RevisoriaFiscalDashboardPage() {
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Conexión fallida");
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -369,12 +381,14 @@ export default function RevisoriaFiscalDashboardPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
-          <StatusPulseBadge tone={locked ? "danger" : "active"} pulse={locked}>
-            {locked ? "Cerrado en firme" : statusEs(dash?.period.status || "OPEN")}
-          </StatusPulseBadge>
-          {(dash?.impuestosSummary.flaggedCount ?? 0) > 0 ? (
+          {dash ? (
+            <StatusPulseBadge tone={locked ? "danger" : "active"} pulse={locked}>
+              {locked ? "Cerrado en firme" : statusEs(dash.period.status || "OPEN")}
+            </StatusPulseBadge>
+          ) : null}
+          {!dash ? null : dash.impuestosSummary.flaggedCount > 0 ? (
             <StatusPulseBadge tone="fatiga">
-              FATIGA RETENCIÓN · {dash?.impuestosSummary.flaggedCount}
+              FATIGA RETENCIÓN · {dash.impuestosSummary.flaggedCount}
             </StatusPulseBadge>
           ) : (
             <StatusPulseBadge tone="active" pulse={false}>
@@ -390,19 +404,11 @@ export default function RevisoriaFiscalDashboardPage() {
             type="button"
             variant="secondary"
             className="w-auto px-4 py-2"
-            disabled={busy}
+            disabled={busy || !dash}
+            title="Descarga CSV del pre-validador DIAN (se abre en Excel)"
             onClick={() => void exportFmt("csv")}
           >
-            Export CSV
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            className="w-auto px-4 py-2"
-            disabled={busy}
-            onClick={() => void exportFmt("xlsx")}
-          >
-            Excel
+            Exportar CSV
           </Button>
           <Button
             type="button"
@@ -429,30 +435,56 @@ export default function RevisoriaFiscalDashboardPage() {
 
       {/* KPIs */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard
-          label="Ventas DIAN"
-          value={money(dash?.impuestosSummary.saleTotal ?? 0)}
-          delta="Periodo vigente"
-          tone="ok"
-        />
-        <KpiCard
-          label="Compras DIAN"
-          value={money(dash?.impuestosSummary.purchaseTotal ?? 0)}
-          delta="vs mes"
-          tone="neutral"
-        />
-        <KpiCard
-          label="Alertas retención"
-          value={dash?.impuestosSummary.flaggedCount ?? 0}
-          delta={flagged.length ? "DANGER · revisar" : "Nominal"}
-          tone={(dash?.impuestosSummary.flaggedCount ?? 0) > 0 ? "danger" : "ok"}
-        />
-        <KpiCard
-          label="Muestreo"
-          value={`${dash?.sampling.sampleSize ?? 0}/${dash?.sampling.population ?? 0}`}
-          delta={`${dash?.sampling.samplePct ?? HARD_RULES.REVISORIA_SAMPLE_PCT}% población`}
-          tone="warn"
-        />
+        {loading && !dash ? (
+          <SkeletonKpis count={4} />
+        ) : (
+          <>
+            <KpiCard
+              label="Ventas DIAN"
+              value={dash ? money(dash.impuestosSummary.saleTotal) : "—"}
+              delta={`Facturas de venta · periodo ${ym}`}
+              tone="ok"
+            />
+            <KpiCard
+              label="Compras DIAN"
+              value={dash ? money(dash.impuestosSummary.purchaseTotal) : "—"}
+              delta={`Facturas de compra · periodo ${ym}`}
+              tone="neutral"
+            />
+            <KpiCard
+              label="Alertas retención"
+              value={dash ? dash.impuestosSummary.flaggedCount : "—"}
+              delta={
+                !dash
+                  ? "Sin datos del periodo"
+                  : flagged.length
+                    ? "Revisar retenciones"
+                    : "Sin omisiones detectadas"
+              }
+              tone={
+                !dash
+                  ? "neutral"
+                  : dash.impuestosSummary.flaggedCount > 0
+                    ? "danger"
+                    : "ok"
+              }
+            />
+            <KpiCard
+              label="Muestreo"
+              value={
+                dash
+                  ? `${dash.sampling.sampleSize}/${dash.sampling.population}`
+                  : "—"
+              }
+              delta={
+                dash
+                  ? `${dash.sampling.samplePct}% población`
+                  : `Sin datos · regla ${HARD_RULES.REVISORIA_SAMPLE_PCT}% población`
+              }
+              tone={dash ? "warn" : "neutral"}
+            />
+          </>
+        )}
       </div>
 
       {/* Filtros + tabs */}
@@ -489,13 +521,30 @@ export default function RevisoriaFiscalDashboardPage() {
       </div>
 
       {/* Tabla / módulo principal */}
-      {tab === "alertas" ? (
+      {loading && !dash ? (
+        <SkeletonRows rows={5} />
+      ) : null}
+
+      {!loading && !dash ? (
+        <EmptyState
+          title="Datos del periodo no disponibles"
+          description="No se pudo cargar el tablero de revisoría (ver mensaje arriba). Sin datos no se muestran alertas, balance ni muestreo."
+        />
+      ) : null}
+
+      {!loading && dash && tab === "alertas" ? (
         filteredFlagged.length === 0 ? (
           <EmptyState
-            title="Sin alertas de retención"
-            description="El pre-validador DIAN no marcó omisiones en el periodo. Use el cierre de periodo cuando el dictamen esté listo."
-            actionLabel="Abrir cierre de periodo"
-            onAction={() => setLockOpen(true)}
+            title={q.trim() ? "Sin coincidencias" : "Sin alertas de retención"}
+            description={
+              q.trim()
+                ? "Ninguna alerta coincide con el filtro."
+                : locked
+                  ? "El pre-validador DIAN no marcó omisiones y el periodo ya está cerrado en firme."
+                  : "El pre-validador DIAN no marcó omisiones en el periodo. Use el cierre de periodo cuando el dictamen esté listo."
+            }
+            actionLabel={!locked && !q.trim() ? "Abrir cierre de periodo" : undefined}
+            onAction={!locked && !q.trim() ? () => setLockOpen(true) : undefined}
           />
         ) : (
           <div className="overflow-hidden rounded-xl border border-[var(--brand-border)]">
@@ -538,7 +587,7 @@ export default function RevisoriaFiscalDashboardPage() {
         )
       ) : null}
 
-      {tab === "puc" ? (
+      {!loading && dash && tab === "puc" ? (
         filteredPuc.length === 0 ? (
           <EmptyState
             title="Sin cuentas PUC en ventana"
@@ -601,7 +650,7 @@ export default function RevisoriaFiscalDashboardPage() {
         )
       ) : null}
 
-      {tab === "muestreo" ? (
+      {!loading && dash && tab === "muestreo" ? (
         filteredSample.length === 0 ? (
           <EmptyState
             title="Bandeja de muestreo vacía"

@@ -15,6 +15,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { useCanOpenPath } from "@/lib/route-access";
 import { statusEs } from "@fsg/shared";
 import {
   EmptyState,
@@ -104,6 +105,10 @@ function extractBlocks(err: unknown): string[] {
 }
 
 export default function CoordinadorPatioDashboard() {
+  const canOpenPath = useCanOpenPath();
+  const canOpenLogistica = canOpenPath("/logistica");
+  const canOpenTramites = canOpenPath("/tramites");
+  const canOpenTaller = canOpenPath("/taller/coordinador/dashboard");
   const [dash, setDash] = useState<Dash | null>(null);
   const [panel, setPanel] = useState<"none" | "ingreso" | "salida">("none");
   const [plate, setPlate] = useState("");
@@ -287,7 +292,8 @@ export default function CoordinadorPatioDashboard() {
             </ul>
           ) : null}
           <div className="flex flex-wrap gap-2">
-            {lastBlocks.some((b) =>
+            {canOpenLogistica &&
+            lastBlocks.some((b) =>
               /NO_ACTIVE_TRIP|TRIP/i.test(b),
             ) ? (
               <Link
@@ -297,7 +303,8 @@ export default function CoordinadorPatioDashboard() {
                 Ir a Despacho / Logística
               </Link>
             ) : null}
-            {lastBlocks.some((b) =>
+            {canOpenTramites &&
+            lastBlocks.some((b) =>
               /DOC|COMPLIANCE|JURIDICO|SOAT/i.test(b),
             ) ? (
               <Link
@@ -307,7 +314,8 @@ export default function CoordinadorPatioDashboard() {
                 Ir a Trámites / docs
               </Link>
             ) : null}
-            {lastBlocks.some((b) => /MAINTENANCE|TALLER/i.test(b)) ? (
+            {canOpenTaller &&
+            lastBlocks.some((b) => /MAINTENANCE|TALLER/i.test(b)) ? (
               <Link
                 href="/taller/coordinador/dashboard"
                 className="rounded-md border border-[var(--brand-border)] px-3 py-1.5 text-xs hover:bg-[var(--brand-canvas)]"
@@ -624,7 +632,8 @@ export default function CoordinadorPatioDashboard() {
               </ul>
             ) : null}
             <div className="flex flex-wrap gap-2 pt-1">
-              {lastBlocks.some((b) => /NO_ACTIVE_TRIP|TRIP/i.test(b)) ? (
+              {canOpenLogistica &&
+              lastBlocks.some((b) => /NO_ACTIVE_TRIP|TRIP/i.test(b)) ? (
                 <Link
                   href="/logistica"
                   className="rounded-md border border-[var(--brand-border)] px-2 py-1 text-[11px] hover:bg-[var(--brand-canvas)]"
@@ -632,7 +641,8 @@ export default function CoordinadorPatioDashboard() {
                   Ir a Logística
                 </Link>
               ) : null}
-              {lastBlocks.some((b) =>
+              {canOpenTramites &&
+              lastBlocks.some((b) =>
                 /DOC|COMPLIANCE|JURIDICO|SOAT/i.test(b),
               ) ? (
                 <Link
@@ -642,7 +652,8 @@ export default function CoordinadorPatioDashboard() {
                   Ir a Trámites
                 </Link>
               ) : null}
-              {lastBlocks.some((b) => /MAINTENANCE|TALLER/i.test(b)) ? (
+              {canOpenTaller &&
+              lastBlocks.some((b) => /MAINTENANCE|TALLER/i.test(b)) ? (
                 <Link
                   href="/taller/coordinador/dashboard"
                   className="rounded-md border border-[var(--brand-border)] px-2 py-1 text-[11px] hover:bg-[var(--brand-canvas)]"

@@ -3,7 +3,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge, Button } from "@fsg/ui";
 import Link from "next/link";
-import { Map, Wrench, Wallet, ShieldAlert, Clock } from "lucide-react";
+import {
+  Map,
+  Wrench,
+  Wallet,
+  ShieldAlert,
+  Clock,
+  BarChart3,
+  CheckCircle2,
+  Inbox,
+} from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -15,12 +24,21 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { api, apiDownload } from "@/lib/api";
-import { EmptyState, KpiCard, Modal, SlideOver } from "@/components/audit";
+import {
+  EmptyState,
+  KpiCard,
+  Modal,
+  Skeleton,
+  SkeletonKpis,
+  SkeletonRows,
+  SlideOver,
+} from "@/components/audit";
 import { PasswordField } from "@/components/forms/password-field";
 import { BentoPanel } from "@/components/nexa/bento-panel";
 import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
 import { StatusPulseBadge } from "@/components/audit/KpiCard";
 import { useThemeColors } from "@/lib/use-theme-colors";
+import { useCanOpenPath } from "@/lib/route-access";
 
 type AgingBucketId = "0-15" | "16-30" | "31-60" | "gt60";
 
@@ -181,14 +199,15 @@ type Scorecard = {
     warRoomHint?: string;
   }>;
   riskRadar: {
-    vipNps: number;
-    vipLight: string;
+    vipNps: number | null;
+    vipNpsSamples?: number;
+    vipLight: string | null;
     ministryAuditLight: string;
     message: string;
   };
   perspectives: {
     financial: { pendingApprovals: number };
-    customer: { wonDeals: number; openDeals: number; vipNps: number };
+    customer: { wonDeals: number; openDeals: number; vipNps: number | null };
     internalProcess: { tripsInFlight: number; openWorkOrders: number };
   };
 };
@@ -230,12 +249,6 @@ type Dash = {
   scorecard: Scorecard;
   approvalsInbox: Approval[];
   pendingOverrides: Override[];
-  commandDirectory: Array<{
-    role: string;
-    name: string;
-    channel: string;
-    video: string;
-  }>;
   riskRadar: Scorecard["riskRadar"];
   tacticalPanel?: TacticalPanel;
 };
@@ -247,6 +260,13 @@ function money(n: number) {
     maximumFractionDigits: 0,
   }).format(n);
 }
+
+const BOTTLENECK_LINK: Record<string, { href: string; label: string }> = {
+  TALLER: { href: "/taller", label: "Ir a Taller" },
+  OPS_FLOTAS: { href: "/logistica/servicios", label: "Ir a Servicios" },
+  FINANZAS: { href: "#aprobaciones", label: "Ver aprobaciones" },
+  COMERCIAL_OPS: { href: "/comercial", label: "Ir a Comercial" },
+};
 
 function lightTone(light: string): "success" | "warning" | "danger" | "info" {
   if (light === "GREEN") return "success";
@@ -275,6 +295,7 @@ function periodRangeIso(period: "day" | "week" | "month" | "year"): {
 
 export default function GerenciaDashboardPage() {
   const colors = useThemeColors();
+  const canOpenPath = useCanOpenPath();
   const [dash, setDash] = useState<Dash | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -622,13 +643,11 @@ export default function GerenciaDashboardPage() {
         </p>
       ) : null}
 
-      {loading && !dash?.tacticalPanel ? (
-        <p className="font-data text-sm text-brand-text-secondary">
-          Cargando tablero táctico…
-        </p>
-      ) : null}
-
       <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {loading && !dash ? (
+          <SkeletonKpis count={4} />
+        ) : (
+          <>
         <KpiCard
           label="Viajes en curso"
           value={
@@ -706,12 +725,27 @@ export default function GerenciaDashboardPage() {
           icon={<ShieldAlert />}
           onClick={() => void openBlocks()}
         />
+          </>
+        )}
       </section>
 
+      {loading && !dash ? (
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-12 lg:gap-4" role="status" aria-label="Cargando tablero táctico">
+          {Array.from({ length: 4 }, (_, i) => (
+            <div key={i} className="nexa-panel p-4 lg:col-span-6">
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="mt-4 h-44 w-full" />
+            </div>
+          ))}
+        </div>
+      ) : null}
+
       {!loading && !error && !dash?.tacticalPanel ? (
-        <p className="rounded-lg border border-brand-border bg-brand-surface px-4 py-3 font-data text-sm text-brand-text-secondary">
-          Sin datos tácticos para el período seleccionado.
-        </p>
+        <EmptyState
+          icon={<BarChart3 className="h-7 w-7" />}
+          title="Sin datos tácticos"
+          description="No hay actividad operativa ni financiera registrada para el período seleccionado. Pruebe con otro período."
+        />
       ) : null}
 
       {dash?.tacticalPanel ? (
@@ -813,62 +847,75 @@ export default function GerenciaDashboardPage() {
               )}
             </BentoPanel>
 
-            <BentoPanel
-              title="Cuellos de botella"
-              className="lg:col-span-6"
-            >
+            <BentoPanel title="Cuellos de botella" className="lg:col-span-6">
               {(dash.scorecard.bottlenecks ?? []).length > 0 ? (
                 <ul className="space-y-2">
-                  {dash.scorecard.bottlenecks.map((b) => (
-                    <li
-                      key={`${b.area}-${b.entityId ?? b.message}`}
-                      className="rounded-lg border border-brand-border px-3 py-2"
-                    >
-                      <StatusPulseBadge
-                        tone={b.severity === "RED" ? "danger" : "fatiga"}
+                  {dash.scorecard.bottlenecks.map((b) => {
+                    const areaLink = BOTTLENECK_LINK[b.area];
+                    const link =
+                      areaLink &&
+                      (areaLink.href.startsWith("#") || canOpenPath(areaLink.href))
+                        ? areaLink
+                        : b.href && canOpenPath(b.href)
+                          ? { href: b.href, label: "Ir al módulo" }
+                          : null;
+                    return (
+                      <li
+                        key={`${b.area}-${b.entityId ?? b.message}`}
+                        className="rounded-lg border border-brand-border px-3 py-2"
                       >
-                        {b.area}
-                      </StatusPulseBadge>
-                      <p className="mt-1 font-sans text-sm text-brand-text-primary">
-                        {b.title || b.message}
-                      </p>
-                      <div className="mt-2 flex flex-wrap justify-end gap-2">
-                        {b.href ? (
-                          <Link href={b.href}>
-                            <Button variant="secondary" className="w-auto px-3 py-1.5 text-xs">
-                              Ir al módulo
-                            </Button>
-                          </Link>
-                        ) : null}
-                        <Button
-                          variant="ghost"
-                          className="w-auto px-3 py-1.5 text-xs"
-                          onClick={() =>
-                            void api
-                              .post("/api/v1/gerencia/bottlenecks/notify", {
-                                area: b.area,
-                                entityId: b.entityId,
-                                title: b.title || b.message,
-                                href: b.href || "/gerencia/dashboard",
-                              })
-                              .then(() => setNotifyNote("Aviso registrado"))
-                              .catch((e) =>
-                                setError(
-                                  e instanceof Error ? e.message : "No se pudo notificar",
-                                ),
-                              )
-                          }
+                        <StatusPulseBadge
+                          tone={b.severity === "RED" ? "danger" : "fatiga"}
                         >
-                          Notificar
-                        </Button>
-                      </div>
-                    </li>
-                  ))}
+                          {b.area}
+                        </StatusPulseBadge>
+                        <p className="mt-1 font-sans text-sm text-brand-text-primary">
+                          {b.title || b.message}
+                        </p>
+                        {b.warRoomHint ? (
+                          <p className="mt-1 font-data text-[11px] text-brand-text-secondary">
+                            {b.warRoomHint}
+                          </p>
+                        ) : null}
+                        <div className="mt-2 flex flex-wrap justify-end gap-2">
+                          {link ? (
+                            <Link href={link.href}>
+                              <Button variant="secondary" className="w-auto px-3 py-1.5 text-xs">
+                                {link.label}
+                              </Button>
+                            </Link>
+                          ) : null}
+                          <Button
+                            variant="ghost"
+                            className="w-auto px-3 py-1.5 text-xs"
+                            onClick={() =>
+                              void api
+                                .post("/api/v1/gerencia/bottlenecks/notify", {
+                                  area: b.area,
+                                  entityId: b.entityId,
+                                  title: b.title || b.message,
+                                  href: b.href || link?.href || "/gerencia/dashboard",
+                                })
+                                .then(() => setNotifyNote("Aviso registrado"))
+                                .catch((e) =>
+                                  setError(
+                                    e instanceof Error ? e.message : "No se pudo notificar",
+                                  ),
+                                )
+                            }
+                          >
+                            Notificar
+                          </Button>
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ul>
               ) : (
                 <EmptyState
+                  icon={<CheckCircle2 className="h-7 w-7" />}
                   title="Sin cuellos de botella"
-                  description="Ninguna regla de 24 h, 2 h o 48 h está activa."
+                  description="Taller, flota, aprobaciones y pipeline comercial están dentro de los umbrales."
                 />
               )}
               {notifyNote ? (
@@ -881,6 +928,22 @@ export default function GerenciaDashboardPage() {
         </>
       ) : null}
 
+      {loading && !dash ? (
+        <div className="grid gap-4 lg:grid-cols-12">
+          <div className="nexa-panel p-4 lg:col-span-5">
+            <Skeleton className="mb-4 h-4 w-44" />
+            <SkeletonRows rows={4} />
+          </div>
+          <div className="nexa-panel p-4 lg:col-span-4">
+            <Skeleton className="mb-4 h-4 w-32" />
+            <SkeletonRows rows={3} />
+          </div>
+          <div className="nexa-panel p-4 lg:col-span-3">
+            <Skeleton className="mb-4 h-4 w-36" />
+            <SkeletonRows rows={2} />
+          </div>
+        </div>
+      ) : !dash ? null : (
       <div className="grid gap-4 lg:grid-cols-12">
         <BentoPanel
           id="aprobaciones"
@@ -888,6 +951,14 @@ export default function GerenciaDashboardPage() {
           subtitle="Firma ejecutiva con PIN"
           className="lg:col-span-5"
         >
+          {(dash?.approvalsInbox ?? []).length === 0 ? (
+            <EmptyState
+              icon={<Inbox className="h-7 w-7" />}
+              title="Sin aprobaciones pendientes"
+              description="Cuando otra área solicite una firma ejecutiva (pagos, compras, excepciones), aparecerá aquí para autorizarla o rechazarla con su PIN."
+            />
+          ) : (
+            <>
           <NexaTable columns={["Concepto", "Código", "Monto", "Origen"]}>
             {(dash?.approvalsInbox ?? []).map((a) => (
               <NexaRow
@@ -916,11 +987,6 @@ export default function GerenciaDashboardPage() {
               </span>
               {impact.balanceAfter < 0 ? " · LIQUIDEZ NEGATIVA" : ""}
               {impact.impactPct != null ? ` · ${impact.impactPct}%` : ""}
-            </p>
-          ) : null}
-          {(dash?.approvalsInbox ?? []).length === 0 ? (
-            <p className="mt-3 font-data text-xs text-brand-text-secondary">
-              Inbox vacío
             </p>
           ) : null}
           <label className="mt-4 block font-data text-[10px] uppercase tracking-[0.12em] text-brand-text-secondary">
@@ -956,6 +1022,8 @@ export default function GerenciaDashboardPage() {
               Firmar con PIN
             </Button>
           </div>
+            </>
+          )}
         </BentoPanel>
 
         <BentoPanel
@@ -965,6 +1033,12 @@ export default function GerenciaDashboardPage() {
           className="lg:col-span-4"
         >
           <div className="space-y-3">
+            {(dash?.scorecard.crossKpis.salesVsFleetMaintenance ?? [])
+              .length === 0 ? (
+              <p className="font-sans text-xs text-brand-text-secondary">
+                Sin datos de ventas ni mantenimiento para comparar.
+              </p>
+            ) : null}
             {(dash?.scorecard.crossKpis.salesVsFleetMaintenance ?? []).map(
               (k) => (
                 <div key={k.label}>
@@ -1027,14 +1101,21 @@ export default function GerenciaDashboardPage() {
           <div className="space-y-3">
             <div className="rounded-lg border border-brand-border p-3">
               <p className="font-data text-[10px] uppercase tracking-wider text-brand-text-secondary">
-                Satisfacción VIP
+                Satisfacción (NPS)
               </p>
               <p className="font-data text-2xl tabular-nums text-brand-text-primary">
                 {dash?.riskRadar.vipNps ?? "—"}
               </p>
-              <Badge tone={lightTone(dash?.riskRadar.vipLight ?? "")}>
-                {dash?.riskRadar.vipLight ?? "—"}
-              </Badge>
+              {dash?.riskRadar.vipLight ? (
+                <Badge tone={lightTone(dash.riskRadar.vipLight)}>
+                  {dash.riskRadar.vipLight}
+                </Badge>
+              ) : null}
+              <p className="mt-1 font-sans text-xs text-brand-text-secondary">
+                {dash?.riskRadar.vipNps == null
+                  ? "Sin encuestas NPS registradas en QHSE."
+                  : `${dash.riskRadar.vipNpsSamples ?? 0} encuestas QHSE`}
+              </p>
             </div>
             <div className="rounded-lg border border-brand-border p-3">
               <p className="font-data text-[10px] uppercase tracking-wider text-brand-text-secondary">
@@ -1071,37 +1152,15 @@ export default function GerenciaDashboardPage() {
               </li>
             ))}
             {(dash?.pendingOverrides ?? []).length === 0 ? (
-              <li className="font-data text-xs text-brand-text-secondary">
-                Sin conflictos en cola
+              <li className="rounded-lg border border-dashed border-brand-border px-3 py-3 text-center font-sans text-xs text-brand-text-secondary">
+                Sin conflictos en cola. Aquí aparecen las excepciones que
+                requieren decisión de gerencia.
               </li>
             ) : null}
           </ul>
         </BentoPanel>
       </div>
-
-      <BentoPanel
-        id="comando"
-        title="Directorio de comando"
-        subtitle="Sala de crisis · canales ejecutivos"
-      >
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {(dash?.commandDirectory ?? []).map((d) => (
-            <div
-              key={d.role}
-              className="rounded-lg border border-brand-border bg-brand-canvas p-3 transition-colors hover:border-brand-border-active hover:bg-brand-surface-hover"
-            >
-              <p className="font-sans text-sm text-brand-text-primary">{d.name}</p>
-              <p className="font-data text-[10px] text-brand-text-secondary">
-                {d.role}
-              </p>
-              <p className="mt-2 font-sans text-xs text-brand-primary">{d.channel}</p>
-              <p className="font-data text-[11px] text-brand-text-secondary">
-                {d.video}
-              </p>
-            </div>
-          ))}
-        </div>
-      </BentoPanel>
+      )}
 
       <Modal
         open={shiftOpen}
@@ -1132,7 +1191,7 @@ export default function GerenciaDashboardPage() {
         }
       >
         {shiftLoading ? (
-          <p className="text-sm text-brand-text-secondary">Cargando reporte…</p>
+          <SkeletonRows rows={5} />
         ) : shiftError && !shiftReport ? (
           <p className="text-sm text-brand-danger">{shiftError}</p>
         ) : shiftReport ? (
@@ -1267,17 +1326,19 @@ export default function GerenciaDashboardPage() {
         description="Facturas por pagar (PAYABLE · ISSUED/OVERDUE) del período"
         widthClass="max-w-2xl"
         footer={
-          <div className="flex w-full flex-wrap justify-end gap-2">
-            <Link href="/tesoreria">
-              <Button type="button" variant="secondary" className="w-auto px-4 py-2">
-                Ir a Tesorería
-              </Button>
-            </Link>
-          </div>
+          canOpenPath("/tesoreria") ? (
+            <div className="flex w-full flex-wrap justify-end gap-2">
+              <Link href="/tesoreria">
+                <Button type="button" variant="secondary" className="w-auto px-4 py-2">
+                  Ir a Tesorería
+                </Button>
+              </Link>
+            </div>
+          ) : undefined
         }
       >
         {detailLoading ? (
-          <p className="text-sm text-brand-text-secondary">Cargando…</p>
+          <SkeletonRows rows={4} />
         ) : detailError ? (
           <p className="text-sm text-brand-danger">{detailError}</p>
         ) : cxpDetail && cxpDetail.invoices.length > 0 ? (
@@ -1320,17 +1381,19 @@ export default function GerenciaDashboardPage() {
         description="Vehículos con complianceBlocked — placa y motivo"
         widthClass="max-w-xl"
         footer={
-          <div className="flex w-full flex-wrap justify-end gap-2">
-            <Link href="/tramites">
-              <Button type="button" variant="secondary" className="w-auto px-4 py-2">
-                Ir a Trámites
-              </Button>
-            </Link>
-          </div>
+          canOpenPath("/tramites") ? (
+            <div className="flex w-full flex-wrap justify-end gap-2">
+              <Link href="/tramites">
+                <Button type="button" variant="secondary" className="w-auto px-4 py-2">
+                  Ir a Trámites
+                </Button>
+              </Link>
+            </div>
+          ) : undefined
         }
       >
         {detailLoading ? (
-          <p className="text-sm text-brand-text-secondary">Cargando…</p>
+          <SkeletonRows rows={4} />
         ) : detailError ? (
           <p className="text-sm text-brand-danger">{detailError}</p>
         ) : blocksDetail && blocksDetail.vehicles.length > 0 ? (
@@ -1365,17 +1428,19 @@ export default function GerenciaDashboardPage() {
         description="Órdenes de trabajo abiertas en el período"
         widthClass="max-w-2xl"
         footer={
-          <div className="flex w-full flex-wrap justify-end gap-2">
-            <Link href="/taller">
-              <Button type="button" variant="secondary" className="w-auto px-4 py-2">
-                Ir a Taller
-              </Button>
-            </Link>
-          </div>
+          canOpenPath("/taller") ? (
+            <div className="flex w-full flex-wrap justify-end gap-2">
+              <Link href="/taller">
+                <Button type="button" variant="secondary" className="w-auto px-4 py-2">
+                  Ir a Taller
+                </Button>
+              </Link>
+            </div>
+          ) : undefined
         }
       >
         {detailLoading ? (
-          <p className="text-sm text-brand-text-secondary">Cargando…</p>
+          <SkeletonRows rows={4} />
         ) : detailError ? (
           <p className="text-sm text-brand-danger">{detailError}</p>
         ) : woDetail && woDetail.workOrders.length > 0 ? (
@@ -1422,17 +1487,19 @@ export default function GerenciaDashboardPage() {
         description="Facturas RECEIVABLE no PAID/CANCELLED/DRAFT del bucket"
         widthClass="max-w-2xl"
         footer={
-          <div className="flex w-full flex-wrap justify-end gap-2">
-            <Link href="/tesoreria">
-              <Button type="button" variant="secondary" className="w-auto px-4 py-2">
-                Ir a Tesorería
-              </Button>
-            </Link>
-          </div>
+          canOpenPath("/tesoreria") ? (
+            <div className="flex w-full flex-wrap justify-end gap-2">
+              <Link href="/tesoreria">
+                <Button type="button" variant="secondary" className="w-auto px-4 py-2">
+                  Ir a Tesorería
+                </Button>
+              </Link>
+            </div>
+          ) : undefined
         }
       >
         {detailLoading ? (
-          <p className="text-sm text-brand-text-secondary">Cargando…</p>
+          <SkeletonRows rows={4} />
         ) : detailError ? (
           <p className="text-sm text-brand-danger">{detailError}</p>
         ) : agingDetail && agingDetail.invoices.length > 0 ? (

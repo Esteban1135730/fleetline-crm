@@ -1,6 +1,13 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import Link from "next/link";
 import {
   COMMERCIAL_PIPELINE,
@@ -19,7 +26,10 @@ import {
   Calculator,
   FileText,
   Pencil,
+  Percent,
   Plus,
+  Receipt,
+  Route,
   Users,
   ShieldCheck,
   AlertTriangle,
@@ -38,6 +48,8 @@ import {
   WorkbenchToolbar,
 } from "@/components/workbench-toolbar";
 import { useShell } from "@/lib/shell-context";
+import { useHasPermission } from "@/lib/permissions";
+import { useCanOpenPath } from "@/lib/route-access";
 
 type Customer = {
   id: string;
@@ -152,6 +164,26 @@ type ContractsListResponse = {
   summary: { activeCount: number; mrr: number };
 };
 
+type QuotesSummary = {
+  won: number;
+  lost: number;
+  closed: number;
+  wonAmount: number;
+  winRatePct: number | null;
+  avgTicket: number | null;
+};
+
+type RouteEstimate = {
+  available: boolean;
+  source: "OSRM";
+  origen: { label: string } | null;
+  destino: { label: string } | null;
+  distanceKm: number | null;
+  durationMin: number | null;
+  tolls: { count: number } | null;
+  message?: string;
+};
+
 type TabId = "cotizador" | "contratos" | "clientes";
 
 const CONTRACTS_PAGE_SIZE = 10;
@@ -208,6 +240,8 @@ const MARGIN_TIP =
 
 export default function ComercialPage() {
   const { openInspector } = useShell();
+  const canCreateContract = useHasPermission("contratos", "CREATE");
+  const canOpenLogistica = useCanOpenPath()("/logistica/servicios");
   const [tab, setTab] = useState<TabId>("cotizador");
   const [customerSlideOpen, setCustomerSlideOpen] = useState(false);
   const [contractSlideOpen, setContractSlideOpen] = useState(false);
@@ -245,8 +279,8 @@ export default function ComercialPage() {
     origen: "Bogotá",
     destino: "Medellín",
     tipoVehiculo: "BUS" as QuoteVehicleType,
-    distanciaKm: "420",
-    cantidadPeajes: "8",
+    distanciaKm: "",
+    cantidadPeajes: "",
     margenDeseado: String(QUOTE_DEFAULT_MARGIN_PCT),
     modo: "NACIONAL" as "NACIONAL" | "URBANO",
     cantidadVehiculos: "1",
@@ -273,6 +307,15 @@ export default function ComercialPage() {
     budgetScore: "",
     docStatus: "",
   });
+  const [quotesSummary, setQuotesSummary] = useState<QuotesSummary | null>(
+    null,
+  );
+  const [routeEst, setRouteEst] = useState<RouteEstimate | null>(null);
+  const [routeBusy, setRouteBusy] = useState(false);
+  const routeReqRef = useRef(0);
+  const routeAutofillRef = useRef<{ km: string | null; peajes: string | null }>(
+    { km: null, peajes: null },
+  );
   const [breakdown, setBreakdown] = useState<QuoteCostBreakdown | null>(null);
   const [calcBusy, setCalcBusy] = useState(false);
   const [calcError, setCalcError] = useState("");
@@ -282,15 +325,17 @@ export default function ComercialPage() {
   const [conversionTripCode, setConversionTripCode] = useState<string | null>(null);
 
   async function load(page = contractsPage) {
-    const [c, q, ctr] = await Promise.all([
+    const [c, q, ctr, qs] = await Promise.all([
       api<Customer[]>("/comercial/customers"),
       api<Quote[]>("/comercial/quotes"),
       api<ContractsListResponse>(
         `/comercial/contracts?page=${page}&limit=${CONTRACTS_PAGE_SIZE}`,
       ),
+      api<QuotesSummary>("/comercial/quotes/summary").catch(() => null),
     ]);
     setCustomers(c);
     setQuotes(q);
+    setQuotesSummary(qs);
     setContracts(ctr.items);
     setContractsTotal(ctr.meta.total);
     setContractsPage(ctr.meta.page);
@@ -307,14 +352,55 @@ export default function ComercialPage() {
   }, []);
 
   useEffect(() => {
-    const est = estimateTollsForRoute(calcForm.origen, calcForm.destino);
-    if (est.source === "catalog") {
-      setCalcForm((f) => ({
-        ...f,
-        cantidadPeajes: String(est.cantidadPeajes),
-      }));
+    const origen = calcForm.origen.trim();
+    const destino = calcForm.destino.trim();
+    if (origen.length < 3 || destino.length < 3) {
+      setRouteEst(null);
+      return;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const reqId = ++routeReqRef.current;
+    const t = window.setTimeout(() => {
+      setRouteBusy(true);
+      void api<RouteEstimate>("/comercial/quotes/route-estimate", {
+        method: "POST",
+        body: JSON.stringify({ origen, destino }),
+      })
+        .catch(
+          (): RouteEstimate => ({
+            available: false,
+            source: "OSRM",
+            origen: null,
+            destino: null,
+            distanceKm: null,
+            durationMin: null,
+            tolls: null,
+            message: "No se pudo consultar el servicio de rutas.",
+          }),
+        )
+        .then((est) => {
+          if (reqId !== routeReqRef.current) return;
+          setRouteEst(est);
+          const auto = routeAutofillRef.current;
+          const km =
+            est.available && est.distanceKm != null
+              ? String(est.distanceKm)
+              : null;
+          const peajes = est.tolls ? String(est.tolls.count) : null;
+          setCalcForm((f) => ({
+            ...f,
+            distanciaKm:
+              km ?? (f.distanciaKm === auto.km ? "" : f.distanciaKm),
+            cantidadPeajes:
+              peajes ??
+              (f.cantidadPeajes === auto.peajes ? "" : f.cantidadPeajes),
+          }));
+          routeAutofillRef.current = { km, peajes };
+        })
+        .finally(() => {
+          if (reqId === routeReqRef.current) setRouteBusy(false);
+        });
+    }, 700);
+    return () => window.clearTimeout(t);
   }, [calcForm.origen, calcForm.destino]);
 
   const calcPayload = useMemo(
@@ -433,6 +519,8 @@ export default function ComercialPage() {
         Number(calcForm.distanciaKm) > 0
       ) {
         void runCalculate();
+      } else {
+        setBreakdown(null);
       }
     }, 350);
     return () => window.clearTimeout(t);
@@ -744,12 +832,18 @@ export default function ComercialPage() {
           Detalle
         </Button>
         {q.draftTrip ? (
-          <Link
-            href={`/logistica/servicios?code=${encodeURIComponent(q.draftTrip.code)}`}
-            className="inline-flex w-auto items-center rounded-md px-3 py-1.5 text-xs font-semibold text-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/10"
-          >
-            {q.draftTrip.code}
-          </Link>
+          canOpenLogistica ? (
+            <Link
+              href={`/logistica/servicios?code=${encodeURIComponent(q.draftTrip.code)}`}
+              className="inline-flex w-auto items-center rounded-md px-3 py-1.5 text-xs font-semibold text-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/10"
+            >
+              {q.draftTrip.code}
+            </Link>
+          ) : (
+            <span className="inline-flex w-auto items-center px-3 py-1.5 font-data text-xs text-brand-text-secondary">
+              {q.draftTrip.code}
+            </span>
+          )
         ) : q.status === "DRAFT" ||
           q.status === "SENT" ||
           q.status === "APPROVED" ? (
@@ -877,12 +971,14 @@ export default function ComercialPage() {
               Logística → Programación de servicios y seguimiento GPS. Sin
               conductor ni placa hasta que despacho lo asigne.
             </p>
-            <Link
-              href={`/logistica/servicios?code=${encodeURIComponent(q.draftTrip.code)}`}
-              className="inline-flex w-auto items-center rounded-md bg-[var(--brand-primary)] px-3 py-2 text-xs font-semibold text-brand-on-primary"
-            >
-              Abrir en programación
-            </Link>
+            {canOpenLogistica ? (
+              <Link
+                href={`/logistica/servicios?code=${encodeURIComponent(q.draftTrip.code)}`}
+                className="inline-flex w-auto items-center rounded-md bg-[var(--brand-primary)] px-3 py-2 text-xs font-semibold text-brand-on-primary"
+              >
+                Abrir en programación
+              </Link>
+            ) : null}
           </div>
         ) : q.status === "DRAFT" ||
           q.status === "SENT" ||
@@ -956,15 +1052,17 @@ export default function ComercialPage() {
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
           {tab === "contratos" ? (
-            <Button
-              type="button"
-              variant="primary"
-              className="w-auto px-4 py-2"
-              onClick={openNewContract}
-            >
-              <Plus className="mr-1.5 h-4 w-4" aria-hidden />
-              Nuevo contrato
-            </Button>
+            canCreateContract ? (
+              <Button
+                type="button"
+                variant="primary"
+                className="w-auto px-4 py-2"
+                onClick={openNewContract}
+              >
+                <Plus className="mr-1.5 h-4 w-4" aria-hidden />
+                Nuevo contrato
+              </Button>
+            ) : null
           ) : (
             <Button
               type="button"
@@ -996,7 +1094,7 @@ export default function ComercialPage() {
 
       {tab === "cotizador" ? (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
             <KpiCard
               label="Pipeline ponderado"
               value={money(pipelineStats.weighted)}
@@ -1037,6 +1135,36 @@ export default function ComercialPage() {
                 setStageFilter("OVERDUE");
                 setQuoteView("pipeline");
               }}
+            />
+            <KpiCard
+              label="Win rate"
+              value={
+                quotesSummary?.winRatePct != null
+                  ? `${quotesSummary.winRatePct.toLocaleString("es-CO")}%`
+                  : "—"
+              }
+              delta={
+                quotesSummary && quotesSummary.closed > 0
+                  ? `${quotesSummary.won} de ${quotesSummary.closed} cerradas`
+                  : "Sin cotizaciones cerradas"
+              }
+              tip="Cotizaciones ganadas ÷ cotizaciones cerradas (ganadas + rechazadas + vencidas)."
+              icon={<Percent className="h-10 w-10" />}
+            />
+            <KpiCard
+              label="Ticket promedio"
+              value={
+                quotesSummary?.avgTicket != null
+                  ? money(quotesSummary.avgTicket)
+                  : "—"
+              }
+              delta={
+                quotesSummary && quotesSummary.won > 0
+                  ? `${quotesSummary.won} cotización${quotesSummary.won === 1 ? "" : "es"} ganada${quotesSummary.won === 1 ? "" : "s"}`
+                  : "Sin cotizaciones ganadas"
+              }
+              tip="Valor promedio de las cotizaciones ganadas."
+              icon={<Receipt className="h-10 w-10" />}
             />
           </div>
 
@@ -1139,6 +1267,11 @@ export default function ComercialPage() {
                   required
                   title="Kilómetros recorridos en la ruta"
                 />
+                <span className="font-sans text-[10px] normal-case tracking-normal text-[var(--brand-text-secondary)]">
+                  {routeEst?.available
+                    ? "Distancia según OSRM · editable"
+                    : "Ingreso manual"}
+                </span>
               </label>
               <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--brand-text-secondary)]">
                 Peajes
@@ -1151,20 +1284,18 @@ export default function ComercialPage() {
                   onChange={(e) =>
                     setCalcForm({ ...calcForm, cantidadPeajes: e.target.value })
                   }
-                  title="Auto-relleno por corredor; editable"
+                  title="Cantidad de peajes de la ruta; editable"
                 />
                 <span className="font-sans text-[10px] normal-case tracking-normal text-[var(--brand-text-secondary)]">
-                  Estimado ·{" "}
-                  {
-                    estimateTollsForRoute(calcForm.origen, calcForm.destino)
-                      .label
-                  }{" "}
-                  · $
-                  {estimateTollsForRoute(
-                    calcForm.origen,
-                    calcForm.destino,
-                  ).avgCop.toLocaleString("es-CO")}
-                  /peaje
+                  {routeEst?.tolls
+                    ? "Según OSRM · editable"
+                    : `Estimado · ${
+                        estimateTollsForRoute(calcForm.origen, calcForm.destino)
+                          .label
+                      } · $${estimateTollsForRoute(
+                        calcForm.origen,
+                        calcForm.destino,
+                      ).avgCop.toLocaleString("es-CO")}/peaje`}
                 </span>
               </label>
               <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
@@ -1370,6 +1501,97 @@ export default function ComercialPage() {
             {calcError ? (
               <p className="text-sm text-[var(--brand-danger)]">{calcError}</p>
             ) : null}
+
+            <div className="rounded-lg border border-[var(--brand-border)] p-3">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--brand-text-secondary)]">
+                  <Route className="h-4 w-4" aria-hidden />
+                  Ruta y peajes
+                </p>
+                <span className="text-[10px] text-[var(--brand-text-secondary)]">
+                  {routeBusy ? "Consultando servicio de rutas…" : "Fuente: OSRM"}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div
+                  className="min-w-0"
+                  title={
+                    routeEst?.origen && routeEst?.destino
+                      ? `${routeEst.origen.label} → ${routeEst.destino.label}`
+                      : undefined
+                  }
+                >
+                  <p className="text-[10px] uppercase tracking-wide text-[var(--brand-text-secondary)]">
+                    Ruta
+                  </p>
+                  <p className="mt-1 truncate text-sm font-semibold text-[var(--brand-text-primary)]">
+                    {calcForm.origen.trim() || "—"} →{" "}
+                    {calcForm.destino.trim() || "—"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-[var(--brand-text-secondary)]">
+                    Distancia estimada
+                  </p>
+                  <p className="mt-1 font-data text-sm font-semibold tabular-nums text-[var(--brand-text-primary)]">
+                    {routeEst?.distanceKm != null
+                      ? `${routeEst.distanceKm.toLocaleString("es-CO")} km`
+                      : "—"}
+                  </p>
+                  {routeEst?.durationMin != null ? (
+                    <p className="text-[10px] text-[var(--brand-text-secondary)]">
+                      ~{Math.floor(routeEst.durationMin / 60)} h{" "}
+                      {routeEst.durationMin % 60} min por carretera
+                    </p>
+                  ) : null}
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-[var(--brand-text-secondary)]">
+                    Cantidad de peajes
+                  </p>
+                  <p className="mt-1 font-data text-sm font-semibold tabular-nums text-[var(--brand-text-primary)]">
+                    {routeEst?.tolls ? routeEst.tolls.count : "Sin información"}
+                  </p>
+                  {!routeEst?.tolls && Number(calcForm.cantidadPeajes) > 0 ? (
+                    <p className="text-[10px] text-[var(--brand-text-secondary)]">
+                      Ingresados manualmente: {Number(calcForm.cantidadPeajes)}
+                    </p>
+                  ) : null}
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-[var(--brand-text-secondary)]">
+                    Costo estimado de peajes
+                  </p>
+                  <p className="mt-1 font-data text-sm font-semibold tabular-nums text-[var(--brand-text-primary)]">
+                    {breakdown && breakdown.cantidadPeajes > 0
+                      ? money(breakdown.costoPeajes)
+                      : routeEst?.tolls?.count === 0
+                        ? money(0)
+                        : "—"}
+                  </p>
+                  <p className="text-[10px] text-[var(--brand-text-secondary)]">
+                    {breakdown && breakdown.cantidadPeajes > 0
+                      ? `${breakdown.cantidadPeajes} × ${money(breakdown.costoPromedioPeaje)} (tarifa promedio del cotizador) · incluido en el precio final`
+                      : "No incluido en el total"}
+                  </p>
+                </div>
+              </div>
+              {routeEst && (!routeEst.available || !routeEst.tolls) ? (
+                <p className="mt-3 flex items-start gap-2 rounded-md border border-[color-mix(in_srgb,var(--brand-warning)_40%,transparent)] bg-[color-mix(in_srgb,var(--brand-warning)_10%,transparent)] px-3 py-2 text-xs text-[var(--brand-text-primary)]">
+                  <AlertTriangle
+                    className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--brand-warning)]"
+                    aria-hidden
+                  />
+                  <span>
+                    {routeEst.message ??
+                      "El servicio de rutas no devolvió información."}{" "}
+                    Puede continuar la cotización ingresando{" "}
+                    {routeEst.available ? "los peajes" : "los km y peajes"}{" "}
+                    manualmente.
+                  </span>
+                </p>
+              ) : null}
+            </div>
 
             {breakdown ? (
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -1670,7 +1892,7 @@ export default function ComercialPage() {
             />
             <KpiCard
               label="Contratos totales"
-              value={contracts.length}
+              value={contractsTotal}
               icon={<Target className="h-10 w-10" />}
             />
             <KpiCard
@@ -1690,9 +1912,13 @@ export default function ComercialPage() {
               <EmptyState
                 icon={<FileText className="h-7 w-7" />}
                 title="Sin contratos"
-                description="Registra un contrato operativo de empresa o licitación."
-                actionLabel="+ Nuevo contrato"
-                onAction={openNewContract}
+                description={
+                  canCreateContract
+                    ? "Registra un contrato operativo de empresa o licitación."
+                    : "Aún no hay contratos operativos registrados."
+                }
+                actionLabel={canCreateContract ? "+ Nuevo contrato" : undefined}
+                onAction={canCreateContract ? openNewContract : undefined}
               />
             ) : (
               <>
@@ -2499,7 +2725,7 @@ export default function ComercialPage() {
             >
               Cerrar
             </Button>
-            {conversionTripCode ? (
+            {conversionTripCode && canOpenLogistica ? (
               <Link
                 href={`/logistica/servicios?code=${encodeURIComponent(conversionTripCode)}`}
               >

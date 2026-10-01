@@ -26,6 +26,7 @@ import {
 } from "recharts";
 import { api, apiDownload } from "@/lib/api";
 import { useThemeColors } from "@/lib/use-theme-colors";
+import { useCanOpenPath } from "@/lib/route-access";
 import {
   EmptyState,
   KpiCard,
@@ -178,6 +179,7 @@ function daySiglas(d: EmpleadoRow["daily"][0]) {
 
 export default function ReporteNominaPage() {
   const colors = useThemeColors();
+  const canOpenPath = useCanOpenPath();
   const [mes, setMes] = useState(currentMes);
   const [empleadoId, setEmpleadoId] = useState("ALL");
   const [search, setSearch] = useState("");
@@ -363,12 +365,14 @@ export default function ReporteNominaPage() {
             incorporan estos extras.
           </p>
         </div>
-        <a
-          href="/rrhh"
-          className="inline-flex w-auto items-center rounded-lg border border-brand-border px-3 py-2 font-data text-xs font-semibold text-brand-primary hover:border-brand-primary/40"
-        >
-          Ir a nómina RRHH
-        </a>
+        {canOpenPath("/rrhh") ? (
+          <a
+            href="/rrhh"
+            className="inline-flex w-auto items-center rounded-lg border border-brand-border px-3 py-2 font-data text-xs font-semibold text-brand-primary hover:border-brand-primary/40"
+          >
+            Ir a nómina RRHH
+          </a>
+        ) : null}
       </div>
 
       {metrics && metrics.telemetryAlerts > 0 ? (

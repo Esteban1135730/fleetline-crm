@@ -97,6 +97,7 @@ export function homePathForRole(role: Role | string): string {
     coordinador_taller: "/taller/coordinador/dashboard",
     auxiliar_almacen_taller: "/taller/almacen/dashboard",
     mecanico: "/taller/mecanico",
+    auxiliar_contable_taller: "/contabilidad",
     monitora: "/apps",
   };
   if (ROLE_HOME[key]) return ROLE_HOME[key]!;

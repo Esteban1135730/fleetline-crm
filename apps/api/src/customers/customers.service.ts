@@ -23,6 +23,10 @@ import { LogisticsService } from "../logistics/logistics.service";
 import { SarlaftGuardService } from "../sarlaft/sarlaft-guard.service";
 import { QuotePdfService } from "../comercial/quote-pdf.service";
 import { assertCustomerCommercialClear } from "../comercial/commercial-hard-stops";
+import {
+  fetchDrivingRoute,
+  geocodeColombia,
+} from "../logistica/routing/osrm.route";
 
 function isWinStatus(status: string) {
   const s = status.toUpperCase();
@@ -214,6 +218,96 @@ export class CustomersService {
       );
     }
     return calculateQuotePrice(parsed.data);
+  }
+
+  /** Win rate y ticket promedio sobre cotizaciones cerradas (WON vs REJECTED/EXPIRED). */
+  async quotesSummary(organizationId: string) {
+    const rows = await this.prisma.quote.groupBy({
+      by: ["status"],
+      where: {
+        customer: { organizationId },
+        status: {
+          in: [QuoteStatus.WON, QuoteStatus.REJECTED, QuoteStatus.EXPIRED],
+        },
+      },
+      _count: { _all: true },
+      _sum: { amount: true },
+    });
+    let won = 0;
+    let lost = 0;
+    let wonAmount = 0;
+    for (const r of rows) {
+      if (r.status === QuoteStatus.WON) {
+        won = r._count._all;
+        wonAmount = Number(r._sum.amount ?? 0);
+      } else {
+        lost += r._count._all;
+      }
+    }
+    const closed = won + lost;
+    return {
+      won,
+      lost,
+      closed,
+      wonAmount,
+      winRatePct: closed > 0 ? Math.round((won / closed) * 1000) / 10 : null,
+      avgTicket: won > 0 ? Math.round(wonAmount / won) : null,
+    };
+  }
+
+  /** Distancia y peajes de la ruta vía Nominatim + OSRM; sin valores por defecto. */
+  async estimateQuoteRoute(body: unknown) {
+    const b = (body ?? {}) as { origen?: unknown; destino?: unknown };
+    const origen = typeof b.origen === "string" ? b.origen.trim() : "";
+    const destino = typeof b.destino === "string" ? b.destino.trim() : "";
+    if (origen.length < 3 || destino.length < 3) {
+      throw new BadRequestException(
+        "Indique origen y destino (mínimo 3 caracteres)",
+      );
+    }
+    const [o, d] = await Promise.all([
+      geocodeColombia(origen),
+      geocodeColombia(destino),
+    ]);
+    const base = {
+      source: "OSRM" as const,
+      origen: o,
+      destino: d,
+      distanceKm: null as number | null,
+      durationMin: null as number | null,
+      tolls: null as { count: number } | null,
+    };
+    if (!o || !d) {
+      return {
+        ...base,
+        available: false,
+        message: `No se pudo ubicar ${!o ? "el origen" : "el destino"} en el mapa.`,
+      };
+    }
+    const route = await fetchDrivingRoute(
+      { lat: o.lat, lng: o.lng },
+      { lat: d.lat, lng: d.lng },
+      { steps: true },
+    );
+    if (route.degraded || route.distanceM <= 0) {
+      return {
+        ...base,
+        available: false,
+        message: "El servicio de rutas no respondió; ingrese km y peajes manualmente.",
+      };
+    }
+    return {
+      ...base,
+      available: true,
+      distanceKm: Math.round((route.distanceM / 1000) * 10) / 10,
+      durationMin: Math.round(route.durationS / 60),
+      tolls:
+        route.tollSegments == null ? null : { count: route.tollSegments },
+      message:
+        route.tollSegments == null
+          ? "El servicio de rutas no reporta información de peajes para esta ruta."
+          : undefined,
+    };
   }
 
   async createQuote(

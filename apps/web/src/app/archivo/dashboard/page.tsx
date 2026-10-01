@@ -18,7 +18,15 @@ import {
   UserX,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { EmptyState, KpiCard, SlideOver, SlideOverHelp, StatusPulseBadge } from "@/components/audit";
+import {
+  EmptyState,
+  KpiCard,
+  SkeletonKpis,
+  SkeletonRows,
+  SlideOver,
+  SlideOverHelp,
+  StatusPulseBadge,
+} from "@/components/audit";
 
 type SearchHit = {
   kind?: "document" | "vehicle" | "driver" | "employee" | "customer";
@@ -34,7 +42,7 @@ type SearchHit = {
 };
 
 type VaultMetrics = {
-  ocrPrecisionPct: number;
+  ocrPrecisionPct: number | null;
   habeasShreddedToday: number;
   operationalAssets: number;
   liquidationBlocks: number;
@@ -135,6 +143,8 @@ function hitKind(h: SearchHit): NonNullable<SearchHit["kind"]> {
   return h.kind || "document";
 }
 
+const PANEL_ROWS = 8;
+
 function shortHash(h?: string | null) {
   if (!h) return "—";
   return `${h.slice(0, 8)}…`;
@@ -159,6 +169,7 @@ export default function ArchivoDashboardPage() {
   const [q, setQ] = useState("");
   const [hits, setHits] = useState<SearchHit[]>([]);
   const [dash, setDash] = useState<Dashboard | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [searching, setSearching] = useState(false);
   const [searched, setSearched] = useState(false);
@@ -191,8 +202,15 @@ export default function ArchivoDashboardPage() {
       setDash(d);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Conexión de archivo fallida");
+    } finally {
+      setLoading(false);
     }
   }, []);
+
+  const initialLoading = loading && !dash;
+  const processingCount = (dash?.ingestionQueue ?? []).filter(
+    (i) => i.status === "processing",
+  ).length;
 
   useEffect(() => {
     void loadDash();
@@ -423,7 +441,11 @@ export default function ArchivoDashboardPage() {
 
       {mainTab === "data-room" ? (
         <>
-          {metrics ? (
+          {initialLoading ? (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <SkeletonKpis count={4} />
+            </div>
+          ) : metrics ? (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <KpiCard
                 label="Precisión OCR"
@@ -818,7 +840,11 @@ export default function ArchivoDashboardPage() {
                 Historial · custodia y préstamos
               </h2>
             </header>
-            {!dash?.accessLog?.length ? (
+            {initialLoading ? (
+              <div className="p-4">
+                <SkeletonRows rows={4} />
+              </div>
+            ) : !dash?.accessLog?.length ? (
               <div className="p-4">
                 <EmptyState
                   icon={<FileArchive className="h-7 w-7" aria-hidden />}

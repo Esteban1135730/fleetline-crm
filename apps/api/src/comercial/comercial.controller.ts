@@ -14,10 +14,7 @@ import { pageMeta, parsePagination } from "../security/pagination";
 
 type AuthReq = { user: { organizationId: string; userId: string } };
 
-@Controller(["comercial", "api/v1/comercial"])
-@UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard, ModulesGuard)
-@RequireModule("comercial")
-@Roles(
+const COMERCIAL_ROLES = [
   "gestor_comercial",
   "coordinador_comercial",
   "director_comercial",
@@ -26,7 +23,12 @@ type AuthReq = { user: { organizationId: string; userId: string } };
   "platform_master",
   "director_operativo",
   "comercial",
-)
+] as const;
+
+@Controller(["comercial", "api/v1/comercial"])
+@UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard, ModulesGuard)
+@RequireModule("comercial")
+@Roles(...COMERCIAL_ROLES)
 export class ComercialController {
   constructor(
     private contracts: CommercialContractService,
@@ -34,7 +36,9 @@ export class ComercialController {
     private revenue: CommercialRevenueService,
   ) {}
 
+  /** director_financiero: lectura de contratos (contratos:READ) sin abrir los endpoints sin @Permissions. */
   @Get("contracts")
+  @Roles(...COMERCIAL_ROLES, "director_financiero")
   @Permissions("contratos", "READ")
   async listContracts(
     @Req() req: AuthReq,

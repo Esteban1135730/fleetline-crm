@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
 import { Badge, Button } from "@fsg/ui";
 import {
   Wallet,
@@ -37,6 +43,7 @@ import { EmptyState, KpiCard, Modal, SlideOver } from "@/components/audit";
 import { BentoPanel } from "@/components/nexa/bento-panel";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
 import { useShell } from "@/lib/shell-context";
+import { useCanOpenPath } from "@/lib/route-access";
 import { useRouter } from "next/navigation";
 
 type Pillars = {
@@ -241,6 +248,8 @@ const NEXA_CHART = {
 export default function PresidenciaDashboardPage() {
   const colors = useThemeColors();
   const router = useRouter();
+  const canOpenPath = useCanOpenPath();
+  const canOpenComercial = canOpenPath("/comercial");
   const { crisisActive: defconActive, setCrisisActive } = useShell();
   const heatColors = useMemo(
     () => [
@@ -602,13 +611,14 @@ export default function PresidenciaDashboardPage() {
                 (ops?.blockedVehicles ?? 0) + (ops?.sarlaftBlocks ?? 0) > 0;
               const total =
                 (ops?.blockedVehicles ?? 0) + (ops?.sarlaftBlocks ?? 0);
-              const href =
+              const rawHref =
                 ops?.href ||
                 (ops && ops.blockedVehicles > 0
                   ? "/tramites"
                   : ops && ops.sarlaftBlocks > 0
                     ? "/sarlaft/bloqueos"
                     : null);
+              const href = rawHref && canOpenPath(rawHref) ? rawHref : null;
               const label = critical
                 ? `BLOQUEO CRÍTICO · ${total}`
                 : "NOMINAL";
@@ -657,6 +667,9 @@ export default function PresidenciaDashboardPage() {
           >
             <Gavel className="mr-1.5 inline h-4 w-4" aria-hidden />
             Excepciones margen
+            {(dash?.pendingMarginExceptions ?? 0) > 0
+              ? ` (${dash?.pendingMarginExceptions})`
+              : ""}
           </Button>
           <PermissionGuard capability="audit_forense:READ">
             <Button
@@ -1008,12 +1021,14 @@ export default function PresidenciaDashboardPage() {
           icon={<Truck />}
           className="lg:col-span-5"
           action={
-            <Link
-              href="/taller"
-              className="font-data text-[10px] font-semibold uppercase tracking-wider text-brand-primary hover:underline"
-            >
-              Ir a taller →
-            </Link>
+            canOpenPath("/taller") ? (
+              <Link
+                href="/taller"
+                className="font-data text-[10px] font-semibold uppercase tracking-wider text-brand-primary hover:underline"
+              >
+                Ir a taller →
+              </Link>
+            ) : undefined
           }
         >
           {fleetDonut.length > 0 ? (
@@ -1029,10 +1044,14 @@ export default function PresidenciaDashboardPage() {
                     innerRadius={52}
                     outerRadius={78}
                     paddingAngle={2}
-                    cursor="pointer"
+                    cursor={
+                      fleetDonut.some((s) => canOpenPath(s.href))
+                        ? "pointer"
+                        : undefined
+                    }
                     onClick={(_, index) => {
                       const seg = fleetDonut[index];
-                      if (seg?.href) router.push(seg.href);
+                      if (seg?.href && canOpenPath(seg.href)) router.push(seg.href);
                     }}
                   >
                     {fleetDonut.map((entry) => (
@@ -1087,23 +1106,29 @@ export default function PresidenciaDashboardPage() {
           icon={<TrendingUp />}
           className="lg:col-span-8"
           action={
-            <Link
-              href="/comercial"
-              className="font-data text-[10px] font-semibold uppercase tracking-wider text-brand-primary hover:underline"
-            >
-              Ir a comercial →
-            </Link>
+            canOpenComercial ? (
+              <Link
+                href="/comercial"
+                className="font-data text-[10px] font-semibold uppercase tracking-wider text-brand-primary hover:underline"
+              >
+                Ir a comercial →
+              </Link>
+            ) : undefined
           }
         >
           {pipelineWeeks.length > 0 ? (
             <div
-              className="h-56 w-full cursor-pointer"
-              onClick={() => router.push("/comercial")}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") router.push("/comercial");
-              }}
-              role="link"
-              tabIndex={0}
+              className={`h-56 w-full${canOpenComercial ? " cursor-pointer" : ""}`}
+              {...(canOpenComercial
+                ? {
+                    onClick: () => router.push("/comercial"),
+                    onKeyDown: (e: ReactKeyboardEvent<HTMLDivElement>) => {
+                      if (e.key === "Enter") router.push("/comercial");
+                    },
+                    role: "link",
+                    tabIndex: 0,
+                  }
+                : {})}
             >
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={pipelineWeeks}>

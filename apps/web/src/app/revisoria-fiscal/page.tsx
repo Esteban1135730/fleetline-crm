@@ -9,6 +9,8 @@ import {
   EmptyState,
   EvidenceDropzone,
   KpiCard,
+  SkeletonKpis,
+  SkeletonRows,
   SlideOver,
   StatusPulseBadge,
   StoredAttachmentViewer,
@@ -65,6 +67,7 @@ const EMPTY_FORM = {
 
 export default function RevisoriaPage() {
   const [rows, setRows] = useState<Finding[]>([]);
+  const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(EMPTY_FORM);
   const [altaOpen, setAltaOpen] = useState(false);
   const [evidence, setEvidence] = useState<File[]>([]);
@@ -79,9 +82,11 @@ export default function RevisoriaPage() {
   }, []);
 
   useEffect(() => {
-    void load().catch((e) =>
-      setError((e as Error).message || "Señal perdida — bitácora forense"),
-    );
+    void load()
+      .catch((e) =>
+        setError((e as Error).message || "Señal perdida — bitácora forense"),
+      )
+      .finally(() => setLoading(false));
   }, [load]);
 
   async function onCreate(e: FormEvent) {
@@ -192,6 +197,10 @@ export default function RevisoriaPage() {
       ) : null}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {loading ? (
+          <SkeletonKpis count={3} />
+        ) : (
+          <>
         <KpiCard
           label="Hallazgos abiertos"
           value={stats.open}
@@ -209,6 +218,8 @@ export default function RevisoriaPage() {
           value={formatCop(stats.exposed)}
           tone={stats.exposed > 0 ? "danger" : "ok"}
         />
+          </>
+        )}
       </div>
 
       <div className="nexa-panel flex flex-wrap items-end gap-3 p-4">
@@ -249,7 +260,9 @@ export default function RevisoriaPage() {
         </label>
       </div>
 
-      {!rows.length ? (
+      {loading ? (
+        <SkeletonRows rows={5} />
+      ) : !rows.length ? (
         <EmptyState
           icon={<ClipboardList className="h-7 w-7" />}
           title="Sin hallazgos indexados"

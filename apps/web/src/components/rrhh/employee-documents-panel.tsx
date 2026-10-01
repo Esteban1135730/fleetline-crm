@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { FileUp, CheckCircle2, CircleAlert } from "lucide-react";
 import { api } from "@/lib/api";
+import { useHasPermission } from "@/lib/permissions";
 
 type DocFile = {
   id: string;
@@ -70,6 +71,7 @@ export function EmployeeDocumentsPanel({
   onStatus,
   onLicenseUpdated,
 }: Props) {
+  const canUpload = useHasPermission("personal", "UPDATE");
   const [dossier, setDossier] = useState<Dossier | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploadingKey, setUploadingKey] = useState<string | null>(null);
@@ -432,25 +434,27 @@ export function EmployeeDocumentsPanel({
                     </p>
                   ) : null}
                 </div>
-                <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-[var(--brand-border)] px-3 py-1.5 text-xs font-medium text-[var(--brand-text-primary)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]">
-                  <input
-                    type="file"
-                    className="sr-only"
-                    accept=".pdf,image/png,image/jpeg,image/webp"
-                    disabled={uploadingKey === slot.key}
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      e.target.value = "";
-                      if (file) onPickFile(slot, file);
-                    }}
-                  />
-                  <FileUp className="h-3.5 w-3.5" />
-                  {uploadingKey === slot.key
-                    ? "Subiendo…"
-                    : done
-                      ? "Reemplazar"
-                      : "Subir"}
-                </label>
+                {canUpload ? (
+                  <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-[var(--brand-border)] px-3 py-1.5 text-xs font-medium text-[var(--brand-text-primary)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]">
+                    <input
+                      type="file"
+                      className="sr-only"
+                      accept=".pdf,image/png,image/jpeg,image/webp"
+                      disabled={uploadingKey === slot.key}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = "";
+                        if (file) onPickFile(slot, file);
+                      }}
+                    />
+                    <FileUp className="h-3.5 w-3.5" />
+                    {uploadingKey === slot.key
+                      ? "Subiendo…"
+                      : done
+                        ? "Reemplazar"
+                        : "Subir"}
+                  </label>
+                ) : null}
               </div>
             </li>
           );

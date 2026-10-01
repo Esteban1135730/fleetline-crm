@@ -30,6 +30,7 @@ import {
   splitFormApiError,
 } from "@/lib/form-api-error";
 import { useAuth } from "@/lib/auth-context";
+import { useHasPermission } from "@/lib/permissions";
 import { EmptyState, KpiCard, Modal, SlideOver, StatusPulseBadge } from "@/components/audit";
 import { BentoPanel } from "@/components/nexa/bento-panel";
 import { BlockStatusBadge } from "@/components/nexa/block-status-badge";
@@ -256,6 +257,10 @@ export default function RrhhPage() {
     user?.role === "platform_master" ||
     user?.role === "org_admin" ||
     user?.role === "vinculaciones";
+  const canCreatePersonal = useHasPermission("personal", "CREATE");
+  const canUpdatePersonal = useHasPermission("personal", "UPDATE");
+  const canReadNomina = useHasPermission("nomina", "READ");
+  const canCalcPayroll = useHasPermission("nomina", "CREATE");
 
   const [tab, setTab] = useState<TabId>("personal");
   const [personalQuery, setPersonalQuery] = useState("");
@@ -316,7 +321,9 @@ export default function RrhhPage() {
       api<Overview>("/rrhh/overview"),
       api<Emp[]>("/rrhh/employees"),
       api<DriverOpt[]>("/rrhh/drivers"),
-      api<PayrollRun[]>("/rrhh/payroll/runs"),
+      canReadNomina
+        ? api<PayrollRun[]>("/rrhh/payroll/runs")
+        : Promise.resolve<PayrollRun[]>([]),
       api<Training[]>("/rrhh/trainings"),
     ]);
     setOverview(ov);
@@ -325,7 +332,7 @@ export default function RrhhPage() {
     setRuns(pay);
     setTrainings(caps);
     setSelectedRunId((prev) => prev ?? pay[0]?.id ?? null);
-  }, []);
+  }, [canReadNomina]);
 
   useEffect(() => {
     void loadAll().catch((err) =>
@@ -403,12 +410,16 @@ export default function RrhhPage() {
         count: linkedDrivers.length,
         tip: `Horas de turno y score de cansancio. Score ≥ ${HARD_RULES.FATIGUE_BLOCK_SCORE} puede bloquear el despacho del conductor.`,
       },
-      {
-        id: "nomina" as const,
-        label: "Nómina",
-        count: runs.length,
-        tip: "Liquidación, bonificaciones y deducciones",
-      },
+      ...(canReadNomina
+        ? [
+            {
+              id: "nomina" as const,
+              label: "Nómina",
+              count: runs.length,
+              tip: "Liquidación, bonificaciones y deducciones",
+            },
+          ]
+        : []),
       {
         id: "capacitaciones" as const,
         label: "PESV",
@@ -416,7 +427,7 @@ export default function RrhhPage() {
         tip: "Capacitaciones y cumplimiento normativo",
       },
     ],
-    [rows.length, linkedDrivers.length, runs.length, trainings.length],
+    [rows.length, linkedDrivers.length, runs.length, trainings.length, canReadNomina],
   );
 
   async function onCreate(e: FormEvent) {
@@ -722,21 +733,23 @@ export default function RrhhPage() {
               <FileSpreadsheet className="mr-1.5 h-4 w-4" aria-hidden />
               Excel
             </Button>
-            <Button
-              type="button"
-              variant="primary"
-              className="w-auto px-4 py-2"
-              data-testid="rrhh-alta-open"
-              onClick={() => {
-                setAltaFormError("");
-                setAltaFieldErrors({});
-                setAltaOpen(true);
-              }}
-            >
-              + Nuevo empleado
-            </Button>
+            {canCreatePersonal ? (
+              <Button
+                type="button"
+                variant="primary"
+                className="w-auto px-4 py-2"
+                data-testid="rrhh-alta-open"
+                onClick={() => {
+                  setAltaFormError("");
+                  setAltaFieldErrors({});
+                  setAltaOpen(true);
+                }}
+              >
+                + Nuevo empleado
+              </Button>
+            ) : null}
           </div>
-        ) : tab === "nomina" ? (
+        ) : tab === "nomina" && canCalcPayroll ? (
           <Button
             type="button"
             variant="primary"
@@ -759,6 +772,7 @@ export default function RrhhPage() {
 
       <EmployeeExcelPanel
         open={excelOpen}
+        canImport={canCreatePersonal}
         onClose={() => setExcelOpen(false)}
         onImported={() => {
           setStatusMsg("Importación Excel procesada");
@@ -897,12 +911,16 @@ export default function RrhhPage() {
               icon={<Users className="h-7 w-7" />}
               title="Sin expedientes"
               description="Indexa el primer expediente de capital humano."
-              actionLabel="+ Nuevo empleado"
-              onAction={() => {
-                setAltaFormError("");
-                setAltaFieldErrors({});
-                setAltaOpen(true);
-              }}
+              actionLabel={canCreatePersonal ? "+ Nuevo empleado" : undefined}
+              onAction={
+                canCreatePersonal
+                  ? () => {
+                      setAltaFormError("");
+                      setAltaFieldErrors({});
+                      setAltaOpen(true);
+                    }
+                  : undefined
+              }
             />
           ) : (
             <BentoPanel title="Expedientes digitales" subtitle={`${filteredRows.length} registro(s)`} tour="panel">
@@ -984,6 +1002,7 @@ export default function RrhhPage() {
                         <select
                           className="field py-1 font-data text-xs"
                           value={r.status}
+                          disabled={!canUpdatePersonal}
                           onChange={(e) => void patchStatus(r.id, e.target.value)}
                         >
                           {STATUSES.map((s) => (
@@ -995,13 +1014,15 @@ export default function RrhhPage() {
                       </NexaCell>
                       <NexaCell>
                         <div className="flex flex-wrap gap-1">
-                          <Button
-                            variant="ghost"
-                            className="w-auto text-xs"
-                            onClick={() => startEdit(r)}
-                          >
-                            Editar
-                          </Button>
+                          {canUpdatePersonal ? (
+                            <Button
+                              variant="ghost"
+                              className="w-auto text-xs"
+                              onClick={() => startEdit(r)}
+                            >
+                              Editar
+                            </Button>
+                          ) : null}
                           <Button
                             variant="ghost"
                             className="w-auto text-xs"
@@ -1163,8 +1184,8 @@ export default function RrhhPage() {
               icon={<Wallet className="h-7 w-7" />}
               title="Sin corridas de nómina"
               description="Calcula un periodo para indexar liquidación."
-              actionLabel="Calcular liquidación"
-              onAction={() => setPayrollOpen(true)}
+              actionLabel={canCalcPayroll ? "Calcular liquidación" : undefined}
+              onAction={canCalcPayroll ? () => setPayrollOpen(true) : undefined}
             />
           ) : (
             <div className="grid gap-4 xl:grid-cols-5">

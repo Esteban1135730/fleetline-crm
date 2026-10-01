@@ -674,6 +674,7 @@ export class ArchivoOpsService {
       this.prisma.archiveDocument.count({
         where: {
           organizationId,
+          deletedAt: null,
           validationStatus: "VALIDATED",
           ocrProcessedAt: { not: null },
         },
@@ -778,7 +779,7 @@ export class ArchivoOpsService {
     ]);
 
     const ocrPrecisionPct =
-      ocrTotal > 0 ? Math.round((ocrValidated / ocrTotal) * 1000) / 10 : 99.2;
+      ocrTotal > 0 ? Math.round((ocrValidated / ocrTotal) * 1000) / 10 : null;
     const operationalAssets = inventory.reduce((s, i) => s + i.quantity, 0);
 
     const assetAlerts: Array<{
@@ -799,9 +800,6 @@ export class ArchivoOpsService {
       const pendingAssets: string[] = driverLoans.map(
         (l) => `Carpeta: ${l.document.title}`,
       );
-      if (driverLoans.length > 0) {
-        pendingAssets.push("Dotación operativa (tablet / RFID)");
-      }
       if (pendingAssets.length > 0) {
         assetAlerts.push({
           employeeId: driver.id,

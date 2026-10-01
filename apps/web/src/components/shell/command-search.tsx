@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MODULE_HELP, MODULE_LABELS, type ModuleId } from "@fsg/shared";
+import { useCanOpenPath } from "@/lib/route-access";
 import { useShell } from "@/lib/shell-context";
 import { useTheme } from "@/lib/theme";
 import { NavIcon } from "@/components/shell/nav-icons";
@@ -76,6 +77,7 @@ export function CommandSearch({ items }: { items: NavItem[] }) {
   const { commandOpen, setCommandOpen } = useShell();
   const { toggle: toggleTheme, setMode } = useTheme();
   const router = useRouter();
+  const canOpenPath = useCanOpenPath();
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
@@ -90,13 +92,32 @@ export function CommandSearch({ items }: { items: NavItem[] }) {
     const ql = q.toLowerCase();
     const plate = looksLikePlate(q);
     if (plate) {
+      const plateCode = q.toUpperCase().replace(/\s|-/g, "");
       base.unshift({
-        href: `cockpit:plate:${q.toUpperCase().replace(/\s|-/g, "")}`,
+        href: `cockpit:plate:${plateCode}`,
         view: "tramites",
-        label: `Consultar documentos de ${q.toUpperCase()}`,
+        label: `Consultar documentos de ${plateCode}`,
         section: "placa",
         group: "ACCIONES RÁPIDAS",
       });
+      if (canOpenPath("/tramites")) {
+        base.unshift({
+          href: `/tramites?q=${encodeURIComponent(plateCode)}`,
+          view: "tramites",
+          label: `Placa ${plateCode} · semáforo documental`,
+          section: "placa",
+          group: "VEHÍCULOS/PLACAS",
+        });
+      }
+      if (canOpenPath("/logistica/servicios")) {
+        base.unshift({
+          href: `/logistica/servicios?plate=${encodeURIComponent(plateCode)}`,
+          view: "logistica",
+          label: `Placa ${plateCode} · mapa / tracking`,
+          section: "placa",
+          group: "VEHÍCULOS/PLACAS",
+        });
+      }
     }
     if (!ql || ql.includes("viaje") || ql.includes("despach")) {
       base.unshift({
@@ -133,7 +154,7 @@ export function CommandSearch({ items }: { items: NavItem[] }) {
         );
       })
       .slice(0, 16);
-  }, [items, query]);
+  }, [items, query, canOpenPath]);
 
   const flat = enriched;
 

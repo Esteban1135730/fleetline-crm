@@ -7,6 +7,7 @@ import { ROLE_LABELS } from "@fsg/shared";
 import { Button } from "@fsg/ui";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { useCanOpenPath } from "@/lib/route-access";
 import { useShell } from "@/lib/shell-context";
 import { SlideOver } from "@/components/audit";
 
@@ -49,6 +50,7 @@ function hour(iso: string) {
 
 function DashboardPageInner() {
   const { user } = useAuth();
+  const canOpenPath = useCanOpenPath();
   const { setHelpOpen } = useShell();
   const params = useSearchParams();
   const [m, setM] = useState<Metrics | null>(null);
@@ -222,15 +224,21 @@ function DashboardPageInner() {
       </section>
 
       <section className="flex flex-wrap justify-end gap-2">
-        <Button type="button" variant="primary" className="w-auto px-4 py-2" onClick={() => { setFormError(""); setPanel("trip"); }}>
-          Crear viaje
-        </Button>
-        <Button type="button" variant="secondary" className="w-auto px-4 py-2" onClick={() => { setFormError(""); setPanel("ot"); }}>
-          Orden de taller
-        </Button>
-        <Button type="button" variant="secondary" className="w-auto px-4 py-2" onClick={() => { setFormError(""); setPlateCard(null); setPanel("plate"); }}>
-          Consultar placa
-        </Button>
+        {canOpenPath("/logistica/servicios") ? (
+          <Button type="button" variant="primary" className="w-auto px-4 py-2" onClick={() => { setFormError(""); setPanel("trip"); }}>
+            Crear viaje
+          </Button>
+        ) : null}
+        {canOpenPath("/taller") ? (
+          <Button type="button" variant="secondary" className="w-auto px-4 py-2" onClick={() => { setFormError(""); setPanel("ot"); }}>
+            Orden de taller
+          </Button>
+        ) : null}
+        {canOpenPath("/tramites") ? (
+          <Button type="button" variant="secondary" className="w-auto px-4 py-2" onClick={() => { setFormError(""); setPlateCard(null); setPanel("plate"); }}>
+            Consultar placa
+          </Button>
+        ) : null}
       </section>
 
       <section className="nexa-panel p-4">
@@ -253,8 +261,12 @@ function DashboardPageInner() {
           </ul>
         )}
         <div className="mt-4 flex gap-3 text-sm">
-          <Link href="/tesoreria" className="text-[var(--brand-primary)]">Tesorería</Link>
-          <Link href="/archivo" className="text-[var(--brand-primary)]">Archivo</Link>
+          {canOpenPath("/tesoreria") ? (
+            <Link href="/tesoreria" className="text-[var(--brand-primary)]">Tesorería</Link>
+          ) : null}
+          {canOpenPath("/archivo") ? (
+            <Link href="/archivo" className="text-[var(--brand-primary)]">Archivo</Link>
+          ) : null}
         </div>
       </section>
 

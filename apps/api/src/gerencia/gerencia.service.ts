@@ -804,7 +804,30 @@ export class GerenciaService {
     const fleetMaintIdx = openWo;
     const bottlenecks = await this.listRuleBottlenecks(organizationId);
 
-    const vipNps = 78;
+    // Misma fórmula que QhseService.npsSummary (eventos NPS 0–10 registrados en QHSE)
+    const npsEvents = await this.prisma.qualityEvent.findMany({
+      where: {
+        organizationId,
+        kind: { in: ["NPS", "nps"] },
+        npsScore: { not: null },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 500,
+      select: { npsScore: true },
+    });
+    const npsScores = npsEvents
+      .map((e) => e.npsScore)
+      .filter((s): s is number => s != null);
+    const vipNpsSamples = npsScores.length;
+    const vipNps =
+      vipNpsSamples > 0
+        ? Math.round(
+            ((npsScores.filter((s) => s >= 9).length -
+              npsScores.filter((s) => s <= 6).length) /
+              vipNpsSamples) *
+              100,
+          )
+        : null;
     const ministryAuditLight: "GREEN" | "AMBER" | "RED" =
       bottlenecks.some((b) => b.severity === "RED")
         ? "AMBER"
@@ -854,7 +877,15 @@ export class GerenciaService {
       bottlenecks,
       riskRadar: {
         vipNps,
-        vipLight: vipNps >= 70 ? "GREEN" : vipNps >= 50 ? "AMBER" : "RED",
+        vipNpsSamples,
+        vipLight:
+          vipNps == null
+            ? null
+            : vipNps >= 70
+              ? "GREEN"
+              : vipNps >= 50
+                ? "AMBER"
+                : "RED",
         ministryAuditLight,
         message:
           ministryAuditLight === "GREEN"
