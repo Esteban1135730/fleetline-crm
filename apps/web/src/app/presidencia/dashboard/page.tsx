@@ -251,17 +251,6 @@ export default function PresidenciaDashboardPage() {
   const canOpenPath = useCanOpenPath();
   const canOpenComercial = canOpenPath("/comercial");
   const { crisisActive: defconActive, setCrisisActive } = useShell();
-  const heatColors = useMemo(
-    () => [
-      colors.secondary,
-      colors.success,
-      colors.warning,
-      colors.warning,
-      colors.danger,
-      colors.chartNeutral,
-    ],
-    [colors],
-  );
   const chartTipStyle = useMemo(
     () => ({
       borderRadius: 12,
@@ -278,11 +267,6 @@ export default function PresidenciaDashboardPage() {
   const [notice, setNotice] = useState("");
   const [marginOpen, setMarginOpen] = useState(false);
   const [marginRows, setMarginRows] = useState<MarginRow[] | null>(null);
-  const [listening, setListening] = useState(false);
-  const [utterance, setUtterance] = useState(
-    "Briefing: estatus operativo, saldo en bancos y flota bloqueada",
-  );
-  const [jarvisOut, setJarvisOut] = useState<string | null>(null);
   const [capexOut, setCapexOut] = useState<string | null>(null);
   const [defconOut, setDefconOut] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -333,30 +317,6 @@ export default function PresidenciaDashboardPage() {
       trips: h.trips,
     }));
   }, [dash]);
-
-  async function askJarvis() {
-    setBusy(true);
-    setListening(true);
-    setJarvisOut(null);
-    try {
-      const res = await api<{ spokenSummary: string; message: string }>(
-        "/api/v1/presidencia/jarvis/voice-query",
-        {
-          method: "POST",
-          body: JSON.stringify({
-            utterance,
-            alertDirectors: true,
-          }),
-        },
-      );
-      setJarvisOut(res.spokenSummary || res.message);
-    } catch (e) {
-      setError((e as Error).message || "Asistente sin conexión");
-    } finally {
-      setBusy(false);
-      setTimeout(() => setListening(false), 1200);
-    }
-  }
 
   async function simularCapex() {
     setBusy(true);
@@ -1269,48 +1229,41 @@ export default function PresidenciaDashboardPage() {
           className="lg:col-span-6"
         >
           {heatBars.length > 0 ? (
-            <div className="h-56 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={heatBars} layout="vertical" margin={{ left: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={colors.chartGrid} />
-                  <XAxis
-                    type="number"
-                    domain={[0, 100]}
-                    tick={{ fill: colors.textSecondary, fontSize: 11 }}
-                    axisLine={{ stroke: colors.border }}
-                  />
-                  <YAxis
-                    type="category"
-                    dataKey="corridor"
-                    width={88}
-                    tick={{ fill: colors.textSecondary, fontSize: 10 }}
-                    axisLine={{ stroke: colors.border }}
-                  />
-                  <Tooltip
-                    contentStyle={chartTipStyle}
-                    formatter={(v: number, _n, item) => {
-                      const row = item?.payload as {
-                        revenue?: number;
-                        trips?: number;
-                      };
-                      return [
-                        `${v}% · ${cop(row?.revenue ?? 0)} · ${row?.trips ?? 0} viajes`,
-                        "Calor",
-                      ];
-                    }}
-                  />
-                  <Bar dataKey="heat" name="Calor %" radius={[0, 4, 4, 0]}>
-                    {heatBars.map((h, i) => (
-                      <Cell
-                        key={h.corridor}
-                        fill={heatColors[i % heatColors.length]}
-                        fillOpacity={Math.max(0.35, h.heat / 100)}
+            <>
+            <ul className="space-y-2.5">
+              {heatBars.slice(0, 6).map((h) => {
+                const full = h.corridor.replace("→", " → ");
+                return (
+                  <li
+                    key={h.corridor}
+                    className="grid grid-cols-[minmax(0,11rem)_minmax(0,1fr)_2.75rem] items-center gap-3"
+                    title={`${full} · ${cop(h.revenue)} · ${h.trips} viajes`}
+                  >
+                    <span className="truncate font-sans text-xs text-brand-text-secondary">
+                      {full}
+                    </span>
+                    <div className="h-2 overflow-hidden rounded-full bg-white/5">
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${Math.max(6, Math.min(100, h.heat))}%`,
+                          background: colors.secondary,
+                        }}
                       />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+                    </div>
+                    <span className="text-right font-mono text-xs tabular-nums text-brand-text-primary">
+                      {h.heat}%
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+            {heatBars.length > 6 ? (
+              <p className="mt-3 font-sans text-[11px] text-brand-text-secondary">
+                Seis corredores con más ingreso. {heatBars.length - 6} quedan fuera de esta vista.
+              </p>
+            ) : null}
+            </>
           ) : (
             <EmptyState
               title="Sin corredores de ingreso"
@@ -1319,52 +1272,6 @@ export default function PresidenciaDashboardPage() {
           )}
         </BentoPanel>
       </div>
-
-      <BentoPanel
-        id="jarvis"
-        title="Asistente directivo"
-        subtitle="Briefing por voz · solo lectura operativa"
-        className="relative z-10"
-      >
-        <div className="flex flex-col items-center">
-          <div
-            className={`relative mb-4 flex h-28 w-28 items-center justify-center rounded-full border-2 ${
-              listening
-                ? "animate-pulse border-brand-secondary shadow-[0_0_40px_var(--brand-primary-glow)]"
-                : "border-brand-border"
-            }`}
-          >
-            <div
-              className={`h-16 w-16 rounded-full bg-gradient-to-br from-brand-secondary to-brand-success ${
-                listening ? "absolute animate-ping opacity-40" : ""
-              }`}
-            />
-            <span className="relative font-sans text-sm text-brand-text-primary">Asistente</span>
-          </div>
-          <textarea
-            className="field min-h-[72px] w-full max-w-xl"
-            value={utterance}
-            onChange={(e) => setUtterance(e.target.value)}
-            aria-label="Comando del asistente"
-          />
-          <div className="mt-3 flex w-full max-w-xl justify-end">
-            <Button
-              type="button"
-              variant="primary"
-              className="w-auto !min-h-[40px] !px-6"
-              disabled={busy}
-              onClick={() => void askJarvis()}
-            >
-              Hablar con el asistente
-            </Button>
-          </div>
-          {jarvisOut ? (
-            <p className="mt-4 max-w-2xl text-center font-sans text-sm text-brand-text-secondary">
-              {jarvisOut}
-            </p>
-          ) : null}
-        </div>
-      </BentoPanel>
 
       <Modal
         open={capexOpen}

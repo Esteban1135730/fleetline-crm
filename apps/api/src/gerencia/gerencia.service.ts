@@ -155,7 +155,13 @@ export class GerenciaService {
     const [scorecard, approvals, overrides, warRooms, tacticalPanel] =
       await Promise.all([
       this.balanceScorecard(organizationId),
-      this.listApprovalInbox(organizationId),
+      this.listApprovalInbox(organizationId).catch((err: unknown) => {
+        this.logger.error(
+          "Bandeja de aprobaciones omitida",
+          err instanceof Error ? err.message : err,
+        );
+        return [];
+      }),
       this.prisma.managerialOverride.findMany({
         where: {
           organizationId,
@@ -164,11 +170,19 @@ export class GerenciaService {
         orderBy: { createdAt: "desc" },
         take: 10,
       }),
-      this.prisma.gerenciaWarRoomSession.findMany({
-        where: { organizationId, status: "OPEN" },
-        orderBy: { createdAt: "desc" },
-        take: 8,
-      }),
+      this.prisma.gerenciaWarRoomSession
+        .findMany({
+          where: { organizationId, status: "OPEN" },
+          orderBy: { createdAt: "desc" },
+          take: 8,
+        })
+        .catch((err: unknown) => {
+          this.logger.error(
+            "War room omitida",
+            err instanceof Error ? err.message : err,
+          );
+          return [];
+        }),
       this.buildTacticalPanel(organizationId, period, fromIso, toIso),
     ]);
 
@@ -207,6 +221,10 @@ export class GerenciaService {
         ...o,
         penaltyCostCop: Number(o.penaltyCostCop),
         vipNetGainCop: Number(o.vipNetGainCop),
+        penaltyBudgetAuthorized:
+          o.penaltyBudgetAuthorized == null
+            ? null
+            : Number(o.penaltyBudgetAuthorized),
       })),
       warRooms,
       commandDirectory: directors,
@@ -236,6 +254,22 @@ export class GerenciaService {
     /** Viajes «en curso» — IN_TRANSIT (equiv. IN_PROGRESS / EN_ROUTE del dominio). En vivo. */
     const inFlightStatuses = [TripStatus.IN_TRANSIT] as const;
 
+    const safe = async <T>(
+      label: string,
+      run: () => Promise<T>,
+      fallback: T,
+    ): Promise<T> => {
+      try {
+        return await run();
+      } catch (err) {
+        this.logger.error(
+          label,
+          err instanceof Error ? err.message : err,
+        );
+        return fallback;
+      }
+    };
+
     const [
       tripsInFlight,
       openWorkOrders,
@@ -248,85 +282,140 @@ export class GerenciaService {
       vehicles,
       cxcAging,
     ] = await Promise.all([
-      this.prisma.trip.count({
-        where: {
-          organizationId,
-          status: { in: [...inFlightStatuses] },
-        },
-      }),
-      this.prisma.workOrder.count({
-        where: {
-          organizationId,
-          status: { in: [...this.openWoStatuses] },
-          openedAt: { gte: rangeStart, lte: rangeEnd },
-        },
-      }),
-      this.prisma.workOrder.count({
-        where: {
-          organizationId,
-          status: WorkOrderStatus.WAITING_PARTS,
-          openedAt: { lt: threeDaysAgo, gte: rangeStart },
-        },
-      }),
-      this.prisma.vehicle.count({
-        where: {
-          organizationId,
-          OR: [
-            { complianceBlocked: true },
-            { status: VehicleStatus.COMPLIANCE_BLOCKED },
-          ],
-        },
-      }),
-      // Conductores bloqueados para despacho: flag propio o empleado SARLAFT
-      this.prisma.driver.count({
-        where: {
-          organizationId,
-          OR: [
-            { dispatchBlocked: true },
-            { employee: { sarlaftBlocked: true } },
-          ],
-        },
-      }),
-      this.prisma.customer.count({
-        where: { organizationId, sarlaftBlocked: true },
-      }),
-      this.prisma.invoice.findMany({
-        where: {
-          organizationId,
-          type: { in: [InvoiceType.RECEIVABLE, InvoiceType.PAYABLE] },
-          status: {
-            in: [InvoiceStatus.ISSUED, InvoiceStatus.OVERDUE],
-          },
-          OR: [
-            { dueDate: { gte: rangeStart, lte: rangeEnd } },
-            {
-              dueDate: null,
-              createdAt: { gte: rangeStart, lte: rangeEnd },
+      safe(
+        "Viajes en curso",
+        () =>
+          this.prisma.trip.count({
+            where: {
+              organizationId,
+              status: { in: [...inFlightStatuses] },
             },
-          ],
-        },
-        select: { type: true, amount: true, dueDate: true, status: true },
-      }),
-      this.prisma.trip.findMany({
-        where: {
-          organizationId,
-          OR: [
-            { status: { in: [...inFlightStatuses] } },
-            { departAt: { gte: rangeStart, lte: rangeEnd } },
-            {
-              status: TripStatus.COMPLETED,
-              completedAt: { gte: rangeStart, lte: rangeEnd },
+          }),
+        0,
+      ),
+      safe(
+        "OT abiertas",
+        () =>
+          this.prisma.workOrder.count({
+            where: {
+              organizationId,
+              status: { in: [...this.openWoStatuses] },
+              openedAt: { gte: rangeStart, lte: rangeEnd },
             },
-          ],
-        },
-        select: { departAt: true, startedAt: true, completedAt: true },
-        take: 500,
+          }),
+        0,
+      ),
+      safe(
+        "OT con retraso",
+        () =>
+          this.prisma.workOrder.count({
+            where: {
+              organizationId,
+              status: WorkOrderStatus.WAITING_PARTS,
+              openedAt: { lt: threeDaysAgo, gte: rangeStart },
+            },
+          }),
+        0,
+      ),
+      safe(
+        "Bloqueos de vehículo",
+        () =>
+          this.prisma.vehicle.count({
+            where: {
+              organizationId,
+              OR: [
+                { complianceBlocked: true },
+                { status: VehicleStatus.COMPLIANCE_BLOCKED },
+              ],
+            },
+          }),
+        0,
+      ),
+      safe(
+        "Bloqueos de conductor",
+        () =>
+          this.prisma.driver.count({
+            where: {
+              organizationId,
+              OR: [
+                { dispatchBlocked: true },
+                { employee: { sarlaftBlocked: true } },
+              ],
+            },
+          }),
+        0,
+      ),
+      safe(
+        "Bloqueos de cliente",
+        () =>
+          this.prisma.customer.count({
+            where: { organizationId, sarlaftBlocked: true },
+          }),
+        0,
+      ),
+      safe(
+        "Facturas abiertas",
+        () =>
+          this.prisma.invoice.findMany({
+            where: {
+              organizationId,
+              type: { in: [InvoiceType.RECEIVABLE, InvoiceType.PAYABLE] },
+              status: {
+                in: [InvoiceStatus.ISSUED, InvoiceStatus.OVERDUE],
+              },
+              OR: [
+                { dueDate: { gte: rangeStart, lte: rangeEnd } },
+                {
+                  dueDate: null,
+                  createdAt: { gte: rangeStart, lte: rangeEnd },
+                },
+              ],
+            },
+            select: { type: true, amount: true, dueDate: true, status: true },
+          }),
+        [],
+      ),
+      safe(
+        "Actividad de viajes",
+        () =>
+          this.prisma.trip.findMany({
+            where: {
+              organizationId,
+              OR: [
+                { status: { in: [...inFlightStatuses] } },
+                { departAt: { gte: rangeStart, lte: rangeEnd } },
+                {
+                  status: TripStatus.COMPLETED,
+                  completedAt: { gte: rangeStart, lte: rangeEnd },
+                },
+              ],
+            },
+            select: { departAt: true, startedAt: true, completedAt: true },
+            take: 500,
+          }),
+        [],
+      ),
+      safe(
+        "Flota",
+        () =>
+          this.prisma.vehicle.findMany({
+            where: { organizationId },
+            select: { capacity: true, status: true, complianceBlocked: true },
+          }),
+        [],
+      ),
+      safe("Aging CxC", () => this.buildCxcAging(organizationId), {
+        asOf: now.toISOString(),
+        totalCop: 0,
+        totalCount: 0,
+        buckets: [
+          { id: "0-15" as const, label: "0–15 días", amountCop: 0, count: 0 },
+          { id: "16-30" as const, label: "16–30 días", amountCop: 0, count: 0 },
+          { id: "31-60" as const, label: "31–60 días", amountCop: 0, count: 0 },
+          { id: "gt60" as const, label: ">60 días", amountCop: 0, count: 0 },
+        ],
+        note: "",
       }),
-      this.prisma.vehicle.findMany({
-        where: { organizationId },
-        select: { capacity: true, status: true, complianceBlocked: true },
-      }),
-      this.buildCxcAging(organizationId),
     ]);
 
     const dispatchBlocks =
@@ -764,18 +853,26 @@ export class GerenciaService {
           },
         },
       }),
-      this.prisma.workOrder.count({
-        where: {
-          organizationId,
-          status: {
-            in: [
-              WorkOrderStatus.OPEN,
-              WorkOrderStatus.IN_PROGRESS,
-              WorkOrderStatus.WAITING_PARTS,
-            ],
+      this.prisma.workOrder
+        .count({
+          where: {
+            organizationId,
+            status: {
+              in: [
+                WorkOrderStatus.OPEN,
+                WorkOrderStatus.IN_PROGRESS,
+                WorkOrderStatus.WAITING_PARTS,
+              ],
+            },
           },
-        },
-      }),
+        })
+        .catch((err: unknown) => {
+          this.logger.error(
+            "OT del scorecard omitidas",
+            err instanceof Error ? err.message : err,
+          );
+          return 0;
+        }),
       this.prisma.vehicle.count({ where: { organizationId } }),
       this.prisma.vehicle.count({
         where: {
@@ -783,12 +880,20 @@ export class GerenciaService {
           status: { in: ["AVAILABLE", "IN_SERVICE"] },
         },
       }),
-      this.prisma.executiveApproval.count({
-        where: {
-          organizationId,
-          status: ExecutiveApprovalStatus.PENDING,
-        },
-      }),
+      this.prisma.executiveApproval
+        .count({
+          where: {
+            organizationId,
+            status: ExecutiveApprovalStatus.PENDING,
+          },
+        })
+        .catch((err: unknown) => {
+          this.logger.error(
+            "Aprobaciones ejecutivas omitidas",
+            err instanceof Error ? err.message : err,
+          );
+          return 0;
+        }),
       this.prisma.managerialOverride.count({
         where: {
           organizationId,
@@ -802,19 +907,36 @@ export class GerenciaService {
 
     const salesGrowthIdx = openDeals + wonDeals * 2;
     const fleetMaintIdx = openWo;
-    const bottlenecks = await this.listRuleBottlenecks(organizationId);
+    let bottlenecks: Awaited<ReturnType<GerenciaService["listRuleBottlenecks"]>> =
+      [];
+    try {
+      bottlenecks = await this.listRuleBottlenecks(organizationId);
+    } catch (err) {
+      this.logger.error(
+        "Cuellos de botella omitidos",
+        err instanceof Error ? err.message : err,
+      );
+    }
 
     // Misma fórmula que QhseService.npsSummary (eventos NPS 0–10 registrados en QHSE)
-    const npsEvents = await this.prisma.qualityEvent.findMany({
-      where: {
-        organizationId,
-        kind: { in: ["NPS", "nps"] },
-        npsScore: { not: null },
-      },
-      orderBy: { createdAt: "desc" },
-      take: 500,
-      select: { npsScore: true },
-    });
+    let npsEvents: Array<{ npsScore: number | null }> = [];
+    try {
+      npsEvents = await this.prisma.qualityEvent.findMany({
+        where: {
+          organizationId,
+          kind: { in: ["NPS", "nps"] },
+          npsScore: { not: null },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 500,
+        select: { npsScore: true },
+      });
+    } catch (err) {
+      this.logger.error(
+        "NPS omitido",
+        err instanceof Error ? err.message : err,
+      );
+    }
     const npsScores = npsEvents
       .map((e) => e.npsScore)
       .filter((s): s is number => s != null);
