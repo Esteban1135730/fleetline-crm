@@ -38,6 +38,8 @@ import {
 import type { PlacePin } from "@/components/logistica/servicio-map-planner";
 import { SupervisorDeviationsPanel } from "@/components/logistica/supervisor-deviations-panel";
 import { OpsChatPanel } from "@/components/logistica/ops-chat-panel";
+import { ServicioActionsPanel } from "@/components/logistica/servicio-actions-panel";
+import { delayLabel, etaShortLabel } from "@/components/logistica/trip-eta-card";
 import {
   humanizeBlockReason,
   summarizeBlockReasons,
@@ -162,6 +164,7 @@ export default function LogisticaServiciosPage() {
     () => servicios.find((s) => s.id === selectedId) ?? null,
     [servicios, selectedId],
   );
+  const actionsPanelOpen = Boolean(selected && !createOpen);
 
   const vehicleById = useMemo(
     () => new Map(vehicles.map((v) => [v.id, v])),
@@ -256,6 +259,10 @@ export default function LogisticaServiciosPage() {
     }
     return null;
   }, [tracking]);
+
+  const trackingForSelected =
+    tracking && selected && tracking.trip.id === selected.id ? tracking : null;
+  const selectedEta = trackingForSelected?.eta ?? null;
 
   const tickerEvents = useMemo(() => {
     const fromAudit = (tracking?.audit ?? [])
@@ -584,6 +591,8 @@ export default function LogisticaServiciosPage() {
               type="button"
               variant="ghost"
               className="w-auto px-3"
+              aria-label="Soporte general de flota"
+              title="Soporte general de flota"
               onClick={() => setCommsOpen(true)}
             >
               <MessageSquare className="h-4 w-4" />
@@ -754,16 +763,8 @@ export default function LogisticaServiciosPage() {
                 </NexaTable>
               )}
             </div>
-            {selected ? (
+            {selected && (canDelete || selected.status !== "COMPLETED") ? (
               <div className="mt-2 flex flex-wrap justify-end gap-1 border-t border-brand-border pt-2">
-                <Button
-                  variant="ghost"
-                  className="w-auto px-2 py-1 text-xs"
-                  onClick={() => setCommsOpen(true)}
-                >
-                  <MessageSquare className="mr-1 h-3 w-3" />
-                  Chat
-                </Button>
                 {selected.status !== "IN_TRANSIT" &&
                 selected.status !== "COMPLETED" ? (
                   <Button
@@ -1238,11 +1239,13 @@ export default function LogisticaServiciosPage() {
               : "Planificador de ruta A→B"
           }
           icon={<Radio className="h-4 w-4" />}
-          className="relative isolate min-h-[320px] overflow-hidden !p-0 lg:col-span-8 lg:min-h-0"
+          className={`relative isolate min-h-[320px] overflow-hidden !p-0 lg:min-h-0 ${
+            actionsPanelOpen ? "lg:col-span-5" : "lg:col-span-8"
+          }`}
         >
           <div className="relative min-h-[320px] flex-1 lg:min-h-0 lg:h-full">
             {tracking && selectedId && !createOpen ? (
-              <div className="absolute inset-0">
+              <div className="absolute inset-0 z-0">
                 <RouteMap
                   mode={tracking.mode}
                   suggested={tracking.suggestedRoute}
@@ -1277,6 +1280,16 @@ export default function LogisticaServiciosPage() {
                 uplink={
                   tracking.mode === "LIVE_GPS" ? "LIVE GPS" : tracking.mode
                 }
+                eta={
+                  selected.status === "IN_TRANSIT" && trackingForSelected
+                    ? etaShortLabel(selectedEta)
+                    : null
+                }
+                etaDetail={
+                  selected.status === "IN_TRANSIT" && selectedEta?.available
+                    ? delayLabel(selectedEta.delayMinutes)
+                    : null
+                }
                 alerts={hudAlerts}
                 statusLabel={statusEs(selected.status)}
                 statusTone={
@@ -1306,6 +1319,22 @@ export default function LogisticaServiciosPage() {
             ) : null}
           </div>
         </BentoPanel>
+
+        {actionsPanelOpen && selected ? (
+          <ServicioActionsPanel
+            key={selected.id}
+            servicio={selected}
+            eta={selectedEta}
+            etaLoading={!trackingForSelected}
+            className="min-h-[420px] lg:col-span-3 lg:min-h-0"
+            onClose={() => setSelectedId(null)}
+            onWorkOrderCreated={(res) => {
+              setStatusMsg(res.message);
+              void loadPool().catch(() => undefined);
+              void loadServicios().catch(() => undefined);
+            }}
+          />
+        ) : null}
       </div>
 
       {tickerEvents.length ? (
@@ -1319,19 +1348,11 @@ export default function LogisticaServiciosPage() {
       <SlideOver
         open={commsOpen}
         onClose={() => setCommsOpen(false)}
-        title="Comunicaciones operativas"
-        description="Chat del servicio y soporte flota · canal App"
+        title="Soporte general de flota"
+        description="Canal genérico con la app móvil. El chat con el conductor de cada viaje está en el panel del servicio seleccionado."
         widthClass="max-w-lg"
       >
-        <div className="space-y-3">
-          <OpsChatPanel
-            mode="trip"
-            tripId={selectedId}
-            tripCode={selected?.code}
-            heightClass="h-[280px]"
-          />
-          <OpsChatPanel mode="support" heightClass="h-[240px]" />
-        </div>
+        <OpsChatPanel mode="support" heightClass="h-[420px]" />
       </SlideOver>
 
       <SlideOver

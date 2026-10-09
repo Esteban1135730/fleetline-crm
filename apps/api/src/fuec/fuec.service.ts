@@ -38,9 +38,19 @@ export class FuecService {
     private pdf: FuecPdfService,
   ) {}
 
-  async list(organizationId: string) {
+  async list(organizationId: string, filter: { tripId?: string } = {}) {
     const rows = await this.prisma.fuecDocument.findMany({
-      where: { organizationId },
+      where: {
+        organizationId,
+        ...(filter.tripId
+          ? {
+              OR: [
+                { tripId: filter.tripId },
+                { planilla: { tripId: filter.tripId } },
+              ],
+            }
+          : {}),
+      },
       include: { vehicle: { select: { plate: true, brand: true, model: true } } },
       orderBy: { createdAt: "desc" },
     });
@@ -366,6 +376,9 @@ export class FuecService {
     destination: string | null;
     vehicleId: string | null;
     vehicle?: { plate: string; brand?: string; model?: string } | null;
+    tripId?: string | null;
+    planillaId?: string | null;
+    payload?: unknown;
   }) {
     return {
       id: r.id,
@@ -384,6 +397,10 @@ export class FuecService {
       destination: r.destination,
       vehicleId: r.vehicleId,
       vehicle: r.vehicle ?? null,
+      tripId: r.tripId ?? null,
+      planillaId: r.planillaId ?? null,
+      /** getPdfBuffer solo puede servir el PDF si hay archivo o snapshot para regenerarlo. */
+      pdfAvailable: Boolean(r.pdfUrl || r.payload),
     };
   }
 

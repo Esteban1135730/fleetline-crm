@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { AlertOctagon, Fuel, Gauge, MapPin, User } from "lucide-react";
+import { AlertOctagon, Clock, Fuel, Gauge, MapPin, User } from "lucide-react";
 import { StatusPulseBadge } from "@/components/audit/KpiCard";
 
 type FleetHudProps = {
@@ -13,6 +13,8 @@ type FleetHudProps = {
   lat?: number | null;
   lng?: number | null;
   uplink?: string;
+  eta?: string | null;
+  etaDetail?: string | null;
   alerts?: string[];
   statusLabel?: string;
   statusTone?: "active" | "fatiga" | "danger" | "neutral";
@@ -29,6 +31,8 @@ export function FleetHud({
   lat,
   lng,
   uplink = "OFFLINE",
+  eta,
+  etaDetail,
   alerts = [],
   statusLabel,
   statusTone = "neutral",
@@ -71,6 +75,16 @@ export function FleetHud({
         <HudRow label="Uplink">
           <span className="text-brand-primary">{uplink}</span>
         </HudRow>
+        {eta != null ? (
+          <HudRow icon={<Clock className="h-3 w-3" />} label="ETA">
+            <span data-testid="fleet-hud-eta">{eta}</span>
+          </HudRow>
+        ) : null}
+        {etaDetail ? (
+          <p className="text-right font-data text-[10px] text-brand-text-secondary">
+            {etaDetail}
+          </p>
+        ) : null}
       </div>
 
       {alerts.length > 0 ? (

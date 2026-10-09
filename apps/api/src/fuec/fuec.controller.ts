@@ -5,6 +5,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   Res,
   UseGuards,
@@ -26,8 +27,10 @@ export class FuecController {
 
   @Get("juridico/fuec")
   @RequireModule("juridico", "logistica", "tramites")
-  list(@Req() req: AuthReq) {
-    return this.svc.list(req.user.organizationId);
+  list(@Req() req: AuthReq, @Query("tripId") tripId?: string) {
+    return this.svc.list(req.user.organizationId, {
+      tripId: tripId?.trim() || undefined,
+    });
   }
 
   @Get("juridico/fuec/options")

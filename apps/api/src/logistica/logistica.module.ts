@@ -3,6 +3,7 @@ import { AuthModule } from "../auth/auth.module";
 import { LogisticsModule } from "../logistics/logistics.module";
 import { ComercialModule } from "../comercial/comercial.module";
 import { SarlaftModule } from "../sarlaft/sarlaft.module";
+import { TallerModule } from "../taller/taller.module";
 import { LogisticaOpsService } from "./logistica-ops.service";
 import { ServiciosController } from "./servicios/servicios.controller";
 import { ConductoresController } from "./conductores/conductores.controller";
@@ -22,6 +23,7 @@ import { LogisticaRelojController } from "./logistica-reloj.controller";
     forwardRef(() => LogisticsModule),
     forwardRef(() => ComercialModule),
     SarlaftModule,
+    TallerModule,
   ],
   controllers: [
     LogisticaRelojController,

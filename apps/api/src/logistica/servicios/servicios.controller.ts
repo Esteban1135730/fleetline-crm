@@ -37,6 +37,11 @@ const ReverseSchema = z.object({
   lng: z.coerce.number(),
 });
 
+const FallaMecanicaSchema = z.object({
+  description: z.string().trim().min(5).max(2000),
+  critical: z.boolean().optional(),
+});
+
 /**
  * Submenú 1 — Programación de Servicios y Tracking GPS
  * Prefijo: /logistica/servicios
@@ -184,6 +189,39 @@ export class ServiciosController {
     return this.ops.markCompleted(
       req.user.organizationId,
       id,
+      req.user.userId,
+    );
+  }
+
+  /** POST /logistica/servicios/:id/falla-mecanica — OT en Taller para la unidad del servicio */
+  @Post(":id/falla-mecanica")
+  @Permissions("logistica_despacho", "UPDATE")
+  @Roles(
+    "gestor_operativo",
+    "director_operativo",
+    "centro_control",
+    "operador_centro_control",
+    "supervisor_logistica",
+    "coordinador_operativo",
+    "org_admin",
+    "platform_master",
+    "gerente_general",
+  )
+  fallaMecanica(
+    @Req() req: AuthReq,
+    @Param("id") id: string,
+    @Body() body: unknown,
+  ) {
+    const parsed = FallaMecanicaSchema.safeParse(body ?? {});
+    if (!parsed.success) {
+      throw new BadRequestException(
+        "Describe la falla (mínimo 5 caracteres, máximo 2000)",
+      );
+    }
+    return this.ops.reportarFallaMecanica(
+      req.user.organizationId,
+      id,
+      parsed.data,
       req.user.userId,
     );
   }

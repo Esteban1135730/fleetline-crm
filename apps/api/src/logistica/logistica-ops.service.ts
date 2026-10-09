@@ -38,6 +38,8 @@ import { LogisticsService } from "../logistics/logistics.service";
 import { ComplianceGateService } from "../logistics/compliance-gate.service";
 import { CommercialContractService } from "../comercial/commercial-contract.service";
 import { SarlaftComplianceGuard } from "../sarlaft/sarlaft-compliance.guard";
+import { WorkOrderService } from "../taller/work-order.service";
+import { computeTripEta, type TripEta } from "./eta/trip-eta.calc";
 
 const ACTIVE_STATUSES: TripStatus[] = [
   TripStatus.PENDING,
@@ -58,6 +60,7 @@ export class LogisticaOpsService {
     private sarlaft: SarlaftComplianceGuard,
     @Inject(forwardRef(() => CommercialContractService))
     private commercialContracts: CommercialContractService,
+    private workOrders: WorkOrderService,
   ) {}
 
   serverClock() {
@@ -448,6 +451,8 @@ export class LogisticaOpsService {
         ? { lat: trip.vehicle.lat, lng: trip.vehicle.lng }
         : null;
 
+    const eta = await this.tripEta(trip, suggested);
+
     return {
       trip: {
         id: trip.id,
@@ -479,7 +484,52 @@ export class LogisticaOpsService {
       })),
       audit: trip.auditLogs,
       serverClock: this.serverClock(),
+      eta,
     };
+  }
+
+  /** ETA informativo para la torre (últimos puntos GPS del viaje); no notifica a nadie. */
+  private async tripEta(
+    trip: {
+      id: string;
+      status: TripStatus;
+      arriveAt: Date | null;
+      destLat: number | null;
+      destLng: number | null;
+    },
+    suggestedRoute: Array<{ lat: number; lng: number }>,
+  ): Promise<TripEta> {
+    const now = new Date();
+    try {
+      const points =
+        trip.status === TripStatus.IN_TRANSIT
+          ? await this.prisma.tripTrackPoint.findMany({
+              where: { tripId: trip.id },
+              orderBy: { recordedAt: "desc" },
+              take: 30,
+              select: { lat: true, lng: true, speedKph: true, recordedAt: true },
+            })
+          : [];
+      return computeTripEta({
+        now,
+        status: trip.status,
+        scheduledArriveAt: trip.arriveAt,
+        destination:
+          trip.destLat != null && trip.destLng != null
+            ? { lat: trip.destLat, lng: trip.destLng }
+            : null,
+        suggestedRoute,
+        points,
+      });
+    } catch {
+      return {
+        available: false,
+        reason: "CALC_ERROR",
+        computedAt: now.toISOString(),
+        lastFixAt: null,
+        scheduledArriveAt: trip.arriveAt?.toISOString() ?? null,
+      };
+    }
   }
 
   async appendAudit(
@@ -551,6 +601,74 @@ export class LogisticaOpsService {
     });
     this.gateway.emitUpdate(organizationId);
     return updated;
+  }
+
+  /**
+   * Falla mecánica reportada por operaciones sobre un servicio:
+   * OT real en Taller (WorkOrderService) para la unidad del viaje + bitácora del servicio.
+   */
+  async reportarFallaMecanica(
+    organizationId: string,
+    tripId: string,
+    dto: { description: string; critical?: boolean },
+    actorUserId?: string,
+  ) {
+    const trip = await this.prisma.trip.findFirst({
+      where: { id: tripId, organizationId },
+      include: { vehicle: { select: { id: true, plate: true } } },
+    });
+    if (!trip) throw new NotFoundException("Servicio no encontrado");
+    if (trip.status === TripStatus.CANCELLED) {
+      throw new BadRequestException(
+        "El servicio está cancelado — no admite reportes de falla",
+      );
+    }
+    if (!trip.vehicle) {
+      throw new BadRequestException(
+        "El servicio no tiene vehículo asignado — no hay unidad para la OT",
+      );
+    }
+
+    const critical = dto.critical === true;
+    const wo = await this.workOrders.create(organizationId, {
+      vehicleId: trip.vehicle.id,
+      description: `Falla mecánica reportada en servicio ${trip.code} — ${dto.description.trim()}`,
+      severity: critical ? "CRITICAL" : "ROUTINE",
+      critical,
+    });
+
+    await this.prisma.workOrder.update({
+      where: { id: wo.id },
+      data: {
+        meta: {
+          source: "LOGISTICA_SERVICIO",
+          tripId: trip.id,
+          tripCode: trip.code,
+          reportedBy: actorUserId ?? null,
+        },
+      },
+    });
+
+    await this.appendAudit(organizationId, trip.id, TripAuditAction.INCIDENT, {
+      message: `Falla mecánica reportada — ${wo.code} abierta en Taller (placa ${wo.vehicle.plate})`,
+      actorUserId,
+      meta: { workOrderId: wo.id, workOrderCode: wo.code, critical },
+    });
+    this.gateway.emitUpdate(organizationId);
+
+    return {
+      workOrder: {
+        id: wo.id,
+        code: wo.code,
+        status: wo.status,
+        severity: wo.severity,
+        plate: wo.vehicle.plate,
+        vehicleId: wo.vehicleId,
+      },
+      critical: wo.critical,
+      vehicleBlockedForDispatch: wo.vehicleBlockedForDispatch,
+      message: `OT ${wo.code} creada en Taller para ${wo.vehicle.plate}`,
+    };
   }
 
   /** Baja lógica de ruta/servicio (no hard-delete por FKs de auditoría/GPS). */

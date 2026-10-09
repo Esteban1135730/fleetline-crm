@@ -135,6 +135,10 @@ const ACTION_REQUIREMENTS = {
     roles: DESPACHO_CREATE_ROLES,
     capability: "logistica_despacho:UPDATE",
   },
+  "logistica.servicio.fallaMecanica": {
+    roles: [...DESPACHO_CREATE_ROLES, "operador_centro_control"],
+    capability: "logistica_despacho:UPDATE",
+  },
   "usuarios.autorizar": { roles: USER_AUTHORIZER_ROLES },
 } satisfies Record<string, ScreenRequirement>;
 

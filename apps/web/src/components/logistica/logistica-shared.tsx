@@ -83,7 +83,35 @@ export type Tracking = {
     startedAt?: string | null;
     completedAt?: string | null;
   };
+  eta?: TripEta;
 };
+
+export type TripEta =
+  | {
+      available: true;
+      etaAt: string;
+      computedAt: string;
+      lastFixAt: string;
+      remainingKm: number;
+      avgSpeedKph: number;
+      sampleCount: number;
+      distanceBasis: "ROUTE" | "STRAIGHT_LINE";
+      scheduledArriveAt: string | null;
+      delayMinutes: number | null;
+    }
+  | {
+      available: false;
+      reason:
+        | "NOT_IN_TRANSIT"
+        | "NO_DESTINATION"
+        | "NO_RECENT_GPS"
+        | "INSUFFICIENT_GPS"
+        | "VEHICLE_STOPPED"
+        | "CALC_ERROR";
+      computedAt: string;
+      lastFixAt: string | null;
+      scheduledArriveAt: string | null;
+    };
 
 export type CalendarPayload = {
   year: number;
