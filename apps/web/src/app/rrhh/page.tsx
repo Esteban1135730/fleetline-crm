@@ -23,6 +23,7 @@ import {
   UserX,
   Route,
   Coffee,
+  CalendarX,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import {
@@ -54,6 +55,11 @@ import {
   type EmployeeFormValues,
 } from "@/components/rrhh/employee-form-fields";
 import { EmployeeDocumentsPanel } from "@/components/rrhh/employee-documents-panel";
+import {
+  EmployeeAvatar,
+  healthLabel,
+  type EmployeeHealth,
+} from "@/components/rrhh/employee-avatar";
 import { EmployeeExcelPanel } from "@/components/rrhh/employee-excel-panel";
 
 type Semaphore = ComplianceLevel;
@@ -112,6 +118,31 @@ type Emp = {
   fatigueSemaphore: Semaphore;
   dispatchBlocked: boolean;
   blockReason?: string | null;
+  health?: EmployeeHealth | null;
+  medicalExam?: MedicalExam | null;
+};
+
+type MedicalExam = {
+  state:
+    | "VIGENTE"
+    | "POR_VENCER"
+    | "VENCIDO"
+    | "SIN_FECHA"
+    | "SIN_EXAMEN"
+    | "NO_REQUERIDO";
+  level: Semaphore;
+  expiresAt: string | null;
+  uploadedAt: string | null;
+  required: boolean;
+};
+
+type Ausentismo = {
+  ratePct: number | null;
+  absenceDays: number;
+  plannedDays: number;
+  population: number;
+  periodStart: string;
+  periodEnd: string;
 };
 
 type Overview = {
@@ -119,6 +150,7 @@ type Overview = {
   fatigaAlta: number;
   licenciasPorVencer: number;
   novedadesNominaMes: number;
+  ausentismo?: Ausentismo | null;
   systemStatus: "NOMINAL" | "ALERT";
 };
 
@@ -216,6 +248,34 @@ function semLabel(s: Semaphore) {
   if (s === "AMBER") return "POR VENCER";
   if (s === "RED") return "EXPIRADO";
   return "N/A";
+}
+
+function examLabel(exam: MedicalExam | null | undefined) {
+  switch (exam?.state) {
+    case "VIGENTE":
+      return "VIGENTE";
+    case "POR_VENCER":
+      return "POR VENCER";
+    case "VENCIDO":
+      return "VENCIDO";
+    case "SIN_FECHA":
+      return "SIN FECHA";
+    case "SIN_EXAMEN":
+      return "SIN EXAMEN";
+    case "NO_REQUERIDO":
+      return "N/A";
+    default:
+      return "SIN DATO";
+  }
+}
+
+function examDetail(exam: MedicalExam | null | undefined) {
+  if (!exam) return null;
+  if (exam.expiresAt) return `Vence ${fmtDate(exam.expiresAt)}`;
+  if (exam.state === "SIN_FECHA") return "Soporte sin fecha de vencimiento";
+  if (exam.state === "SIN_EXAMEN") return "Falta cargar en Docs";
+  if (exam.state === "NO_REQUERIDO") return "No exigido para el cargo";
+  return null;
 }
 
 function fatLabel(s: Semaphore) {
@@ -365,6 +425,7 @@ export default function RrhhPage() {
     () => runs.reduce((acc, r) => acc + Number(r.totalGross ?? 0), 0),
     [runs],
   );
+  const ausentismo = overview?.ausentismo ?? null;
 
   const filteredRows = useMemo(() => {
     const q = personalQuery.trim().toLowerCase();
@@ -781,7 +842,7 @@ export default function RrhhPage() {
       />
 
       <div
-        className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6"
+        className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7"
         data-testid="rrhh-kpis"
         data-tour="kpi"
       >
@@ -830,6 +891,27 @@ export default function RrhhPage() {
           <p className="font-data text-3xl font-bold tabular-nums text-brand-warning">
             {overview?.licenciasPorVencer ?? 0}
           </p>
+        </BentoPanel>
+        <BentoPanel
+          title="Ausentismo"
+          subtitle="Mes en curso · conductores"
+          icon={<CalendarX aria-hidden />}
+        >
+          <div data-testid="rrhh-kpi-ausentismo">
+            <p className="font-data text-3xl font-bold tabular-nums text-brand-text-primary">
+              {ausentismo?.ratePct != null ? `${ausentismo.ratePct.toFixed(1)}%` : "—"}
+            </p>
+            <p
+              className="mt-1 font-data text-[10px] tabular-nums text-brand-text-secondary"
+              title="Incapacidades + ausencias injustificadas registradas como novedad del conductor ÷ (conductores activos × días transcurridos del mes)"
+            >
+              {ausentismo?.ratePct != null
+                ? `${ausentismo.absenceDays} de ${ausentismo.plannedDays} días-persona`
+                : ausentismo
+                  ? "Sin conductores activos"
+                  : "Sin dato"}
+            </p>
+          </div>
         </BentoPanel>
         <BentoPanel
           title="Nómina acum."
@@ -931,6 +1013,7 @@ export default function RrhhPage() {
                   "C.C.",
                   "Afiliaciones",
                   "Licencia",
+                  "Examen médico",
                   "Aptitud fatiga",
                   "Estado",
                   "Acciones",
@@ -939,15 +1022,26 @@ export default function RrhhPage() {
                 {filteredRows.map((r) => {
                   const aff = affiliateLevel(r);
                   const licExp = r.driver?.licenseExpiresAt;
+                  const exam = r.medicalExam;
                   return (
                     <NexaRow key={r.id}>
                       <NexaCell>
-                        <div className="font-semibold text-brand-text-primary">{r.name}</div>
-                        {r.user?.email ? (
-                          <div className="font-data text-[10px] text-brand-text-secondary">
-                            {r.user.email}
+                        <div className="flex items-center gap-2.5">
+                          <EmployeeAvatar name={r.name} health={r.health} />
+                          <div className="min-w-0">
+                            <div className="font-semibold text-brand-text-primary">{r.name}</div>
+                            {r.user?.email ? (
+                              <div className="font-data text-[10px] text-brand-text-secondary">
+                                {r.user.email}
+                              </div>
+                            ) : null}
+                            {r.health?.state === "INCAPACIDAD" ? (
+                              <div className="font-data text-[10px] text-brand-danger">
+                                {healthLabel(r.health)}
+                              </div>
+                            ) : null}
                           </div>
-                        ) : null}
+                        </div>
                       </NexaCell>
                       <NexaCell>
                         {r.title || r.position}
@@ -972,6 +1066,21 @@ export default function RrhhPage() {
                         {r.driver ? (
                           <div className="mt-1 font-data text-[9px] tabular-nums text-brand-text-secondary">
                             {r.driver.licenseCategory || "—"} · {fmtDate(licExp)}
+                          </div>
+                        ) : null}
+                      </NexaCell>
+                      <NexaCell>
+                        <span data-testid="rrhh-exam-badge" data-state={exam?.state ?? "SIN_DATO"}>
+                          <ComplianceBadge
+                            level={exam?.level ?? "N_A"}
+                            pulse={exam?.state === "VENCIDO"}
+                          >
+                            {examLabel(exam)}
+                          </ComplianceBadge>
+                        </span>
+                        {examDetail(exam) ? (
+                          <div className="mt-1 font-data text-[9px] tabular-nums text-brand-text-secondary">
+                            {examDetail(exam)}
                           </div>
                         ) : null}
                       </NexaCell>

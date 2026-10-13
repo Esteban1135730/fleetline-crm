@@ -5,7 +5,12 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
-import { EmployeeStatus, Role, UserAccountStatus } from "@fsg/db";
+import {
+  DriverNoveltyKind,
+  EmployeeStatus,
+  Role,
+  UserAccountStatus,
+} from "@fsg/db";
 import {
   HARD_RULES,
   hrDocumentChecklistForCargo,
@@ -30,6 +35,12 @@ import {
   hashPassword,
 } from "../security/password-hash";
 import { FatigueManagementService } from "./fatigue-management.service";
+import {
+  absenteeismIndicator,
+  healthIndicator,
+  MEDICAL_EXAM_SLOT_KEY,
+  medicalExamIndicator,
+} from "./rrhh-indicators";
 import {
   isFleetDriverRole,
   LogisticsService,
@@ -207,8 +218,65 @@ export class RrhhService {
       },
       orderBy: { name: "asc" },
     });
+    const now = new Date();
+    const driverIds = rows
+      .map((r) => r.driverId)
+      .filter((id): id is string => Boolean(id));
+    const [examDocs, incapacities] = await Promise.all([
+      this.prisma.archiveDocument.findMany({
+        where: {
+          organizationId,
+          deletedAt: null,
+          tags: { has: MEDICAL_EXAM_SLOT_KEY },
+          OR: [
+            { entityType: "EMPLOYEE", entityId: { in: rows.map((r) => r.id) } },
+            ...(driverIds.length ? [{ driverId: { in: driverIds } }] : []),
+          ],
+        },
+        select: {
+          entityType: true,
+          entityId: true,
+          driverId: true,
+          expiresAt: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+      driverIds.length
+        ? this.prisma.driverNovelty.findMany({
+            where: {
+              organizationId,
+              driverId: { in: driverIds },
+              kind: DriverNoveltyKind.INCAPACITY,
+              dateFrom: { lte: now },
+              dateTo: { gte: now },
+            },
+            select: { driverId: true, dateTo: true },
+            orderBy: { dateTo: "desc" },
+          })
+        : Promise.resolve([]),
+    ]);
+
     return rows.map((row) => ({
       ...mapEmployeeRow(row),
+      health: healthIndicator({
+        employeeStatus: row.status,
+        activeIncapacity: row.driverId
+          ? (incapacities.find((n) => n.driverId === row.driverId) ?? null)
+          : null,
+      }),
+      medicalExam: medicalExamIndicator({
+        required: hrDocumentChecklistForCargo(row.title, row.area).some(
+          (s) => s.key === MEDICAL_EXAM_SLOT_KEY && s.required,
+        ),
+        document:
+          examDocs.find(
+            (d) =>
+              (d.entityType === "EMPLOYEE" && d.entityId === row.id) ||
+              (row.driverId != null && d.driverId === row.driverId),
+          ) ?? null,
+        now,
+      }),
       user: row.user
         ? {
             ...row.user,
@@ -1094,6 +1162,8 @@ export class RrhhService {
       fatigaAlta,
       licenciasPorVencer,
       novedadesNominaMes,
+      conductoresActivos,
+      ausencias,
     ] = await Promise.all([
       this.prisma.employee.count({
         where: { organizationId, status: EmployeeStatus.ACTIVE },
@@ -1121,6 +1191,22 @@ export class RrhhService {
           createdAt: { gte: monthStart },
         },
       }),
+      this.prisma.driver.count({ where: { organizationId, active: true } }),
+      this.prisma.driverNovelty.findMany({
+        where: {
+          organizationId,
+          driver: { active: true },
+          kind: {
+            in: [
+              DriverNoveltyKind.INCAPACITY,
+              DriverNoveltyKind.UNJUSTIFIED_ABSENCE,
+            ],
+          },
+          dateFrom: { lt: now },
+          dateTo: { gte: monthStart },
+        },
+        select: { driverId: true, dateFrom: true, dateTo: true },
+      }),
     ]);
 
     return {
@@ -1128,6 +1214,12 @@ export class RrhhService {
       fatigaAlta,
       licenciasPorVencer,
       novedadesNominaMes,
+      ausentismo: absenteeismIndicator({
+        novelties: ausencias,
+        population: conductoresActivos,
+        periodStart: monthStart,
+        periodEnd: now,
+      }),
       systemStatus:
         fatigaAlta > 0 || licenciasPorVencer > 0 ? "ALERT" : "NOMINAL",
     };
