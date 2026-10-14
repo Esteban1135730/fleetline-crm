@@ -35,15 +35,22 @@ type NexaRowProps = {
   children: ReactNode;
   onClick?: () => void;
   active?: boolean;
+  alert?: boolean;
 };
 
-export function NexaRow({ children, onClick, active }: NexaRowProps) {
+export function NexaRow({ children, onClick, active, alert }: NexaRowProps) {
   return (
     <tr
       onClick={onClick}
-      className={`border-l-2 border-l-transparent transition-colors duration-150 hover:border-l-brand-primary hover:bg-brand-surface-hover/80 ${
+      className={`border-l-2 border-l-transparent transition-colors duration-150 ${
         onClick ? "cursor-pointer" : ""
-      } ${active ? "border-l-brand-primary bg-brand-surface-hover/80" : ""}`}
+      } ${
+        alert
+          ? "border-l-[var(--brand-danger)] bg-[color-mix(in_srgb,var(--brand-danger)_12%,transparent)]"
+          : `hover:border-l-brand-primary hover:bg-brand-surface-hover/80 ${
+              active ? "border-l-brand-primary bg-brand-surface-hover/80" : ""
+            }`
+      }`}
     >
       {children}
     </tr>

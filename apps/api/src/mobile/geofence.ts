@@ -44,6 +44,63 @@ export function isWithinGeofence(
   return { ok: distanceM <= radiusM, distanceM, skipped: false };
 }
 
+/** Distancia de un punto al segmento A–B, en metros (proyección local). */
+export function distancePointToSegmentMeters(
+  point: LatLng,
+  a: LatLng,
+  b: LatLng,
+): number {
+  const ab = haversineMeters(a, b);
+  if (ab < 1) return haversineMeters(point, a);
+  const bx =
+    haversineMeters({ lat: a.lat, lng: a.lng }, { lat: a.lat, lng: b.lng }) *
+    (b.lng >= a.lng ? 1 : -1);
+  const by =
+    haversineMeters({ lat: a.lat, lng: a.lng }, { lat: b.lat, lng: a.lng }) *
+    (b.lat >= a.lat ? 1 : -1);
+  const px =
+    haversineMeters({ lat: a.lat, lng: a.lng }, { lat: a.lat, lng: point.lng }) *
+    (point.lng >= a.lng ? 1 : -1);
+  const py =
+    haversineMeters({ lat: a.lat, lng: a.lng }, { lat: point.lat, lng: a.lng }) *
+    (point.lat >= a.lat ? 1 : -1);
+  const ab2 = bx * bx + by * by;
+  const t = Math.max(0, Math.min(1, (px * bx + py * by) / ab2));
+  return Math.hypot(px - t * bx, py - t * by);
+}
+
+/** Menor distancia del punto al corredor (polilínea). Null si no hay tramo. */
+export function distanceToPolylineMeters(
+  point: LatLng,
+  line: LatLng[],
+): number | null {
+  if (line.length < 2) return null;
+  let min = Number.POSITIVE_INFINITY;
+  for (let i = 1; i < line.length; i++) {
+    min = Math.min(min, distancePointToSegmentMeters(point, line[i - 1], line[i]));
+  }
+  return min;
+}
+
+export const CORRIDOR_RADIUS_M = 200;
+export const LATE_START_MIN = 30;
+
+/**
+ * Minutos de atraso del inicio. Null si salió a tiempo o aún está dentro de la tolerancia.
+ * Sin `startedAt`, compara contra `now` (el viaje no ha arrancado).
+ */
+export function lateStartMinutes(
+  departAt: Date,
+  startedAt: Date | null,
+  now: Date,
+  toleranceMin = LATE_START_MIN,
+): number | null {
+  const ref = startedAt ?? now;
+  const delta = (ref.getTime() - departAt.getTime()) / 60_000;
+  if (delta <= toleranceMin) return null;
+  return delta;
+}
+
 export function isWithinTimeWindow(
   serverNow: Date,
   scheduledAt: Date | null | undefined,

@@ -14,6 +14,8 @@ import {
   VehicleStatus,
 } from "@fsg/db";
 import { HARD_RULES } from "@fsg/shared";
+import { haversineMeters } from "../mobile/geofence";
+import { rankDispatch, type DispatchCandidateInput } from "./dispatch-score";
 import { PrismaService } from "../prisma/prisma.service";
 import {
   calculateServiceOvertime,
@@ -1371,6 +1373,121 @@ export class LogisticaOpsService {
         };
       }),
       authLinks: auths,
+    };
+  }
+
+  /**
+   * Tres parejas ordenadas: cercanía al origen, descanso y papeles vigentes
+   * en la fecha de salida. No asigna el viaje.
+   */
+  async suggestDispatch(
+    organizationId: string,
+    input: { originLat?: number; originLng?: number; departAt?: string },
+  ) {
+    const depart = input.departAt ? new Date(input.departAt) : new Date();
+    const asOf = Number.isNaN(depart.getTime()) ? new Date() : depart;
+    const origin =
+      input.originLat != null &&
+      input.originLng != null &&
+      !Number.isNaN(input.originLat) &&
+      !Number.isNaN(input.originLng)
+        ? { lat: input.originLat, lng: input.originLng }
+        : null;
+
+    const pool = await this.listDispatchPool(organizationId);
+    const vehicleIds = pool.vehicles.map((v) => v.id);
+    const snaps = await Promise.all(
+      vehicleIds.map((vehicleId) =>
+        this.prisma.gpsSnapshot.findFirst({
+          where: { vehicleId },
+          orderBy: { recordedAt: "desc" },
+          select: { vehicleId: true, lat: true, lng: true },
+        }),
+      ),
+    );
+    const gpsByVehicle = new Map<string, { lat: number; lng: number }>();
+    for (const snap of snaps) {
+      if (snap) gpsByVehicle.set(snap.vehicleId, { lat: snap.lat, lng: snap.lng });
+    }
+
+    const drivers = await this.prisma.driver.findMany({
+      where: { organizationId, active: true },
+      include: { complianceDocs: true },
+    });
+    const vehicles = await this.prisma.vehicle.findMany({
+      where: { organizationId },
+      include: { complianceDocs: true },
+    });
+    const driverById = new Map(drivers.map((d) => [d.id, d]));
+    const vehicleById = new Map(vehicles.map((v) => [v.id, v]));
+
+    const covers = (
+      docs: Array<{ type: string; status: string; expiresAt: Date | null }>,
+      type: string,
+    ) => {
+      const d = docs
+        .filter((x) => x.type === type)
+        .sort(
+          (a, b) =>
+            (b.expiresAt?.getTime() ?? 0) - (a.expiresAt?.getTime() ?? 0),
+        )[0];
+      if (!d) return false;
+      if (d.status === "EXPIRED" || d.status === "REJECTED") return false;
+      if (d.expiresAt && d.expiresAt <= asOf) return false;
+      return true;
+    };
+
+    const busyVehicle = new Set(
+      pool.vehicles.filter((v) => v.assignedServiceCode).map((v) => v.id),
+    );
+    const candidates: DispatchCandidateInput[] = [];
+
+    for (const driver of pool.drivers) {
+      const row = driverById.get(driver.id);
+      if (!row) continue;
+      const licenseFieldOk = Boolean(
+        row.licenseNumber?.trim() &&
+          row.licenseExpiresAt &&
+          row.licenseExpiresAt > asOf,
+      );
+      const licenseOk =
+        licenseFieldOk || covers(row.complianceDocs, "LICENCIA_CONDUCCION");
+      const fatigueOk =
+        !row.dispatchBlocked &&
+        row.fatigueScore < HARD_RULES.FATIGUE_BLOCK_SCORE;
+      const allowed = new Set(driver.authorizedVehicleIds ?? []);
+      const vehicleChoices = pool.vehicles.filter((v) => {
+        if (busyVehicle.has(v.id)) return false;
+        if (allowed.size > 0 && !allowed.has(v.id)) return false;
+        return true;
+      });
+      for (const vehicle of vehicleChoices) {
+        const vrow = vehicleById.get(vehicle.id);
+        if (!vrow) continue;
+        const papersOk =
+          licenseOk &&
+          covers(vrow.complianceDocs, "SOAT") &&
+          covers(vrow.complianceDocs, "TECNOMECANICA");
+        const gps = gpsByVehicle.get(vehicle.id);
+        const distanceM =
+          origin && gps ? haversineMeters(origin, gps) : null;
+        candidates.push({
+          driverId: driver.id,
+          driverName: driver.name,
+          vehicleId: vehicle.id,
+          plate: vehicle.plate,
+          fatigueOk,
+          papersOk,
+          distanceM,
+        });
+      }
+    }
+
+    const suggestions = rankDispatch(candidates, 3);
+    return {
+      originUsed: Boolean(origin),
+      departAt: asOf.toISOString(),
+      suggestions,
     };
   }
 

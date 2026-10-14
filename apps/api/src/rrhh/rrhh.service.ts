@@ -254,7 +254,7 @@ export class RrhhService {
             select: { driverId: true, dateTo: true },
             orderBy: { dateTo: "desc" },
           })
-        : Promise.resolve([]),
+        : Promise.resolve([] as Array<{ driverId: string; dateTo: Date }>),
     ]);
 
     return rows.map((row) => ({

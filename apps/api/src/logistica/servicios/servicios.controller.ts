@@ -110,6 +110,19 @@ export class ServiciosController {
     return this.ops.listDispatchPool(req.user.organizationId);
   }
 
+  /** Tres parejas sugeridas. No despacha. */
+  @Post("sugerir")
+  sugerir(@Req() req: AuthReq, @Body() body: unknown) {
+    const dto = z
+      .object({
+        originLat: z.coerce.number().optional(),
+        originLng: z.coerce.number().optional(),
+        departAt: z.string().optional(),
+      })
+      .parse(body ?? {});
+    return this.ops.suggestDispatch(req.user.organizationId, dto);
+  }
+
   @Post("despachar")
   @Permissions("logistica_despacho", "CREATE")
   @Roles(

@@ -17,7 +17,13 @@ import { PrismaService } from "../prisma/prisma.service";
 import { LogisticsGateway } from "../logistics/logistics.gateway";
 import { LogisticaOpsService } from "../logistica/logistica-ops.service";
 import { NotificationsService } from "../notifications/notifications.service";
-import { evaluateTripControl } from "./geofence";
+import {
+  evaluateTripControl,
+  distanceToPolylineMeters,
+  lateStartMinutes,
+  CORRIDOR_RADIUS_M,
+  type LatLng,
+} from "./geofence";
 
 @Injectable()
 export class MobileTripControlService {
@@ -324,7 +330,7 @@ export class MobileTripControlService {
       });
       void this.notifications.notify({
         organizationId,
-        userIds: [pending.requestedById],
+        userIds: pending.requestedById ? [pending.requestedById] : [],
         kind: NotificationKind.DEVIATION,
         title: `Desviación rechazada · ${pending.trip.code}`,
         body: input.note || `Acción ${pending.action} no autorizada`,
@@ -332,6 +338,33 @@ export class MobileTripControlService {
         payload: { tripId, deviationId: pending.id, decision: "CANCELAR" },
       });
       return { decision: "CANCELAR" as const, deviation: updatedDev, trip };
+    }
+
+    if (input.decision === "ACEPTAR") {
+      const monitorOnly = pending.reasonCodes.some(
+        (code) => code === "OFF_CORRIDOR" || code === "LATE_START",
+      );
+      if (monitorOnly) {
+        const updatedDev = await this.prisma.tripDeviationRequest.update({
+          where: { id: pending.id },
+          data: {
+            status: TripDeviationStatus.APPROVED,
+            resolvedById: actor.userId,
+            resolvedAt: new Date(),
+            resolveNote: input.note,
+          },
+        });
+        await this.appendAudit(
+          organizationId,
+          tripId,
+          TripAuditAction.DEVIATION_APPROVED,
+          `Alerta ${pending.reasonCodes.join(",")} cerrada — el viaje sigue ${pending.previousStatus}`,
+          actor.userId,
+          { deviationId: pending.id, note: input.note },
+        );
+        this.gateway.emitUpdate(organizationId);
+        return { decision: "ACEPTAR" as const, deviation: updatedDev, trip: pending.trip };
+      }
     }
 
     await this.prisma.tripDeviationRequest.update({
@@ -374,7 +407,7 @@ export class MobileTripControlService {
     });
     void this.notifications.notify({
       organizationId,
-      userIds: [pending.requestedById],
+      userIds: pending.requestedById ? [pending.requestedById] : [],
       kind: NotificationKind.DEVIATION,
       title: `Desviación aceptada · ${pending.trip.code}`,
       body: input.note || `Acción ${pending.action} autorizada — tracking activo`,
@@ -389,7 +422,161 @@ export class MobileTripControlService {
     };
   }
 
+  /** Abre desviación si el GPS sale del corredor o el viaje arranca más de 30 min tarde. */
+  private async scanRouteAlerts(organizationId: string) {
+    const now = new Date();
+    const trips = await this.prisma.trip.findMany({
+      where: {
+        organizationId,
+        status: { in: [TripStatus.IN_TRANSIT, TripStatus.ASSIGNED] },
+      },
+      select: {
+        id: true,
+        code: true,
+        status: true,
+        departAt: true,
+        startedAt: true,
+        originLat: true,
+        originLng: true,
+        destLat: true,
+        destLng: true,
+        suggestedPolyline: true,
+        vehicleId: true,
+        trackPoints: {
+          orderBy: { recordedAt: "desc" },
+          take: 1,
+          select: { lat: true, lng: true },
+        },
+      },
+    });
+    if (!trips.length) return;
+
+    const filed = await this.prisma.tripDeviationRequest.findMany({
+      where: {
+        organizationId,
+        tripId: { in: trips.map((t) => t.id) },
+      },
+      select: { tripId: true, reasonCodes: true },
+    });
+    const openReasons = new Map<string, Set<string>>();
+    for (const row of filed) {
+      const set = openReasons.get(row.tripId) ?? new Set<string>();
+      for (const code of row.reasonCodes) set.add(code);
+      openReasons.set(row.tripId, set);
+    }
+
+    const vehicleIds = [
+      ...new Set(
+        trips
+          .map((t) => t.vehicleId)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const snaps = await Promise.all(
+      vehicleIds.map((vehicleId) =>
+        this.prisma.gpsSnapshot.findFirst({
+          where: { vehicleId },
+          orderBy: { recordedAt: "desc" },
+          select: { vehicleId: true, lat: true, lng: true },
+        }),
+      ),
+    );
+    const gpsByVehicle = new Map<string, LatLng>();
+    for (const snap of snaps) {
+      if (snap) gpsByVehicle.set(snap.vehicleId, { lat: snap.lat, lng: snap.lng });
+    }
+
+    for (const trip of trips) {
+      const reasons = openReasons.get(trip.id) ?? new Set<string>();
+      const late = lateStartMinutes(trip.departAt, trip.startedAt, now);
+      if (late != null && !reasons.has("LATE_START")) {
+        await this.prisma.tripDeviationRequest.create({
+          data: {
+            organizationId,
+            tripId: trip.id,
+            action: TripDeviationAction.START,
+            status: TripDeviationStatus.PENDING,
+            previousStatus: trip.status,
+            reasonCodes: ["LATE_START"],
+            reasonDetail: trip.startedAt
+              ? `Salió ${Math.round(late)} min después de la hora programada`
+              : `Lleva ${Math.round(late)} min sin salir`,
+            lat: trip.originLat ?? 0,
+            lng: trip.originLng ?? 0,
+            serverTime: now,
+            scheduledAt: trip.departAt,
+          },
+        });
+        reasons.add("LATE_START");
+      }
+
+      if (reasons.has("OFF_CORRIDOR") || trip.status !== TripStatus.IN_TRANSIT) {
+        continue;
+      }
+      const track = trip.trackPoints[0];
+      const point: LatLng | null = track
+        ? { lat: track.lat, lng: track.lng }
+        : trip.vehicleId
+          ? gpsByVehicle.get(trip.vehicleId) ?? null
+          : null;
+      const isPoint = (p: unknown): p is LatLng =>
+        !!p &&
+        typeof p === "object" &&
+        Number.isFinite((p as LatLng).lat) &&
+        Number.isFinite((p as LatLng).lng);
+      if (!isPoint(point)) continue;
+
+      let line: LatLng[] = [];
+      try {
+        const parsed = trip.suggestedPolyline
+          ? (JSON.parse(trip.suggestedPolyline) as unknown)
+          : [];
+        if (Array.isArray(parsed)) line = parsed.filter(isPoint);
+      } catch {
+        line = [];
+      }
+      if (
+        line.length < 2 &&
+        trip.originLat != null &&
+        trip.originLng != null &&
+        trip.destLat != null &&
+        trip.destLng != null
+      ) {
+        line = [
+          { lat: trip.originLat, lng: trip.originLng },
+          { lat: trip.destLat, lng: trip.destLng },
+        ];
+      }
+      const distanceM = distanceToPolylineMeters(point, line);
+      if (distanceM == null || !Number.isFinite(distanceM) || distanceM <= CORRIDOR_RADIUS_M) {
+        continue;
+      }
+
+      await this.prisma.tripDeviationRequest.create({
+        data: {
+          organizationId,
+          tripId: trip.id,
+          action: TripDeviationAction.END,
+          status: TripDeviationStatus.PENDING,
+          previousStatus: trip.status,
+          reasonCodes: ["OFF_CORRIDOR"],
+          reasonDetail: `GPS a ${Math.round(distanceM)} m del corredor (límite ${CORRIDOR_RADIUS_M} m)`,
+          lat: point.lat,
+          lng: point.lng,
+          distanceM,
+          serverTime: now,
+          scheduledAt: trip.departAt,
+        },
+      });
+    }
+  }
+
   async listPendingDeviations(organizationId: string) {
+    try {
+      await this.scanRouteAlerts(organizationId);
+    } catch {
+      /* la bandeja sigue aunque el barrido falle */
+    }
     return this.prisma.tripDeviationRequest.findMany({
       where: { organizationId, status: TripDeviationStatus.PENDING },
       include: {

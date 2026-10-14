@@ -1,8 +1,10 @@
 import {
+  distanceToPolylineMeters,
   evaluateTripControl,
   haversineMeters,
   isWithinGeofence,
   isWithinTimeWindow,
+  lateStartMinutes,
 } from "./geofence";
 
 describe("geofence / control estricto", () => {
@@ -58,5 +60,32 @@ describe("geofence / control estricto", () => {
     });
     expect(gate.ok).toBe(true);
     expect(gate.violations).toHaveLength(0);
+  });
+
+  it("mide la distancia al corredor y el atraso de salida", () => {
+    const line = [
+      { lat: 4.7, lng: -74.1 },
+      { lat: 4.71, lng: -74.1 },
+    ];
+    const onLine = distanceToPolylineMeters({ lat: 4.705, lng: -74.1 }, line);
+    expect(onLine).not.toBeNull();
+    expect(onLine!).toBeLessThan(200);
+    const off = distanceToPolylineMeters({ lat: 4.705, lng: -74.08 }, line);
+    expect(off!).toBeGreaterThan(200);
+
+    const depart = new Date("2026-10-09T12:00:00.000Z");
+    expect(
+      lateStartMinutes(depart, null, new Date("2026-10-09T12:20:00.000Z")),
+    ).toBeNull();
+    expect(
+      lateStartMinutes(depart, null, new Date("2026-10-09T12:40:00.000Z")),
+    ).toBeGreaterThan(30);
+    expect(
+      lateStartMinutes(
+        depart,
+        new Date("2026-10-09T12:10:00.000Z"),
+        new Date("2026-10-09T13:00:00.000Z"),
+      ),
+    ).toBeNull();
   });
 });

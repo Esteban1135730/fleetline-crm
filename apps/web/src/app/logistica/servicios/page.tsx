@@ -61,6 +61,16 @@ const ServicioMapPlanner = dynamic(
   },
 );
 
+type DispatchSuggestion = {
+  driverId: string;
+  driverName: string;
+  vehicleId: string;
+  plate: string;
+  score: number;
+  qualified: boolean;
+  reasons: string[];
+};
+
 type PoolDriver = {
   id: string;
   name: string;
@@ -91,6 +101,35 @@ type CreateResult = Servicio & {
 
 function blockerLabel(code: string) {
   return humanizeBlockReason(code);
+}
+
+function SuggestionChoices({
+  rows,
+  onPick,
+}: {
+  rows: DispatchSuggestion[];
+  onPick: (row: DispatchSuggestion) => void;
+}) {
+  return (
+    <ul className="space-y-1.5">
+      {rows.map((row, index) => (
+        <li key={`${row.driverId}-${row.vehicleId}`}>
+          <button
+            type="button"
+            className="w-full rounded-lg border border-brand-border px-3 py-2 text-left hover:border-brand-primary"
+            onClick={() => onPick(row)}
+          >
+            <span className="font-data text-xs text-brand-text-primary">
+              {index + 1}. {row.driverName} · {row.plate} · {row.score} pts
+            </span>
+            <span className="mt-0.5 block text-[11px] text-brand-text-secondary">
+              {row.reasons.join(" · ")}
+            </span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 function KillSwitchCard({ blockers }: { blockers: string[] }) {
@@ -144,6 +183,11 @@ export default function LogisticaServiciosPage() {
   const [listLoaded, setListLoaded] = useState(false);
   const [deviationsOpen, setDeviationsOpen] = useState(false);
   const [deviationCount, setDeviationCount] = useState(0);
+  const [alertTripIds, setAlertTripIds] = useState<Set<string>>(new Set());
+  const [suggestions, setSuggestions] = useState<DispatchSuggestion[]>([]);
+  const [suggestionFor, setSuggestionFor] = useState<"create" | "pending" | null>(
+    null,
+  );
   const [commsOpen, setCommsOpen] = useState(false);
   const [geoQuery, setGeoQuery] = useState("");
   const [geoHits, setGeoHits] = useState<PlacePin[]>([]);
@@ -219,24 +263,6 @@ export default function LogisticaServiciosPage() {
   const selectedVehicle = vehicles.find((v) => v.id === form.vehicleId);
   const assignDriver = drivers.find((d) => d.id === assignDriverId);
   const assignVehicle = vehicles.find((v) => v.id === assignVehicleId);
-
-  const suggestedDispatch = useMemo(() => {
-    const driver = [...drivers]
-      .filter((d) => d.ready)
-      .sort((a, b) => a.fatigueScore - b.fatigueScore)[0];
-    if (!driver) return { driver: undefined, vehicle: undefined };
-    const authIds = driver.authorizedVehicleIds ?? [];
-    const vehicle =
-      (driver.primaryVehicleId
-        ? vehicles.find((v) => v.id === driver.primaryVehicleId && v.ready)
-        : undefined) ||
-      vehicles.find(
-        (v) =>
-          v.ready && (authIds.length === 0 || authIds.includes(v.id)),
-      ) ||
-      vehicles.find((v) => v.ready);
-    return { driver, vehicle };
-  }, [drivers, vehicles]);
 
   const vehiclesForAssign = useMemo(() => {
     const authIds = assignDriver?.authorizedVehicleIds ?? [];
@@ -338,10 +364,18 @@ export default function LogisticaServiciosPage() {
     let alive = true;
     const pullCount = async () => {
       try {
-        const data = await api<unknown[]>(
+        const data = await api<Array<{ tripId?: string; trip?: { id: string } }>>(
           "/api/v1/servicios/desviaciones/pendientes",
         );
-        if (alive) setDeviationCount(data.length);
+        if (!alive) return;
+        setDeviationCount(data.length);
+        setAlertTripIds(
+          new Set(
+            data
+              .map((row) => row.tripId || row.trip?.id)
+              .filter((id): id is string => Boolean(id)),
+          ),
+        );
       } catch {
         /* silent — campana sin badge */
       }
@@ -533,26 +567,64 @@ export default function LogisticaServiciosPage() {
     setError("");
   }
 
-  function applySmartAssign(target: "create" | "pending") {
-    if (!suggestedDispatch.driver || !suggestedDispatch.vehicle) {
-      setError(
-        "Sin recursos aptos — Kill-Switch: revise fatiga, SOAT y tecnomecánica",
-      );
-      return;
-    }
+  function pickSuggestion(row: DispatchSuggestion, target: "create" | "pending") {
     if (target === "create") {
       setForm((f) => ({
         ...f,
-        driverId: suggestedDispatch.driver!.id,
-        vehicleId: suggestedDispatch.vehicle!.id,
+        driverId: row.driverId,
+        vehicleId: row.vehicleId,
       }));
     } else {
-      setAssignDriverId(suggestedDispatch.driver.id);
-      setAssignVehicleId(suggestedDispatch.vehicle.id);
+      setAssignDriverId(row.driverId);
+      setAssignVehicleId(row.vehicleId);
     }
     setStatusMsg(
-      `Sugerido: ${suggestedDispatch.driver.name} · ${suggestedDispatch.vehicle.plate} (menor fatiga + cumplimiento 100%)`,
+      `Sugerido: ${row.driverName} · ${row.plate} · ${row.score} pts. ${row.reasons.join(" · ")}`,
     );
+  }
+
+  async function applySmartAssign(target: "create" | "pending") {
+    setError("");
+    const origin =
+      target === "create"
+        ? originPin
+        : selected?.originLat != null && selected.originLng != null
+          ? { lat: selected.originLat, lng: selected.originLng }
+          : null;
+    const departAt =
+      target === "create"
+        ? form.departAt
+          ? new Date(form.departAt).toISOString()
+          : undefined
+        : selected?.departAt;
+    try {
+      const res = await api<{
+        originUsed: boolean;
+        suggestions: DispatchSuggestion[];
+      }>("/logistica/servicios/sugerir", {
+        method: "POST",
+        body: JSON.stringify({
+          originLat: origin?.lat,
+          originLng: origin?.lng,
+          departAt,
+        }),
+      });
+      setSuggestions(res.suggestions);
+      setSuggestionFor(target);
+      const top = res.suggestions[0];
+      if (!top) {
+        setError("No hay pareja libre para sugerir");
+        return;
+      }
+      pickSuggestion(top, target);
+      if (!res.originUsed) {
+        setStatusMsg(
+          `Sugerido: ${top.driverName} · ${top.plate} · ${top.score} pts. Sin origen en el mapa — cercanía en 0. ${top.reasons.join(" · ")}`,
+        );
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo sugerir");
+    }
   }
 
   async function runGeoSearch() {
@@ -708,6 +780,7 @@ export default function LogisticaServiciosPage() {
                     <NexaRow
                       key={s.id}
                       active={selectedId === s.id || s.code === focusCode}
+                      alert={alertTripIds.has(s.id)}
                       onClick={() => setSelectedId(s.id)}
                     >
                       <NexaCell mono className="text-brand-primary">
@@ -724,13 +797,15 @@ export default function LogisticaServiciosPage() {
                       <NexaCell>
                         <StatusPulseBadge
                           tone={
-                            s.status === "IN_TRANSIT"
-                              ? "active"
-                              : s.status === "COMPLETED"
-                                ? "neutral"
-                                : "fatiga"
+                            alertTripIds.has(s.id)
+                              ? "danger"
+                              : s.status === "IN_TRANSIT"
+                                ? "active"
+                                : s.status === "COMPLETED"
+                                  ? "neutral"
+                                  : "fatiga"
                           }
-                          pulse={s.status === "IN_TRANSIT"}
+                          pulse={s.status === "IN_TRANSIT" && !alertTripIds.has(s.id)}
                         >
                           {statusEs(s.status)}
                         </StatusPulseBadge>
@@ -1066,12 +1141,19 @@ export default function LogisticaServiciosPage() {
 
               <KillSwitchCard blockers={createBlockers} />
 
+              {suggestionFor === "create" && suggestions.length > 0 ? (
+                <SuggestionChoices
+                  rows={suggestions}
+                  onPick={(row) => pickSuggestion(row, "create")}
+                />
+              ) : null}
+
               <div className="flex flex-wrap justify-end gap-2">
                 <Button
                   type="button"
                   variant="ghost"
                   className="w-auto"
-                  onClick={() => applySmartAssign("create")}
+                  onClick={() => void applySmartAssign("create")}
                 >
                   Sugerir asignación
                 </Button>
@@ -1179,12 +1261,18 @@ export default function LogisticaServiciosPage() {
                 ) : null}
               </div>
               <KillSwitchCard blockers={assignBlockers} />
+              {suggestionFor === "pending" && suggestions.length > 0 ? (
+                <SuggestionChoices
+                  rows={suggestions}
+                  onPick={(row) => pickSuggestion(row, "pending")}
+                />
+              ) : null}
               <div className="flex flex-wrap justify-end gap-2">
                 <Button
                   type="button"
                   variant="ghost"
                   className="w-auto"
-                  onClick={() => applySmartAssign("pending")}
+                  onClick={() => void applySmartAssign("pending")}
                 >
                   Sugerir
                 </Button>
