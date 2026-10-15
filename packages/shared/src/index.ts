@@ -1241,13 +1241,13 @@ export const QUOTE_MIN_MARGIN_PCT = 15;
 
 /** Embudo comercial del Excel de pipeline. Probabilidad de cierre por etapa. */
 export const COMMERCIAL_PIPELINE = [
-  { key: "BANT", label: "Calificación", probability: 0.1, open: true },
-  { key: "DIAGNOSTICO", label: "Diagnóstico", probability: 0.3, open: true },
+  { key: "BANT", label: "Calificación BANT", probability: 0.1, open: true },
+  { key: "DIAGNOSTICO", label: "Diagnóstico técnico", probability: 0.3, open: true },
   { key: "COTIZADA", label: "Cotización radicada", probability: 0.6, open: true },
-  { key: "NEGOCIACION", label: "Negociación", probability: 0.8, open: true },
-  { key: "TRAMITES", label: "Trámites SAGRILAFT", probability: 0.9, open: true },
-  { key: "GANADO", label: "Contrato firmado", probability: 1, open: false },
-  { key: "PERDIDO", label: "Perdido", probability: 0, open: false },
+  { key: "NEGOCIACION", label: "Negociación SLA", probability: 0.8, open: true },
+  { key: "TRAMITES", label: "Trámites legales (SAGRILAFT)", probability: 0.9, open: true },
+  { key: "GANADO", label: "Contrato firmado (ganado)", probability: 1, open: false },
+  { key: "PERDIDO", label: "Perdido / descartado", probability: 0, open: false },
 ] as const;
 
 export type CommercialPipelineStage = (typeof COMMERCIAL_PIPELINE)[number]["key"];

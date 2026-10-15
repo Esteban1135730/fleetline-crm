@@ -150,8 +150,8 @@ export const NAV_DEPARTMENTS: NavDepartment[] = [
       {
         href: "/comercial",
         view: "comercial",
-        label: "Comercial",
-        tip: "Clientes, cotizaciones y contratos.",
+        label: "Cotizador",
+        tip: "Tarifa por ruta, días y horas. Cotizaciones, clientes y contratos.",
       },
       {
         href: "/apps",

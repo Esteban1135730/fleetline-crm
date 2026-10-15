@@ -1834,10 +1834,16 @@ export const GESTOR_VINCULACIONES_NAV: RoleNavItem[] = [
 /** Sidebar forzado — Director Comercial (Felipe) */
 export const DIRECTOR_COMERCIAL_NAV: RoleNavItem[] = [
   {
+    href: "/comercial",
+    label: "Cotizador",
+    view: "comercial",
+    tip: "Tarifa por ruta, días y horas. Cotizaciones, clientes y contratos.",
+  },
+  {
     href: "/comercial/tablero",
     label: "Tablero",
     view: "comercial",
-    tip: "Embudo · ficha · cotizador · PDF",
+    tip: "Embudo · ficha · PDF",
   },
   {
     href: "/comercial/director/dashboard",
@@ -1850,10 +1856,16 @@ export const DIRECTOR_COMERCIAL_NAV: RoleNavItem[] = [
 /** Sidebar forzado — Gestor Comercial (Valentina) */
 export const GESTOR_COMERCIAL_NAV: RoleNavItem[] = [
   {
+    href: "/comercial",
+    label: "Cotizador",
+    view: "comercial",
+    tip: "Tarifa por ruta, días y horas. Cotizaciones, clientes y contratos.",
+  },
+  {
     href: "/comercial/tablero",
     label: "Tablero",
     view: "comercial",
-    tip: "Embudo · ficha · cotizador · PDF",
+    tip: "Embudo · ficha · PDF",
   },
   {
     href: "/comercial/gestor/dashboard",
@@ -1866,10 +1878,16 @@ export const GESTOR_COMERCIAL_NAV: RoleNavItem[] = [
 /** Sidebar forzado — Coordinador Comercial (Sergio) */
 export const COORDINADOR_COMERCIAL_NAV: RoleNavItem[] = [
   {
+    href: "/comercial",
+    label: "Cotizador",
+    view: "comercial",
+    tip: "Tarifa por ruta, días y horas. Cotizaciones, clientes y contratos.",
+  },
+  {
     href: "/comercial/tablero",
     label: "Tablero",
     view: "comercial",
-    tip: "Embudo · ficha · cotizador · PDF",
+    tip: "Embudo · ficha · PDF",
   },
   {
     href: "/comercial/coordinador/dashboard",
