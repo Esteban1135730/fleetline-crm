@@ -41,7 +41,9 @@ import { EmptyState, KpiCard, Modal, SlideOver, StatusPulseBadge } from "@/compo
 import { SarlaftBlockBadge } from "@/components/sarlaft/sarlaft-block-badge";
 import { BentoPanel } from "@/components/nexa/bento-panel";
 import { NexaTable, NexaRow, NexaCell } from "@/components/nexa/nexa-table";
+import { MunicipioSelect } from "@/components/comercial/municipio-select";
 import { PlaceSuggestInput } from "@/components/comercial/place-suggest-input";
+import { COLOMBIA_MUNICIPIOS } from "@/lib/colombia-municipios";
 import {
   WorkbenchSearch,
   WorkbenchTabs,
@@ -85,6 +87,48 @@ function stageOf(q: { pipelineStage?: string | null; status: string }) {
   return "BANT";
 }
 
+const FREQUENCY_OPTIONS = [
+  "Por evento",
+  "Diaria",
+  "Semanal",
+  "Quincenal",
+  "Mensual",
+  "Otra",
+] as const;
+
+function splitFrequency(raw: string | null | undefined) {
+  const value = (raw ?? "").trim();
+  const hit = FREQUENCY_OPTIONS.find(
+    (item) => item !== "Otra" && item.toLowerCase() === value.toLowerCase(),
+  );
+  if (hit) return { serviceFrequency: hit, frequencyOther: "" };
+  if (!value) return { serviceFrequency: "", frequencyOther: "" };
+  return { serviceFrequency: "Otra" as const, frequencyOther: value };
+}
+
+function branchLabel(raw: string | null | undefined) {
+  if (!raw) return "";
+  if (raw === "BOGOTA") return "Bogotá · Cundinamarca";
+  if (raw === "BARRANQUILLA") return "Barranquilla · Atlántico";
+  return raw;
+}
+
+function serviceWindow(salida: string, regreso: string) {
+  if (!salida || !regreso) return null;
+  const start = new Date(salida);
+  const end = new Date(regreso);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+  if (end.getTime() <= start.getTime()) return null;
+  const hours = (end.getTime() - start.getTime()) / 3_600_000;
+  const startDay = Date.UTC(start.getFullYear(), start.getMonth(), start.getDate());
+  const endDay = Date.UTC(end.getFullYear(), end.getMonth(), end.getDate());
+  const days = Math.min(
+    30,
+    Math.max(1, Math.round((endDay - startDay) / 86_400_000) + 1),
+  );
+  return { hours: Math.round(hours * 10) / 10, days };
+}
+
 function blankCustomer() {
   return {
     name: "",
@@ -95,11 +139,10 @@ function blankCustomer() {
     contactName: "",
     creditKind: "CONTADO",
     serviceFrequency: "",
+    frequencyOther: "",
     servicesPerMonth: "",
-    preferredVehicle: "",
-    logisticsOwner: "",
     commercialNote: "",
-    branch: "BOGOTA",
+    branch: "",
   };
 }
 
@@ -184,7 +227,7 @@ type RouteEstimate = {
   message?: string;
 };
 
-type TabId = "cotizador" | "contratos" | "clientes";
+type TabId = "cotizador" | "cotizaciones" | "contratos" | "clientes";
 
 const CONTRACTS_PAGE_SIZE = 10;
 
@@ -276,8 +319,8 @@ export default function ComercialPage() {
 
   const [calcForm, setCalcForm] = useState({
     customerId: "",
-    origen: "Bogotá",
-    destino: "Medellín",
+    origen: "",
+    destino: "",
     tipoVehiculo: "BUS" as QuoteVehicleType,
     distanciaKm: "",
     cantidadPeajes: "",
@@ -293,7 +336,11 @@ export default function ComercialPage() {
     regreso: "",
     formaPago: "Contado",
     comentario: "",
+    horasServicio: 0,
+    horasRuta: 0,
   });
+  const [originPicked, setOriginPicked] = useState(false);
+  const [destPicked, setDestPicked] = useState(false);
   const [stageFilter, setStageFilter] = useState<string | null>(null);
   const [stageError, setStageError] = useState("");
   const [followQuote, setFollowQuote] = useState<Quote | null>(null);
@@ -354,7 +401,7 @@ export default function ComercialPage() {
   useEffect(() => {
     const origen = calcForm.origen.trim();
     const destino = calcForm.destino.trim();
-    if (origen.length < 3 || destino.length < 3) {
+    if (!originPicked || !destPicked || origen.length < 3 || destino.length < 3) {
       setRouteEst(null);
       return;
     }
@@ -401,7 +448,41 @@ export default function ComercialPage() {
         });
     }, 700);
     return () => window.clearTimeout(t);
-  }, [calcForm.origen, calcForm.destino]);
+  }, [calcForm.origen, calcForm.destino, originPicked, destPicked]);
+
+  useEffect(() => {
+    const span = serviceWindow(calcForm.salida, calcForm.regreso);
+    const ida = Boolean(calcForm.regreso) && Boolean(span);
+    const factor = Number(calcForm.factorTrafico) || 1;
+    const routeMin =
+      routeEst?.available && routeEst.durationMin != null
+        ? routeEst.durationMin
+        : 0;
+    const horasRuta =
+      routeMin > 0
+        ? Math.round(((routeMin / 60) * (ida ? 2 : 1) * factor) * 10) / 10
+        : 0;
+    const horasServicio =
+      span?.hours ??
+      (routeMin > 0 ? Math.round(((routeMin / 60) * factor) * 10) / 10 : 0);
+    const dias = String(span?.days ?? 1);
+    setCalcForm((f) => {
+      if (
+        f.dias === dias &&
+        f.idaYRegreso === ida &&
+        f.horasServicio === horasServicio &&
+        f.horasRuta === horasRuta
+      ) {
+        return f;
+      }
+      return { ...f, dias, idaYRegreso: ida, horasServicio, horasRuta };
+    });
+  }, [
+    calcForm.salida,
+    calcForm.regreso,
+    calcForm.factorTrafico,
+    routeEst,
+  ]);
 
   const calcPayload = useMemo(
     () => ({
@@ -425,6 +506,8 @@ export default function ComercialPage() {
       regreso: calcForm.regreso || undefined,
       formaPago: calcForm.formaPago || undefined,
       comentario: calcForm.comentario || undefined,
+      horasServicio: calcForm.horasServicio || undefined,
+      horasRuta: calcForm.horasRuta || undefined,
     }),
     [calcForm],
   );
@@ -514,6 +597,8 @@ export default function ComercialPage() {
   useEffect(() => {
     const t = window.setTimeout(() => {
       if (
+        originPicked &&
+        destPicked &&
         calcForm.origen.trim() &&
         calcForm.destino.trim() &&
         Number(calcForm.distanciaKm) > 0
@@ -525,7 +610,7 @@ export default function ComercialPage() {
     }, 350);
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [calcPayload]);
+  }, [calcPayload, originPicked, destPicked]);
 
   function closeCustomerSlide() {
     setCustomerSlideOpen(false);
@@ -555,12 +640,10 @@ export default function ComercialPage() {
           : "B2B",
       contactName: c.contactName || "",
       creditKind: c.creditKind === "CREDITO" ? "CREDITO" : "CONTADO",
-      serviceFrequency: c.serviceFrequency || "",
+      ...splitFrequency(c.serviceFrequency),
       servicesPerMonth: c.servicesPerMonth || "",
-      preferredVehicle: c.preferredVehicle || "",
-      logisticsOwner: c.logisticsOwner || "",
       commercialNote: c.commercialNote || "",
-      branch: c.branch === "BARRANQUILLA" ? "BARRANQUILLA" : "BOGOTA",
+      branch: branchLabel(c.branch),
     });
     setCustomerSlideOpen(true);
   }
@@ -568,43 +651,45 @@ export default function ComercialPage() {
   async function onSaveCustomer(e: FormEvent) {
     e.preventDefault();
     setCustomerError("");
+    const frequency =
+      customerForm.serviceFrequency === "Otra"
+        ? customerForm.frequencyOther.trim()
+        : customerForm.serviceFrequency;
+    if (!frequency) {
+      setCustomerError("Elija la frecuencia del servicio.");
+      return;
+    }
+    if (
+      !(COLOMBIA_MUNICIPIOS as readonly string[]).includes(customerForm.branch)
+    ) {
+      setCustomerError("Elija la sede en el listado de municipios.");
+      return;
+    }
     setCustomerBusy(true);
     try {
+      const profile = {
+        name: customerForm.name.trim(),
+        email: customerForm.email.trim() || undefined,
+        phone: customerForm.phone.trim() || undefined,
+        segment: customerForm.segment,
+        contactName: customerForm.contactName,
+        creditKind: customerForm.creditKind,
+        serviceFrequency: frequency,
+        servicesPerMonth: customerForm.servicesPerMonth,
+        commercialNote: customerForm.commercialNote,
+        branch: customerForm.branch,
+      };
       if (editingCustomerId) {
         await api(`/comercial/customers/${editingCustomerId}`, {
           method: "PATCH",
-          body: JSON.stringify({
-            name: customerForm.name.trim(),
-            email: customerForm.email.trim() || undefined,
-            phone: customerForm.phone.trim() || undefined,
-            segment: customerForm.segment,
-            contactName: customerForm.contactName,
-            creditKind: customerForm.creditKind,
-            serviceFrequency: customerForm.serviceFrequency,
-            servicesPerMonth: customerForm.servicesPerMonth,
-            preferredVehicle: customerForm.preferredVehicle,
-            logisticsOwner: customerForm.logisticsOwner,
-            commercialNote: customerForm.commercialNote,
-            branch: customerForm.branch,
-          }),
+          body: JSON.stringify(profile),
         });
       } else {
         await api("/comercial/customers", {
           method: "POST",
           body: JSON.stringify({
-            name: customerForm.name.trim(),
+            ...profile,
             nit: customerForm.nit.trim(),
-            email: customerForm.email.trim() || undefined,
-            phone: customerForm.phone.trim() || undefined,
-            segment: customerForm.segment,
-            contactName: customerForm.contactName,
-            creditKind: customerForm.creditKind,
-            serviceFrequency: customerForm.serviceFrequency,
-            servicesPerMonth: customerForm.servicesPerMonth,
-            preferredVehicle: customerForm.preferredVehicle,
-            logisticsOwner: customerForm.logisticsOwner,
-            commercialNote: customerForm.commercialNote,
-            branch: customerForm.branch,
           }),
         });
       }
@@ -738,19 +823,40 @@ export default function ComercialPage() {
       setCalcError("Cliente bloqueado por SARLAFT. No se puede cotizar.");
       return;
     }
+    if (!originPicked || !destPicked) {
+      setCalcError("Elija origen y destino de las direcciones sugeridas.");
+      return;
+    }
+    if (calcForm.salida && calcForm.regreso && !serviceWindow(calcForm.salida, calcForm.regreso)) {
+      setCalcError("El regreso debe ser posterior a la salida.");
+      return;
+    }
     if (!breakdown) {
       setCalcError("Calcule la tarifa antes de guardar la cotización");
       return;
     }
-    await api("/comercial/quotes", {
-      method: "POST",
-      body: JSON.stringify({
-        customerId: calcForm.customerId,
-        calc: calcPayload,
-        notes: `${breakdown.origen} → ${breakdown.destino} · ${breakdown.tipoVehiculoLabel}`,
-      }),
-    });
-    await load();
+    setCalcError("");
+    try {
+      const saved = await api<{ pdfError?: string | null }>("/comercial/quotes", {
+        method: "POST",
+        body: JSON.stringify({
+          customerId: calcForm.customerId,
+          calc: calcPayload,
+          notes: `${breakdown.origen} → ${breakdown.destino} · ${breakdown.tipoVehiculoLabel}`,
+        }),
+      });
+      await load();
+      setTab("cotizaciones");
+      if (saved?.pdfError) {
+        setStageError(
+          "La cotización quedó guardada. El PDF no se pudo generar.",
+        );
+      }
+    } catch (err) {
+      setCalcError(
+        err instanceof Error ? err.message : "No se pudo guardar la cotización",
+      );
+    }
   }
 
   function openFollow(q: Quote, stage = stageOf(q)) {
@@ -1017,20 +1123,25 @@ export default function ComercialPage() {
       {
         id: "cotizador" as const,
         label: "Cotizador",
-        count: quotes.length,
-        tip: "Pipeline, cotizador inteligente e historial",
+        tip: "Cálculo de la tarifa",
       },
       {
-        id: "contratos" as const,
-        label: "Contratos",
-        count: contracts.length,
-        tip: "Contratos operativos B2B y licitación",
+        id: "cotizaciones" as const,
+        label: "Cotizaciones",
+        count: quotes.length,
+        tip: "Tablero y seguimiento de cotizaciones",
       },
       {
         id: "clientes" as const,
         label: "Clientes",
         count: customers.length,
         tip: "Directorio comercial y SARLAFT",
+      },
+      {
+        id: "contratos" as const,
+        label: "Contratos",
+        count: contracts.length,
+        tip: "Contratos operativos B2B y licitación",
       },
     ],
     [quotes.length, contracts.length, customers.length],
@@ -1051,19 +1162,18 @@ export default function ComercialPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
-          {tab === "contratos" ? (
-            canCreateContract ? (
-              <Button
-                type="button"
-                variant="primary"
-                className="w-auto px-4 py-2"
-                onClick={openNewContract}
-              >
-                <Plus className="mr-1.5 h-4 w-4" aria-hidden />
-                Nuevo contrato
-              </Button>
-            ) : null
-          ) : (
+          {tab === "contratos" && canCreateContract ? (
+            <Button
+              type="button"
+              variant="primary"
+              className="w-auto px-4 py-2"
+              onClick={openNewContract}
+            >
+              <Plus className="mr-1.5 h-4 w-4" aria-hidden />
+              Nuevo contrato
+            </Button>
+          ) : null}
+          {tab === "clientes" ? (
             <Button
               type="button"
               variant="primary"
@@ -1073,26 +1183,30 @@ export default function ComercialPage() {
               <Plus className="mr-1.5 h-4 w-4" aria-hidden />
               Nuevo cliente
             </Button>
-          )}
+          ) : null}
         </div>
       </header>
 
-      <WorkbenchToolbar>
+      <WorkbenchToolbar className="flt-workbench-toolbar--stacked">
         <WorkbenchTabs
           tabs={workbenchTabs}
           value={tab}
           onChange={(id) => setTab(id as TabId)}
         />
         {tab === "clientes" ? (
-          <WorkbenchSearch
-            value={clientQuery}
-            onChange={setClientQuery}
-            placeholder="Buscar por nombre, NIT o correo…"
-          />
+          <div className="flex justify-center">
+            <div className="w-full max-w-[420px]">
+              <WorkbenchSearch
+                value={clientQuery}
+                onChange={setClientQuery}
+                placeholder="Buscar por nombre, NIT o correo…"
+              />
+            </div>
+          </div>
         ) : null}
       </WorkbenchToolbar>
 
-      {tab === "cotizador" ? (
+      {tab === "cotizaciones" ? (
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
             <KpiCard
@@ -1167,10 +1281,14 @@ export default function ComercialPage() {
               icon={<Receipt className="h-10 w-10" />}
             />
           </div>
+        </div>
+      ) : null}
 
+      {tab === "cotizador" ? (
+        <div className="space-y-4">
           <BentoPanel
             title="Cotizador"
-            subtitle="Nacional y Bogotá · km manuales · peajes estimados"
+            subtitle="Dirección sugerida · días y horas según salida y regreso"
             icon={<Calculator aria-hidden />}
             action={
               <Button
@@ -1210,25 +1328,40 @@ export default function ComercialPage() {
               </label>
               <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
                 Origen
-                <input
-                  className="field"
-                  placeholder="Ciudad o punto de origen"
+                <PlaceSuggestInput
+                  endpoint="/comercial/places"
+                  enabled
+                  placeholder="Buscar origen y elegir"
                   value={calcForm.origen}
-                  onChange={(e) =>
-                    setCalcForm({ ...calcForm, origen: e.target.value })
-                  }
+                  onChange={(origen) => {
+                    setOriginPicked(false);
+                    setCalcForm((f) => ({ ...f, origen }));
+                  }}
+                  onCommit={(origen) => {
+                    setOriginPicked(true);
+                    setCalcForm((f) => ({ ...f, origen }));
+                  }}
                   required
-                  title="Origen de la ruta"
+                  title="Origen — hay que elegir una dirección sugerida"
                 />
               </label>
               <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--brand-text-secondary)]">
                 Destino
                 <PlaceSuggestInput
-                  placeholder="Ciudad o punto de destino"
+                  endpoint="/comercial/places"
+                  enabled
+                  placeholder="Buscar destino y elegir"
                   value={calcForm.destino}
-                  onChange={(destino) => setCalcForm({ ...calcForm, destino })}
+                  onChange={(destino) => {
+                    setDestPicked(false);
+                    setCalcForm((f) => ({ ...f, destino }));
+                  }}
+                  onCommit={(destino) => {
+                    setDestPicked(true);
+                    setCalcForm((f) => ({ ...f, destino }));
+                  }}
                   required
-                  title="Destino de la ruta — sugerencias Nominatim CO"
+                  title="Destino — hay que elegir una dirección sugerida"
                 />
               </label>
               <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--brand-text-secondary)]">
@@ -1333,24 +1466,30 @@ export default function ComercialPage() {
                 Días
                 <input
                   className="field font-data"
-                  type="number"
-                  min={1}
+                  readOnly
                   value={calcForm.dias}
-                  onChange={(e) =>
-                    setCalcForm({ ...calcForm, dias: e.target.value })
-                  }
+                  title="Días entre la salida y el regreso. Se calculan solos."
                 />
               </label>
-              <label className="flex items-center gap-2 text-[11px] uppercase tracking-wide text-brand-text-secondary">
+              <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
+                Horas
                 <input
-                  type="checkbox"
-                  checked={calcForm.idaYRegreso}
-                  onChange={(e) =>
-                    setCalcForm({ ...calcForm, idaYRegreso: e.target.checked })
+                  className="field font-data"
+                  readOnly
+                  value={
+                    calcForm.horasServicio > 0
+                      ? `${calcForm.horasServicio.toLocaleString("es-CO")} h`
+                      : "—"
                   }
+                  title="Horas entre salida y regreso. Si aún no hay fechas, usa la ruta."
                 />
-                Ida y regreso
               </label>
+              <p className="flex items-end text-[11px] uppercase tracking-wide text-brand-text-secondary">
+                {calcForm.idaYRegreso ? "Ida y regreso" : "Solo ida"}
+                {calcForm.horasRuta > 0
+                  ? ` · ruta ${calcForm.horasRuta.toLocaleString("es-CO")} h`
+                  : ""}
+              </p>
               <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary md:col-span-2">
                 Paradas
                 <input
@@ -1419,6 +1558,23 @@ export default function ComercialPage() {
                   }
                 />
               </label>
+              {calcForm.salida &&
+              calcForm.regreso &&
+              !serviceWindow(calcForm.salida, calcForm.regreso) ? (
+                <p className="text-sm normal-case text-brand-danger md:col-span-2">
+                  El regreso debe ser posterior a la salida.
+                </p>
+              ) : null}
+              {calcForm.origen.trim() && !originPicked ? (
+                <p className="text-sm normal-case text-brand-text-secondary md:col-span-2">
+                  Elija el origen en la lista de direcciones.
+                </p>
+              ) : null}
+              {calcForm.destino.trim() && !destPicked ? (
+                <p className="text-sm normal-case text-brand-text-secondary md:col-span-2">
+                  Elija el destino en la lista de direcciones.
+                </p>
+              ) : null}
               <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
                 Pago
                 <input
@@ -1649,7 +1805,11 @@ export default function ComercialPage() {
             )}
             </div>
           </BentoPanel>
+        </div>
+      ) : null}
 
+      {tab === "cotizaciones" ? (
+        <div className="space-y-4">
           <BentoPanel
             title="Deal Desk · Cotizaciones"
             subtitle={`${quotes.length} registro(s) · pipeline ${money(pipelineStats.pipelineValue)}`}
@@ -2109,7 +2269,7 @@ export default function ComercialPage() {
                       {c.creditKind || c.branch ? (
                         <div className="text-[10px] text-brand-text-secondary">
                           {[
-                            c.branch === "BARRANQUILLA" ? "Barranquilla" : c.branch ? "Bogotá" : null,
+                            branchLabel(c.branch) || null,
                             c.creditKind === "CREDITO" ? "Crédito" : c.creditKind ? "Contado" : null,
                             c.serviceFrequency,
                           ]
@@ -2425,16 +2585,13 @@ export default function ComercialPage() {
           </label>
           <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
             Sede
-            <select
-              className="field"
+            <MunicipioSelect
               value={customerForm.branch}
-              onChange={(e) =>
-                setCustomerForm({ ...customerForm, branch: e.target.value })
+              title="Municipio de la sede. Hay que elegirlo del listado."
+              onChange={(branch) =>
+                setCustomerForm({ ...customerForm, branch })
               }
-            >
-              <option value="BOGOTA">Bogotá</option>
-              <option value="BARRANQUILLA">Barranquilla</option>
-            </select>
+            />
           </label>
           <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
             Crédito
@@ -2451,18 +2608,43 @@ export default function ComercialPage() {
           </label>
           <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
             Frecuencia
-            <input
+            <select
               className="field"
-              placeholder="Semanal, mensual, por evento"
               value={customerForm.serviceFrequency}
               onChange={(e) =>
                 setCustomerForm({
                   ...customerForm,
                   serviceFrequency: e.target.value,
+                  frequencyOther:
+                    e.target.value === "Otra" ? customerForm.frequencyOther : "",
                 })
               }
-            />
+            >
+              <option value="">Seleccionar</option>
+              {FREQUENCY_OPTIONS.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
           </label>
+          {customerForm.serviceFrequency === "Otra" ? (
+            <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
+              Otra frecuencia
+              <input
+                className="field"
+                value={customerForm.frequencyOther}
+                onChange={(e) =>
+                  setCustomerForm({
+                    ...customerForm,
+                    frequencyOther: e.target.value,
+                  })
+                }
+                required
+                title="Describa la frecuencia"
+              />
+            </label>
+          ) : null}
           <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
             Servicios / mes
             <input
@@ -2472,32 +2654,6 @@ export default function ComercialPage() {
                 setCustomerForm({
                   ...customerForm,
                   servicesPerMonth: e.target.value,
-                })
-              }
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
-            Vehículo habitual
-            <input
-              className="field"
-              value={customerForm.preferredVehicle}
-              onChange={(e) =>
-                setCustomerForm({
-                  ...customerForm,
-                  preferredVehicle: e.target.value,
-                })
-              }
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-brand-text-secondary">
-            Responsable logístico
-            <input
-              className="field"
-              value={customerForm.logisticsOwner}
-              onChange={(e) =>
-                setCustomerForm({
-                  ...customerForm,
-                  logisticsOwner: e.target.value,
                 })
               }
             />

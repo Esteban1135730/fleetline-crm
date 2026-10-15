@@ -883,9 +883,9 @@ html.dark .login-card {
 }
 
 .login-card-shell {
-  background: color-mix(in srgb, var(--brand-surface) 42%, transparent);
-  backdrop-filter: blur(14px) saturate(1.2);
-  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  background: color-mix(in srgb, var(--brand-surface) 32%, transparent);
+  backdrop-filter: blur(8px) saturate(1.25);
+  -webkit-backdrop-filter: blur(8px) saturate(1.25);
   box-shadow:
     0 0 0 1px color-mix(in srgb, var(--brand-primary) 16%, transparent),
     0 24px 64px rgba(0, 0, 0, 0.28),
@@ -895,20 +895,25 @@ html.dark .login-card {
 html.light .login-canvas {
   background:
     radial-gradient(
-      ellipse 70% 50% at 50% -10%,
-      color-mix(in srgb, var(--brand-primary) 14%, transparent),
-      transparent 60%
+      ellipse 80% 55% at 50% 8%,
+      color-mix(in srgb, var(--brand-primary) 34%, transparent),
+      transparent 62%
     ),
     radial-gradient(
-      ellipse 45% 40% at 85% 70%,
-      color-mix(in srgb, var(--brand-secondary) 10%, transparent),
-      transparent 55%
+      ellipse 50% 42% at 12% 80%,
+      color-mix(in srgb, var(--brand-secondary) 22%, transparent),
+      transparent 58%
+    ),
+    radial-gradient(
+      ellipse 42% 36% at 88% 72%,
+      color-mix(in srgb, #10b981 16%, transparent),
+      transparent 60%
     ),
     var(--brand-canvas);
 }
 
 html.light .login-card-shell {
-  background: color-mix(in srgb, #ffffff 78%, transparent);
+  background: color-mix(in srgb, #ffffff 64%, transparent);
   border-color: color-mix(in srgb, var(--brand-border) 70%, white);
   box-shadow:
     0 0 0 1px color-mix(in srgb, var(--brand-primary) 18%, transparent),
@@ -923,25 +928,33 @@ html.light .login-field {
 }
 
 html.light .login-nexa-fog {
-  opacity: 0.22;
-  color: color-mix(in srgb, var(--brand-primary) 50%, transparent);
-  filter: blur(22px);
+  opacity: 0.55;
+  color: color-mix(in srgb, var(--brand-primary) 70%, #0284c7);
+  filter: blur(16px);
 }
 
 html.light .login-nexa-depth {
-  opacity: 0.2;
-  color: color-mix(in srgb, var(--brand-secondary) 35%, #64748b);
-  filter: blur(2.5px);
+  opacity: 0.48;
+  color: color-mix(in srgb, var(--brand-secondary) 55%, #0f172a);
+  filter: blur(1.5px);
 }
 
 html.light .login-nexa-watermark {
-  opacity: 0.36;
-  filter: drop-shadow(0 6px 22px color-mix(in srgb, var(--brand-primary) 22%, transparent))
-    drop-shadow(0 1px 0 rgba(255, 255, 255, 0.55));
+  opacity: 0.78;
+  filter: drop-shadow(0 10px 28px color-mix(in srgb, var(--brand-primary) 45%, transparent))
+    drop-shadow(0 0 18px color-mix(in srgb, var(--brand-secondary) 35%, transparent))
+    drop-shadow(0 1px 0 rgba(255, 255, 255, 0.7));
 }
 
 html.light .login-nexa-glow {
-  opacity: 0.9;
+  opacity: 1;
+}
+
+html.light .login-nexa-stage::before {
+  border-color: color-mix(in srgb, var(--brand-primary) 55%, transparent);
+  box-shadow:
+    0 0 90px color-mix(in srgb, var(--brand-primary) 32%, transparent),
+    inset 0 0 70px color-mix(in srgb, var(--brand-secondary) 18%, transparent);
 }
 
 /* Escenario NEXA — margen seguro para que no se corte la A */
@@ -955,6 +968,23 @@ html.light .login-nexa-glow {
   padding: clamp(2.5rem, 6vh, 4.5rem) clamp(1.25rem, 3vw, 2.5rem);
 }
 
+.login-nexa-stage::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(60vmin, 640px);
+  height: min(60vmin, 640px);
+  translate: -50% -50%;
+  border-radius: 999px;
+  border: 2px solid color-mix(in srgb, var(--brand-primary) 55%, transparent);
+  box-shadow:
+    0 0 80px color-mix(in srgb, var(--brand-primary) 28%, transparent),
+    inset 0 0 64px color-mix(in srgb, var(--brand-primary) 14%, transparent);
+  animation: nexaGlowDrift 14s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
 /* NEXA watermark — grande, 3D sutil, colores con rebote */
 .login-nexa-stack {
   position: relative;
@@ -966,8 +996,8 @@ html.light .login-nexa-glow {
   font-weight: 900;
   letter-spacing: -0.035em;
   line-height: 1;
-  /* vmin: crece sin pasarse de alto ni ancho; padding evita recorte de glifos */
-  font-size: clamp(5.5rem, 26vmin, 18rem);
+  /* Un poco más ancha que el círculo, para que N y A asomen del anillo */
+  font-size: clamp(5.5rem, 28vmin, 16rem);
   padding: 0.12em 0.08em;
   overflow: visible;
   box-sizing: content-box;
@@ -1001,7 +1031,7 @@ html.light .login-nexa-glow {
 .login-nexa-watermark {
   position: relative;
   z-index: 2;
-  opacity: 0.42;
+  opacity: 0.68;
   background-image: linear-gradient(
     105deg,
     var(--brand-primary) 0%,
@@ -1029,17 +1059,17 @@ html.light .login-nexa-glow {
   background:
     radial-gradient(
       ellipse 55% 40% at 50% 45%,
-      color-mix(in srgb, var(--brand-primary) 12%, transparent),
+      color-mix(in srgb, var(--brand-primary) 28%, transparent),
       transparent 70%
     ),
     radial-gradient(
       ellipse 40% 35% at 30% 60%,
-      color-mix(in srgb, var(--brand-secondary) 8%, transparent),
+      color-mix(in srgb, var(--brand-secondary) 18%, transparent),
       transparent 65%
     ),
     radial-gradient(
       ellipse 35% 30% at 70% 40%,
-      color-mix(in srgb, #10b981 6%, transparent),
+      color-mix(in srgb, #10b981 14%, transparent),
       transparent 60%
     );
   animation: nexaGlowDrift 14s ease-in-out infinite alternate;
@@ -1074,8 +1104,27 @@ html.light .login-nexa-glow {
 
 @media (prefers-reduced-motion: reduce) {
   .login-nexa-watermark,
-  .login-nexa-glow {
+  .login-nexa-glow,
+  .login-nexa-stage::before {
     animation: none;
+  }
+}
+
+.flt-workbench-toolbar--stacked {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.flt-workbench-toolbar--stacked .flt-workbench-tabs {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+
+@media (min-width: 768px) {
+  .flt-workbench-toolbar.flt-workbench-toolbar--stacked {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
   }
 }
 

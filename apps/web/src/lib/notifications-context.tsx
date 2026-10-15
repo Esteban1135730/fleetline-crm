@@ -116,7 +116,11 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   }, [user, refresh]);
 
   const markRead = useCallback(async (id: string) => {
-    await api(`/notificaciones/${id}/read`, { method: "PATCH", body: "{}" });
+    await api(`/notificaciones/${id}/read`, {
+      method: "PATCH",
+      body: "{}",
+      confirm: { skip: true },
+    });
     setItems((prev) =>
       prev.map((n) =>
         n.id === id ? { ...n, readAt: new Date().toISOString() } : n,

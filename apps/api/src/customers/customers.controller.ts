@@ -4,6 +4,7 @@ import {
   Get,
   Header,
   Param,
+  Query,
   Patch,
   Post,
   Req,
@@ -16,6 +17,7 @@ import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { ModulesGuard, RequireModule } from "../auth/modules.guard";
 import { CustomersService } from "./customers.service";
 import { QuotePdfService } from "../comercial/quote-pdf.service";
+import { searchPlacesColombia } from "../logistica/routing/osrm.route";
 
 @Controller("comercial")
 @UseGuards(JwtAuthGuard, ModulesGuard)
@@ -25,6 +27,11 @@ export class CustomersController {
     private service: CustomersService,
     private readonly quotesPdf: QuotePdfService,
   ) {}
+
+  @Get("places")
+  places(@Query("q") q?: string) {
+    return searchPlacesColombia(q ?? "");
+  }
 
   @Get("customers")
   list(@Req() req: { user: { organizationId: string } }) {

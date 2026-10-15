@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
   Inject,
   forwardRef,
@@ -105,6 +106,8 @@ function parseCalc(raw: unknown): QuoteCostBreakdown | null {
 
 @Injectable()
 export class CustomersService {
+  private readonly logger = new Logger(CustomersService.name);
+
   constructor(
     private prisma: PrismaService,
     @Inject(forwardRef(() => LogisticsService))
@@ -347,27 +350,50 @@ export class CustomersService {
       ? `${breakdown.origen} → ${breakdown.destino} · ${breakdown.tipoVehiculoLabel}`
       : undefined;
 
-    const count = await this.prisma.quote.count({
-      where: { customer: { organizationId } },
-    });
-    const created = await this.prisma.quote.create({
-      data: {
-        code: `COT-2026-${String(count + 1).padStart(3, "0")}`,
-        customerId: data.customerId,
-        amount,
-        notes: data.notes || routeNote,
-        calcJson: breakdown
-          ? (breakdown as unknown as Prisma.InputJsonValue)
-          : undefined,
-        status: QuoteStatus.DRAFT,
-      },
-      include: { customer: true },
-    });
+    let created: { id: string; code: string } | null = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        created = await this.prisma.quote.create({
+          data: {
+            code: await this.nextQuoteCode(),
+            customerId: data.customerId,
+            amount,
+            notes: data.notes || routeNote,
+            calcJson: breakdown
+              ? (breakdown as unknown as Prisma.InputJsonValue)
+              : undefined,
+            status: QuoteStatus.DRAFT,
+          },
+          include: { customer: true },
+        });
+        break;
+      } catch (err) {
+        const unique =
+          typeof err === "object" &&
+          err !== null &&
+          "code" in err &&
+          (err as { code?: string }).code === "P2002";
+        if (!unique || attempt === 2) throw err;
+      }
+    }
+    if (!created) {
+      throw new BadRequestException("No se pudo reservar el código de cotización");
+    }
 
-    const { pdfRef } = await this.quotePdf.generateSimpleQuotePdf(
-      organizationId,
-      created.id,
-    );
+    let pdfRef: string | null = null;
+    let pdfError: string | null = null;
+    try {
+      const pdf = await this.quotePdf.generateSimpleQuotePdf(
+        organizationId,
+        created.id,
+      );
+      pdfRef = pdf.pdfRef;
+    } catch (err) {
+      pdfError =
+        err instanceof Error ? err.message : "No se pudo generar el PDF";
+      this.logger.warn(`PDF cotización ${created.code}: ${pdfError}`);
+    }
+
     const withPdf = await this.prisma.quote.findUniqueOrThrow({
       where: { id: created.id },
       include: { customer: true },
@@ -376,9 +402,24 @@ export class CustomersService {
     return {
       ...withPdf,
       pdfRef,
-      pdfUrl: `/uploads/${pdfRef}`,
-      pdfGenerated: true,
+      pdfUrl: pdfRef ? `/uploads/${pdfRef}` : null,
+      pdfGenerated: Boolean(pdfRef),
+      pdfError,
     };
+  }
+
+  private async nextQuoteCode() {
+    const prefix = `COT-${new Date().getFullYear()}-`;
+    const rows = await this.prisma.quote.findMany({
+      where: { code: { startsWith: prefix } },
+      select: { code: true },
+    });
+    let max = 0;
+    for (const row of rows) {
+      const n = Number(row.code.slice(prefix.length));
+      if (Number.isFinite(n) && n > max) max = n;
+    }
+    return `${prefix}${String(max + 1).padStart(3, "0")}`;
   }
 
   async updateQuoteStatus(

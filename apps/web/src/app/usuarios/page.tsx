@@ -14,6 +14,7 @@ import {
 } from "@fsg/shared";
 import { KeyRound, Plus, Shield, UserCheck, Users } from "lucide-react";
 import { api } from "@/lib/api";
+import { isMutationCancelled } from "@/lib/mutation-confirm";
 import { useAuth } from "@/lib/auth-context";
 import { useCanPerform } from "@/lib/route-access";
 import { Modal, SlideOver, StatusPulseBadge } from "@/components/audit";
@@ -108,6 +109,9 @@ export default function UsuariosPage() {
   const [roleUser, setRoleUser] = useState<UserRow | null>(null);
   const [roleDraft, setRoleDraft] = useState<Role>("gestor_operativo");
   const [rolePin, setRolePin] = useState("");
+  const [editUser, setEditUser] = useState<UserRow | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
 
   async function load() {
     setUsers(await api<UserRow[]>("/users"));
@@ -387,35 +391,8 @@ export default function UsuariosPage() {
           >
             {filteredUsers.map((u) => (
               <NexaRow key={u.id}>
-                <NexaCell>
-                  <input
-                    className="field w-full py-1 text-xs"
-                    defaultValue={u.name}
-                    onBlur={async (e) => {
-                      if (e.target.value === u.name) return;
-                      await api(`/users/${u.id}`, {
-                        method: "PATCH",
-                        body: JSON.stringify({ name: e.target.value }),
-                      });
-                      await load();
-                    }}
-                  />
-                </NexaCell>
-                <NexaCell mono>
-                  <input
-                    className="field w-full py-1 font-data text-xs"
-                    type="email"
-                    defaultValue={u.email}
-                    onBlur={async (e) => {
-                      if (e.target.value === u.email) return;
-                      await api(`/users/${u.id}`, {
-                        method: "PATCH",
-                        body: JSON.stringify({ email: e.target.value }),
-                      });
-                      await load();
-                    }}
-                  />
-                </NexaCell>
+                <NexaCell>{u.name}</NexaCell>
+                <NexaCell mono>{u.email}</NexaCell>
                 {isMaster ? (
                   <NexaCell mono className="text-brand-text-secondary">
                     {u.organization?.name ?? "—"}
@@ -442,6 +419,19 @@ export default function UsuariosPage() {
                 <NexaCell>{userStatusBadge(u)}</NexaCell>
                 <NexaCell>
                   <div className="flex flex-wrap gap-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="w-auto px-2 py-1 text-xs"
+                      onClick={() => {
+                        setEditUser(u);
+                        setEditName(u.name);
+                        setEditEmail(u.email);
+                        setError("");
+                      }}
+                    >
+                      Modificar
+                    </Button>
                     <Button
                       variant="ghost"
                       className="w-auto px-2 py-1 text-xs"
@@ -730,6 +720,88 @@ export default function UsuariosPage() {
             </div>
           </div>
         ) : null}
+      </Modal>
+
+      <Modal
+        open={Boolean(editUser)}
+        onClose={() => setEditUser(null)}
+        title="Modificar cuenta"
+        description="El cambio se aplica al confirmar los valores anteriores y los nuevos."
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-auto px-4 py-2"
+              onClick={() => setEditUser(null)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              className="w-auto px-4 py-2"
+              disabled={busy}
+              onClick={() => {
+                if (!editUser) return;
+                const name = editName.trim();
+                const email = editEmail.trim();
+                if (!name || !email) {
+                  setError("Nombre y correo son obligatorios");
+                  return;
+                }
+                void (async () => {
+                  setBusy(true);
+                  setError("");
+                  try {
+                    await api(`/users/${editUser.id}`, {
+                      method: "PATCH",
+                      body: JSON.stringify({ name, email }),
+                      confirm: {
+                        title: "Confirmar edición",
+                        previous: { name: editUser.name, email: editUser.email },
+                        record: { name, email },
+                      },
+                    });
+                    setEditUser(null);
+                    await load();
+                  } catch (err) {
+                    if (!isMutationCancelled(err)) {
+                      setError(
+                        err instanceof Error ? err.message : "No se pudo modificar",
+                      );
+                    }
+                  } finally {
+                    setBusy(false);
+                  }
+                })();
+              }}
+            >
+              Guardar
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-3">
+          <label className="block text-xs text-brand-text-secondary">
+            Nombre
+            <input
+              className="field mt-1 w-full"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+            />
+          </label>
+          <label className="block text-xs text-brand-text-secondary">
+            Correo
+            <input
+              className="field mt-1 w-full font-data"
+              type="email"
+              value={editEmail}
+              onChange={(e) => setEditEmail(e.target.value)}
+            />
+          </label>
+          {error ? <p className="text-sm text-brand-danger">{error}</p> : null}
+        </div>
       </Modal>
     </div>
   );

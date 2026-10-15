@@ -9,6 +9,9 @@ type PlaceHit = { lat: number; lng: number; label: string };
 type Props = {
   value: string;
   onChange: (value: string) => void;
+  onCommit?: (value: string) => void;
+  endpoint?: string;
+  enabled?: boolean;
   placeholder?: string;
   title?: string;
   required?: boolean;
@@ -24,6 +27,9 @@ type Props = {
 export function PlaceSuggestInput({
   value,
   onChange,
+  onCommit,
+  endpoint = "/logistica/servicios/geocode",
+  enabled,
   placeholder = "Ciudad o punto",
   title,
   required,
@@ -31,12 +37,13 @@ export function PlaceSuggestInput({
   id,
 }: Props) {
   const { canAccess } = useAuth();
-  const canGeocode = canAccess("logistica");
+  const canGeocode = enabled ?? canAccess("logistica");
   const [hits, setHits] = useState<PlaceHit[]>([]);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const committedRef = useRef<string | null>(null);
 
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
@@ -49,6 +56,12 @@ export function PlaceSuggestInput({
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     const q = value.trim();
+    if (committedRef.current && q === committedRef.current) {
+      setHits([]);
+      setOpen(false);
+      setBusy(false);
+      return;
+    }
     if (!canGeocode || q.length < 3) {
       setHits([]);
       setBusy(false);
@@ -57,7 +70,7 @@ export function PlaceSuggestInput({
     setBusy(true);
     debounceRef.current = setTimeout(() => {
       void api<PlaceHit[]>(
-        `/logistica/servicios/geocode?q=${encodeURIComponent(q)}`,
+        `${endpoint}?q=${encodeURIComponent(q)}`,
       )
         .then((rows) => {
           setHits(Array.isArray(rows) ? rows : []);
@@ -69,7 +82,7 @@ export function PlaceSuggestInput({
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [value, canGeocode]);
+  }, [value, canGeocode, endpoint]);
 
   return (
     <div ref={boxRef} className="relative">
@@ -78,7 +91,10 @@ export function PlaceSuggestInput({
         className={className}
         placeholder={placeholder}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => {
+          committedRef.current = null;
+          onChange(e.target.value);
+        }}
         onFocus={() => hits.length > 0 && setOpen(true)}
         required={required}
         title={title}
@@ -103,7 +119,9 @@ export function PlaceSuggestInput({
                 role="option"
                 className="block w-full px-3 py-2 text-left text-sm text-brand-text-primary hover:bg-brand-surface-hover"
                 onClick={() => {
+                  committedRef.current = hit.label;
                   onChange(hit.label);
+                  onCommit?.(hit.label);
                   setHits([]);
                   setOpen(false);
                 }}

@@ -138,7 +138,7 @@ export type ApiOptions = RequestInit & {
 };
 
 const SKIP_CONFIRM_PATH =
-  /notifications|\/health\b|\/auth\/me\b|telemetry|gps|heartbeat|presence|socket|qa-trace/i;
+  /notifications|notificaciones|\/health\b|\/auth\/me\b|telemetry|gps|heartbeat|presence|socket|qa-trace/i;
 
 async function confirmMutationIfNeeded(
   path: string,

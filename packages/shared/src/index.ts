@@ -1349,6 +1349,8 @@ export const QuoteCalculateInputSchema = z.object({
   regreso: z.string().max(40).optional(),
   formaPago: z.string().max(80).optional(),
   comentario: z.string().max(800).optional(),
+  horasServicio: z.number().min(0).max(720).optional(),
+  horasRuta: z.number().min(0).max(720).optional(),
 });
 export type QuoteCalculateInput = z.infer<typeof QuoteCalculateInputSchema>;
 
@@ -1381,6 +1383,8 @@ export type QuoteCostBreakdown = {
   regreso?: string;
   formaPago?: string;
   comentario?: string;
+  horasServicio?: number;
+  horasRuta?: number;
 };
 
 export function calculateQuotePrice(
@@ -1395,6 +1399,8 @@ export function calculateQuotePrice(
   const ida = input.idaYRegreso ?? false;
   const factor = input.factorTrafico ?? 1;
   const kmFactor = ida ? 2 : 1;
+  const horas = Math.max(input.horasServicio ?? 0, input.horasRuta ?? 0);
+  const jornada = horas > 0 ? Math.max(1, horas / (dias * 10)) : 1;
   const tollMeta = estimateTollsForRoute(input.origen, input.destino);
   const peajeUnit =
     peajes > 0 && tollMeta.source === "catalog"
@@ -1403,7 +1409,7 @@ export function calculateQuotePrice(
   const costoDistancia =
     input.distanciaKm * kmFactor * vehicle.costPerKm * factor * dias * qty;
   const costoPeajes = peajes * kmFactor * peajeUnit * qty;
-  const pagoConductor = vehicle.driverPay * dias * qty;
+  const pagoConductor = Math.round(vehicle.driverPay * dias * qty * jornada);
   const costoOperativo = costoDistancia + costoPeajes + pagoConductor;
   const divisor = 1 - margen / 100;
   let precioSugerido = divisor > 0 ? costoOperativo / divisor : costoOperativo;
@@ -1442,6 +1448,8 @@ export function calculateQuotePrice(
     regreso: input.regreso,
     formaPago: input.formaPago,
     comentario: input.comentario,
+    horasServicio: input.horasServicio,
+    horasRuta: input.horasRuta,
   };
 }
 export type DispatchSemaphore = "GREEN" | "YELLOW" | "RED";

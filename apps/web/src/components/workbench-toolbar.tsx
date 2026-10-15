@@ -89,6 +89,14 @@ export function WorkbenchSearch({
   );
 }
 
-export function WorkbenchToolbar({ children }: { children: ReactNode }) {
-  return <div className="flt-workbench-toolbar">{children}</div>;
+export function WorkbenchToolbar({
+  children,
+  className = "",
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={`flt-workbench-toolbar ${className}`.trim()}>{children}</div>
+  );
 }
